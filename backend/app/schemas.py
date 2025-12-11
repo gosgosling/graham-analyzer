@@ -26,6 +26,20 @@ class AnalysisResponse(BaseModel):
     stable: list[AnalysisItem]
     overvalued: list[AnalysisItem]
 
+class CompanyResult(BaseModel):
+    company_id: int
+    company_name: str
+    category: str
+    multipliers: Multipliers
+    analysis: dict
+    recommendation: str
+    date: str
 
 
+class AnalysisDetails(BaseModel):
+    pe_ratio_status: str
+    pb_ratio_status: str
+    debt_status: str
+    liquidity_status: str
+    profitability_status: str
 
