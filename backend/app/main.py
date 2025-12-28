@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi import HTTPException
 import uvicorn
 from typing import Optional
-import debugpy
+#import debugpy
 
 from app.routers import companies
 from app.schemas import AnalysisResponse, Company, Multipliers

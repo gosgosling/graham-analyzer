@@ -4,27 +4,17 @@ from app.schemas import Company, CompanyResult, Multipliers, AnalysisItem, Analy
 from app.services.graham_analyser import classify_company
 from app.data.mock_data import MOCK_COMPANIES, MOCK_MULTIPLIERS
 from typing import LiteralString, Optional
+from app.utils.moex_client import get_moex_companies
 
 router = APIRouter(prefix="/companies", tags=["companies"])
 
 @router.get("/", response_model=list[Company])
-def get_companies(sector: Optional[str] = "", category: Optional[str] = ""):
+def get_companies():
 
-    companies = MOCK_COMPANIES
+    companies = get_moex_companies()
 
-    if sector:
-        companies = [c for c in companies if c['sector'] == sector]
     
-    if category:
-        filtered_companies = []
-        for company in companies:
-            multipliers = _get_multipliers_by_company_id(company['id'])
-            classified = classify_company(multipliers)
-            if classified['classify'] == category:
-                filtered_companies.append(company)
-        companies = filtered_companies
-
-
+    
     return companies
 
 def _get_multipliers_by_company_id(company_id: int) -> dict:
