@@ -1,21 +1,21 @@
 from fastapi import APIRouter
 from fastapi import HTTPException
-from app.schemas import Company, CompanyResult, Multipliers, AnalysisItem, AnalysisResponse
+from app.schemas import Security, CompanyResult, Multipliers, AnalysisItem, AnalysisResponse
 from app.services.graham_analyser import classify_company
 from app.data.mock_data import MOCK_COMPANIES, MOCK_MULTIPLIERS
 from typing import LiteralString, Optional
-from app.utils.moex_client import get_moex_companies
+from app.utils.moex_client import get_moex_securities
 
-router = APIRouter(prefix="/companies", tags=["companies"])
+router = APIRouter(prefix="/securities", tags=["securities"])
 
-@router.get("/", response_model=list[Company])
-def get_companies():
+@router.get("/", response_model=list[Security])
+def get_securities():
 
-    companies = get_moex_companies()
+    securities = get_moex_securities()
 
     
     
-    return companies
+    return securities
 
 def _get_multipliers_by_company_id(company_id: int) -> dict:
     """Вспомогательная функция для получения мультипликаторов"""
@@ -29,19 +29,19 @@ def get_analysis_companies():
     undervalued_companies = []
     stable_companies = []
     overvalued_companies = []
-    companies = get_companies()
-    for company in companies:
-        multipliers = _get_multipliers_by_company_id(company['id'])
+    securities = get_securities()
+    for security in securities:
+        multipliers = _get_multipliers_by_company_id(security['id'])
         classified_category = classify_company(multipliers) 
-        if classified_category['classify'] == "undervalued": undervalued_companies.append({'company': company, 'multipliers': multipliers, 'category': classified_category['classify']})
-        elif classified_category['classify'] == "stable": stable_companies.append({'company': company, 'multipliers': multipliers, 'category': classified_category['classify']})
-        else:  overvalued_companies.append({'company': company, 'multipliers': multipliers, 'category': classified_category['classify']})
+        if classified_category['classify'] == "undervalued": undervalued_companies.append({'security': security, 'multipliers': multipliers, 'category': classified_category['classify']})
+        elif classified_category['classify'] == "stable": stable_companies.append({'security': security, 'multipliers': multipliers, 'category': classified_category['classify']})
+        else:  overvalued_companies.append({'security': security, 'multipliers': multipliers, 'category': classified_category['classify']})
     return {"undervalued": undervalued_companies, "stable": stable_companies, "overvalued": overvalued_companies}
 
 
-@router.get('/{company_id}', response_model=Company)
+@router.get('/{company_id}', response_model=Security)
 def get_company(company_id: int):
-    company = next((company for company in get_companies() if company['id'] == company_id), None)
+    company = next((security for security in get_securities() if security['id'] == company_id), None)
     if company is None:
         raise HTTPException(status_code=404, detail='Company not found')
     return company

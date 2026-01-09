@@ -1,15 +1,28 @@
 from unicodedata import category
 from fastapi import FastAPI
 from fastapi import HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 from typing import Optional
 #import debugpy
 
 from app.routers import companies
-from app.schemas import AnalysisResponse, Company, Multipliers
+from app.routers import companies_router
+from app.schemas import AnalysisResponse, Security, Multipliers
 
 app = FastAPI(title='Graham Analyzer')
-app.include_router(companies.router)
+
+# Настройка CORS для работы с frontend
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],  # URL вашего React приложения
+    allow_credentials=True,
+    allow_methods=["*"],  # Разрешить все HTTP методы
+    allow_headers=["*"],  # Разрешить все заголовки
+)
+
+app.include_router(companies.router)  # Роутер для ценных бумаг (MOEX)
+app.include_router(companies_router.router)  # Роутер для компаний (Tinkoff)
 
 
 
