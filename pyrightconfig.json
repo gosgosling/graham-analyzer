@@ -1,6 +1,21 @@
 {
-    "venvPath": "backend",
-    "venv": "venv",
-    "extraPaths": ["backend"]
+    "venvPath": ".",
+    "venv": "backend/venv",
+    "extraPaths": [
+        "backend",
+        "backend/app"
+    ],
+    "pythonVersion": "3.13",
+    "typeCheckingMode": "basic",
+    "include": [
+        "backend/**"
+    ],
+    "exclude": [
+        "**/__pycache__",
+        "**/node_modules",
+        "**/venv",
+        "**/.git"
+    ],
+    "reportMissingImports": true,
+    "reportMissingTypeStubs": false
 }
-
