@@ -1,7 +1,7 @@
 from pydantic import BaseModel
 from typing import Optional
 
-class Company(BaseModel):
+class Security(BaseModel):
     secid: str
     boardid: str
     shortname: str
@@ -40,7 +40,7 @@ class Multipliers(BaseModel):
     date: str
 
 class AnalysisItem(BaseModel):
-    company: Company
+    security: Security
     multipliers: Multipliers
     category: str
 
@@ -65,4 +65,15 @@ class AnalysisDetails(BaseModel):
     debt_status: str
     liquidity_status: str
     profitability_status: str
+
+class Company(BaseModel):
+    """Схема для компании из Tinkoff Invest API"""
+    figi: str  # FIGI - уникальный идентификатор инструмента
+    ticker: str  # Тикер
+    name: str  # Название компании
+    isin: Optional[str] = None  # ISIN для связи с MOEX
+    sector: Optional[str] = None  # Сектор
+    currency: str  # Валюта
+    lot: int  # Размер лота
+    api_trade_available_flag: bool = False  # Доступность для торговли через API
 

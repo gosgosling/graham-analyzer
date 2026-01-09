@@ -1,7 +1,7 @@
 import requests
 from typing import List, Dict
 
-def get_moex_companies() -> List[Dict]:
+def get_moex_securities() -> List[Dict]:
     """
     Получает список акций компаний, торгующих на Мосбирже.
     Фильтрует только акции (INSTRID='EQIN', SECTYPE='1').
