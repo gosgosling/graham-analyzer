@@ -77,3 +77,13 @@ class Company(BaseModel):
     lot: int  # Размер лота
     api_trade_available_flag: bool = False  # Доступность для торговли через API
 
+
+class CompanyCreate(BaseModel):
+    figi: str
+    ticker: str
+    name: str
+    isin: Optional[str] = None
+    sector: Optional[str] = None
+    currency: str = "RUB"
+    lot: int = 1
+    api_trade_available_flag: bool = False

@@ -38,7 +38,7 @@ def get_tinkoff_companies() -> List[Dict]:
             print(f"Содержимое .env (первые 200 символов): {ENV_FILE.read_text()[:200]}")
         return []
     
-    if token == 'tocken':
+    if token == 'token':
         print("Предупреждение: TINKOFF_TOKEN установлен в значение по умолчанию 'your_token_here'")
         return []
     
