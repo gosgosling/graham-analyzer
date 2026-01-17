@@ -13,8 +13,6 @@ def get_securities():
 
     securities = get_moex_securities()
 
-    
-    
     return securities
 
 def _get_multipliers_by_company_id(company_id: int) -> dict:
