@@ -1,20 +1,23 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime
+from sqlalchemy import Integer, String, Boolean, DateTime
+from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
+from typing import Optional
+from datetime import datetime
 from app.database import Base
 
 class Company(Base):
     __tablename__ = "companies"
     
-    id = Column(Integer, primary_key=True, index=True)
-    figi = Column(String, unique=True, nullable=False, index=True)
-    ticker = Column(String, nullable=False, index=True)
-    name = Column(String, nullable=False)
-    isin = Column(String, nullable=True, index=True)
-    sector = Column(String, nullable=True)
-    currency = Column(String, nullable=False, default="RUB")
-    lot = Column(Integer, nullable=False, default=1)
-    api_trade_available_flag = Column(Boolean, default=False)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    figi: Mapped[str] = mapped_column(String, unique=True, nullable=False, index=True)
+    ticker: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    isin: Mapped[Optional[str]] = mapped_column(String, nullable=True, index=True)
+    sector: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    currency: Mapped[str] = mapped_column(String, nullable=False, default="RUB")
+    lot: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    api_trade_available_flag: Mapped[bool] = mapped_column(Boolean, default=False)
     
     # Метаданные
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
