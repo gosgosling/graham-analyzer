@@ -1,16 +1,9 @@
 {
     "python.defaultInterpreterPath": "${workspaceFolder}/backend/venv/bin/python",
-    "files.exclude": {
-        "**/__pycache__": true,
-        "**/*.pyc": true
-    },
-    "cursorpyright.analysis.autoImportCompletions": true,
-    "cursorpyright.analysis.autoSearchPaths": true,
-    "cursorpyright.analysis.diagnosticMode": "workspace",
-    "cursorpyright.analysis.extraPaths": [
+    "python.analysis.extraPaths": [
         "${workspaceFolder}/backend",
         "${workspaceFolder}/backend/app"
     ],
-    "cursorpyright.analysis.typeCheckingMode": "basic",
-    "cursorpyright.analysis.indexing": true
+    "python.analysis.autoImportCompletions": true,
+    "python.analysis.typeCheckingMode": "basic"
 }

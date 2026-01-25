@@ -71,7 +71,7 @@ class Company(BaseModel):
     figi: str  # FIGI - уникальный идентификатор инструмента
     ticker: str  # Тикер
     name: str  # Название компании
-    isin: Optional[str] = None  # ISIN для связи с MOEX
+    isin: str # ISIN для связи с MOEX
     sector: Optional[str] = None  # Сектор
     currency: str  # Валюта
     lot: int  # Размер лота
@@ -82,7 +82,7 @@ class CompanyCreate(BaseModel):
     figi: str
     ticker: str
     name: str
-    isin: Optional[str] = None
+    isin: str
     sector: Optional[str] = None
     currency: str = "RUB"
     lot: int = 1

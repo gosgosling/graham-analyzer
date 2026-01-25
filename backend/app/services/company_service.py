@@ -75,10 +75,31 @@ def update_company(db: Session, isin: str, company_data: CompanyCreate) -> Optio
     return db_company
 
 
-def get_all_companies(db: Session) -> List[Company]:
+def get_all_companies(db: Session, skip: int = 0, limit: int = 200) -> List[Company]:
     """
     Получает все компании из БД.
     def get_all_companies(db: Session, skip: int = 0, limit: int = 100) -> List[Company]:
     return db.query(Company).offset(skip).limit(limit).all()
     """
     return db.query(Company).all()
+
+def sync_company(db: Session, company_data: CompanyCreate) -> Company:
+    """
+    Синхронизирует компанию: создает, если не существует, или обновляет, если существует.
+    Это удобная функция для массовой синхронизации данных из API.
+    
+    Args:
+        db: Сессия базы данных
+        company_data: Данные компании
+        
+    Returns:
+        Объект Company (созданный или обновленный)
+    """
+
+    existing_company = get_company_by_isin(db, company_data.isin)
+
+    if existing_company:
+        return update_company(db, company_data.isin, company_data)
+    else:
+        # Компании нет - создаем
+        return create_company(db, company_data)
