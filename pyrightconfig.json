@@ -1,11 +1,8 @@
 {
     "venvPath": ".",
     "venv": "backend/venv",
-    "extraPaths": [
-        "backend",
-        "backend/app"
-    ],
     "pythonVersion": "3.13",
+    "pythonPlatform": "Linux",
     "typeCheckingMode": "basic",
     "include": [
         "backend/**"
@@ -17,5 +14,16 @@
         "**/.git"
     ],
     "reportMissingImports": true,
-    "reportMissingTypeStubs": false
+    "reportMissingTypeStubs": false,
+    "executionEnvironments": [
+        {
+            "root": "backend",
+            "pythonVersion": "3.13",
+            "pythonPlatform": "Linux",
+            "extraPaths": [
+                "backend",
+                "backend/app"
+            ]
+        }
+    ]
 }
