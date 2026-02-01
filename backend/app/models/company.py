@@ -21,6 +21,9 @@ class Company(Base):
     lot: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     api_trade_available_flag: Mapped[bool] = mapped_column(Boolean, default=False)
     
+    # Год начала выплаты дивидендов (для анализа непрерывности по Грэму)
+    dividend_start_year: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    
     # Метаданные
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
