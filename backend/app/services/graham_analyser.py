@@ -1,5 +1,4 @@
 
-
 def classify_company(multipliers):
 
     """

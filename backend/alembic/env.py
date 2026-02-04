@@ -5,7 +5,8 @@ from sqlalchemy import pool
 
 from alembic import context
 from app.database import Base
-from app.models import Company
+from app.models.company import Company
+from app.models.financial_report import FinancialReport  # Импортируем модель для миграций
 from app.config import settings
 
 # this is the Alembic Config object, which provides
