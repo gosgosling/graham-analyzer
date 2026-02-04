@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 from typing import Optional, List
 
 class Security(BaseModel):
@@ -105,6 +105,17 @@ class FinancialReportCreate(BaseModel):
     equity: Optional[float] = None
     dividends_per_share: Optional[float] = None
     dividends_paid: bool = False  # Выплачивались ли дивиденды в этом периоде
+    currency: str = "RUB"
+    exchange_rate: Optional[float] = None
+
+    @model_validator(mode='after')
+    def validate_currency(self):
+        if self.currency == "USD" and not self.exchange_rate:
+            raise ValueError("Курс доллара обязателен для USD отчетов")
+        if self.currency == "RUB" and self.exchange_rate is not None:
+            # Можно предупредить, но не обязательно ошибка
+            pass
+        return self
 
 
 class FinancialReport(BaseModel):
@@ -123,6 +134,8 @@ class FinancialReport(BaseModel):
     equity: Optional[float] = None
     dividends_per_share: Optional[float] = None
     dividends_paid: bool = False
+    currency: str = "RUB"
+    exchange_rate: Optional[float] = None
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
 
