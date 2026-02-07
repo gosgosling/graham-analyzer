@@ -1,4 +1,4 @@
-from sqlalchemy import ForeignKey, Integer, Numeric, DateTime, Date
+from sqlalchemy import ForeignKey, Integer, Numeric, DateTime, Date, String
 from datetime import datetime, date
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
@@ -38,6 +38,10 @@ class FinancialReport(Base):
     # Дивиденды
     dividends_per_share: Mapped[Optional[float]] = mapped_column(Numeric(10, 4), nullable=True)  # дивиденды на акцию
     dividends_paid: Mapped[Optional[bool]] = mapped_column(default=False)  # выплачивались ли дивиденды в этом периоде
+
+    # Валюта
+    currency: Mapped[str] = mapped_column(String, default="RUB")  # Валюта отчета
+    exchange_rate: Mapped[Optional[float]] = mapped_column(Numeric(10, 4), nullable=True)  # Курс на дату отчета
 
     # Метаданные
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

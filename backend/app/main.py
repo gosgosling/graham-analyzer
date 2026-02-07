@@ -5,10 +5,10 @@ from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 from typing import Optional
 #import debugpy
-
-from app.routers import companies
-from app.routers import companies_router
+from app.routers import companies_router, companies, reports_router
 from app.schemas import AnalysisResponse, Security, Multipliers
+
+
 
 app = FastAPI(title='Graham Analyzer')
 
@@ -23,6 +23,7 @@ app.add_middleware(
 
 app.include_router(companies.router)  # Роутер для ценных бумаг (MOEX)
 app.include_router(companies_router.router)  # Роутер для компаний (Tinkoff)
+app.include_router(reports_router.router)
 
 
 

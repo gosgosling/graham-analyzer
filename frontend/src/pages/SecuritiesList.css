@@ -142,6 +142,34 @@
   color: #e74c3c;
 }
 
+.action-cell {
+  text-align: center;
+  padding: 8px !important;
+}
+
+.btn-add-report {
+  background-color: #3498db;
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.btn-add-report:hover {
+  background-color: #2980b9;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(52, 152, 219, 0.3);
+}
+
+.btn-add-report:active {
+  transform: translateY(0);
+}
+
 /* Адаптивность для маленьких экранов */
 @media (max-width: 768px) {
   .securities-container {
