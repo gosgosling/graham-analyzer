@@ -39,6 +39,7 @@ export interface Multipliers {
 }
 
 export interface Company {
+    id?: number; // ID из базы данных
     figi: string;
     ticker: string;
     name: string;
@@ -47,4 +48,28 @@ export interface Company {
     currency: string;
     lot: number;
     api_trade_available_flag: boolean;
+}
+
+export interface FinancialReportCreate {
+    company_id: number;
+    report_date: string; // YYYY-MM-DD формат
+    price_per_share?: number | null;
+    shares_outstanding?: number | null;
+    revenue?: number | null;
+    net_income?: number | null;
+    total_assets?: number | null;
+    current_assets?: number | null;
+    total_liabilities?: number | null;
+    current_liabilities?: number | null;
+    equity?: number | null;
+    dividends_per_share?: number | null;
+    dividends_paid: boolean;
+    currency: string; // "RUB" или "USD"
+    exchange_rate?: number | null; // Обязателен для USD
+}
+
+export interface FinancialReport extends FinancialReportCreate {
+    id: number;
+    created_at?: string;
+    updated_at?: string | null;
 }

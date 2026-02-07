@@ -68,6 +68,7 @@ class AnalysisDetails(BaseModel):
 
 class Company(BaseModel):
     """Схема для компании из Tinkoff Invest API"""
+    id: Optional[int] = None  # ID из базы данных (может отсутствовать при создании)
     figi: str  # FIGI - уникальный идентификатор инструмента
     ticker: str  # Тикер
     name: str  # Название компании
@@ -76,6 +77,9 @@ class Company(BaseModel):
     currency: str  # Валюта
     lot: int  # Размер лота
     api_trade_available_flag: bool = False  # Доступность для торговли через API
+
+    class Config:
+        from_attributes = True  # Для SQLAlchemy моделей
 
 
 class CompanyCreate(BaseModel):

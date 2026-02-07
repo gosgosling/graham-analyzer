@@ -1,14 +1,48 @@
-import React from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { getCompanies } from '../services/api';
-import { Company } from '../types';
+import React, { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { getCompanies, createFinancialReport } from '../services/api';
+import { Company, FinancialReportCreate } from '../types';
+import ReportForm from '../components/ReportForm';
 import './SecuritiesList.css'; // Используем те же стили
 
 const CompaniesList: React.FC = () => {
+  const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
+  const [showForm, setShowForm] = useState(false);
+  const queryClient = useQueryClient();
+
   const { data, isLoading, error } = useQuery({
     queryKey: ['companies'],
     queryFn: getCompanies
   });
+
+  const createReportMutation = useMutation({
+    mutationFn: createFinancialReport,
+    onSuccess: () => {
+      // Обновляем список отчетов после успешного создания
+      queryClient.invalidateQueries({ queryKey: ['reports'] });
+      setShowForm(false);
+      setSelectedCompany(null);
+      alert('Отчет успешно добавлен!');
+    },
+    onError: (error: any) => {
+      console.error('Error creating report:', error);
+      alert('Ошибка при создании отчета: ' + (error.response?.data?.detail || error.message));
+    }
+  });
+
+  const handleAddReport = (company: Company) => {
+    setSelectedCompany(company);
+    setShowForm(true);
+  };
+
+  const handleFormSubmit = async (reportData: FinancialReportCreate) => {
+    await createReportMutation.mutateAsync(reportData);
+  };
+
+  const handleFormCancel = () => {
+    setShowForm(false);
+    setSelectedCompany(null);
+  };
 
   if (isLoading) {
     return (
@@ -41,6 +75,7 @@ const CompaniesList: React.FC = () => {
               <th>Валюта</th>
               <th>Лот</th>
               <th>Доступно для API</th>
+              <th>Действия</th>
             </tr>
           </thead>
           <tbody>
@@ -59,11 +94,21 @@ const CompaniesList: React.FC = () => {
                       {company.api_trade_available_flag ? 'Да' : 'Нет'}
                     </span>
                   </td>
+                  <td className="action-cell">
+                    <button
+                      onClick={() => handleAddReport(company)}
+                      className="btn-add-report"
+                      title="Добавить финансовый отчет"
+                      disabled={!company.id}
+                    >
+                      + Отчет
+                    </button>
+                  </td>
                 </tr>
               ))
             ) : (
               <tr>
-                <td colSpan={8} style={{ textAlign: 'center', padding: '20px' }}>
+                <td colSpan={9} style={{ textAlign: 'center', padding: '20px' }}>
                   Нет данных. Проверьте настройку TINKOFF_TOKEN в .env файле.
                 </td>
               </tr>
@@ -71,6 +116,16 @@ const CompaniesList: React.FC = () => {
           </tbody>
         </table>
       </div>
+      
+      {/* Модальное окно с формой */}
+      {showForm && selectedCompany && selectedCompany.id && (
+        <ReportForm
+          companyId={selectedCompany.id}
+          companyName={selectedCompany.name}
+          onSubmit={handleFormSubmit}
+          onCancel={handleFormCancel}
+        />
+      )}
     </div>
   );
 };
