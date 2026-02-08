@@ -18,6 +18,19 @@ def get_company_by_isin(db: Session, isin: str) -> Optional[Company]:
     """
     return db.query(Company).filter(Company.isin == isin).first()
 
+def get_company_by_id(db: Session, company_id: int) -> Optional[Company]:
+    """
+    Получает компанию по ID.
+    
+    Args:
+        db: Сессия базы данных
+        company_id: ID компании
+        
+    Returns:
+        Объект Company или None, если не найдена
+    """
+    return db.query(Company).filter(Company.id == company_id).first()
+
 def create_company(db: Session, company_data: CompanyCreate) -> Company:
     """
     Создает новую компанию в БД.

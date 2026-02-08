@@ -5,7 +5,7 @@ from app.utils.tinkoff_client import get_tinkoff_companies
 from typing import List
 from app.schemas import Company
 from app.database import get_db
-from app.services.company_service import get_all_companies
+from app.services.company_service import get_all_companies, get_company_by_id
 from app.services.sync_service import sync_companies_from_tinkoff
 from app.models.company import Company as CompanyModel
 
@@ -52,4 +52,23 @@ def sync_companies(db: Session = Depends(get_db)):
             detail=f"Ошибка при синхронизации: {str(e)}"
         )
 
+@router.get("/{company_id}", response_model=Company)
+def get_company(company_id: int, db: Session = Depends(get_db)):
+    """
+    Получает информацию о компании по её ID.
+    
+    Args:
+        company_id: ID компании в базе данных
+        db: Сессия БД
+        
+    Returns:
+        Данные компании
+        
+    Raises:
+        HTTPException: Если компания не найдена
+    """
+    company = get_company_by_id(db, company_id)
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+    return company
 
