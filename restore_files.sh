@@ -1,3 +1,9 @@
+#!/bin/bash
+# Скрипт восстановления всех потерянных файлов
+echo "Восстановление файлов..."
+
+# 1. Обновляем reports_router.py (добавляем endpoint /with-rub)
+cat > backend/app/routers/reports_router.py << 'REPORTS_EOF'
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
@@ -117,3 +123,37 @@ def delete_financial_report(report_id: int, db: Session = Depends(get_db)):
             detail=f"Отчет с ID {report_id} не найден"
         )
     return None
+REPORTS_EOF
+
+# 2. Обновляем main.py
+cat > backend/app/main.py << 'MAIN_EOF'
+from unicodedata import category
+from fastapi import FastAPI
+from fastapi import HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+import uvicorn
+from typing import Optional
+from app.routers import companies_router, companies, reports_router, dividends_router
+from app.schemas import AnalysisResponse, Security, Multipliers
+
+app = FastAPI(title='Graham Analyzer')
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.include_router(companies.router)
+app.include_router(companies_router.router)
+app.include_router(reports_router.router)
+app.include_router(dividends_router.router)
+
+@app.get('/health')
+def health_check():
+    return {'status': 'ok'}
+MAIN_EOF
+
+echo "Backend файлы восстановлены!"

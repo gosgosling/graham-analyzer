@@ -1,0 +1,79 @@
+.companies-expandable-table tbody tr.company-row {
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.companies-expandable-table tbody tr.company-row:hover {
+  background-color: #e3f2fd !important;
+  transform: scale(1.01);
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.15);
+}
+
+.expand-cell { text-align: center; padding: 8px !important; }
+
+.expand-button {
+  background: none;
+  border: none;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 4px 8px;
+  color: #3498db;
+  transition: transform 0.2s ease;
+}
+
+.expand-button:hover:not(:disabled) { transform: scale(1.2); }
+.expand-button:disabled { opacity: 0.3; cursor: not-allowed; }
+
+.expanded-row { background-color: #f9fafb !important; }
+.expanded-row td { padding: 0 !important; border-bottom: 2px solid #e1e8ed !important; }
+
+.reports-section {
+  padding: 20px;
+  background-color: #ffffff;
+  border-left: 4px solid #3498db;
+  margin: 10px;
+  border-radius: 8px;
+}
+
+.reports-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid #e1e8ed;
+}
+
+.btn-add-report-inline {
+  background-color: #3498db;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.reports-list { display: flex; flex-direction: column; gap: 10px; }
+
+.report-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background-color: #f8f9fa;
+  border: 1px solid #e1e8ed;
+  border-radius: 6px;
+}
+
+.report-info { display: flex; gap: 15px; align-items: center; }
+.report-date { font-weight: 600; color: #2c3e50; }
+
+.no-reports { text-align: center; padding: 30px; }
+
+.btn-add-first-report {
+  background-color: #27ae60;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 6px;
+  cursor: pointer;
+}

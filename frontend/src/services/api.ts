@@ -25,6 +25,16 @@ export const getCompanies = async (): Promise<Company[]> => {
     }
 };
 
+export const getCompanyById = async (companyId: number): Promise<Company> => {
+    try {
+        const response = await api.get<Company>(`/companies/${companyId}`);
+        return response.data;
+    } catch (error) {
+        console.error(`Error fetching company ${companyId}:`, error);
+        throw error;
+    }
+};
+
 // ============ API для финансовых отчетов ============
 
 export const createFinancialReport = async (
