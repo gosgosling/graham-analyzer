@@ -3,6 +3,7 @@ from sqlalchemy.exc import IntegrityError
 from typing import List, Optional
 from datetime import date, datetime
 from app.models.financial_report import FinancialReport
+from app.models.company import Company
 from app.schemas import FinancialReportCreate
 
 
@@ -43,7 +44,29 @@ def create_report(db: Session, report_data: FinancialReportCreate) -> FinancialR
     db.add(db_report)
     db.commit()
     db.refresh(db_report)
+    
+    # Если отчет содержит дивиденды, обновляем год начала выплат
+    if report_data.dividends_paid:
+        _update_dividend_start_year_if_needed(db, report_data.company_id, report_date_obj.year)
+    
     return db_report
+
+
+def _update_dividend_start_year_if_needed(db: Session, company_id: int, report_year: int) -> None:
+    """
+    Внутренняя функция для обновления года начала выплаты дивидендов.
+    Обновляет только если текущий год раньше сохраненного или если год не установлен.
+    
+    Args:
+        db: Сессия базы данных
+        company_id: ID компании
+        report_year: Год отчета с дивидендами
+    """
+    company = db.query(Company).filter(Company.id == company_id).first()
+    if company:
+        if company.dividend_start_year is None or report_year < company.dividend_start_year:
+            company.dividend_start_year = report_year  # type: ignore
+            db.commit()
 
 
 def get_report_by_id(db: Session, report_id: int) -> Optional[FinancialReport]:
@@ -65,7 +88,7 @@ def get_reports_by_company(
     company_id: int, 
     skip: int = 0, 
     limit: int = 100
-    ) -> List[FinancialReport]:
+) -> List[FinancialReport]:
     """
     Получает все отчеты для конкретной компании.
     

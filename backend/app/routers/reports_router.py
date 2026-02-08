@@ -5,6 +5,7 @@ from typing import List
 from app.database import get_db
 from app.schemas import FinancialReport, FinancialReportCreate
 from app.services import report_service
+from app.utils.currency_converter import get_report_with_rub_values
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 
@@ -14,15 +15,7 @@ def create_financial_report(
     report_data: FinancialReportCreate,
     db: Session = Depends(get_db)
 ):
-    """
-    Создать новый финансовый отчет.
-    
-    - **company_id**: ID компании
-    - **report_date**: Дата отчета (YYYY-MM-DD)
-    - **currency**: Валюта отчета (RUB или USD)
-    - **exchange_rate**: Курс доллара (обязателен для USD)
-    - Остальные поля - финансовые показатели
-    """
+    """Создать новый финансовый отчет."""
     try:
         return report_service.create_report(db=db, report_data=report_data)
     except Exception as e:
@@ -38,20 +31,13 @@ def get_all_reports(
     limit: int = 200,
     db: Session = Depends(get_db)
 ):
-    """
-    Получить все финансовые отчеты (с пагинацией).
-    
-    - **skip**: Количество пропущенных записей
-    - **limit**: Максимальное количество записей
-    """
+    """Получить все финансовые отчеты (с пагинацией)."""
     return report_service.get_all_reports(db=db, skip=skip, limit=limit)
 
 
 @router.get("/{report_id}", response_model=FinancialReport)
 def get_report(report_id: int, db: Session = Depends(get_db)):
-    """
-    Получить финансовый отчет по ID.
-    """
+    """Получить финансовый отчет по ID."""
     report = report_service.get_report_by_id(db=db, report_id=report_id)
     if not report:
         raise HTTPException(
@@ -61,6 +47,18 @@ def get_report(report_id: int, db: Session = Depends(get_db)):
     return report
 
 
+@router.get("/{report_id}/with-rub")
+def get_report_with_rub(report_id: int, db: Session = Depends(get_db)):
+    """Получить отчет с дополнительными полями в рублях."""
+    report = report_service.get_report_by_id(db=db, report_id=report_id)
+    if not report:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Отчет с ID {report_id} не найден"
+        )
+    return get_report_with_rub_values(report)
+
+
 @router.get("/company/{company_id}", response_model=List[FinancialReport])
 def get_company_reports(
     company_id: int,
@@ -68,13 +66,7 @@ def get_company_reports(
     limit: int = 100,
     db: Session = Depends(get_db)
 ):
-    """
-    Получить все отчеты для конкретной компании.
-    
-    - **company_id**: ID компании
-    - **skip**: Количество пропущенных записей
-    - **limit**: Максимальное количество записей
-    """
+    """Получить все отчеты для конкретной компании."""
     return report_service.get_reports_by_company(
         db=db,
         company_id=company_id,
@@ -85,9 +77,7 @@ def get_company_reports(
 
 @router.get("/company/{company_id}/latest", response_model=FinancialReport)
 def get_latest_company_report(company_id: int, db: Session = Depends(get_db)):
-    """
-    Получить последний (самый свежий) отчет для компании.
-    """
+    """Получить последний отчет для компании."""
     report = report_service.get_latest_report(db=db, company_id=company_id)
     if not report:
         raise HTTPException(
@@ -103,9 +93,7 @@ def update_financial_report(
     report_data: FinancialReportCreate,
     db: Session = Depends(get_db)
 ):
-    """
-    Обновить существующий финансовый отчет.
-    """
+    """Обновить существующий финансовый отчет."""
     updated_report = report_service.update_report(
         db=db,
         report_id=report_id,
@@ -121,9 +109,7 @@ def update_financial_report(
 
 @router.delete("/{report_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_financial_report(report_id: int, db: Session = Depends(get_db)):
-    """
-    Удалить финансовый отчет.
-    """
+    """Удалить финансовый отчет."""
     success = report_service.delete_report(db=db, report_id=report_id)
     if not success:
         raise HTTPException(

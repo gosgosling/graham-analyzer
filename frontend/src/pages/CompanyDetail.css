@@ -1,0 +1,114 @@
+.company-detail-container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 20px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+}
+
+.btn-back {
+  background-color: #95a5a6;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 6px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.company-hero {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 40px;
+  border-radius: 12px;
+  margin-bottom: 30px;
+}
+
+.company-title {
+  margin: 0 0 15px 0;
+  font-size: 36px;
+  font-weight: 700;
+}
+
+.company-meta {
+  display: flex;
+  gap: 15px;
+}
+
+.company-ticker,
+.company-sector,
+.company-currency {
+  background-color: rgba(255, 255, 255, 0.2);
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+.company-content-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 30px;
+}
+
+.info-card {
+  background-color: white;
+  border-radius: 12px;
+  padding: 25px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.card-title {
+  margin: 0 0 20px 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: #2c3e50;
+}
+
+.info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 15px;
+}
+
+.loading { text-align: center; padding: 40px; color: #3498db; }
+.error { text-align: center; padding: 40px; color: #e74c3c; }
+.placeholder-content { padding: 20px; text-align: center; color: #7f8c8d; }
+
+.reports-compact-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.report-compact-item {
+  padding: 12px;
+  background-color: #f8f9fa;
+  border-radius: 6px;
+}
+
+.report-compact-date {
+  font-weight: 600;
+  color: #2c3e50;
+}
+
+.report-compact-meta {
+  display: flex;
+  gap: 10px;
+  margin-top: 5px;
+}
+
+.report-compact-currency {
+  font-size: 12px;
+  color: #27ae60;
+  background-color: #d5f4e6;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.report-compact-dividend {
+  font-size: 12px;
+  color: #e67e22;
+  background-color: #fdebd0;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
