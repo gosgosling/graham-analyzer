@@ -1,18 +1,20 @@
 from typing import Optional, Dict
 from app.models.financial_report import FinancialReport
 
-def convert_to_rub(value: float, currency: str, exchange_rate: Optional[float]) -> float:
+def convert_to_rub(value: Optional[float], currency: str, exchange_rate: Optional[float]) -> Optional[float]:
     """
     Конвертирует значение в рубли.
     
     Args:
-        value: Значение для конвертации
+        value: Значение для конвертации (может быть None)
         currency: Валюта исходного значения
         exchange_rate: Курс обмена (USD/RUB)
         
     Returns:
-        Значение в рублях
+        Значение в рублях или None если value is None
     """
+    if value is None:
+        return None
     if currency == "USD" and exchange_rate:
         return value * exchange_rate
     return value

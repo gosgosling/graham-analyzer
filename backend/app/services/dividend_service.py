@@ -17,7 +17,7 @@ from app.schemas import DividendContinuityResult
 def calculate_dividend_continuity(
     db: Session, 
     company_id: int, 
-    min_years: int = 20
+    min_years: int = 10
 ) -> DividendContinuityResult:
     """
     Рассчитывает непрерывность выплаты дивидендов для компании.

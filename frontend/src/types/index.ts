@@ -72,4 +72,14 @@ export interface FinancialReport extends FinancialReportCreate {
     id: number;
     created_at?: string;
     updated_at?: string | null;
+    // Автоматически рассчитанные поля в рублях (приходят с backend)
+    price_per_share_rub?: number | null;
+    revenue_rub?: number | null;
+    net_income_rub?: number | null;
+    total_assets_rub?: number | null;
+    current_assets_rub?: number | null;
+    total_liabilities_rub?: number | null;
+    current_liabilities_rub?: number | null;
+    equity_rub?: number | null;
+    dividends_per_share_rub?: number | null;
 }
