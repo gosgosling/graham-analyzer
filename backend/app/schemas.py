@@ -1,4 +1,4 @@
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, model_validator, computed_field
 from typing import Optional, List
 
 class Security(BaseModel):
@@ -145,6 +145,70 @@ class FinancialReport(BaseModel):
 
     class Config:
         from_attributes = True  # Для SQLAlchemy моделей (Pydantic v2)
+
+    # Вспомогательный метод конвертации
+    def _convert_to_rub(self, value: Optional[float]) -> Optional[float]:
+        """Конвертирует значение в рубли с учетом валюты и курса"""
+        if value is None:
+            return None
+        if self.currency == "USD" and self.exchange_rate:
+            return round(value * self.exchange_rate, 2)
+        return value
+
+    # Computed fields - автоматически добавляются к ответу API
+    @computed_field  # type: ignore
+    @property
+    def price_per_share_rub(self) -> Optional[float]:
+        """Цена акции в рублях"""
+        return self._convert_to_rub(self.price_per_share)
+
+    @computed_field  # type: ignore
+    @property
+    def revenue_rub(self) -> Optional[float]:
+        """Выручка в рублях"""
+        return self._convert_to_rub(self.revenue)
+
+    @computed_field  # type: ignore
+    @property
+    def net_income_rub(self) -> Optional[float]:
+        """Чистая прибыль в рублях"""
+        return self._convert_to_rub(self.net_income)
+
+    @computed_field  # type: ignore
+    @property
+    def total_assets_rub(self) -> Optional[float]:
+        """Общие активы в рублях"""
+        return self._convert_to_rub(self.total_assets)
+
+    @computed_field  # type: ignore
+    @property
+    def current_assets_rub(self) -> Optional[float]:
+        """Текущие активы в рублях"""
+        return self._convert_to_rub(self.current_assets)
+
+    @computed_field  # type: ignore
+    @property
+    def total_liabilities_rub(self) -> Optional[float]:
+        """Общие обязательства в рублях"""
+        return self._convert_to_rub(self.total_liabilities)
+
+    @computed_field  # type: ignore
+    @property
+    def current_liabilities_rub(self) -> Optional[float]:
+        """Текущие обязательства в рублях"""
+        return self._convert_to_rub(self.current_liabilities)
+
+    @computed_field  # type: ignore
+    @property
+    def equity_rub(self) -> Optional[float]:
+        """Собственный капитал в рублях"""
+        return self._convert_to_rub(self.equity)
+
+    @computed_field  # type: ignore
+    @property
+    def dividends_per_share_rub(self) -> Optional[float]:
+        """Дивиденды на акцию в рублях"""
+        return self._convert_to_rub(self.dividends_per_share)
 
 
 class DividendContinuityResult(BaseModel):

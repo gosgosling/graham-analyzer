@@ -5,7 +5,6 @@ from typing import List
 from app.database import get_db
 from app.schemas import FinancialReport, FinancialReportCreate
 from app.services import report_service
-from app.utils.currency_converter import get_report_with_rub_values
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 
@@ -37,7 +36,13 @@ def get_all_reports(
 
 @router.get("/{report_id}", response_model=FinancialReport)
 def get_report(report_id: int, db: Session = Depends(get_db)):
-    """Получить финансовый отчет по ID."""
+    """
+    Получить финансовый отчет по ID.
+    
+    Автоматически возвращает конвертированные значения в рублях через поля *_rub.
+    Если отчет в USD, то поля price_per_share_rub, revenue_rub и т.д. будут содержать
+    значения умноженные на exchange_rate.
+    """
     report = report_service.get_report_by_id(db=db, report_id=report_id)
     if not report:
         raise HTTPException(
@@ -45,18 +50,6 @@ def get_report(report_id: int, db: Session = Depends(get_db)):
             detail=f"Отчет с ID {report_id} не найден"
         )
     return report
-
-
-@router.get("/{report_id}/with-rub")
-def get_report_with_rub(report_id: int, db: Session = Depends(get_db)):
-    """Получить отчет с дополнительными полями в рублях."""
-    report = report_service.get_report_by_id(db=db, report_id=report_id)
-    if not report:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Отчет с ID {report_id} не найден"
-        )
-    return get_report_with_rub_values(report)
 
 
 @router.get("/company/{company_id}", response_model=List[FinancialReport])
