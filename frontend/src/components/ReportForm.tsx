@@ -15,9 +15,20 @@ const ReportForm: React.FC<ReportFormProps> = ({ companyId, companyName, onSubmi
     
     const [formData, setFormData] = useState<FinancialReportCreate>({
         company_id: companyId,
+        // Атрибуты отчёта
+        period_type: 'quarterly',
+        fiscal_year: new Date().getFullYear(),
+        fiscal_quarter: 4,
+        accounting_standard: 'IFRS',
+        consolidated: true,
+        source: 'manual',
+        // Даты
         report_date: '',
+        filing_date: null,
+        // Рыночные данные
         price_per_share: null,
         shares_outstanding: null,
+        // Финансовые данные
         revenue: null,
         net_income: null,
         total_assets: null,
@@ -27,6 +38,7 @@ const ReportForm: React.FC<ReportFormProps> = ({ companyId, companyName, onSubmi
         equity: null,
         dividends_per_share: null,
         dividends_paid: false,
+        // Валюта
         currency: 'RUB',
         exchange_rate: null,
     });
@@ -59,6 +71,16 @@ const ReportForm: React.FC<ReportFormProps> = ({ companyId, companyName, onSubmi
             return;
         }
         
+        if (formData.period_type === 'quarterly' && !formData.fiscal_quarter) {
+            setError('Для квартальных отчётов необходимо указать квартал (1-4)');
+            return;
+        }
+        
+        if (formData.period_type === 'annual' && formData.fiscal_quarter) {
+            // Для годовых отчётов убираем квартал
+            setFormData(prev => ({ ...prev, fiscal_quarter: null }));
+        }
+        
         setIsSubmitting(true);
         
         try {
@@ -81,13 +103,99 @@ const ReportForm: React.FC<ReportFormProps> = ({ companyId, companyName, onSubmi
                 {error && <div className="error-message">{error}</div>}
                 
                 <form onSubmit={handleSubmit} className="report-form">
-                    {/* Основные данные */}
+                    {/* Атрибуты отчёта */}
                     <div className="form-section">
-                        <h3>Основные данные</h3>
+                        <h3>Атрибуты отчёта</h3>
                         
                         <div className="form-row">
                             <label className="form-label required">
-                                Дата отчета:
+                                Тип периода:
+                                <select
+                                    name="period_type"
+                                    value={formData.period_type}
+                                    onChange={handleInputChange}
+                                    className="form-input"
+                                    required
+                                >
+                                    <option value="quarterly">Квартальный</option>
+                                    <option value="annual">Годовой</option>
+                                    <option value="semi_annual">Полугодовой</option>
+                                </select>
+                            </label>
+                            
+                            <label className="form-label required">
+                                Финансовый год:
+                                <input
+                                    type="number"
+                                    name="fiscal_year"
+                                    value={formData.fiscal_year}
+                                    onChange={handleInputChange}
+                                    min="1900"
+                                    max="2100"
+                                    required
+                                    className="form-input"
+                                />
+                            </label>
+                        </div>
+                        
+                        {formData.period_type === 'quarterly' && (
+                            <div className="form-row">
+                                <label className="form-label required">
+                                    Квартал:
+                                    <select
+                                        name="fiscal_quarter"
+                                        value={formData.fiscal_quarter || ''}
+                                        onChange={handleInputChange}
+                                        className="form-input"
+                                        required
+                                    >
+                                        <option value="">Выберите квартал</option>
+                                        <option value="1">Q1 (Январь-Март)</option>
+                                        <option value="2">Q2 (Апрель-Июнь)</option>
+                                        <option value="3">Q3 (Июль-Сентябрь)</option>
+                                        <option value="4">Q4 (Октябрь-Декабрь)</option>
+                                    </select>
+                                </label>
+                            </div>
+                        )}
+                        
+                        <div className="form-row">
+                            <label className="form-label">
+                                Стандарт отчётности:
+                                <select
+                                    name="accounting_standard"
+                                    value={formData.accounting_standard}
+                                    onChange={handleInputChange}
+                                    className="form-input"
+                                >
+                                    <option value="IFRS">МСФО (IFRS)</option>
+                                    <option value="RAS">РСБУ (RAS)</option>
+                                    <option value="US_GAAP">US GAAP</option>
+                                    <option value="UK_GAAP">UK GAAP</option>
+                                    <option value="OTHER">Другой</option>
+                                </select>
+                            </label>
+                            
+                            <label className="form-label checkbox-label">
+                                <input
+                                    type="checkbox"
+                                    name="consolidated"
+                                    checked={formData.consolidated}
+                                    onChange={handleInputChange}
+                                    className="form-checkbox"
+                                />
+                                Консолидированная отчётность
+                            </label>
+                        </div>
+                    </div>
+                    
+                    {/* Основные данные */}
+                    <div className="form-section">
+                        <h3>Даты и валюта</h3>
+                        
+                        <div className="form-row">
+                            <label className="form-label required">
+                                Дата окончания периода:
                                 <input
                                     type="date"
                                     name="report_date"
@@ -98,6 +206,19 @@ const ReportForm: React.FC<ReportFormProps> = ({ companyId, companyName, onSubmi
                                 />
                             </label>
                             
+                            <label className="form-label">
+                                Дата публикации:
+                                <input
+                                    type="date"
+                                    name="filing_date"
+                                    value={formData.filing_date || ''}
+                                    onChange={handleInputChange}
+                                    className="form-input"
+                                />
+                            </label>
+                        </div>
+                        
+                        <div className="form-row">
                             <label className="form-label">
                                 Валюта:
                                 <select
@@ -110,10 +231,8 @@ const ReportForm: React.FC<ReportFormProps> = ({ companyId, companyName, onSubmi
                                     <option value="USD">USD</option>
                                 </select>
                             </label>
-                        </div>
                         
-                        {formData.currency === 'USD' && (
-                            <div className="form-row">
+                            {formData.currency === 'USD' && (
                                 <label className="form-label required">
                                     Курс USD/RUB:
                                     <input
@@ -122,13 +241,13 @@ const ReportForm: React.FC<ReportFormProps> = ({ companyId, companyName, onSubmi
                                         value={formData.exchange_rate || ''}
                                         onChange={handleInputChange}
                                         step="0.0001"
-                                        placeholder="Например: 75.5"
+                                        placeholder="Например: 95.50"
                                         required
                                         className="form-input"
                                     />
                                 </label>
-                            </div>
-                        )}
+                            )}
+                        </div>
                     </div>
                     
                     {/* Рыночные данные */}

@@ -52,9 +52,24 @@ export interface Company {
 
 export interface FinancialReportCreate {
     company_id: number;
-    report_date: string; // YYYY-MM-DD формат
+    
+    // Атрибуты отчёта
+    period_type: 'quarterly' | 'annual' | 'semi_annual';
+    fiscal_year: number;
+    fiscal_quarter?: number | null;  // 1-4 для квартальных, null для годовых
+    accounting_standard: 'IFRS' | 'RAS' | 'US_GAAP' | 'UK_GAAP' | 'OTHER';
+    consolidated: boolean;
+    source: 'manual' | 'company_website' | 'api' | 'regulator' | 'other';
+    
+    // Даты
+    report_date: string; // YYYY-MM-DD (дата окончания периода)
+    filing_date?: string | null; // YYYY-MM-DD (дата публикации)
+    
+    // Рыночные данные
     price_per_share?: number | null;
     shares_outstanding?: number | null;
+    
+    // Финансовые показатели
     revenue?: number | null;
     net_income?: number | null;
     total_assets?: number | null;
@@ -64,6 +79,8 @@ export interface FinancialReportCreate {
     equity?: number | null;
     dividends_per_share?: number | null;
     dividends_paid: boolean;
+    
+    // Валюта
     currency: string; // "RUB" или "USD"
     exchange_rate?: number | null; // Обязателен для USD
 }
