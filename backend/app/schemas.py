@@ -1,5 +1,6 @@
 from pydantic import BaseModel, model_validator, computed_field
 from typing import Optional, List
+from app.models.enums import PeriodType, AccountingStandard, ReportSource
 
 class Security(BaseModel):
     secid: str
@@ -97,38 +98,24 @@ class CompanyCreate(BaseModel):
 class FinancialReportCreate(BaseModel):
     """Схема для создания финансового отчета"""
     company_id: int
-    report_date: str  # YYYY-MM-DD формат
+    
+    # Атрибуты отчёта
+    period_type: PeriodType = PeriodType.QUARTERLY
+    fiscal_year: int
+    fiscal_quarter: Optional[int] = None  # NULL для годовых отчётов
+    accounting_standard: AccountingStandard = AccountingStandard.IFRS
+    consolidated: bool = True
+    source: ReportSource = ReportSource.MANUAL
+    
+    # Даты
+    report_date: str  # YYYY-MM-DD формат (дата окончания отчётного периода)
+    filing_date: Optional[str] = None  # YYYY-MM-DD формат (дата публикации)
+    
+    # Рыночные данные
     price_per_share: Optional[float] = None
     shares_outstanding: Optional[int] = None
-    revenue: Optional[float] = None
-    net_income: Optional[float] = None
-    total_assets: Optional[float] = None
-    current_assets: Optional[float] = None
-    total_liabilities: Optional[float] = None
-    current_liabilities: Optional[float] = None
-    equity: Optional[float] = None
-    dividends_per_share: Optional[float] = None
-    dividends_paid: bool = False  # Выплачивались ли дивиденды в этом периоде
-    currency: str = "RUB"
-    exchange_rate: Optional[float] = None
-
-    @model_validator(mode='after')
-    def validate_currency(self):
-        if self.currency == "USD" and not self.exchange_rate:
-            raise ValueError("Курс доллара обязателен для USD отчетов")
-        if self.currency == "RUB" and self.exchange_rate is not None:
-            # Можно предупредить, но не обязательно ошибка
-            pass
-        return self
-
-
-class FinancialReport(BaseModel):
-    """Схема для ответа API с финансовым отчетом"""
-    id: int
-    company_id: int
-    report_date: str  # YYYY-MM-DD формат
-    price_per_share: Optional[float] = None
-    shares_outstanding: Optional[int] = None
+    
+    # Финансовые показатели
     revenue: Optional[float] = None
     net_income: Optional[float] = None
     total_assets: Optional[float] = None
@@ -138,13 +125,74 @@ class FinancialReport(BaseModel):
     equity: Optional[float] = None
     dividends_per_share: Optional[float] = None
     dividends_paid: bool = False
+    
+    # Валюта
     currency: str = "RUB"
     exchange_rate: Optional[float] = None
+
+    @model_validator(mode='after')
+    def validate_report(self):
+        """Валидация полей отчёта"""
+        # Проверка курса валюты
+        if self.currency == "USD" and not self.exchange_rate:
+            raise ValueError("Курс доллара обязателен для USD отчетов")
+        
+        # Проверка квартала для квартальных отчётов
+        if self.period_type == PeriodType.QUARTERLY:
+            if self.fiscal_quarter is None:
+                raise ValueError("Для квартальных отчётов необходимо указать fiscal_quarter (1-4)")
+            if not (1 <= self.fiscal_quarter <= 4):
+                raise ValueError("fiscal_quarter должен быть от 1 до 4")
+        
+        # Для годовых отчётов квартал должен быть None
+        if self.period_type == PeriodType.ANNUAL and self.fiscal_quarter is not None:
+            raise ValueError("Для годовых отчётов fiscal_quarter должен быть None")
+        
+        return self
+
+
+class FinancialReport(BaseModel):
+    """Схема для ответа API с финансовым отчетом"""
+    id: int
+    company_id: int
+    
+    # Атрибуты отчёта
+    period_type: str
+    fiscal_year: int
+    fiscal_quarter: Optional[int] = None
+    accounting_standard: str
+    consolidated: bool
+    source: str
+    
+    # Даты
+    report_date: str  # YYYY-MM-DD формат
+    filing_date: Optional[str] = None
+    
+    # Рыночные данные
+    price_per_share: Optional[float] = None
+    shares_outstanding: Optional[int] = None
+    
+    # Финансовые показатели
+    revenue: Optional[float] = None
+    net_income: Optional[float] = None
+    total_assets: Optional[float] = None
+    current_assets: Optional[float] = None
+    total_liabilities: Optional[float] = None
+    current_liabilities: Optional[float] = None
+    equity: Optional[float] = None
+    dividends_per_share: Optional[float] = None
+    dividends_paid: bool = False
+    
+    # Валюта
+    currency: str = "RUB"
+    exchange_rate: Optional[float] = None
+    
+    # Метаданные
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
 
     class Config:
-        from_attributes = True  # Для SQLAlchemy моделей (Pydantic v2)
+        from_attributes = True
 
     # Вспомогательный метод конвертации
     def _convert_to_rub(self, value: Optional[float]) -> Optional[float]:

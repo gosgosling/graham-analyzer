@@ -21,12 +21,25 @@ def create_report(db: Session, report_data: FinancialReportCreate) -> FinancialR
     Raises:
         IntegrityError: Если отчет с такими параметрами уже существует
     """
-    # Преобразуем строку даты в объект date
+    # Преобразуем строки дат в объекты date
     report_date_obj = datetime.strptime(report_data.report_date, "%Y-%m-%d").date()
+    filing_date_obj = None
+    if report_data.filing_date:
+        filing_date_obj = datetime.strptime(report_data.filing_date, "%Y-%m-%d").date()
     
     db_report = FinancialReport(
         company_id=report_data.company_id,
+        # Атрибуты отчёта
+        period_type=report_data.period_type.value,
+        fiscal_year=report_data.fiscal_year,
+        fiscal_quarter=report_data.fiscal_quarter,
+        accounting_standard=report_data.accounting_standard.value,
+        consolidated=report_data.consolidated,
+        source=report_data.source.value,
+        # Даты
         report_date=report_date_obj,
+        filing_date=filing_date_obj,
+        # Финансовые данные
         price_per_share=report_data.price_per_share,
         shares_outstanding=report_data.shares_outstanding,
         revenue=report_data.revenue,
@@ -47,7 +60,7 @@ def create_report(db: Session, report_data: FinancialReportCreate) -> FinancialR
     
     # Если отчет содержит дивиденды, обновляем год начала выплат
     if report_data.dividends_paid:
-        _update_dividend_start_year_if_needed(db, report_data.company_id, report_date_obj.year)
+        _update_dividend_start_year_if_needed(db, report_data.company_id, report_data.fiscal_year)
     
     return db_report
 
@@ -152,12 +165,25 @@ def update_report(
     if not db_report:
         return None
     
-    # Преобразуем строку даты в объект date
+    # Преобразуем строки дат в объекты date
     report_date_obj = datetime.strptime(report_data.report_date, "%Y-%m-%d").date()
+    filing_date_obj = None
+    if report_data.filing_date:
+        filing_date_obj = datetime.strptime(report_data.filing_date, "%Y-%m-%d").date()
     
     # Обновляем поля
     db_report.company_id = report_data.company_id  # type: ignore
+    # Атрибуты отчёта
+    db_report.period_type = report_data.period_type.value  # type: ignore
+    db_report.fiscal_year = report_data.fiscal_year  # type: ignore
+    db_report.fiscal_quarter = report_data.fiscal_quarter  # type: ignore
+    db_report.accounting_standard = report_data.accounting_standard.value  # type: ignore
+    db_report.consolidated = report_data.consolidated  # type: ignore
+    db_report.source = report_data.source.value  # type: ignore
+    # Даты
     db_report.report_date = report_date_obj  # type: ignore
+    db_report.filing_date = filing_date_obj  # type: ignore
+    # Финансовые данные
     db_report.price_per_share = report_data.price_per_share  # type: ignore
     db_report.shares_outstanding = report_data.shares_outstanding  # type: ignore
     db_report.revenue = report_data.revenue  # type: ignore
