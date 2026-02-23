@@ -66,7 +66,8 @@ export interface FinancialReportCreate {
     filing_date?: string | null; // YYYY-MM-DD (дата публикации)
     
     // Рыночные данные
-    price_per_share?: number | null;
+    price_per_share?: number | null;  // Цена на дату окончания периода (report_date) - для расчёта мультипликаторов
+    price_at_filing?: number | null;  // Цена на дату публикации (filing_date) - для анализа реакции рынка
     shares_outstanding?: number | null;
     
     // Финансовые показатели
@@ -91,6 +92,7 @@ export interface FinancialReport extends FinancialReportCreate {
     updated_at?: string | null;
     // Автоматически рассчитанные поля в рублях (приходят с backend)
     price_per_share_rub?: number | null;
+    price_at_filing_rub?: number | null;
     revenue_rub?: number | null;
     net_income_rub?: number | null;
     total_assets_rub?: number | null;

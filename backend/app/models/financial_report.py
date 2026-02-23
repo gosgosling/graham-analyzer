@@ -58,8 +58,9 @@ class FinancialReport(Base):
     )  # Источник данных
 
     # Рыночные данные
-    price_per_share: Mapped[Optional[float]] = mapped_column(Numeric(15, 2), nullable=True)  # цена акции на дату отчета
-    shares_outstanding: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)  # количество акций в обращении (исправлена опечатка)
+    price_per_share: Mapped[Optional[float]] = mapped_column(Numeric(15, 2), nullable=True)  # Цена акции на дату окончания отчётного периода (report_date) - ОСНОВНАЯ для расчёта мультипликаторов
+    price_at_filing: Mapped[Optional[float]] = mapped_column(Numeric(15, 2), nullable=True)  # Цена акции на дату публикации отчёта (filing_date) - для анализа реакции рынка
+    shares_outstanding: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)  # количество акций в обращении
  
     # Балансовые показатели
     total_assets: Mapped[Optional[float]] = mapped_column(Numeric(15, 2), nullable=True)  # общие активы (Итого активы)
