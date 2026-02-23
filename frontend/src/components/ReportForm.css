@@ -191,3 +191,13 @@
         width: 100%;
     }
 }
+
+/* Подсказка для поля формы */
+.form-label small.field-hint {
+    display: block;
+    font-size: 11px;
+    color: #7f8c8d;
+    font-style: italic;
+    margin-top: 4px;
+    font-weight: normal;
+}

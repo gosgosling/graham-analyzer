@@ -39,9 +39,11 @@ def create_report(db: Session, report_data: FinancialReportCreate) -> FinancialR
         # Даты
         report_date=report_date_obj,
         filing_date=filing_date_obj,
-        # Финансовые данные
+        # Рыночные данные
         price_per_share=report_data.price_per_share,
+        price_at_filing=report_data.price_at_filing,
         shares_outstanding=report_data.shares_outstanding,
+        # Финансовые данные
         revenue=report_data.revenue,
         net_income=report_data.net_income,
         total_assets=report_data.total_assets,
@@ -183,9 +185,11 @@ def update_report(
     # Даты
     db_report.report_date = report_date_obj  # type: ignore
     db_report.filing_date = filing_date_obj  # type: ignore
-    # Финансовые данные
+    # Рыночные данные
     db_report.price_per_share = report_data.price_per_share  # type: ignore
+    db_report.price_at_filing = report_data.price_at_filing  # type: ignore
     db_report.shares_outstanding = report_data.shares_outstanding  # type: ignore
+    # Финансовые данные
     db_report.revenue = report_data.revenue  # type: ignore
     db_report.net_income = report_data.net_income  # type: ignore
     db_report.total_assets = report_data.total_assets  # type: ignore

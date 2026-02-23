@@ -26,7 +26,8 @@ const ReportForm: React.FC<ReportFormProps> = ({ companyId, companyName, onSubmi
         report_date: '',
         filing_date: null,
         // Рыночные данные
-        price_per_share: null,
+        price_per_share: null,  // Цена на конец периода
+        price_at_filing: null,  // Цена на дату публикации
         shares_outstanding: null,
         // Финансовые данные
         revenue: null,
@@ -256,18 +257,35 @@ const ReportForm: React.FC<ReportFormProps> = ({ companyId, companyName, onSubmi
                         
                         <div className="form-row">
                             <label className="form-label">
-                                Цена акции:
+                                Цена акции на дату окончания периода:
                                 <input
                                     type="number"
                                     name="price_per_share"
                                     value={formData.price_per_share || ''}
                                     onChange={handleInputChange}
                                     step="0.01"
-                                    placeholder="0.00"
+                                    placeholder={`Цена на ${formData.report_date || 'конец периода'} (${formData.currency})`}
                                     className="form-input"
                                 />
+                                <small className="field-hint">Основная цена для расчёта мультипликаторов</small>
                             </label>
                             
+                            <label className="form-label">
+                                Цена акции на дату публикации:
+                                <input
+                                    type="number"
+                                    name="price_at_filing"
+                                    value={formData.price_at_filing || ''}
+                                    onChange={handleInputChange}
+                                    step="0.01"
+                                    placeholder={`Цена на ${formData.filing_date || 'дату публикации'} (${formData.currency})`}
+                                    className="form-input"
+                                />
+                                <small className="field-hint">Опционально, для анализа реакции рынка</small>
+                            </label>
+                        </div>
+                        
+                        <div className="form-row">
                             <label className="form-label">
                                 Количество акций:
                                 <input

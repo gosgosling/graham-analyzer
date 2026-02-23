@@ -112,7 +112,8 @@ class FinancialReportCreate(BaseModel):
     filing_date: Optional[str] = None  # YYYY-MM-DD формат (дата публикации)
     
     # Рыночные данные
-    price_per_share: Optional[float] = None
+    price_per_share: Optional[float] = None  # Цена на дату окончания периода (report_date) - ОСНОВНАЯ
+    price_at_filing: Optional[float] = None  # Цена на дату публикации (filing_date) - для анализа
     shares_outstanding: Optional[int] = None
     
     # Финансовые показатели
@@ -169,7 +170,8 @@ class FinancialReport(BaseModel):
     filing_date: Optional[str] = None
     
     # Рыночные данные
-    price_per_share: Optional[float] = None
+    price_per_share: Optional[float] = None  # Цена на report_date
+    price_at_filing: Optional[float] = None  # Цена на filing_date
     shares_outstanding: Optional[int] = None
     
     # Финансовые показатели
@@ -207,8 +209,14 @@ class FinancialReport(BaseModel):
     @computed_field  # type: ignore
     @property
     def price_per_share_rub(self) -> Optional[float]:
-        """Цена акции в рублях"""
+        """Цена акции (на дату окончания периода) в рублях"""
         return self._convert_to_rub(self.price_per_share)
+
+    @computed_field  # type: ignore
+    @property
+    def price_at_filing_rub(self) -> Optional[float]:
+        """Цена акции (на дату публикации) в рублях"""
+        return self._convert_to_rub(self.price_at_filing)
 
     @computed_field  # type: ignore
     @property
