@@ -1,5 +1,6 @@
 from pydantic import BaseModel, model_validator, computed_field
 from typing import Optional, List
+from datetime import date, datetime
 from app.models.enums import PeriodType, AccountingStandard, ReportSource
 
 class Security(BaseModel):
@@ -265,6 +266,125 @@ class FinancialReport(BaseModel):
     def dividends_per_share_rub(self) -> Optional[float]:
         """Дивиденды на акцию в рублях"""
         return self._convert_to_rub(self.dividends_per_share)
+
+
+# ---------------------------------------------------------------------------
+# StockPrice schemas
+# ---------------------------------------------------------------------------
+
+class StockPriceResponse(BaseModel):
+    """Схема ответа для записи исторической цены акции."""
+    id: int
+    company_id: int
+    date: date
+    price: float
+    source: str
+    created_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+# ---------------------------------------------------------------------------
+# Multiplier schemas
+# ---------------------------------------------------------------------------
+
+class MultiplierResponse(BaseModel):
+    """Схема ответа для кэшированных мультипликаторов."""
+    id: int
+    company_id: int
+    report_id: Optional[int] = None
+    date: date
+    type: str
+
+    # Рыночные данные
+    price_used: Optional[float] = None
+    shares_used: Optional[int] = None
+    market_cap: Optional[float] = None
+
+    # LTM P&L
+    ltm_net_income: Optional[float] = None
+    ltm_revenue: Optional[float] = None
+    ltm_dividends_per_share: Optional[float] = None
+
+    # Балансовые данные
+    equity: Optional[float] = None
+    total_liabilities: Optional[float] = None
+    current_assets: Optional[float] = None
+    current_liabilities: Optional[float] = None
+
+    # Мультипликаторы
+    pe_ratio: Optional[float] = None
+    pb_ratio: Optional[float] = None
+    roe: Optional[float] = None
+    debt_to_equity: Optional[float] = None
+    current_ratio: Optional[float] = None
+    dividend_yield: Optional[float] = None
+
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class CurrentMultipliersResponse(BaseModel):
+    """Схема ответа для «живых» актуальных мультипликаторов (вычисляются на лету)."""
+    company_id: int
+    date: str
+    current_price: Optional[float] = None
+    balance_report_id: Optional[int] = None
+    balance_report_date: Optional[str] = None
+    ltm_source: Optional[str] = None
+
+    # LTM P&L
+    ltm_net_income: Optional[float] = None
+    ltm_revenue: Optional[float] = None
+    ltm_dividends_per_share: Optional[float] = None
+
+    # Расчётные данные
+    price_used: Optional[float] = None
+    shares_used: Optional[int] = None
+    market_cap: Optional[float] = None
+
+    # Мультипликаторы
+    pe_ratio: Optional[float] = None
+    pb_ratio: Optional[float] = None
+    roe: Optional[float] = None
+    debt_to_equity: Optional[float] = None
+    current_ratio: Optional[float] = None
+    dividend_yield: Optional[float] = None
+
+
+class PriceUpdateResponse(BaseModel):
+    """Ответ при обновлении цены компании."""
+    company_id: int
+    ticker: str
+    figi: str
+    price: Optional[float]
+    updated_at: Optional[datetime] = None
+    success: bool
+
+
+# ---------------------------------------------------------------------------
+# Company with current price
+# ---------------------------------------------------------------------------
+
+class CompanyWithPrice(BaseModel):
+    """Расширенная схема компании с текущей ценой."""
+    id: int
+    figi: str
+    ticker: str
+    name: str
+    isin: Optional[str] = None
+    sector: Optional[str] = None
+    currency: str
+    lot: int
+    current_price: Optional[float] = None
+    price_updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
 
 
 class DividendContinuityResult(BaseModel):

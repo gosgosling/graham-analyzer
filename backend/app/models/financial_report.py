@@ -2,12 +2,13 @@ from sqlalchemy import ForeignKey, Integer, Numeric, DateTime, Date, String, Enu
 from datetime import datetime, date
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Optional, List
 from app.database import Base
 from app.models.enums import PeriodType, AccountingStandard, ReportSource
 
 if TYPE_CHECKING:
     from app.models.company import Company
+    from app.models.multiplier import Multiplier
 
 class FinancialReport(Base):
     __tablename__ = "financial_reports"
@@ -24,8 +25,14 @@ class FinancialReport(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), index=True)
 
-    # Relationship с Company (используем строку для избежания циклических импортов)
     company: Mapped["Company"] = relationship("Company", back_populates="reports")
+
+    multipliers: Mapped[List["Multiplier"]] = relationship(
+        "Multiplier",
+        back_populates="report",
+        cascade="all, delete-orphan",
+        lazy="dynamic",
+    )
 
     # Атрибуты отчёта
     period_type: Mapped[str] = mapped_column(

@@ -3,110 +3,98 @@ from app.utils.currency_converter import convert_to_rub
 from typing import Dict, Optional
 
 
-def calculate_multipliers(report: FinancialReport) -> Dict[str, Optional[float]]:
+def calculate_multipliers(
+    report: FinancialReport,
+    override_price: Optional[float] = None,
+    override_shares: Optional[int] = None,
+    ltm_net_income: Optional[float] = None,
+    ltm_revenue: Optional[float] = None,
+    ltm_dividends_per_share: Optional[float] = None,
+) -> Dict[str, Optional[float]]:
     """
-    Рассчитывает финансовые мультипликаторы на основе отчета.
-    Все расчеты производятся в рублях (значения конвертируются автоматически).
-    
+    Рассчитывает финансовые мультипликаторы на основе отчёта.
+    Все расчёты производятся в рублях.
+
     Args:
-        report: Финансовый отчет компании
-        
+        report: Финансовый отчёт компании (источник балансовых данных)
+        override_price: Переопределить цену акции (например, текущая рыночная цена)
+        override_shares: Переопределить количество акций
+        ltm_net_income: LTM чистая прибыль (если None — берётся из отчёта)
+        ltm_revenue: LTM выручка (если None — берётся из отчёта)
+        ltm_dividends_per_share: LTM дивиденды на акцию (если None — из отчёта)
+
     Returns:
         Словарь с рассчитанными мультипликаторами
     """
-    # Конвертируем все значения в рубли перед расчетом
-    # convert_to_rub теперь принимает Optional[float]
-    price_per_share_rub = convert_to_rub(
-        float(report.price_per_share) if report.price_per_share else None,
-        report.currency,
-        float(report.exchange_rate) if report.exchange_rate else None
+    rate = float(report.exchange_rate) if report.exchange_rate else None
+    currency = report.currency
+
+    def to_rub(value) -> Optional[float]:
+        return convert_to_rub(float(value) if value is not None else None, currency, rate)
+
+    # Цена и количество акций
+    price_raw = override_price if override_price is not None else report.price_per_share
+    price_rub = to_rub(price_raw)
+
+    shares = override_shares if override_shares is not None else report.shares_outstanding
+
+    # P&L: используем LTM если переданы, иначе из отчёта
+    net_income_rub = to_rub(ltm_net_income) if ltm_net_income is not None else to_rub(report.net_income)
+    dividends_per_share_rub = (
+        to_rub(ltm_dividends_per_share)
+        if ltm_dividends_per_share is not None
+        else to_rub(report.dividends_per_share)
     )
-    revenue_rub = convert_to_rub(
-        float(report.revenue) if report.revenue else None,
-        report.currency,
-        float(report.exchange_rate) if report.exchange_rate else None
-    )
-    net_income_rub = convert_to_rub(
-        float(report.net_income) if report.net_income else None,
-        report.currency,
-        float(report.exchange_rate) if report.exchange_rate else None
-    )
-    total_assets_rub = convert_to_rub(
-        float(report.total_assets) if report.total_assets else None,
-        report.currency,
-        float(report.exchange_rate) if report.exchange_rate else None
-    )
-    current_assets_rub = convert_to_rub(
-        float(report.current_assets) if report.current_assets else None,
-        report.currency,
-        float(report.exchange_rate) if report.exchange_rate else None
-    )
-    total_liabilities_rub = convert_to_rub(
-        float(report.total_liabilities) if report.total_liabilities else None,
-        report.currency,
-        float(report.exchange_rate) if report.exchange_rate else None
-    )
-    current_liabilities_rub = convert_to_rub(
-        float(report.current_liabilities) if report.current_liabilities else None,
-        report.currency,
-        float(report.exchange_rate) if report.exchange_rate else None
-    )
-    equity_rub = convert_to_rub(
-        float(report.equity) if report.equity else None,
-        report.currency,
-        float(report.exchange_rate) if report.exchange_rate else None
-    )
-    dividends_per_share_rub = convert_to_rub(
-        float(report.dividends_per_share) if report.dividends_per_share else None,
-        report.currency,
-        float(report.exchange_rate) if report.exchange_rate else None
-    )
-    
-    # Рассчитываем мультипликаторы
-    multipliers = {}
-    
-    # P/E = Цена акции / EPS (прибыль на акцию)
-    if price_per_share_rub and net_income_rub and report.shares_outstanding and report.shares_outstanding > 0:
-        eps = net_income_rub / report.shares_outstanding
-        if eps > 0:
-            multipliers['pe_ratio'] = round(price_per_share_rub / eps, 2)
-        else:
-            multipliers['pe_ratio'] = None
-    else:
-        multipliers['pe_ratio'] = None
-    
-    # P/B = Цена акции / Балансовая стоимость на акцию
-    if price_per_share_rub and equity_rub and report.shares_outstanding and report.shares_outstanding > 0:
-        book_value_per_share = equity_rub / report.shares_outstanding
-        if book_value_per_share > 0:
-            multipliers['pb_ratio'] = round(price_per_share_rub / book_value_per_share, 2)
-        else:
-            multipliers['pb_ratio'] = None
-    else:
-        multipliers['pb_ratio'] = None
-    
-    # Debt/Equity = Долг / Капитал
-    if total_liabilities_rub and equity_rub and equity_rub > 0:
-        multipliers['debt_to_equity'] = round(total_liabilities_rub / equity_rub, 2)
-    else:
-        multipliers['debt_to_equity'] = None
-    
-    # Current Ratio = Текущие активы / Текущие обязательства
-    if current_assets_rub and current_liabilities_rub and current_liabilities_rub > 0:
-        multipliers['current_ratio'] = round(current_assets_rub / current_liabilities_rub, 2)
-    else:
-        multipliers['current_ratio'] = None
-    
-    # ROE = (Чистая прибыль / Собственный капитал) * 100%
-    if net_income_rub and equity_rub and equity_rub > 0:
-        multipliers['roe'] = round((net_income_rub / equity_rub) * 100, 2)
-    else:
-        multipliers['roe'] = None
-    
-    # Dividend Yield = (Дивиденды на акцию / Цена акции) * 100%
-    if dividends_per_share_rub and price_per_share_rub and price_per_share_rub > 0:
-        multipliers['dividend_yield'] = round((dividends_per_share_rub / price_per_share_rub) * 100, 2)
-    else:
-        multipliers['dividend_yield'] = None
-    
-    return multipliers
+
+    # Балансовые данные — всегда из отчёта (снимок на дату)
+    equity_rub = to_rub(report.equity)
+    total_liabilities_rub = to_rub(report.total_liabilities)
+    current_assets_rub = to_rub(report.current_assets)
+    current_liabilities_rub = to_rub(report.current_liabilities)
+
+    # Рыночная капитализация
+    market_cap: Optional[float] = None
+    if price_rub and shares:
+        market_cap = price_rub * shares
+
+    # P/E = Рыночная капитализация / Чистая прибыль LTM
+    pe_ratio: Optional[float] = None
+    if market_cap and net_income_rub and net_income_rub > 0:
+        pe_ratio = round(market_cap / net_income_rub, 2)
+
+    # P/B = Рыночная капитализация / Собственный капитал
+    pb_ratio: Optional[float] = None
+    if market_cap and equity_rub and equity_rub > 0:
+        pb_ratio = round(market_cap / equity_rub, 2)
+
+    # ROE = Чистая прибыль / Собственный капитал × 100%
+    roe: Optional[float] = None
+    if net_income_rub is not None and equity_rub and equity_rub != 0:
+        roe = round(net_income_rub / equity_rub * 100, 2)
+
+    # Debt/Equity = Общие обязательства / Собственный капитал
+    debt_to_equity: Optional[float] = None
+    if total_liabilities_rub and equity_rub and equity_rub != 0:
+        debt_to_equity = round(total_liabilities_rub / equity_rub, 2)
+
+    # Current Ratio = Оборотные активы / Краткосрочные обязательства
+    current_ratio: Optional[float] = None
+    if current_assets_rub and current_liabilities_rub and current_liabilities_rub != 0:
+        current_ratio = round(current_assets_rub / current_liabilities_rub, 2)
+
+    # Dividend Yield = Дивиденды на акцию / Цена × 100%
+    dividend_yield: Optional[float] = None
+    if dividends_per_share_rub and price_rub and price_rub > 0:
+        dividend_yield = round(dividends_per_share_rub / price_rub * 100, 2)
+
+    return {
+        "pe_ratio": pe_ratio,
+        "pb_ratio": pb_ratio,
+        "roe": roe,
+        "debt_to_equity": debt_to_equity,
+        "current_ratio": current_ratio,
+        "dividend_yield": dividend_yield,
+        "market_cap": round(market_cap, 2) if market_cap else None,
+        "price_used": round(price_rub, 2) if price_rub else None,
+        "shares_used": shares,
+    }

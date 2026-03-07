@@ -1,4 +1,4 @@
-from sqlalchemy import Integer, String, Boolean, DateTime
+from sqlalchemy import Integer, String, Boolean, DateTime, Numeric
 from sqlalchemy.orm import Mapped, mapped_column, relationship 
 from sqlalchemy.sql import func
 from typing import Optional, List, TYPE_CHECKING
@@ -7,6 +7,8 @@ from app.database import Base
 
 if TYPE_CHECKING:
     from app.models.financial_report import FinancialReport
+    from app.models.stock_price import StockPrice
+    from app.models.multiplier import Multiplier
 
 class Company(Base):
     __tablename__ = "companies"
@@ -23,16 +25,36 @@ class Company(Base):
     
     # Год начала выплаты дивидендов (для анализа непрерывности по Грэму)
     dividend_start_year: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+
+    # Текущая цена акции (обновляется из T-Invest API раз в день)
+    current_price: Mapped[Optional[float]] = mapped_column(Numeric(15, 4), nullable=True)
+    price_updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     
     # Метаданные
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
 
-    # Relationship с FinancialReport (используем строку для избежания циклических импортов)
+    # Relationships
     reports: Mapped[List["FinancialReport"]] = relationship(
         "FinancialReport", 
         back_populates="company", 
         cascade="all, delete-orphan",
         lazy="dynamic",
         order_by="FinancialReport.report_date.desc()"
+    )
+
+    stock_prices: Mapped[List["StockPrice"]] = relationship(
+        "StockPrice",
+        back_populates="company",
+        cascade="all, delete-orphan",
+        lazy="dynamic",
+        order_by="StockPrice.date.desc()",
+    )
+
+    multipliers: Mapped[List["Multiplier"]] = relationship(
+        "Multiplier",
+        back_populates="company",
+        cascade="all, delete-orphan",
+        lazy="dynamic",
+        order_by="Multiplier.date.desc()",
     )

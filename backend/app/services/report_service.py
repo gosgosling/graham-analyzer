@@ -5,6 +5,7 @@ from datetime import date, datetime
 from app.models.financial_report import FinancialReport
 from app.models.company import Company
 from app.schemas import FinancialReportCreate
+from app.services import multiplier_service
 
 
 def create_report(db: Session, report_data: FinancialReportCreate) -> FinancialReport:
@@ -63,6 +64,9 @@ def create_report(db: Session, report_data: FinancialReportCreate) -> FinancialR
     # Если отчет содержит дивиденды, обновляем год начала выплат
     if report_data.dividends_paid:
         _update_dividend_start_year_if_needed(db, report_data.company_id, report_data.fiscal_year)
+
+    # Автоматически кэшируем report_based мультипликаторы
+    multiplier_service.save_report_based_multiplier(db=db, report=db_report)
     
     return db_report
 
@@ -204,6 +208,10 @@ def update_report(
     
     db.commit()
     db.refresh(db_report)
+
+    # Пересчитываем report_based мультипликаторы после обновления
+    multiplier_service.save_report_based_multiplier(db=db, report=db_report)
+
     return db_report
 
 
