@@ -1,6 +1,6 @@
 import requests
 from datetime import date, timedelta
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Tuple
 
 
 # ─── Список активных инструментов ─────────────────────────────────────────────
@@ -367,3 +367,70 @@ def get_closing_price_on_or_before(
         pass
 
     return None
+
+
+# ─── Массовая загрузка дневных цен (свечи MOEX) ───────────────────────────────
+
+def get_price_history(
+    ticker: str,
+    from_date: date,
+    till_date: date,
+    board: str = "TQBR",
+) -> list:
+    """
+    Загружает дневные цены закрытия для тикера за диапазон дат из MOEX ISS API.
+
+    Использует эндпоинт /candles с interval=24 (дневные свечи).
+    Возвращает только торговые дни (выходные и праздники пропускаются автоматически —
+    MOEX не отдаёт данные за нерабочие дни).
+
+    Args:
+        ticker:    Тикер (SECID), например "NVTK"
+        from_date: Начало диапазона (включительно)
+        till_date: Конец диапазона (включительно)
+        board:     Режим торгов (по умолчанию TQBR — основной рынок)
+
+    Returns:
+        Список пар (дата, цена_закрытия), отсортированных по дате.
+        Пустой список если данных нет или произошла ошибка.
+    """
+    url = (
+        f"https://iss.moex.com/iss/engines/stock/markets/shares"
+        f"/boards/{board}/securities/{ticker}/candles.json"
+    )
+    params = {
+        "from": from_date.isoformat(),
+        "till": till_date.isoformat(),
+        "interval": 24,        # дневные свечи
+        "iss.meta": "off",
+    }
+
+    result = []
+    try:
+        resp = requests.get(url, params=params, timeout=15)
+        resp.raise_for_status()
+        data = resp.json()
+
+        cols = data.get("candles", {}).get("columns", [])
+        rows = data.get("candles", {}).get("data", [])
+
+        if not cols or "close" not in cols or "begin" not in cols:
+            return result
+
+        close_idx = cols.index("close")
+        begin_idx = cols.index("begin")
+
+        for row in rows:
+            try:
+                raw_dt = row[begin_idx]  # "2024-01-03 00:00:00"
+                close_price = row[close_idx]
+                if raw_dt and close_price is not None:
+                    trade_date = date.fromisoformat(str(raw_dt).split(" ")[0])
+                    result.append((trade_date, float(close_price)))
+            except (ValueError, TypeError):
+                continue
+
+    except requests.exceptions.RequestException:
+        pass
+
+    return result

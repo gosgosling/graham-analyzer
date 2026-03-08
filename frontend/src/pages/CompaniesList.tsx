@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { getCompanies, createFinancialReport, getCompanyReports } from '../services/api';
+import { getCompanies, createFinancialReport, getCompanyReports, updateFinancialReport, refreshCompanyMultipliers } from '../services/api';
 import { Company, FinancialReportCreate, FinancialReport } from '../types';
 import ReportForm from '../components/ReportForm';
 import './SecuritiesList.css';
@@ -12,8 +12,30 @@ const CompaniesList: React.FC = () => {
   const [showForm, setShowForm] = useState(false);
   const [expandedCompanies, setExpandedCompanies] = useState<number[]>([]);
   const [selectedReport, setSelectedReport] = useState<FinancialReport | null>(null);
+  const [editingReport, setEditingReport] = useState<FinancialReport | null>(null);
+  const [editingCompany, setEditingCompany] = useState<Company | null>(null);
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+
+  const updateReportMutation = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: FinancialReportCreate }) =>
+      updateFinancialReport(id, data),
+    onSuccess: async (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['reports'] });
+      // Пересчёт мультипликаторов
+      if (editingCompany?.id) {
+        await refreshCompanyMultipliers(editingCompany.id, true).catch(() => {});
+        queryClient.invalidateQueries({ queryKey: ['multipliers', String(editingCompany.id)] });
+      }
+      setEditingReport(null);
+      setEditingCompany(null);
+      setSelectedReport(null);
+    },
+    onError: (err: any) => {
+      const detail = err?.response?.data?.detail;
+      alert(typeof detail === 'string' ? detail : 'Ошибка при обновлении отчёта');
+    },
+  });
 
   const { data: companies, isLoading, error } = useQuery({
     queryKey: ['companies'],
@@ -175,10 +197,36 @@ const CompaniesList: React.FC = () => {
         />
       )}
       
-      {selectedReport && (
+      {selectedReport && !editingReport && (
         <ReportDetailModal
           report={selectedReport}
           onClose={handleCloseReport}
+          onEdit={(report) => {
+            // Найти компанию для этого отчёта
+            const comp = companies?.find((c: Company) => c.id === report.company_id) ?? null;
+            setEditingCompany(comp);
+            setEditingReport(report);
+            setSelectedReport(null);
+          }}
+        />
+      )}
+
+      {editingReport && editingCompany && editingCompany.id && (
+        <ReportForm
+          companyId={editingCompany.id}
+          companyName={editingCompany.name}
+          ticker={editingCompany.ticker}
+          reportId={editingReport.id}
+          initialValues={{
+            ...editingReport,
+            period_type: editingReport.period_type.toLowerCase() as any,
+            accounting_standard: editingReport.accounting_standard as any,
+            source: (editingReport.source ?? 'manual').toLowerCase() as any,
+          }}
+          onSubmit={async (data) => {
+            await updateReportMutation.mutateAsync({ id: editingReport.id, data });
+          }}
+          onCancel={() => { setEditingReport(null); setEditingCompany(null); }}
         />
       )}
     </div>
@@ -220,23 +268,34 @@ const CompanyReportsSection: React.FC<CompanyReportsSectionProps> = ({
       
       {reports && reports.length > 0 ? (
         <div className="reports-list">
-          {reports.map((report) => (
+          {reports.map((report) => {
+            const pt = report.period_type.toLowerCase();
+            const periodLabel =
+              pt === 'annual'
+                ? 'Годовой'
+                : pt === 'semi_annual'
+                ? 'Полугодовой'
+                : `Q${report.fiscal_quarter}`;
+            return (
             <div key={report.id} className="report-item">
               <div className="report-info">
-                <span className="report-date">📅 {report.report_date}</span>
-                <span className="report-currency">💰 {report.currency}</span>
+                <span className="report-year">{report.fiscal_year}</span>
+                <span className="report-period">{periodLabel}</span>
+                <span className="report-date">{report.report_date}</span>
+                <span className="report-currency">{report.currency}</span>
                 {report.dividends_paid && (
-                  <span className="report-dividend">💵 Дивиденды</span>
+                  <span className="report-dividend">💵</span>
                 )}
               </div>
-              <button 
+              <button
                 onClick={() => onViewReport(report)}
                 className="btn-view-report"
               >
-                Посмотреть
+                Просмотр
               </button>
             </div>
-          ))}
+            );
+          })}
         </div>
       ) : (
         <div className="no-reports">
@@ -256,83 +315,176 @@ const CompanyReportsSection: React.FC<CompanyReportsSectionProps> = ({
 interface ReportDetailModalProps {
   report: FinancialReport;
   onClose: () => void;
+  onEdit?: (report: FinancialReport) => void;
 }
 
-const ReportDetailModal: React.FC<ReportDetailModalProps> = ({ report, onClose }) => {
+// Тот же полный компонент, что и в CompanyDetail
+const ReportDetailModal: React.FC<ReportDetailModalProps> = ({ report, onClose, onEdit }) => {
+  const cur = report.currency;
+  const isUsd = cur === 'USD';
+
+  const fmtMln = (n: number | null | undefined): string => {
+    if (n === null || n === undefined) return '—';
+    const abs = Math.abs(n);
+    if (abs >= 1_000_000) return (n / 1_000_000).toFixed(2) + ` трлн ${cur}`;
+    if (abs >= 1_000)     return (n / 1_000).toFixed(2) + ` млрд ${cur}`;
+    return n.toLocaleString('ru-RU', { maximumFractionDigits: 1 }) + ` млн ${cur}`;
+  };
+
+  const pt2 = report.period_type.toLowerCase();
+  const periodLabel =
+    pt2 === 'annual'
+      ? 'Годовой'
+      : pt2 === 'semi_annual'
+      ? 'Полугодовой'
+      : `Квартальный (Q${report.fiscal_quarter})`;
+
   return (
     <div className="report-detail-overlay" onClick={onClose}>
       <div className="report-detail-container" onClick={(e) => e.stopPropagation()}>
         <div className="report-detail-header">
-          <h2>📊 Финансовый отчет</h2>
+          <div>
+            <h2>📊 Финансовый отчет</h2>
+            <p className="report-detail-subtitle">
+              {report.fiscal_year} · {periodLabel} · {report.accounting_standard}
+            </p>
+          </div>
           <button onClick={onClose} className="btn-close">✕</button>
         </div>
-        
+
         <div className="report-detail-content">
           <div className="detail-section">
-            <h3>Основная информация</h3>
+            <h3>Атрибуты отчёта</h3>
             <div className="detail-grid">
               <div className="detail-item">
-                <span className="detail-label">Дата отчета:</span>
-                <span className="detail-value">{report.report_date}</span>
+                <span className="detail-label">Период:</span>
+                <span className="detail-value">{report.fiscal_year} — {periodLabel}</span>
               </div>
               <div className="detail-item">
-                <span className="detail-label">Валюта:</span>
-                <span className="detail-value">{report.currency}</span>
+                <span className="detail-label">Дата окончания периода:</span>
+                <span className="detail-value">{report.report_date}</span>
               </div>
-              {report.exchange_rate && (
+              {report.filing_date && (
                 <div className="detail-item">
-                  <span className="detail-label">Курс USD/RUB:</span>
-                  <span className="detail-value">{report.exchange_rate.toFixed(4)}</span>
+                  <span className="detail-label">Дата публикации:</span>
+                  <span className="detail-value">{report.filing_date}</span>
                 </div>
               )}
+              <div className="detail-item">
+                <span className="detail-label">Стандарт / Валюта:</span>
+                <span className="detail-value">
+                  {report.accounting_standard} / {cur}
+                  {isUsd && report.exchange_rate ? ` (курс: ${report.exchange_rate} ₽)` : ''}
+                </span>
+              </div>
             </div>
           </div>
 
-          {(report.price_per_share || report.shares_outstanding) && (
+          {(report.price_per_share || report.price_at_filing || report.shares_outstanding) && (
             <div className="detail-section">
               <h3>Рыночные данные</h3>
               <div className="detail-grid">
-                {report.price_per_share && (
+                {report.price_per_share != null && (
                   <div className="detail-item">
-                    <span className="detail-label">Цена акции:</span>
-                    <span className="detail-value">{report.price_per_share.toLocaleString()} {report.currency}</span>
+                    <span className="detail-label">Цена на дату отчёта:</span>
+                    <span className="detail-value">
+                      {report.price_per_share.toLocaleString('ru-RU')} {cur}
+                      {isUsd && report.price_per_share_rub && (
+                        <span className="detail-hint"> = {report.price_per_share_rub.toLocaleString('ru-RU')} ₽</span>
+                      )}
+                    </span>
                   </div>
                 )}
-                {report.shares_outstanding && (
+                {report.price_at_filing != null && (
                   <div className="detail-item">
-                    <span className="detail-label">Количество акций:</span>
-                    <span className="detail-value">{report.shares_outstanding.toLocaleString()}</span>
+                    <span className="detail-label">Цена на дату публикации:</span>
+                    <span className="detail-value">{report.price_at_filing.toLocaleString('ru-RU')} {cur}</span>
+                  </div>
+                )}
+                {report.shares_outstanding != null && (
+                  <div className="detail-item">
+                    <span className="detail-label">Акций в обращении:</span>
+                    <span className="detail-value">{report.shares_outstanding.toLocaleString('ru-RU')} шт.</span>
                   </div>
                 )}
               </div>
             </div>
           )}
 
-          {(report.revenue || report.net_income) && (
+          {(report.revenue != null || report.net_income != null) && (
             <div className="detail-section">
-              <h3>Отчет о прибылях и убытках</h3>
+              <h3>Отчёт о прибылях и убытках <span className="section-units">(млн {cur})</span></h3>
               <div className="detail-grid">
-                {report.revenue && (
+                {report.revenue != null && (
                   <div className="detail-item">
                     <span className="detail-label">Выручка:</span>
-                    <span className="detail-value">{report.revenue.toLocaleString()} {report.currency}</span>
+                    <span className="detail-value">{fmtMln(report.revenue)}</span>
                   </div>
                 )}
-                {report.net_income && (
+                {report.net_income != null && (
                   <div className="detail-item">
                     <span className="detail-label">Чистая прибыль:</span>
-                    <span className="detail-value">{report.net_income.toLocaleString()} {report.currency}</span>
+                    <span className="detail-value">{fmtMln(report.net_income)}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {(report.total_assets != null || report.equity != null) && (
+            <div className="detail-section">
+              <h3>Балансовые показатели <span className="section-units">(млн {cur})</span></h3>
+              <div className="detail-grid">
+                {report.total_assets != null && (
+                  <div className="detail-item"><span className="detail-label">Активы (всего):</span><span className="detail-value">{fmtMln(report.total_assets)}</span></div>
+                )}
+                {report.current_assets != null && (
+                  <div className="detail-item"><span className="detail-label">Оборотные активы:</span><span className="detail-value">{fmtMln(report.current_assets)}</span></div>
+                )}
+                {report.total_liabilities != null && (
+                  <div className="detail-item"><span className="detail-label">Обязательства (всего):</span><span className="detail-value">{fmtMln(report.total_liabilities)}</span></div>
+                )}
+                {report.current_liabilities != null && (
+                  <div className="detail-item"><span className="detail-label">Краткосрочные обяз-ва:</span><span className="detail-value">{fmtMln(report.current_liabilities)}</span></div>
+                )}
+                {report.equity != null && (
+                  <div className="detail-item"><span className="detail-label">Собственный капитал:</span><span className="detail-value">{fmtMln(report.equity)}</span></div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {report.dividends_paid && (
+            <div className="detail-section">
+              <h3>Дивиденды</h3>
+              <div className="detail-grid">
+                <div className="detail-item">
+                  <span className="detail-label">Выплачивались:</span>
+                  <span className="detail-value detail-yes">✓ Да</span>
+                </div>
+                {report.dividends_per_share != null && (
+                  <div className="detail-item">
+                    <span className="detail-label">Дивиденд на акцию:</span>
+                    <span className="detail-value">{report.dividends_per_share.toLocaleString('ru-RU')} {cur}</span>
                   </div>
                 )}
               </div>
             </div>
           )}
         </div>
-        
+
         <div className="report-detail-footer">
-          <button onClick={onClose} className="btn-close-detail">
-            Закрыть
-          </button>
+          <span className="report-detail-meta">
+            Добавлен: {report.created_at ? new Date(report.created_at).toLocaleDateString('ru-RU') : '—'}
+          </span>
+          <div className="report-detail-footer-actions">
+            {onEdit && (
+              <button onClick={() => onEdit(report)} className="btn-edit-report">
+                ✏️ Редактировать
+              </button>
+            )}
+            <button onClick={onClose} className="btn-close-detail">Закрыть</button>
+          </div>
         </div>
       </div>
     </div>

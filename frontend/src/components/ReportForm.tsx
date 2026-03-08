@@ -37,6 +37,10 @@ interface ReportFormProps {
     companyName: string;
     /** Тикер (SECID) на Мосбирже для автоматической загрузки цены и акций */
     ticker?: string;
+    /** Если передан — форма работает в режиме редактирования, поля предзаполняются */
+    initialValues?: Partial<FinancialReportCreate>;
+    /** ID редактируемого отчёта (для заголовка и метаданных) */
+    reportId?: number;
     onSubmit: (reportData: FinancialReportCreate) => Promise<void>;
     onCancel: () => void;
 }
@@ -193,7 +197,8 @@ const PriceFetchBadge: React.FC<{ state: PriceFetchState; requestedDate: string 
     return null;
 };
 
-const ReportForm: React.FC<ReportFormProps> = ({ companyId, companyName, ticker, onSubmit, onCancel }) => {
+const ReportForm: React.FC<ReportFormProps> = ({ companyId, companyName, ticker, initialValues, reportId, onSubmit, onCancel }) => {
+    const isEditMode = !!reportId;
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -211,7 +216,7 @@ const ReportForm: React.FC<ReportFormProps> = ({ companyId, companyName, ticker,
         loading: false, result: null, error: null,
     });
 
-    const [formData, setFormData] = useState<FinancialReportCreate>({
+    const defaultValues: FinancialReportCreate = {
         company_id: companyId,
         period_type: 'quarterly',
         fiscal_year: new Date().getFullYear(),
@@ -235,7 +240,11 @@ const ReportForm: React.FC<ReportFormProps> = ({ companyId, companyName, ticker,
         dividends_paid: false,
         currency: 'RUB',
         exchange_rate: null,
-    });
+    };
+    // В режиме редактирования накладываем initialValues поверх дефолтов
+    const [formData, setFormData] = useState<FinancialReportCreate>(
+        initialValues ? { ...defaultValues, ...initialValues, company_id: companyId } : defaultValues,
+    );
 
     /** Загружает количество акций с Мосбиржи */
     const fetchShares = useCallback(async () => {
@@ -390,8 +399,9 @@ const ReportForm: React.FC<ReportFormProps> = ({ companyId, companyName, ticker,
         <div className="report-form-overlay">
             <div className="report-form-container">
                 <div className="report-form-header">
-                    <h2>Добавить финансовый отчет</h2>
+                    <h2>{isEditMode ? 'Редактировать финансовый отчёт' : 'Добавить финансовый отчёт'}</h2>
                     <p className="company-name">Компания: {companyName}</p>
+                    {isEditMode && <p className="report-edit-hint">ID отчёта: {reportId}</p>}
                 </div>
                 
                 {error && (
@@ -844,7 +854,11 @@ const ReportForm: React.FC<ReportFormProps> = ({ companyId, companyName, ticker,
                             className="btn btn-submit"
                             disabled={isSubmitting}
                         >
-                            {isSubmitting ? 'Сохранение...' : 'Сохранить отчет'}
+                            {isSubmitting
+                                ? 'Сохранение...'
+                                : isEditMode
+                                ? 'Обновить отчёт'
+                                : 'Сохранить отчёт'}
                         </button>
                     </div>
                 </form>

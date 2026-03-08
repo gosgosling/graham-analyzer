@@ -2,16 +2,22 @@
 Роутер для рыночных данных.
 
 Эндпоинты:
-    GET /market/price/moex?ticker=SBER&date=2024-12-31
-        Возвращает цену закрытия акции на указанную дату или ближайший
-        предыдущий торговый день (если биржа была закрыта).
+    GET  /market/price/moex?ticker=SBER&date=2024-12-31
+    GET  /market/shares/moex?ticker=SBER
+    GET  /market/dividends/moex?ticker=SBER&fiscal_year=2024
+    POST /market/prices/backfill?company_id=1          — ручной бэкфилл цен
+    POST /market/prices/backfill-all                   — бэкфилл для всех компаний
 """
 from datetime import date as date_type
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
 
+from app.database import get_db
+from app.models.company import Company
+from app.services.price_history_service import backfill_company_prices, backfill_all_companies
 from app.utils.moex_client import (
     get_closing_price_on_or_before,
     get_shares_outstanding,
@@ -224,4 +230,78 @@ def get_moex_price(
         price=result["price"],
         board=result["board"],
         is_adjusted=result["date"] != date,
+    )
+
+
+# ─── Бэкфилл исторических цен ─────────────────────────────────────────────────
+
+class BackfillResult(BaseModel):
+    company_id: int
+    ticker: str
+    added: int
+    from_date: Optional[str]
+    till_date: str
+
+
+@router.post(
+    "/prices/backfill",
+    response_model=BackfillResult,
+    summary="Ручной бэкфилл цен для одной компании",
+    description=(
+        "Докачивает пропущенные дневные цены из MOEX для указанной компании. "
+        "Используйте после добавления новой компании или если сервер был выключен."
+    ),
+)
+def manual_backfill(
+    company_id: int = Query(..., description="ID компании"),
+    from_date: Optional[str] = Query(
+        None,
+        description="Начало диапазона YYYY-MM-DD. Если не указано — автоматически с даты первого отчёта.",
+    ),
+    db: Session = Depends(get_db),
+):
+    company = db.query(Company).filter(Company.id == company_id).first()
+    if not company:
+        raise HTTPException(status_code=404, detail=f"Компания с id={company_id} не найдена")
+
+    force_from = None
+    if from_date:
+        try:
+            force_from = date_type.fromisoformat(from_date)
+        except ValueError:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Неверный формат from_date: '{from_date}'. Используйте YYYY-MM-DD.",
+            )
+
+    from datetime import date as d_type, timedelta
+    till = (d_type.today() - timedelta(days=1)).isoformat()
+
+    added = backfill_company_prices(db, company, force_from=force_from)
+
+    return BackfillResult(
+        company_id=company.id,
+        ticker=company.ticker,
+        added=added,
+        from_date=from_date,
+        till_date=till,
+    )
+
+
+class BackfillAllResult(BaseModel):
+    total_added: int
+    by_ticker: dict
+
+
+@router.post(
+    "/prices/backfill-all",
+    response_model=BackfillAllResult,
+    summary="Бэкфилл цен для всех компаний",
+    description="Докачивает пропущенные дневные цены из MOEX для всех компаний в базе.",
+)
+def manual_backfill_all(db: Session = Depends(get_db)):
+    result = backfill_all_companies(db)
+    return BackfillAllResult(
+        total_added=sum(result.values()),
+        by_ticker=result,
     )
