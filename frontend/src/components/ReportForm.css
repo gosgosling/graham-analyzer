@@ -201,3 +201,222 @@
     margin-top: 4px;
     font-weight: normal;
 }
+
+.section-units-hint {
+    display: inline-block;
+    margin-left: 10px;
+    padding: 2px 8px;
+    background: #eef2ff;
+    color: #6366f1;
+    border-radius: 4px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    vertical-align: middle;
+}
+
+/* ── Авто-загрузка цены с Мосбиржи ──────────────────────────────────────── */
+
+.price-fetch-notice {
+    background: #fefce8;
+    border: 1px solid #fde68a;
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 0.82rem;
+    color: #92400e;
+    margin-bottom: 12px;
+}
+
+.price-label-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 4px;
+}
+
+.price-label-row span {
+    font-weight: 500;
+    font-size: 0.9rem;
+    color: #374151;
+}
+
+.btn-fetch-price {
+    padding: 3px 10px;
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+    border-radius: 5px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #1d4ed8;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s;
+    flex-shrink: 0;
+}
+
+.btn-fetch-price:hover:not(:disabled) {
+    background: #dbeafe;
+}
+
+.btn-fetch-price:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.input-loading {
+    background: #f0f9ff !important;
+    color: #64748b;
+}
+
+.price-badge {
+    display: block;
+    font-size: 0.76rem;
+    font-weight: 500;
+    margin-top: 3px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    line-height: 1.4;
+}
+
+.price-badge.loading {
+    color: #6366f1;
+    background: #eef2ff;
+}
+
+.price-badge.ok {
+    color: #166534;
+    background: #dcfce7;
+}
+
+.price-badge.adjusted {
+    color: #92400e;
+    background: #fef3c7;
+}
+
+.price-badge.error {
+    color: #991b1b;
+    background: #fee2e2;
+}
+
+.badge-note {
+    opacity: 0.7;
+    font-weight: 400;
+    font-style: italic;
+}
+
+/* Строка автозагрузки дивидендов */
+.dividends-fetch-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+}
+
+/* Информационная панель дивидендов */
+.dividends-info-panel {
+    flex: 1;
+    border-radius: 6px;
+    padding: 10px 12px;
+    font-size: 13px;
+    border: 1px solid;
+}
+
+.dividends-info-panel.loading {
+    background: #f0f9ff;
+    border-color: #bae6fd;
+    color: #0369a1;
+}
+
+.dividends-info-panel.found {
+    background: #f0fdf4;
+    border-color: #86efac;
+    color: #166534;
+}
+
+.dividends-info-panel.not-found {
+    background: #fffbeb;
+    border-color: #fcd34d;
+    color: #92400e;
+}
+
+.dividends-info-panel.warning {
+    background: #fef2f2;
+    border-color: #fca5a5;
+    color: #991b1b;
+}
+
+.div-panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.div-panel-period {
+    font-size: 11px;
+    opacity: 0.7;
+}
+
+.div-panel-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 8px;
+}
+
+.div-panel-table th,
+.div-panel-table td {
+    padding: 3px 8px;
+    text-align: left;
+    border-bottom: 1px solid rgba(0,0,0,0.06);
+    font-size: 12px;
+}
+
+.div-panel-table th {
+    font-weight: 600;
+    opacity: 0.75;
+}
+
+.div-panel-total-row td {
+    border-top: 2px solid rgba(0,0,0,0.12);
+    padding-top: 5px;
+}
+
+.div-panel-empty {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.div-panel-hint {
+    display: block;
+    font-size: 11px;
+    opacity: 0.75;
+    margin-top: 4px;
+    font-style: italic;
+}
+
+.div-panel-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 4px;
+}
+
+.btn-apply-dividends {
+    background: #16a34a;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 4px 10px;
+    font-size: 12px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.btn-apply-dividends:hover {
+    background: #15803d;
+}

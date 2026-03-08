@@ -1,5 +1,6 @@
-from sqlalchemy import ForeignKey, Integer, Numeric, DateTime, Date, String, UniqueConstraint
+from sqlalchemy import ForeignKey, Integer, BigInteger, Numeric, DateTime, Date, String, UniqueConstraint
 from datetime import datetime, date
+from datetime import date as dt
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 from typing import TYPE_CHECKING, Optional
@@ -37,7 +38,7 @@ class Multiplier(Base):
         ForeignKey("financial_reports.id", ondelete="SET NULL"), nullable=True, index=True
     )
 
-    date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    date: Mapped[dt] = mapped_column(Date, nullable=False, index=True)
 
     type: Mapped[str] = mapped_column(
         String(20), nullable=False, default="current"
@@ -45,7 +46,7 @@ class Multiplier(Base):
 
     # Рыночные данные, использованные при расчёте
     price_used: Mapped[Optional[float]] = mapped_column(Numeric(15, 4), nullable=True)
-    shares_used: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    shares_used: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
     market_cap: Mapped[Optional[float]] = mapped_column(Numeric(20, 2), nullable=True)
 
     # LTM показатели P&L (Last Twelve Months)

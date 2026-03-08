@@ -97,27 +97,37 @@ class CompanyCreate(BaseModel):
 
 
 class FinancialReportCreate(BaseModel):
-    """Схема для создания финансового отчета"""
+    """
+    Схема для создания финансового отчёта.
+
+    ⚠️ ЕДИНИЦЫ ВВОДА:
+      - price_per_share, price_at_filing, dividends_per_share — в полных ₽ или $ (за акцию)
+      - shares_outstanding — количество акций в штуках
+      - revenue, net_income, total_assets, current_assets,
+        total_liabilities, current_liabilities, equity — в МИЛЛИОНАХ валюты (млн ₽ или млн $)
+
+    Пример: выручка Сбербанка 1 459 000 млн ₽ → вводить 1459000
+    """
     company_id: int
-    
+
     # Атрибуты отчёта
     period_type: PeriodType = PeriodType.QUARTERLY
     fiscal_year: int
-    fiscal_quarter: Optional[int] = None  # NULL для годовых отчётов
+    fiscal_quarter: Optional[int] = None
     accounting_standard: AccountingStandard = AccountingStandard.IFRS
     consolidated: bool = True
     source: ReportSource = ReportSource.MANUAL
-    
+
     # Даты
-    report_date: str  # YYYY-MM-DD формат (дата окончания отчётного периода)
-    filing_date: Optional[str] = None  # YYYY-MM-DD формат (дата публикации)
-    
-    # Рыночные данные
-    price_per_share: Optional[float] = None  # Цена на дату окончания периода (report_date) - ОСНОВНАЯ
-    price_at_filing: Optional[float] = None  # Цена на дату публикации (filing_date) - для анализа
+    report_date: str   # YYYY-MM-DD
+    filing_date: Optional[str] = None
+
+    # Рыночные данные (полные единицы — ₽/$  за акцию)
+    price_per_share: Optional[float] = None
+    price_at_filing: Optional[float] = None
     shares_outstanding: Optional[int] = None
-    
-    # Финансовые показатели
+
+    # Финансовые показатели — в МИЛЛИОНАХ валюты (млн ₽ или млн $)
     revenue: Optional[float] = None
     net_income: Optional[float] = None
     total_assets: Optional[float] = None
@@ -125,9 +135,9 @@ class FinancialReportCreate(BaseModel):
     total_liabilities: Optional[float] = None
     current_liabilities: Optional[float] = None
     equity: Optional[float] = None
-    dividends_per_share: Optional[float] = None
+    dividends_per_share: Optional[float] = None  # ₽/$ за акцию (полные единицы)
     dividends_paid: bool = False
-    
+
     # Валюта
     currency: str = "RUB"
     exchange_rate: Optional[float] = None
