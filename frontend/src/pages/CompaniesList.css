@@ -94,10 +94,12 @@
   transform: translateX(5px);
 }
 
-.report-info { display: flex; gap: 15px; align-items: center; }
-.report-date { font-weight: 600; color: #2c3e50; font-size: 14px; }
-.report-currency { color: #27ae60; font-size: 13px; padding: 2px 8px; background-color: #d5f4e6; border-radius: 4px; }
-.report-dividend { color: #e67e22; font-size: 13px; padding: 2px 8px; background-color: #fdebd0; border-radius: 4px; }
+.report-info { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.report-year { font-weight: 700; color: #2c3e50; font-size: 15px; }
+.report-period { font-size: 12px; color: #fff; background: #667eea; padding: 2px 8px; border-radius: 10px; font-weight: 500; }
+.report-date { font-size: 12px; color: #7f8c8d; }
+.report-currency { color: #27ae60; font-size: 12px; padding: 2px 6px; background-color: #d5f4e6; border-radius: 4px; }
+.report-dividend { color: #e67e22; font-size: 13px; }
 
 .btn-view-report {
   background-color: #9b59b6;

@@ -1,5 +1,5 @@
-from pydantic import BaseModel, model_validator, computed_field
-from typing import Optional, List
+from pydantic import BaseModel, model_validator, computed_field, field_serializer
+from typing import Optional, List, Union
 from datetime import date, datetime
 from app.models.enums import PeriodType, AccountingStandard, ReportSource
 
@@ -176,15 +176,15 @@ class FinancialReport(BaseModel):
     consolidated: bool
     source: str
     
-    # Даты
-    report_date: str  # YYYY-MM-DD формат
-    filing_date: Optional[str] = None
-    
+    # Даты — принимают date/datetime от ORM, сериализуются в строки для JSON
+    report_date: Union[date, str]
+    filing_date: Optional[Union[date, str]] = None
+
     # Рыночные данные
-    price_per_share: Optional[float] = None  # Цена на report_date
-    price_at_filing: Optional[float] = None  # Цена на filing_date
+    price_per_share: Optional[float] = None
+    price_at_filing: Optional[float] = None
     shares_outstanding: Optional[int] = None
-    
+
     # Финансовые показатели
     revenue: Optional[float] = None
     net_income: Optional[float] = None
@@ -195,17 +195,34 @@ class FinancialReport(BaseModel):
     equity: Optional[float] = None
     dividends_per_share: Optional[float] = None
     dividends_paid: bool = False
-    
+
     # Валюта
     currency: str = "RUB"
     exchange_rate: Optional[float] = None
-    
+
     # Метаданные
-    created_at: Optional[str] = None
-    updated_at: Optional[str] = None
+    created_at: Optional[Union[datetime, str]] = None
+    updated_at: Optional[Union[datetime, str]] = None
 
     class Config:
         from_attributes = True
+
+    # Сериализаторы — конвертируют date/datetime в ISO-строку при отдаче JSON
+    @field_serializer('report_date', 'filing_date')
+    def serialize_date(self, v: Optional[Union[date, str]]) -> Optional[str]:
+        if v is None:
+            return None
+        if isinstance(v, (date, datetime)):
+            return v.isoformat()
+        return str(v)
+
+    @field_serializer('created_at', 'updated_at')
+    def serialize_datetime(self, v: Optional[Union[datetime, str]]) -> Optional[str]:
+        if v is None:
+            return None
+        if isinstance(v, datetime):
+            return v.isoformat()
+        return str(v)
 
     # Вспомогательный метод конвертации
     def _convert_to_rub(self, value: Optional[float]) -> Optional[float]:

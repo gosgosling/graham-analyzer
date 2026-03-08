@@ -537,11 +537,100 @@
   font-weight: 400;
 }
 
+/* Строка отчёта — год и тип периода */
+.report-compact-info {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.report-compact-year {
+  font-weight: 700;
+  color: #2c3e50;
+  font-size: 15px;
+  min-width: 36px;
+}
+
+.report-compact-period {
+  font-size: 12px;
+  color: #fff;
+  background: #667eea;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-weight: 500;
+}
+
+.report-compact-standard {
+  font-size: 11px;
+  color: #7f8c8d;
+  background: #ecf0f1;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+/* Модальное окно — заголовок с подзаголовком */
+.report-detail-subtitle {
+  font-size: 13px;
+  color: #7f8c8d;
+  margin: 4px 0 0 0;
+  font-weight: 400;
+}
+
+/* Единицы измерения в заголовке секции */
+.section-units {
+  font-size: 12px;
+  font-weight: 400;
+  color: #7f8c8d;
+  margin-left: 6px;
+}
+
+/* Положительное значение (дивиденды выплачивались) */
+.detail-yes {
+  color: #27ae60;
+}
+
+/* Футер модального окна */
 .report-detail-footer {
   padding: 20px 30px;
   border-top: 2px solid #e0e0e0;
   display: flex;
-  justify-content: center;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.report-detail-meta {
+  font-size: 12px;
+  color: #95a5a6;
+}
+
+.report-detail-footer-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.btn-edit-report {
+  background: #f59e0b;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.btn-edit-report:hover {
+  background: #d97706;
+}
+
+.report-edit-hint {
+  font-size: 11px;
+  color: #95a5a6;
+  margin: 2px 0 0;
 }
 
 .btn-close-detail {

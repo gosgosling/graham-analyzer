@@ -380,6 +380,12 @@
 .mult-cell.bad     { background: #fee2e2; color: #991b1b; }
 .mult-cell.neutral { color: #94a3b8; font-weight: 400; }
 
+/* Подсказка при null-значении: пунктирное подчёркивание и курсор-помощь */
+.mult-cell.null-hint {
+  cursor: help;
+  text-decoration: underline dotted #94a3b8;
+}
+
 /* ── Графики ─────────────────────────────────────────────────────────────── */
 
 .charts-grid {

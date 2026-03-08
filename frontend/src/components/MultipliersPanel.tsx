@@ -55,8 +55,24 @@ function dyLevel(v: number | null): Level {
 
 // ─── Вспомогательные компоненты ──────────────────────────────────────────────
 
-function MetricBadge({ value, level, suffix = '' }: { value: number | null; level: Level; suffix?: string }) {
-  if (value === null) return <span className="mult-cell neutral">—</span>;
+function MetricBadge({
+  value, level, suffix = '', nullHint,
+}: {
+  value: number | null;
+  level: Level;
+  suffix?: string;
+  nullHint?: string;
+}) {
+  if (value === null) {
+    return (
+      <span
+        className="mult-cell neutral null-hint"
+        title={nullHint ?? 'Недостаточно данных'}
+      >
+        —
+      </span>
+    );
+  }
   return (
     <span className={`mult-cell ${level}`}>
       {value.toFixed(2)}{suffix}
@@ -239,21 +255,36 @@ const HistTable: React.FC<HistTableProps> = ({ rows, currentRow }) => {
           )}
 
           {/* Исторические строки */}
-          {rows.map((r) => (
-            <tr key={r.id} className="row-hist">
-              <td className="col-year">{fmtDate(r.date)}</td>
-              <td>{r.price_used !== null ? fmt(r.price_used) : '—'}</td>
-              <td>{r.market_cap !== null ? (r.market_cap / 1_000).toFixed(2) : '—'}</td>
-              <td><MetricBadge value={r.pe_ratio} level={peLevel(r.pe_ratio)} /></td>
-              <td><MetricBadge value={r.pb_ratio} level={pbLevel(r.pb_ratio)} /></td>
-              <td><MetricBadge value={r.roe} level={roeLevel(r.roe)} suffix="%" /></td>
-              <td><MetricBadge value={r.debt_to_equity} level={deLevel(r.debt_to_equity)} /></td>
-              <td><MetricBadge value={r.current_ratio} level={crLevel(r.current_ratio)} /></td>
-              <td><MetricBadge value={r.dividend_yield} level={dyLevel(r.dividend_yield)} suffix="%" /></td>
-              <td>{fmtMln(r.ltm_revenue)}</td>
-              <td>{fmtMln(r.ltm_net_income)}</td>
-            </tr>
-          ))}
+          {rows.map((r) => {
+            const noPrice   = r.price_used === null || r.shares_used === null;
+            const noIncome  = r.ltm_net_income === null;
+            const noEquity  = r.equity === null;
+            const noLiab    = r.total_liabilities === null;
+            const noCurr    = r.current_assets === null || r.current_liabilities === null;
+            const noDivs    = r.ltm_dividends_per_share === null;
+
+            return (
+              <tr key={r.id} className="row-hist">
+                <td className="col-year">{fmtDate(r.date)}</td>
+                <td>{r.price_used !== null ? fmt(r.price_used) : '—'}</td>
+                <td>{r.market_cap !== null ? (r.market_cap / 1_000).toFixed(2) : '—'}</td>
+                <td><MetricBadge value={r.pe_ratio} level={peLevel(r.pe_ratio)}
+                  nullHint={noIncome ? 'Нет данных о чистой прибыли (net_income)' : noPrice ? 'Нет цены / акций' : undefined} /></td>
+                <td><MetricBadge value={r.pb_ratio} level={pbLevel(r.pb_ratio)}
+                  nullHint={noEquity ? 'Нет данных о капитале (equity)' : noPrice ? 'Нет цены / акций' : undefined} /></td>
+                <td><MetricBadge value={r.roe} level={roeLevel(r.roe)} suffix="%"
+                  nullHint={noIncome ? 'Нет данных о чистой прибыли (net_income)' : noEquity ? 'Нет данных о капитале (equity)' : undefined} /></td>
+                <td><MetricBadge value={r.debt_to_equity} level={deLevel(r.debt_to_equity)}
+                  nullHint={noLiab ? 'Нет данных об обязательствах (total_liabilities)' : noEquity ? 'Нет данных о капитале (equity)' : undefined} /></td>
+                <td><MetricBadge value={r.current_ratio} level={crLevel(r.current_ratio)}
+                  nullHint={noCurr ? 'Нет оборотных активов или краткосрочных обязательств' : undefined} /></td>
+                <td><MetricBadge value={r.dividend_yield} level={dyLevel(r.dividend_yield)} suffix="%"
+                  nullHint={noDivs ? 'Дивиденды не указаны' : noPrice ? 'Нет цены акции' : undefined} /></td>
+                <td>{fmtMln(r.ltm_revenue)}</td>
+                <td>{fmtMln(r.ltm_net_income)}</td>
+              </tr>
+            );
+          })}
 
           {rows.length === 0 && !currentRow && (
             <tr>
