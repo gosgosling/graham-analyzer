@@ -169,6 +169,7 @@ const CompaniesList: React.FC = () => {
         <ReportForm
           companyId={selectedCompany.id}
           companyName={selectedCompany.name}
+          ticker={selectedCompany.ticker}
           onSubmit={handleFormSubmit}
           onCancel={handleFormCancel}
         />

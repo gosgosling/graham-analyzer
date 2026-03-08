@@ -1,35 +1,229 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { FinancialReportCreate } from '../types';
+import {
+    getMoexPrice,
+    getMoexShares,
+    getMoexDividends,
+    MoexPriceResult,
+    MoexSharesResult,
+    MoexDividendsResult,
+} from '../services/api';
 import './ReportForm.css';
+
+/**
+ * Преобразует ответ FastAPI/Pydantic об ошибке в читаемую строку.
+ * FastAPI при 422 возвращает detail как массив объектов:
+ *   [{type, loc, msg, input, ctx}, ...]
+ * При других ошибках detail может быть строкой.
+ */
+function extractErrorMessage(err: any): string {
+    const detail = err?.response?.data?.detail;
+    if (!detail) return 'Ошибка при сохранении отчёта';
+    if (typeof detail === 'string') return detail;
+    if (Array.isArray(detail)) {
+        return detail
+            .map((e: any) => {
+                const field = Array.isArray(e.loc) ? e.loc.slice(1).join(' → ') : '';
+                const msg = e.msg ?? 'неверное значение';
+                return field ? `${field}: ${msg}` : msg;
+            })
+            .join('\n');
+    }
+    return 'Ошибка при сохранении отчёта';
+}
 
 interface ReportFormProps {
     companyId: number;
     companyName: string;
+    /** Тикер (SECID) на Мосбирже для автоматической загрузки цены и акций */
+    ticker?: string;
     onSubmit: (reportData: FinancialReportCreate) => Promise<void>;
     onCancel: () => void;
 }
 
-const ReportForm: React.FC<ReportFormProps> = ({ companyId, companyName, onSubmit, onCancel }) => {
+interface PriceFetchState {
+    loading: boolean;
+    result: MoexPriceResult | null;
+    error: string | null;
+}
+
+interface SharesFetchState {
+    loading: boolean;
+    result: MoexSharesResult | null;
+    error: string | null;
+    /** true — поле уже было заполнено вручную, авто-значение применено как подсказка */
+    applied: boolean;
+}
+
+interface DividendsFetchState {
+    loading: boolean;
+    result: MoexDividendsResult | null;
+    error: string | null;
+}
+
+/** Показывает статус загрузки количества акций */
+const SharesFetchBadge: React.FC<{ state: SharesFetchState }> = ({ state }) => {
+    if (state.loading) {
+        return <span className="price-badge loading">⟳ Загрузка из реестра Мосбиржи...</span>;
+    }
+    if (state.error) {
+        return (
+            <span className="price-badge error">
+                ✗ {state.error} — введите вручную
+            </span>
+        );
+    }
+    if (state.result && state.applied) {
+        return (
+            <span className="price-badge ok">
+                ✓ {state.result.secname} · {state.result.issuesize.toLocaleString('ru-RU')} акций
+                <span className="badge-note"> · актуальное значение из реестра MOEX, уточните по отчёту</span>
+            </span>
+        );
+    }
+    return null;
+};
+
+/**
+ * Панель дивидендов с Мосбиржи:
+ * - показывает каждую найденную выплату отдельной строкой
+ * - чётко предупреждает что данные могут быть неполными
+ * - поле для ввода итогового значения остаётся всегда редактируемым
+ */
+const DividendsInfoPanel: React.FC<{
+    state: DividendsFetchState;
+    onApply: (total: number) => void;
+}> = ({ state, onApply }) => {
+    if (state.loading) {
+        return (
+            <div className="dividends-info-panel loading">
+                <span>⟳ Загружаю данные о дивидендах с Мосбиржи...</span>
+            </div>
+        );
+    }
+    if (state.error) {
+        return (
+            <div className="dividends-info-panel warning">
+                <span>✗ {state.error}</span>
+                <span className="div-panel-hint">Введите сумму дивиденда на акцию вручную ниже.</span>
+            </div>
+        );
+    }
+    if (!state.result) return null;
+
+    const { total, payments_count, period_from, period_till, currency, payments } = state.result;
+
+    return (
+        <div className={`dividends-info-panel ${payments_count > 0 ? 'found' : 'not-found'}`}>
+            <div className="div-panel-header">
+                <strong>Данные Мосбиржи</strong>
+                <span className="div-panel-period">{period_from} — {period_till}</span>
+            </div>
+
+            {payments_count === 0 ? (
+                <div className="div-panel-empty">
+                    ⚠ Выплат с датой закрытия реестра в этом периоде не найдено.
+                    <span className="div-panel-hint">
+                        Это нормально для квартальных отчётов. Если дивиденды всё же выплачивались —
+                        введите значение вручную в поле ниже.
+                    </span>
+                </div>
+            ) : (
+                <>
+                    <table className="div-panel-table">
+                        <thead>
+                            <tr>
+                                <th>Дата закрытия реестра</th>
+                                <th>Выплата, {currency}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {payments.map(p => (
+                                <tr key={p.registryclosedate}>
+                                    <td>{p.registryclosedate}</td>
+                                    <td>{p.value}</td>
+                                </tr>
+                            ))}
+                            {payments_count > 1 && (
+                                <tr className="div-panel-total-row">
+                                    <td><strong>Итого</strong></td>
+                                    <td><strong>{total}</strong></td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
+                    <div className="div-panel-actions">
+                        <button
+                            type="button"
+                            className="btn-apply-dividends"
+                            onClick={() => onApply(total)}
+                        >
+                            Применить сумму {total} {currency}
+                        </button>
+                        <span className="div-panel-hint">
+                            Не видите какую-то выплату? Данные Мосбиржи могут запаздывать —
+                            исправьте итоговое значение вручную в поле ниже.
+                        </span>
+                    </div>
+                </>
+            )}
+        </div>
+    );
+};
+
+/** Показывает статус загрузки цены и индикатор корректировки даты */
+const PriceFetchBadge: React.FC<{ state: PriceFetchState; requestedDate: string }> = ({ state, requestedDate }) => {
+    if (state.loading) {
+        return <span className="price-badge loading">⟳ Загрузка цены с Мосбиржи...</span>;
+    }
+    if (state.error) {
+        return <span className="price-badge error">✗ {state.error}</span>;
+    }
+    if (state.result) {
+        const adjusted = state.result.is_adjusted;
+        return (
+            <span className={`price-badge ${adjusted ? 'adjusted' : 'ok'}`}>
+                {adjusted
+                    ? `⚠ Биржа закрыта ${requestedDate} → цена за ${state.result.actual_date}`
+                    : `✓ Цена за ${state.result.actual_date} (${state.result.board})`
+                }
+            </span>
+        );
+    }
+    return null;
+};
+
+const ReportForm: React.FC<ReportFormProps> = ({ companyId, companyName, ticker, onSubmit, onCancel }) => {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    
+
+    // Состояния загрузки цен
+    const [priceReportState, setPriceReportState] = useState<PriceFetchState>({ loading: false, result: null, error: null });
+    const [priceFilingState, setPriceFilingState] = useState<PriceFetchState>({ loading: false, result: null, error: null });
+
+    // Состояние загрузки количества акций
+    const [sharesState, setSharesState] = useState<SharesFetchState>({
+        loading: false, result: null, error: null, applied: false,
+    });
+
+    // Состояние загрузки дивидендов
+    const [dividendsState, setDividendsState] = useState<DividendsFetchState>({
+        loading: false, result: null, error: null,
+    });
+
     const [formData, setFormData] = useState<FinancialReportCreate>({
         company_id: companyId,
-        // Атрибуты отчёта
         period_type: 'quarterly',
         fiscal_year: new Date().getFullYear(),
         fiscal_quarter: 4,
         accounting_standard: 'IFRS',
         consolidated: true,
         source: 'manual',
-        // Даты
         report_date: '',
         filing_date: null,
-        // Рыночные данные
-        price_per_share: null,  // Цена на конец периода
-        price_at_filing: null,  // Цена на дату публикации
+        price_per_share: null,
+        price_at_filing: null,
         shares_outstanding: null,
-        // Финансовые данные
         revenue: null,
         net_income: null,
         total_assets: null,
@@ -39,14 +233,104 @@ const ReportForm: React.FC<ReportFormProps> = ({ companyId, companyName, onSubmi
         equity: null,
         dividends_per_share: null,
         dividends_paid: false,
-        // Валюта
         currency: 'RUB',
         exchange_rate: null,
     });
 
+    /** Загружает количество акций с Мосбиржи */
+    const fetchShares = useCallback(async () => {
+        if (!ticker) return;
+        setSharesState({ loading: true, result: null, error: null, applied: false });
+        try {
+            const result = await getMoexShares(ticker);
+            setSharesState({ loading: false, result, error: null, applied: true });
+            // Подставляем только если поле пустое
+            setFormData(prev => ({
+                ...prev,
+                shares_outstanding: prev.shares_outstanding ?? result.issuesize,
+            }));
+        } catch (err: any) {
+            const msg = err.response?.data?.detail ?? 'Не удалось получить данные из Мосбиржи';
+            setSharesState({ loading: false, result: null, error: msg, applied: false });
+        }
+    }, [ticker]);
+
+    // Авто-загрузка акций при открытии формы
+    useEffect(() => {
+        if (ticker) {
+            fetchShares();
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [ticker]);
+
+    /** Загружает дивиденды с Мосбиржи за указанный период и подставляет в поля */
+    const fetchDividends = useCallback(async (
+        year: number,
+        pType: string,
+        quarter: number | null,
+    ) => {
+        if (!ticker) return;
+        setDividendsState({ loading: true, result: null, error: null });
+        try {
+            const result = await getMoexDividends(
+                ticker,
+                year,
+                pType,
+                quarter ?? undefined,
+            );
+            setDividendsState({ loading: false, result, error: null });
+            // Не перезаписываем поле автоматически — пользователь применяет сумму сам
+            // через кнопку "Применить" или вводит вручную.
+            // Только если поле ещё пустое и MOEX нашёл данные — предзаполняем как стартовое значение.
+            if (result.total > 0) {
+                setFormData(prev => ({
+                    ...prev,
+                    dividends_paid: true,
+                    // Предзаполняем ТОЛЬКО если поле пустое
+                    dividends_per_share: prev.dividends_per_share ?? result.total,
+                }));
+            }
+        } catch (err: any) {
+            const msg = err.response?.data?.detail ?? 'Не удалось получить данные с Мосбиржи';
+            setDividendsState({ loading: false, result: null, error: msg });
+        }
+    }, [ticker]);
+
+    // Авто-загрузка дивидендов при смене года или типа/квартала периода
+    useEffect(() => {
+        if (!ticker) return;
+        // Для quarterly ждём пока выбран квартал
+        if (formData.period_type === 'quarterly' && !formData.fiscal_quarter) return;
+        fetchDividends(
+            formData.fiscal_year,
+            formData.period_type,
+            formData.fiscal_quarter ?? null,
+        );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [ticker, formData.fiscal_year, formData.period_type, formData.fiscal_quarter]);
+
+    /** Загружает цену с Мосбиржи и подставляет в поле */
+    const fetchPrice = useCallback(async (
+        dateValue: string,
+        field: 'price_per_share' | 'price_at_filing',
+        setState: React.Dispatch<React.SetStateAction<PriceFetchState>>,
+    ) => {
+        if (!ticker || !dateValue) return;
+
+        setState({ loading: true, result: null, error: null });
+        try {
+            const result = await getMoexPrice(ticker, dateValue);
+            setState({ loading: false, result, error: null });
+            setFormData(prev => ({ ...prev, [field]: result.price }));
+        } catch (err: any) {
+            const msg = err.response?.data?.detail ?? 'Не удалось получить цену';
+            setState({ loading: false, result: null, error: msg });
+        }
+    }, [ticker]);
+    
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name, value, type } = e.target;
-        
+
         if (type === 'checkbox') {
             const checked = (e.target as HTMLInputElement).checked;
             setFormData(prev => ({ ...prev, [name]: checked }));
@@ -54,6 +338,13 @@ const ReportForm: React.FC<ReportFormProps> = ({ companyId, companyName, onSubmi
             setFormData(prev => ({ ...prev, [name]: value ? parseFloat(value) : null }));
         } else {
             setFormData(prev => ({ ...prev, [name]: value }));
+            // Авто-загрузка цены при изменении дат
+            if (name === 'report_date' && value) {
+                fetchPrice(value, 'price_per_share', setPriceReportState);
+            }
+            if (name === 'filing_date' && value) {
+                fetchPrice(value, 'price_at_filing', setPriceFilingState);
+            }
         }
     };
 
@@ -77,17 +368,19 @@ const ReportForm: React.FC<ReportFormProps> = ({ companyId, companyName, onSubmi
             return;
         }
         
-        if (formData.period_type === 'annual' && formData.fiscal_quarter) {
-            // Для годовых отчётов убираем квартал
-            setFormData(prev => ({ ...prev, fiscal_quarter: null }));
-        }
-        
+        // Очищаем fiscal_quarter для не-квартальных отчётов синхронно,
+        // не через setFormData (который асинхронен), а в локальной копии данных
+        const submitData: FinancialReportCreate = {
+            ...formData,
+            fiscal_quarter: formData.period_type === 'quarterly' ? formData.fiscal_quarter : null,
+        };
+
         setIsSubmitting(true);
         
         try {
-            await onSubmit(formData);
+            await onSubmit(submitData);
         } catch (err: any) {
-            setError(err.response?.data?.detail || 'Ошибка при сохранении отчета');
+            setError(extractErrorMessage(err));
         } finally {
             setIsSubmitting(false);
         }
@@ -101,7 +394,11 @@ const ReportForm: React.FC<ReportFormProps> = ({ companyId, companyName, onSubmi
                     <p className="company-name">Компания: {companyName}</p>
                 </div>
                 
-                {error && <div className="error-message">{error}</div>}
+                {error && (
+                    <div className="error-message" style={{ whiteSpace: 'pre-line' }}>
+                        {error}
+                    </div>
+                )}
                 
                 <form onSubmit={handleSubmit} className="report-form">
                     {/* Атрибуты отчёта */}
@@ -254,112 +551,167 @@ const ReportForm: React.FC<ReportFormProps> = ({ companyId, companyName, onSubmi
                     {/* Рыночные данные */}
                     <div className="form-section">
                         <h3>Рыночные данные</h3>
-                        
+
+                        {!ticker && (
+                            <div className="price-fetch-notice">
+                                ℹ️ Тикер не определён — цены нужно ввести вручную
+                            </div>
+                        )}
+
                         <div className="form-row">
-                            <label className="form-label">
-                                Цена акции на дату окончания периода:
+                            {/* Цена на дату окончания периода */}
+                            <div className="form-label">
+                                <div className="price-label-row">
+                                    <span>Цена акции на конец периода, {formData.currency}:</span>
+                                    {ticker && formData.report_date && (
+                                        <button
+                                            type="button"
+                                            className="btn-fetch-price"
+                                            disabled={priceReportState.loading}
+                                            onClick={() => fetchPrice(formData.report_date, 'price_per_share', setPriceReportState)}
+                                        >
+                                            {priceReportState.loading ? '⟳' : '↺ MOEX'}
+                                        </button>
+                                    )}
+                                </div>
                                 <input
                                     type="number"
                                     name="price_per_share"
                                     value={formData.price_per_share || ''}
                                     onChange={handleInputChange}
                                     step="0.01"
-                                    placeholder={`Цена на ${formData.report_date || 'конец периода'} (${formData.currency})`}
-                                    className="form-input"
+                                    placeholder="Загружается автоматически..."
+                                    className={`form-input ${priceReportState.loading ? 'input-loading' : ''}`}
                                 />
+                                <PriceFetchBadge state={priceReportState} requestedDate={formData.report_date} />
                                 <small className="field-hint">Основная цена для расчёта мультипликаторов</small>
-                            </label>
-                            
-                            <label className="form-label">
-                                Цена акции на дату публикации:
+                            </div>
+
+                            {/* Цена на дату публикации */}
+                            <div className="form-label">
+                                <div className="price-label-row">
+                                    <span>Цена акции на дату публикации, {formData.currency}:</span>
+                                    {ticker && formData.filing_date && (
+                                        <button
+                                            type="button"
+                                            className="btn-fetch-price"
+                                            disabled={priceFilingState.loading}
+                                            onClick={() => fetchPrice(formData.filing_date!, 'price_at_filing', setPriceFilingState)}
+                                        >
+                                            {priceFilingState.loading ? '⟳' : '↺ MOEX'}
+                                        </button>
+                                    )}
+                                </div>
                                 <input
                                     type="number"
                                     name="price_at_filing"
                                     value={formData.price_at_filing || ''}
                                     onChange={handleInputChange}
                                     step="0.01"
-                                    placeholder={`Цена на ${formData.filing_date || 'дату публикации'} (${formData.currency})`}
-                                    className="form-input"
+                                    placeholder="Загружается автоматически..."
+                                    className={`form-input ${priceFilingState.loading ? 'input-loading' : ''}`}
                                 />
+                                <PriceFetchBadge state={priceFilingState} requestedDate={formData.filing_date ?? ''} />
                                 <small className="field-hint">Опционально, для анализа реакции рынка</small>
-                            </label>
+                            </div>
                         </div>
                         
                         <div className="form-row">
-                            <label className="form-label">
-                                Количество акций:
+                            <div className="form-label">
+                                <div className="price-label-row">
+                                    <span>Количество акций в обращении, шт.:</span>
+                                    {ticker && (
+                                        <button
+                                            type="button"
+                                            className="btn-fetch-price"
+                                            disabled={sharesState.loading}
+                                            onClick={fetchShares}
+                                        >
+                                            {sharesState.loading ? '⟳' : '↺ MOEX'}
+                                        </button>
+                                    )}
+                                </div>
                                 <input
                                     type="number"
                                     name="shares_outstanding"
                                     value={formData.shares_outstanding || ''}
                                     onChange={handleInputChange}
-                                    placeholder="0"
-                                    className="form-input"
+                                    placeholder={sharesState.loading ? 'Загрузка...' : '0'}
+                                    className={`form-input ${sharesState.loading ? 'input-loading' : ''}`}
                                 />
-                            </label>
+                                <SharesFetchBadge state={sharesState} />
+                            </div>
                         </div>
                     </div>
                     
                     {/* Отчет о прибылях и убытках */}
                     <div className="form-section">
-                        <h3>Отчет о прибылях и убытках</h3>
+                        <h3>
+                            Отчёт о прибылях и убытках
+                            <span className="section-units-hint">млн {formData.currency}</span>
+                        </h3>
                         
                         <div className="form-row">
                             <label className="form-label">
-                                Выручка:
+                                Выручка, млн {formData.currency}:
                                 <input
                                     type="number"
                                     name="revenue"
                                     value={formData.revenue || ''}
                                     onChange={handleInputChange}
-                                    step="0.01"
-                                    placeholder="0.00"
+                                    step="1"
+                                    placeholder="например: 1459000"
                                     className="form-input"
                                 />
+                                <small className="field-hint">Введите сумму в миллионах</small>
                             </label>
                             
                             <label className="form-label">
-                                Чистая прибыль:
+                                Чистая прибыль, млн {formData.currency}:
                                 <input
                                     type="number"
                                     name="net_income"
                                     value={formData.net_income || ''}
                                     onChange={handleInputChange}
-                                    step="0.01"
-                                    placeholder="0.00"
+                                    step="1"
+                                    placeholder="например: 50000"
                                     className="form-input"
                                 />
+                                <small className="field-hint">Введите сумму в миллионах</small>
                             </label>
                         </div>
                     </div>
                     
                     {/* Балансовые показатели */}
                     <div className="form-section">
-                        <h3>Балансовые показатели</h3>
+                        <h3>
+                            Балансовые показатели
+                            <span className="section-units-hint">млн {formData.currency}</span>
+                        </h3>
                         
                         <div className="form-row">
                             <label className="form-label">
-                                Всего активов:
+                                Всего активов, млн {formData.currency}:
                                 <input
                                     type="number"
                                     name="total_assets"
                                     value={formData.total_assets || ''}
                                     onChange={handleInputChange}
-                                    step="0.01"
-                                    placeholder="0.00"
+                                    step="1"
+                                    placeholder="например: 500000"
                                     className="form-input"
                                 />
                             </label>
                             
                             <label className="form-label">
-                                Текущие активы:
+                                Оборотные активы, млн {formData.currency}:
                                 <input
                                     type="number"
                                     name="current_assets"
                                     value={formData.current_assets || ''}
                                     onChange={handleInputChange}
-                                    step="0.01"
-                                    placeholder="0.00"
+                                    step="1"
+                                    placeholder="например: 200000"
                                     className="form-input"
                                 />
                             </label>
@@ -367,27 +719,27 @@ const ReportForm: React.FC<ReportFormProps> = ({ companyId, companyName, onSubmi
                         
                         <div className="form-row">
                             <label className="form-label">
-                                Всего обязательств:
+                                Всего обязательств, млн {formData.currency}:
                                 <input
                                     type="number"
                                     name="total_liabilities"
                                     value={formData.total_liabilities || ''}
                                     onChange={handleInputChange}
-                                    step="0.01"
-                                    placeholder="0.00"
+                                    step="1"
+                                    placeholder="например: 250000"
                                     className="form-input"
                                 />
                             </label>
                             
                             <label className="form-label">
-                                Текущие обязательства:
+                                Краткосрочные обязательства, млн {formData.currency}:
                                 <input
                                     type="number"
                                     name="current_liabilities"
                                     value={formData.current_liabilities || ''}
                                     onChange={handleInputChange}
-                                    step="0.01"
-                                    placeholder="0.00"
+                                    step="1"
+                                    placeholder="например: 80000"
                                     className="form-input"
                                 />
                             </label>
@@ -395,14 +747,14 @@ const ReportForm: React.FC<ReportFormProps> = ({ companyId, companyName, onSubmi
                         
                         <div className="form-row">
                             <label className="form-label">
-                                Собственный капитал:
+                                Собственный капитал, млн {formData.currency}:
                                 <input
                                     type="number"
                                     name="equity"
                                     value={formData.equity || ''}
                                     onChange={handleInputChange}
-                                    step="0.01"
-                                    placeholder="0.00"
+                                    step="1"
+                                    placeholder="например: 250000"
                                     className="form-input"
                                 />
                             </label>
@@ -412,7 +764,34 @@ const ReportForm: React.FC<ReportFormProps> = ({ companyId, companyName, onSubmi
                     {/* Дивиденды */}
                     <div className="form-section">
                         <h3>Дивиденды</h3>
-                        
+
+                        {/* Информационная панель с данными Мосбиржи */}
+                        {ticker && (
+                            <div className="dividends-fetch-row">
+                                <DividendsInfoPanel
+                                    state={dividendsState}
+                                    onApply={(total) => setFormData(prev => ({
+                                        ...prev,
+                                        dividends_paid: true,
+                                        dividends_per_share: total,
+                                    }))}
+                                />
+                                <button
+                                    type="button"
+                                    className="btn-fetch-price"
+                                    disabled={dividendsState.loading || (formData.period_type === 'quarterly' && !formData.fiscal_quarter)}
+                                    onClick={() => fetchDividends(
+                                        formData.fiscal_year,
+                                        formData.period_type,
+                                        formData.fiscal_quarter ?? null,
+                                    )}
+                                    title="Обновить данные с Мосбиржи"
+                                >
+                                    {dividendsState.loading ? '⟳' : '↺ MOEX'}
+                                </button>
+                            </div>
+                        )}
+
                         <div className="form-row">
                             <label className="form-label checkbox-label">
                                 <input
@@ -428,8 +807,10 @@ const ReportForm: React.FC<ReportFormProps> = ({ companyId, companyName, onSubmi
                         
                         {formData.dividends_paid && (
                             <div className="form-row">
-                                <label className="form-label">
-                                    Дивиденд на акцию:
+                                <div className="form-label">
+                                    <div className="price-label-row">
+                                        <span>Итого дивиденд на акцию, {formData.currency}:</span>
+                                    </div>
                                     <input
                                         type="number"
                                         name="dividends_per_share"
@@ -439,7 +820,11 @@ const ReportForm: React.FC<ReportFormProps> = ({ companyId, companyName, onSubmi
                                         placeholder="0.0000"
                                         className="form-input"
                                     />
-                                </label>
+                                    <small className="field-hint">
+                                        Суммарный дивиденд на акцию за весь период. Если Мосбиржа
+                                        показала не все выплаты — введите полную сумму вручную.
+                                    </small>
+                                </div>
                             </div>
                         )}
                     </div>

@@ -38,8 +38,69 @@ export interface Multipliers {
     date: string;
 }
 
+/** Кэшированная запись мультипликаторов из таблицы multipliers */
+export interface MultiplierRecord {
+    id: number;
+    company_id: number;
+    report_id: number | null;
+    date: string;           // YYYY-MM-DD
+    type: 'report_based' | 'current' | 'daily';
+
+    // Рыночные данные
+    price_used: number | null;
+    shares_used: number | null;
+    market_cap: number | null;
+
+    // LTM P&L
+    ltm_net_income: number | null;
+    ltm_revenue: number | null;
+    ltm_dividends_per_share: number | null;
+
+    // Балансовые (в рублях)
+    equity: number | null;
+    total_liabilities: number | null;
+    current_assets: number | null;
+    current_liabilities: number | null;
+
+    // Мультипликаторы
+    pe_ratio: number | null;
+    pb_ratio: number | null;
+    roe: number | null;
+    debt_to_equity: number | null;
+    current_ratio: number | null;
+    dividend_yield: number | null;
+
+    created_at?: string;
+    updated_at?: string | null;
+}
+
+/** Актуальные мультипликаторы, вычисленные на лету */
+export interface CurrentMultipliers {
+    company_id: number;
+    date: string;
+    current_price: number | null;
+    balance_report_id: number | null;
+    balance_report_date: string | null;
+    ltm_source: string | null;
+
+    ltm_net_income: number | null;
+    ltm_revenue: number | null;
+    ltm_dividends_per_share: number | null;
+
+    price_used: number | null;
+    shares_used: number | null;
+    market_cap: number | null;
+
+    pe_ratio: number | null;
+    pb_ratio: number | null;
+    roe: number | null;
+    debt_to_equity: number | null;
+    current_ratio: number | null;
+    dividend_yield: number | null;
+}
+
 export interface Company {
-    id?: number; // ID из базы данных
+    id?: number;
     figi: string;
     ticker: string;
     name: string;
@@ -48,6 +109,8 @@ export interface Company {
     currency: string;
     lot: number;
     api_trade_available_flag: boolean;
+    current_price?: number | null;
+    price_updated_at?: string | null;
 }
 
 export interface FinancialReportCreate {

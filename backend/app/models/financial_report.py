@@ -1,4 +1,4 @@
-from sqlalchemy import ForeignKey, Integer, Numeric, DateTime, Date, String, Enum as SQLEnum, UniqueConstraint
+from sqlalchemy import ForeignKey, Integer, BigInteger, Numeric, DateTime, Date, String, Enum as SQLEnum, UniqueConstraint
 from datetime import datetime, date
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
@@ -65,23 +65,28 @@ class FinancialReport(Base):
     )  # Источник данных
 
     # Рыночные данные
-    price_per_share: Mapped[Optional[float]] = mapped_column(Numeric(15, 2), nullable=True)  # Цена акции на дату окончания отчётного периода (report_date) - ОСНОВНАЯ для расчёта мультипликаторов
-    price_at_filing: Mapped[Optional[float]] = mapped_column(Numeric(15, 2), nullable=True)  # Цена акции на дату публикации отчёта (filing_date) - для анализа реакции рынка
-    shares_outstanding: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)  # количество акций в обращении
- 
-    # Балансовые показатели
-    total_assets: Mapped[Optional[float]] = mapped_column(Numeric(15, 2), nullable=True)  # общие активы (Итого активы)
-    total_liabilities: Mapped[Optional[float]] = mapped_column(Numeric(15, 2), nullable=True)  # общие обязательства (Итого обяательства)
-    current_assets: Mapped[Optional[float]] = mapped_column(Numeric(15, 2), nullable=True)  # текущие активы (Итого оборотные активы)
-    current_liabilities: Mapped[Optional[float]] = mapped_column(Numeric(15, 2), nullable=True)  # текущие обязательства (Итого краткосрочные обязательства)
-    equity: Mapped[Optional[float]] = mapped_column(Numeric(15, 2), nullable=True)  # собственный капитал (Итого капитал/Итого акционерный капитал, относящийся к акционерам)
+    # price_per_share и dividends_per_share — в ПОЛНЫХ единицах валюты (рублях/долларах за акцию)
+    # shares_outstanding — полное количество акций
+    price_per_share: Mapped[Optional[float]] = mapped_column(Numeric(15, 4), nullable=True)  # Цена акции на report_date (₽ или $ за акцию)
+    price_at_filing: Mapped[Optional[float]] = mapped_column(Numeric(15, 4), nullable=True)  # Цена акции на filing_date (₽ или $ за акцию)
+    shares_outstanding: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)  # Количество акций в обращении (штук)
 
-    # Отчет о прибылях и убытках
-    revenue: Mapped[Optional[float]] = mapped_column(Numeric(15, 2), nullable=True)  # выручка (Выручка от реализации)
-    net_income: Mapped[Optional[float]] = mapped_column(Numeric(15, 2), nullable=True)  # чистая прибыль (Чистая прибыль)
+    # ⚠️ ЕДИНИЦЫ ХРАНЕНИЯ: все финансовые показатели ниже — в МИЛЛИОНАХ валюты отчёта (млн ₽ или млн $)
+    # Пример: выручка 1 459 000 млн ₽ → вводить 1459000
+
+    # Балансовые показатели (млн валюты)
+    total_assets: Mapped[Optional[float]] = mapped_column(Numeric(15, 3), nullable=True)  # Итого активы, млн
+    total_liabilities: Mapped[Optional[float]] = mapped_column(Numeric(15, 3), nullable=True)  # Итого обязательства, млн
+    current_assets: Mapped[Optional[float]] = mapped_column(Numeric(15, 3), nullable=True)  # Итого оборотные активы, млн
+    current_liabilities: Mapped[Optional[float]] = mapped_column(Numeric(15, 3), nullable=True)  # Итого краткосрочные обязательства, млн
+    equity: Mapped[Optional[float]] = mapped_column(Numeric(15, 3), nullable=True)  # Итого собственный капитал, млн
+
+    # Отчёт о прибылях и убытках (млн валюты)
+    revenue: Mapped[Optional[float]] = mapped_column(Numeric(15, 3), nullable=True)  # Выручка, млн
+    net_income: Mapped[Optional[float]] = mapped_column(Numeric(15, 3), nullable=True)  # Чистая прибыль, млн
 
     # Дивиденды
-    dividends_per_share: Mapped[Optional[float]] = mapped_column(Numeric(10, 4), nullable=True)  # дивиденды на акцию
+    dividends_per_share: Mapped[Optional[float]] = mapped_column(Numeric(10, 4), nullable=True)  # Дивиденды на акцию (₽ или $ за акцию)
     dividends_paid: Mapped[Optional[bool]] = mapped_column(default=False)  # выплачивались ли дивиденды в этом периоде
 
     # Валюта

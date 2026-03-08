@@ -1,0 +1,438 @@
+/* ── Панель мультипликаторов ──────────────────────────────────────────────── */
+
+.mult-panel {
+  background: #fff;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  overflow: hidden;
+}
+
+.mult-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 24px 0;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.mult-panel-title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin: 0;
+}
+
+.mult-panel-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.btn-refresh {
+  padding: 6px 14px;
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  color: #475569;
+  cursor: pointer;
+  transition: background 0.15s;
+  white-space: nowrap;
+}
+
+.btn-refresh:hover:not(:disabled) {
+  background: #e2e8f0;
+  color: #1e293b;
+}
+
+.btn-refresh:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.refresh-msg {
+  font-size: 0.82rem;
+  color: #475569;
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Легенда ──────────────────────────────────────────────────────────────── */
+
+.legend-bar {
+  display: flex;
+  gap: 18px;
+  padding: 10px 24px 0;
+  flex-wrap: wrap;
+}
+
+.legend-item {
+  font-size: 0.76rem;
+  font-weight: 500;
+}
+
+.legend-item.good   { color: #15803d; }
+.legend-item.warn   { color: #b45309; }
+.legend-item.bad    { color: #b91c1c; }
+.legend-item.neutral { color: #94a3b8; }
+
+/* ── Табы ─────────────────────────────────────────────────────────────────── */
+
+.mult-tabs {
+  display: flex;
+  gap: 0;
+  padding: 14px 24px 0;
+  border-bottom: 2px solid #e2e8f0;
+}
+
+.mult-tab {
+  padding: 8px 20px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: #64748b;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.mult-tab:hover {
+  color: #1e293b;
+}
+
+.mult-tab.active {
+  color: #6366f1;
+  border-bottom-color: #6366f1;
+  font-weight: 600;
+}
+
+/* ── Контент ──────────────────────────────────────────────────────────────── */
+
+.mult-tab-content {
+  padding: 20px 24px 24px;
+}
+
+.mult-loading {
+  text-align: center;
+  padding: 40px 0;
+  color: #94a3b8;
+  font-size: 0.9rem;
+}
+
+.mult-error {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  padding: 16px;
+  color: #991b1b;
+  font-size: 0.88rem;
+  text-align: center;
+}
+
+/* ── LTM-мета-строка ─────────────────────────────────────────────────────── */
+
+.ltm-meta-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 12px 20px;
+  margin-bottom: 20px;
+}
+
+.ltm-meta-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.84rem;
+}
+
+.ltm-meta-icon { font-size: 1rem; }
+
+.ltm-meta-label {
+  color: #64748b;
+}
+
+.ltm-meta-value {
+  color: #1e293b;
+  font-weight: 600;
+}
+
+/* ── Карточки текущих мультипликаторов ───────────────────────────────────── */
+
+.current-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.current-card {
+  border-radius: 10px;
+  padding: 14px 16px;
+  border: 1px solid transparent;
+  transition: box-shadow 0.15s;
+}
+
+.current-card:hover {
+  box-shadow: 0 4px 16px rgba(0,0,0,0.07);
+}
+
+.current-card.level-good {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+}
+
+.current-card.level-warn {
+  background: #fffbeb;
+  border-color: #fde68a;
+}
+
+.current-card.level-bad {
+  background: #fef2f2;
+  border-color: #fecaca;
+}
+
+.current-card.level-neutral {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+}
+
+.current-card-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #64748b;
+  margin-bottom: 4px;
+}
+
+.current-card-value {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: #1e293b;
+  line-height: 1.1;
+  margin-bottom: 6px;
+}
+
+.current-card.level-good  .current-card-value { color: #166534; }
+.current-card.level-warn  .current-card-value { color: #92400e; }
+.current-card.level-bad   .current-card-value { color: #991b1b; }
+
+.current-card-hint {
+  font-size: 0.72rem;
+  color: #94a3b8;
+  margin-bottom: 2px;
+}
+
+.current-card-threshold {
+  font-size: 0.72rem;
+  font-weight: 500;
+}
+
+.current-card-threshold.level-good   { color: #15803d; }
+.current-card-threshold.level-warn   { color: #b45309; }
+.current-card-threshold.level-bad    { color: #b91c1c; }
+.current-card-threshold.level-neutral { color: #94a3b8; }
+
+/* ── LTM Финансовые показатели ───────────────────────────────────────────── */
+
+.ltm-financials {
+  background: #f8fafc;
+  border-radius: 10px;
+  padding: 16px 20px;
+}
+
+.ltm-fin-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #475569;
+  margin: 0 0 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.ltm-fin-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.ltm-fin-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ltm-fin-label {
+  font-size: 0.76rem;
+  color: #94a3b8;
+}
+
+.ltm-fin-value {
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+/* ── Историческая таблица ────────────────────────────────────────────────── */
+
+.hist-table-wrapper {
+  overflow-x: auto;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+}
+
+.hist-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+  min-width: 800px;
+}
+
+.hist-table thead tr {
+  background: #f8fafc;
+}
+
+.hist-table th {
+  padding: 10px 12px;
+  text-align: right;
+  font-weight: 600;
+  color: #475569;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  border-bottom: 2px solid #e2e8f0;
+}
+
+.hist-table th.col-year {
+  text-align: left;
+}
+
+.hist-table td {
+  padding: 9px 12px;
+  text-align: right;
+  color: #334155;
+  border-bottom: 1px solid #f1f5f9;
+  white-space: nowrap;
+}
+
+.hist-table td.col-year {
+  text-align: left;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.hist-table tbody tr:hover {
+  background: #f8fafc;
+}
+
+/* LTM строка */
+.row-ltm td {
+  background: #eef2ff;
+  font-weight: 600;
+  border-bottom: 2px solid #c7d2fe;
+}
+
+.row-ltm:hover td {
+  background: #e0e7ff;
+}
+
+.badge-ltm {
+  display: inline-block;
+  background: #6366f1;
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 4px;
+  letter-spacing: 0.05em;
+}
+
+.table-empty {
+  text-align: center !important;
+  color: #94a3b8;
+  padding: 32px !important;
+}
+
+/* ── Цветовые ячейки ─────────────────────────────────────────────────────── */
+
+.mult-cell {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 5px;
+  font-weight: 600;
+  font-size: 0.83rem;
+}
+
+.mult-cell.good    { background: #dcfce7; color: #166534; }
+.mult-cell.warn    { background: #fef9c3; color: #854d0e; }
+.mult-cell.bad     { background: #fee2e2; color: #991b1b; }
+.mult-cell.neutral { color: #94a3b8; font-weight: 400; }
+
+/* ── Графики ─────────────────────────────────────────────────────────────── */
+
+.charts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 20px;
+}
+
+.chart-card {
+  background: #f8fafc;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  padding: 16px 12px 12px;
+}
+
+.chart-card-title {
+  font-size: 0.83rem;
+  font-weight: 700;
+  color: #475569;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 10px;
+  padding-left: 4px;
+}
+
+.charts-empty {
+  text-align: center;
+  padding: 48px 0;
+  color: #94a3b8;
+  font-size: 0.9rem;
+}
+
+/* ── Адаптивность ────────────────────────────────────────────────────────── */
+
+@media (max-width: 640px) {
+  .mult-panel-header,
+  .legend-bar,
+  .mult-tabs,
+  .mult-tab-content {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .current-cards-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .charts-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .mult-tab {
+    padding: 8px 12px;
+    font-size: 0.82rem;
+  }
+}

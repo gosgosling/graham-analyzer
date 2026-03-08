@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { getCompanyById, getCompanyReports } from '../services/api';
 import { FinancialReport } from '../types';
+import MultipliersPanel from '../components/MultipliersPanel';
 import './CompanyDetail.css';
 
 const CompanyDetail: React.FC = () => {
@@ -42,10 +43,20 @@ const CompanyDetail: React.FC = () => {
   }
 
   // Вычисляем базовую статистику (используем рублёвые значения)
+  // Финансовые показатели хранятся в МИЛЛИОНАХ ₽ — при отображении делим на 1000 для млрд
   const latestReport = reports && reports.length > 0 ? reports[0] : null;
-  const marketCap = latestReport?.price_per_share_rub && latestReport?.shares_outstanding
-    ? latestReport.price_per_share_rub * latestReport.shares_outstanding
+  const marketCapMln = latestReport?.price_per_share_rub && latestReport?.shares_outstanding
+    ? (latestReport.price_per_share_rub * latestReport.shares_outstanding) / 1_000_000
     : null;
+
+  /** Форматирует значение в млн ₽ → показывает в млн/млрд/трлн */
+  const fmtMln = (n: number | null | undefined): string => {
+    if (n === null || n === undefined) return '—';
+    const abs = Math.abs(n);
+    if (abs >= 1_000_000) return (n / 1_000_000).toFixed(2) + ' трлн ₽';
+    if (abs >= 1_000)     return (n / 1_000).toFixed(2) + ' млрд ₽';
+    return n.toLocaleString('ru-RU', { maximumFractionDigits: 1 }) + ' млн ₽';
+  };
 
   return (
     <div className="company-detail-container">
@@ -81,12 +92,10 @@ const CompanyDetail: React.FC = () => {
                 <span className="stat-date">на {latestReport.report_date}</span>
               </div>
             )}
-            {marketCap && (
+            {marketCapMln && (
               <div className="quick-stat">
                 <span className="stat-label">Капитализация</span>
-                <span className="stat-value">
-                  {(marketCap / 1_000_000_000).toFixed(2)} млрд ₽
-                </span>
+                <span className="stat-value">{fmtMln(marketCapMln)}</span>
                 <span className="stat-date">на {latestReport.report_date}</span>
               </div>
             )}
@@ -154,39 +163,8 @@ const CompanyDetail: React.FC = () => {
             </div>
           </section>
 
-          {/* График мультипликаторов - заглушка */}
-          <section className="info-card">
-            <h2 className="card-title">📉 Мультипликаторы</h2>
-            <div className="multipliers-placeholder">
-              <div className="multiplier-item placeholder">
-                <span className="multiplier-name">P/E</span>
-                <span className="multiplier-value">—</span>
-              </div>
-              <div className="multiplier-item placeholder">
-                <span className="multiplier-name">P/B</span>
-                <span className="multiplier-value">—</span>
-              </div>
-              <div className="multiplier-item placeholder">
-                <span className="multiplier-name">ROE</span>
-                <span className="multiplier-value">—</span>
-              </div>
-              <div className="multiplier-item placeholder">
-                <span className="multiplier-name">Debt/Equity</span>
-                <span className="multiplier-value">—</span>
-              </div>
-              <div className="multiplier-item placeholder">
-                <span className="multiplier-name">Current Ratio</span>
-                <span className="multiplier-value">—</span>
-              </div>
-              <div className="multiplier-item placeholder">
-                <span className="multiplier-name">Dividend Yield</span>
-                <span className="multiplier-value">—</span>
-              </div>
-            </div>
-            <p className="placeholder-hint">
-              Мультипликаторы будут рассчитываться автоматически на основе финансовых отчетов
-            </p>
-          </section>
+          {/* Мультипликаторы */}
+          <MultipliersPanel company={company} />
         </div>
 
         {/* Правая колонка - Отчеты и новости */}
@@ -236,12 +214,10 @@ const CompanyDetail: React.FC = () => {
                 {latestReport.revenue_rub && (
                   <div className="metric-item">
                     <span className="metric-label">Выручка</span>
-                    <span className="metric-value">
-                      {(latestReport.revenue_rub / 1_000_000_000).toFixed(2)} млрд ₽
-                    </span>
+                    <span className="metric-value">{fmtMln(latestReport.revenue_rub)}</span>
                     {latestReport.currency === 'USD' && latestReport.revenue && (
                       <span className="metric-hint">
-                        ({(latestReport.revenue / 1_000_000_000).toFixed(2)} млрд USD)
+                        ({fmtMln(latestReport.revenue)} в USD)
                       </span>
                     )}
                   </div>
@@ -249,12 +225,10 @@ const CompanyDetail: React.FC = () => {
                 {latestReport.net_income_rub && (
                   <div className="metric-item">
                     <span className="metric-label">Чистая прибыль</span>
-                    <span className="metric-value">
-                      {(latestReport.net_income_rub / 1_000_000_000).toFixed(2)} млрд ₽
-                    </span>
+                    <span className="metric-value">{fmtMln(latestReport.net_income_rub)}</span>
                     {latestReport.currency === 'USD' && latestReport.net_income && (
                       <span className="metric-hint">
-                        ({(latestReport.net_income / 1_000_000_000).toFixed(2)} млрд USD)
+                        ({fmtMln(latestReport.net_income)} в USD)
                       </span>
                     )}
                   </div>
@@ -262,12 +236,10 @@ const CompanyDetail: React.FC = () => {
                 {latestReport.total_assets_rub && (
                   <div className="metric-item">
                     <span className="metric-label">Активы</span>
-                    <span className="metric-value">
-                      {(latestReport.total_assets_rub / 1_000_000_000).toFixed(2)} млрд ₽
-                    </span>
+                    <span className="metric-value">{fmtMln(latestReport.total_assets_rub)}</span>
                     {latestReport.currency === 'USD' && latestReport.total_assets && (
                       <span className="metric-hint">
-                        ({(latestReport.total_assets / 1_000_000_000).toFixed(2)} млрд USD)
+                        ({fmtMln(latestReport.total_assets)} в USD)
                       </span>
                     )}
                   </div>
@@ -275,12 +247,10 @@ const CompanyDetail: React.FC = () => {
                 {latestReport.equity_rub && (
                   <div className="metric-item">
                     <span className="metric-label">Капитал</span>
-                    <span className="metric-value">
-                      {(latestReport.equity_rub / 1_000_000_000).toFixed(2)} млрд ₽
-                    </span>
+                    <span className="metric-value">{fmtMln(latestReport.equity_rub)}</span>
                     {latestReport.currency === 'USD' && latestReport.equity && (
                       <span className="metric-hint">
-                        ({(latestReport.equity / 1_000_000_000).toFixed(2)} млрд USD)
+                        ({fmtMln(latestReport.equity)} в USD)
                       </span>
                     )}
                   </div>
