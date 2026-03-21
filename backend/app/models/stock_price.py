@@ -1,5 +1,6 @@
 from sqlalchemy import ForeignKey, Integer, Numeric, DateTime, Date, String, UniqueConstraint
 from datetime import datetime, date
+from datetime import date as dt
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 from typing import TYPE_CHECKING, Optional
@@ -23,7 +24,7 @@ class StockPrice(Base):
         ForeignKey("companies.id", ondelete="CASCADE"), nullable=False, index=True
     )
 
-    date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    date: Mapped[dt] = mapped_column(Date, nullable=False, index=True)
 
     # Цена закрытия
     price: Mapped[float] = mapped_column(Numeric(15, 4), nullable=False)
