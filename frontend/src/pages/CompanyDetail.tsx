@@ -1,10 +1,12 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { getCompanyById, getCompanyReports, updateFinancialReport, refreshCompanyMultipliers } from '../services/api';
 import { FinancialReport, FinancialReportCreate } from '../types';
 import MultipliersPanel from '../components/MultipliersPanel';
 import ReportForm from '../components/ReportForm';
+import { shadeHex, isLightBrandHex, isNeutralBrandForHero } from '../utils/brandColor';
+import { getCompanyLogoCandidates } from '../utils/companyLogo';
 import './CompanyDetail.css';
 
 type ReportPeriodFilter = 'all' | 'annual' | 'quarterly' | 'semi_annual';
@@ -72,6 +74,44 @@ const CompanyDetail: React.FC = () => {
 
   const visibleReports = showAllReports ? filteredReports : filteredReports.slice(0, 5);
 
+  /** Ч/б/серый бренд — оставляем стандартный фиолетовый градиент шапки */
+  const useBrandInHero = useMemo(
+    () =>
+      Boolean(
+        company?.brand_color && !isNeutralBrandForHero(company.brand_color),
+      ),
+    [company?.brand_color],
+  );
+
+  const brandLight = useMemo(
+    () =>
+      Boolean(
+        useBrandInHero && company?.brand_color && isLightBrandHex(company.brand_color),
+      ),
+    [useBrandInHero, company?.brand_color],
+  );
+
+  const gradientEndColor = useMemo(() => {
+    if (!useBrandInHero || !company?.brand_color) return null;
+    return shadeHex(company.brand_color, brandLight ? 0.34 : 0.52);
+  }, [useBrandInHero, company?.brand_color, brandLight]);
+
+  const logoCandidates = useMemo(
+    () => (company ? getCompanyLogoCandidates(company) : []),
+    [company],
+  );
+
+  const [logoAttempt, setLogoAttempt] = useState(0);
+
+  useEffect(() => {
+    setLogoAttempt(0);
+  }, [company?.id]);
+
+  const logoSrc =
+    logoCandidates.length > 0 && logoAttempt < logoCandidates.length
+      ? logoCandidates[logoAttempt]
+      : null;
+
   if (companyLoading) {
     return (
       <div className="company-detail-container">
@@ -117,13 +157,38 @@ const CompanyDetail: React.FC = () => {
       </div>
 
       {/* Основная информация о компании */}
-      <div className="company-hero">
-        <div className="company-title-section">
-          <h1 className="company-title">{company.name}</h1>
-          <div className="company-meta">
-            <span className="company-ticker">{company.ticker}</span>
-            <span className="company-sector">{company.sector || 'Не указан'}</span>
-            <span className="company-currency">💱 {company.currency}</span>
+      <div
+        className={`company-hero${useBrandInHero ? ' company-hero--branded' : ''}${
+          brandLight ? ' company-hero--light-brand' : ''
+        }`}
+        style={
+          useBrandInHero && company.brand_color && gradientEndColor
+            ? {
+                background: `linear-gradient(135deg, ${company.brand_color} 0%, ${gradientEndColor} 100%)`,
+              }
+            : undefined
+        }
+      >
+        <div className="company-hero-main">
+          {logoSrc && (
+            <img
+              key={logoSrc}
+              src={logoSrc}
+              alt=""
+              className="company-hero-logo"
+              referrerPolicy="no-referrer"
+              loading="eager"
+              decoding="async"
+              onError={() => setLogoAttempt((a) => a + 1)}
+            />
+          )}
+          <div className="company-title-section">
+            <h1 className="company-title">{company.name}</h1>
+            <div className="company-meta">
+              <span className="company-ticker">{company.ticker}</span>
+              <span className="company-sector">{company.sector || 'Не указан'}</span>
+              <span className="company-currency">💱 {company.currency}</span>
+            </div>
           </div>
         </div>
         

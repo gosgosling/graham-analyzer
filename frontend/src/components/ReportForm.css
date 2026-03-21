@@ -42,6 +42,12 @@
     font-size: 16px;
 }
 
+.report-edit-hint {
+    margin: 6px 0 0;
+    font-size: 12px;
+    color: #7f8c8d;
+}
+
 .error-message {
     background-color: #fee;
     border: 1px solid #f88;
@@ -109,6 +115,16 @@
     outline: none;
     border-color: #3498db;
     box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+}
+
+/* Ant Design DatePicker — ширина как у полей формы, выпадающий календарь с выбором дня */
+.report-form-date-picker.ant-picker {
+    width: 100%;
+    min-height: 42px;
+}
+
+.report-form .ant-picker-input > input {
+    font-size: 14px;
 }
 
 .form-input:disabled {

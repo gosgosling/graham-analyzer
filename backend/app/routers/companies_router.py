@@ -1,9 +1,9 @@
+import os
+
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
 from app.schemas import Company
-from app.utils.tinkoff_client import get_tinkoff_companies
 from typing import List
-from app.schemas import Company
 from app.database import get_db
 from app.services.company_service import get_all_companies, get_company_by_id
 from app.services.sync_service import sync_companies_from_tinkoff
@@ -27,6 +27,37 @@ def get_companies(skip: int = 0, limit: int = 200, db: Session = Depends(get_db)
     companies = get_all_companies(db, skip=skip, limit=limit)
     return companies
 
+@router.get("/sync/status")
+def companies_sync_status(db: Session = Depends(get_db)):
+    """
+    Диагностика: сколько компаний в БД, сколько с логотипом/цветом бренда, настроен ли токен.
+    """
+    token = (os.getenv("TINKOFF_TOKEN") or "").strip()
+    bad = {"", "token", "your_token_here", "tocken"}
+    token_ok = bool(token) and token.lower() not in bad
+
+    total = db.query(CompanyModel).count()
+    with_logo = (
+        db.query(CompanyModel)
+        .filter(CompanyModel.brand_logo_url.isnot(None))
+        .filter(CompanyModel.brand_logo_url != "")
+        .count()
+    )
+    with_color = (
+        db.query(CompanyModel)
+        .filter(CompanyModel.brand_color.isnot(None))
+        .filter(CompanyModel.brand_color != "")
+        .count()
+    )
+
+    return {
+        "token_configured": token_ok,
+        "companies_total": total,
+        "companies_with_brand_logo": with_logo,
+        "companies_with_brand_color": with_color,
+    }
+
+
 @router.post("/sync")
 def sync_companies(db: Session = Depends(get_db)):
     """
@@ -41,10 +72,19 @@ def sync_companies(db: Session = Depends(get_db)):
     """
     try:
         stats = sync_companies_from_tinkoff(db)
+        if stats.get("total", 0) == 0:
+            return {
+                "status": "warning",
+                "message": (
+                    "Список из T-Invest пуст. Проверьте TINKOFF_TOKEN в .env на сервере "
+                    "и доступность API (см. GET /companies/sync/status)."
+                ),
+                "statistics": stats,
+            }
         return {
             "status": "success",
-            "message": "Синхронизация завершена",
-            "statistics": stats
+            "message": "Синхронизация завершена. Логотипы и цвета подгружаются из API (ShareBy).",
+            "statistics": stats,
         }
     except Exception as e:
         raise HTTPException(
