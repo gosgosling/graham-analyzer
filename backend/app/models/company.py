@@ -22,6 +22,10 @@ class Company(Base):
     currency: Mapped[str] = mapped_column(String, nullable=False, default="RUB")
     lot: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     api_trade_available_flag: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    # Бренд из T-Invest API (Shares.brand): логотип на CDN + фирменный цвет шапки
+    brand_logo_url: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
+    brand_color: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
     
     # Год начала выплаты дивидендов (для анализа непрерывности по Грэму)
     dividend_start_year: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)

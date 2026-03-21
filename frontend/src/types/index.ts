@@ -99,6 +99,28 @@ export interface CurrentMultipliers {
     dividend_yield: number | null;
 }
 
+/** GET /companies/sync/status */
+export interface CompaniesSyncStatus {
+    token_configured: boolean;
+    companies_total: number;
+    companies_with_brand_logo: number;
+    companies_with_brand_color: number;
+}
+
+export interface CompaniesSyncStatistics {
+    total: number;
+    created: number;
+    updated: number;
+    errors: number;
+}
+
+/** POST /companies/sync */
+export interface CompaniesSyncResponse {
+    status: string;
+    message: string;
+    statistics: CompaniesSyncStatistics;
+}
+
 export interface Company {
     id?: number;
     figi: string;
@@ -111,6 +133,10 @@ export interface Company {
     api_trade_available_flag: boolean;
     current_price?: number | null;
     price_updated_at?: string | null;
+    /** URL логотипа с CDN Т-Банка (после синхронизации из T-Invest API) */
+    brand_logo_url?: string | null;
+    /** Основной цвет бренда (#RRGGBB) */
+    brand_color?: string | null;
 }
 
 export interface FinancialReportCreate {

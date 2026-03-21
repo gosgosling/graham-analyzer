@@ -2,6 +2,7 @@ import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getSecurities } from '../services/api';
 import { Security } from '../types';
+import TInvestSyncBar from '../components/TInvestSyncBar';
 import './SecuritiesList.css';
 
 const SecuritiesList: React.FC = () => {
@@ -44,6 +45,7 @@ const SecuritiesList: React.FC = () => {
   return (
     <div className="securities-container">
       <h1 className="securities-title">Список ценных бумаг</h1>
+      <TInvestSyncBar />
       <div className="table-wrapper">
         <table className="securities-table">
           <thead>

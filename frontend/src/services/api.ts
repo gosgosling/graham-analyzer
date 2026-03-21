@@ -1,5 +1,14 @@
 import axios from 'axios';
-import { Security, Company, FinancialReport, FinancialReportCreate, MultiplierRecord, CurrentMultipliers } from '../types';
+import {
+    Security,
+    Company,
+    FinancialReport,
+    FinancialReportCreate,
+    MultiplierRecord,
+    CurrentMultipliers,
+    CompaniesSyncStatus,
+    CompaniesSyncResponse,
+} from '../types';
 
 const api = axios.create({
     baseURL: 'http://localhost:8000',
@@ -33,6 +42,16 @@ export const getCompanyById = async (companyId: number): Promise<Company> => {
         console.error(`Error fetching company ${companyId}:`, error);
         throw error;
     }
+};
+
+export const getCompaniesSyncStatus = async (): Promise<CompaniesSyncStatus> => {
+    const response = await api.get<CompaniesSyncStatus>('/companies/sync/status');
+    return response.data;
+};
+
+export const syncCompaniesFromTinkoff = async (): Promise<CompaniesSyncResponse> => {
+    const response = await api.post<CompaniesSyncResponse>('/companies/sync');
+    return response.data;
 };
 
 // ============ API для финансовых отчетов ============

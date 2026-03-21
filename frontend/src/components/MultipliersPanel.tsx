@@ -371,6 +371,8 @@ interface MultipliersChartsProps {
   currentRow?: CurrentMultipliers;
 }
 
+// Компонент графиков (пока не подключён к панели)
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- зарезервировано для встраивания графиков
 const MultipliersCharts: React.FC<MultipliersChartsProps> = ({ rows, currentRow }) => {
   // Разворачиваем хронологически + добавляем LTM точку
   const historical = [...rows].reverse();

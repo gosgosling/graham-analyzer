@@ -44,9 +44,7 @@ def sync_companies_from_tinkoff(db: Session) -> Dict[str, int]:
         'errors': 0
     }
 
-    existing_isins = {
-        company.isin for company in db.query(Company).all()
-    }
+    existing_figis = {c.figi for c in db.query(Company).all() if c.figi}
 
     for company_dict in tinkoff_companies:
         try:
@@ -54,15 +52,16 @@ def sync_companies_from_tinkoff(db: Session) -> Dict[str, int]:
                 figi=company_dict['figi'],
                 ticker=company_dict['ticker'],
                 name=company_dict['name'],
-                isin=company_dict.get('isin', ''),
+                isin=company_dict.get('isin') or '',
                 sector=company_dict.get('sector'),
                 currency=company_dict.get('currency', 'RUB'),
                 lot=company_dict.get('lot', 1),
-                api_trade_available_flag=company_dict.get('api_trade_available_flag', False)
+                api_trade_available_flag=company_dict.get('api_trade_available_flag', False),
+                brand_logo_url=company_dict.get('brand_logo_url'),
+                brand_color=company_dict.get('brand_color'),
             )
 
-            # Проверяем, существует ли компания
-            was_existing = company_data.isin in existing_isins
+            was_existing = company_data.figi in existing_figis
 
             sync_company(db, company_data)
 
@@ -70,10 +69,12 @@ def sync_companies_from_tinkoff(db: Session) -> Dict[str, int]:
                 stats['updated'] += 1
             else:
                 stats['created'] += 1
-                existing_isins.add(company_data.isin)
+                existing_figis.add(company_data.figi)
 
         except Exception as e:
-            print(f'Ошибка при синхронизации компании: {company_dict.get('figi', 'unknown')}: {e}')
+            print(
+                f"Ошибка при синхронизации компании: {company_dict.get('figi', 'unknown')}: {e}"
+            )
             stats['errors'] += 1
 
     return stats

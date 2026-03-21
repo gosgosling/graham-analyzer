@@ -1,0 +1,69 @@
+---
+description: Rules for implementing Figma designs in the graham-analyzer frontend (React, CSS, Ant Design). Covers layout, data fetching, Figma MCP workflow, and assets.
+globs:
+  - "frontend/src/components/**"
+  - "frontend/src/pages/**"
+  - "frontend/src/App.tsx"
+alwaysApply: false
+---
+
+# Figma → code (graham-analyzer frontend)
+
+## Stack and architecture
+
+- **Framework:** React 19 + TypeScript (`frontend/`), Create React App (`react-scripts`).
+- **Routing:** `react-router-dom` v7 — routes are declared in `frontend/src/App.tsx`.
+- **Server state:** `@tanstack/react-query` — use `useQuery` / `useMutation` and invalidate keys consistently with existing pages.
+- **HTTP API:** `frontend/src/services/api.ts` — extend here for new endpoints; types in `frontend/src/types/index.ts`.
+- **UI library:** `antd` — prefer Ant Design components for tables, forms, modals, and layout when they match the design; align props and theming with existing usage on list/detail pages.
+- **Charts:** `recharts` — use for charts when the design specifies graphs.
+
+## Component organization
+
+- **Pages:** `frontend/src/pages/` — one main component per route (e.g. `CompaniesList.tsx`, `CompanyDetail.tsx`, `SecuritiesList.tsx`).
+- **Shared UI:** `frontend/src/components/` — reusable blocks (`ReportForm`, `MultipliersPanel`, `TInvestSyncBar`, etc.).
+- **Naming:** React components in **PascalCase**; colocated stylesheet `ComponentName.css` or page-level CSS imported from the same folder.
+- **Exports:** default export for page/root components unless the file already uses named exports; match neighboring files.
+
+## Styling
+
+- **Primary approach:** plain **CSS files** imported from TSX (`import './PageName.css'`). No Tailwind in this repo.
+- **IMPORTANT:** Treat any Figma MCP output that uses Tailwind as **design reference only** — re-express layout and spacing using **project CSS** (classes in `.css` files) and/or **Ant Design** props and `className` where appropriate.
+- **Global styles:** `frontend/src/index.css` (base), `frontend/src/App.css` (app shell). Prefer adding page/component rules to colocated CSS rather than growing inline styles in `App.tsx` for new work.
+- **Design tokens:** There is **no centralized token file** yet. Prefer introducing **CSS variables** in `App.css` or a dedicated `frontend/src/styles/tokens.css` (and import once) for colors/spacing reused after Figma implementation — **avoid scattering new hardcoded hex values** when the same color repeats.
+- **Existing palette (informal):** app background `#f5f7fa`, primary accent often `#3498db`, text `#2c3e50`, neutrals `#ecf0f1`, `#e1e8ed` — align new UI with this family unless the design system explicitly changes it.
+
+## Domain-specific utilities
+
+- **Brand color / logo:** use `frontend/src/utils/brandColor.ts` and `frontend/src/utils/companyLogo.ts` when UI depends on company brand metadata from the API — do not duplicate contrast or logo URL logic inline.
+
+## Figma MCP integration (required flow)
+
+1. Run **`get_design_context`** for the exact node(s) to implement.
+2. If the response is too large or truncated, run **`get_metadata`**, then fetch only needed nodes with **`get_design_context`** again.
+3. Run **`get_screenshot`** for the same node(s) as the visual reference.
+4. Only after both structured context and screenshot are available, pull assets if needed, then implement.
+5. Map the result to **React + this project’s CSS/Ant Design**, not to Tailwind-as-shipped.
+6. Validate visually against the Figma screenshot (layout, typography, spacing, states).
+
+### Implementation expectations
+
+- Reuse existing page sections and components before adding new primitives.
+- Preserve **Russian UI copy** patterns used in the app unless the task explicitly changes strings.
+- Keep **accessibility** in mind for interactive elements (labels, focus, contrast) when replacing or extending controls.
+
+## Assets
+
+- **IMPORTANT:** If the Figma MCP returns a **localhost** URL for an image or SVG, use that source as provided for implementation/debugging; do not swap in placeholders when a real asset URL is supplied.
+- **IMPORTANT:** Prefer assets from the Figma payload; avoid adding new icon packages for one-off icons unless the team already standardized on them.
+- Static files for the built app: **`frontend/public/`** — place long-lived assets there when they must ship with the bundle; imported images can live under `frontend/src/assets/` if you add that folder for new files.
+
+## Testing
+
+- CRA test setup uses React Testing Library (`App.test.tsx` pattern). Add or update tests for non-trivial new behavior when the project already tests similar UI.
+
+## What not to do
+
+- Do not introduce a new CSS framework (e.g. Tailwind) for Figma parity without an explicit project decision.
+- Do not bypass existing API modules — keep API calls in `services/api.ts` with typed responses.
+- Do not duplicate `brandColor` / logo URL rules in random components.

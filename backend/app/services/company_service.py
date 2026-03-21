@@ -5,6 +5,13 @@ from app.models.company import Company
 from app.schemas import CompanyCreate
 
 
+def get_company_by_figi(db: Session, figi: str) -> Optional[Company]:
+    """Поиск по FIGI — основной ключ при синхронизации с T-Invest (стабильнее ISIN)."""
+    if not figi:
+        return None
+    return db.query(Company).filter(Company.figi == figi).first()
+
+
 def get_company_by_isin(db: Session, isin: str) -> Optional[Company]:
     """
     Получает компанию по ISIN.
@@ -54,6 +61,8 @@ def create_company(db: Session, company_data: CompanyCreate) -> Company:
         currency=company_data.currency,
         lot=company_data.lot,
         api_trade_available_flag=company_data.api_trade_available_flag,
+        brand_logo_url=company_data.brand_logo_url,
+        brand_color=company_data.brand_color,
     )
     db.add(db_company)
     db.commit()
@@ -62,27 +71,33 @@ def create_company(db: Session, company_data: CompanyCreate) -> Company:
 
 def update_company(db: Session, isin: str, company_data: CompanyCreate) -> Optional[Company]:
     """
-    Обновляет существующую компанию.
-    
-    Args:
-        db: Сессия базы данных
-        figi: FIGI компании для поиска
-        company_data: Новые данные
-        
-    Returns:
-        Обновленный объект Company или None, если не найдена
+    Обновляет существующую компанию по ISIN (устаревший путь; предпочтительнее update_company_by_figi).
     """
     db_company = get_company_by_isin(db, isin)
     if not db_company:
         return None
-    
-    # Обновляем поля (type: ignore нужен из-за особенностей типизации SQLAlchemy дескрипторов)
+    return _apply_company_update(db_company, company_data, db)
+
+
+def update_company_by_figi(db: Session, figi: str, company_data: CompanyCreate) -> Optional[Company]:
+    """Обновляет компанию по FIGI."""
+    db_company = get_company_by_figi(db, figi)
+    if not db_company:
+        return None
+    return _apply_company_update(db_company, company_data, db)
+
+
+def _apply_company_update(db_company: Company, company_data: CompanyCreate, db: Session) -> Company:
     db_company.ticker = company_data.ticker  # type: ignore
     db_company.name = company_data.name  # type: ignore
+    if company_data.isin:
+        db_company.isin = company_data.isin  # type: ignore
     db_company.sector = company_data.sector  # type: ignore
     db_company.currency = company_data.currency  # type: ignore
     db_company.lot = company_data.lot  # type: ignore
     db_company.api_trade_available_flag = company_data.api_trade_available_flag  # type: ignore
+    db_company.brand_logo_url = company_data.brand_logo_url  # type: ignore
+    db_company.brand_color = company_data.brand_color  # type: ignore
     db.commit()
     db.refresh(db_company)
     return db_company
@@ -99,20 +114,17 @@ def get_all_companies(db: Session, skip: int = 0, limit: int = 200) -> List[Comp
 def sync_company(db: Session, company_data: CompanyCreate) -> Company:
     """
     Синхронизирует компанию: создает, если не существует, или обновляет, если существует.
-    Это удобная функция для массовой синхронизации данных из API.
-    
-    Args:
-        db: Сессия базы данных
-        company_data: Данные компании
-        
-    Returns:
-        Объект Company (созданный или обновленный)
+    Поиск существующей записи — по FIGI (уникален в T-Invest), затем fallback по ISIN.
     """
+    existing = get_company_by_figi(db, company_data.figi)
+    if existing:
+        updated = update_company_by_figi(db, company_data.figi, company_data)
+        if updated:
+            return updated
 
-    existing_company = get_company_by_isin(db, company_data.isin)
+    if company_data.isin:
+        existing_isin = get_company_by_isin(db, company_data.isin)
+        if existing_isin:
+            return update_company(db, company_data.isin, company_data)
 
-    if existing_company:
-        return update_company(db, company_data.isin, company_data)
-    else:
-        # Компании нет - создаем
-        return create_company(db, company_data)
+    return create_company(db, company_data)

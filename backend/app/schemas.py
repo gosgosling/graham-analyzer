@@ -79,6 +79,8 @@ class Company(BaseModel):
     currency: str  # Валюта
     lot: int  # Размер лота
     api_trade_available_flag: bool = False  # Доступность для торговли через API
+    brand_logo_url: Optional[str] = None  # URL логотипа (CDN Т-Банка)
+    brand_color: Optional[str] = None  # Основной цвет бренда (#RRGGBB)
 
     class Config:
         from_attributes = True  # Для SQLAlchemy моделей
@@ -94,6 +96,8 @@ class CompanyCreate(BaseModel):
     lot: int = 1
     api_trade_available_flag: bool = False
     dividend_start_year: Optional[int] = None  # Год начала выплаты дивидендов
+    brand_logo_url: Optional[str] = None
+    brand_color: Optional[str] = None
 
 
 class FinancialReportCreate(BaseModel):

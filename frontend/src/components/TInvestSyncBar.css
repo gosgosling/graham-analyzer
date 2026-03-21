@@ -1,0 +1,116 @@
+.tinvest-sync-bar {
+  background: #f0f4ff;
+  border: 1px solid #c7d2fe;
+  border-radius: 10px;
+  padding: 16px 20px;
+  margin-bottom: 24px;
+}
+
+.tinvest-sync-bar-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.tinvest-sync-title {
+  font-weight: 600;
+  color: #3730a3;
+  display: block;
+  margin-bottom: 8px;
+}
+
+.tinvest-sync-muted {
+  font-size: 13px;
+  color: #64748b;
+}
+
+.tinvest-sync-stats {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 14px;
+  color: #334155;
+  line-height: 1.6;
+}
+
+.tinvest-sync-stats .ok {
+  color: #15803d;
+}
+
+.tinvest-sync-stats .bad {
+  color: #b91c1c;
+}
+
+.tinvest-sync-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.btn-tinvest-refresh {
+  padding: 8px 16px;
+  background: #fff;
+  border: 1px solid #a5b4fc;
+  border-radius: 8px;
+  color: #4338ca;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.btn-tinvest-refresh:hover:not(:disabled) {
+  background: #eef2ff;
+}
+
+.btn-tinvest-sync {
+  padding: 8px 18px;
+  background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+  border: none;
+  border-radius: 8px;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.35);
+}
+
+.btn-tinvest-sync:hover:not(:disabled) {
+  filter: brightness(1.05);
+}
+
+.btn-tinvest-sync:disabled,
+.btn-tinvest-refresh:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.tinvest-sync-result {
+  margin: 14px 0 0;
+  padding: 12px 14px;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  border-radius: 8px;
+  font-size: 13px;
+  white-space: pre-wrap;
+  color: #14532d;
+}
+
+.tinvest-sync-result.error {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #991b1b;
+}
+
+.tinvest-sync-result.warn {
+  background: #fffbeb;
+  border-color: #fde68a;
+  color: #92400e;
+}
+
+.tinvest-sync-hint {
+  margin: 12px 0 0;
+  font-size: 12px;
+  color: #64748b;
+  line-height: 1.5;
+}
