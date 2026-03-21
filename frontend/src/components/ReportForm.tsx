@@ -1,4 +1,8 @@
 import React, { useState, useCallback, useEffect } from 'react';
+import { ConfigProvider, DatePicker } from 'antd';
+import ruRU from 'antd/locale/ru_RU';
+import dayjs, { Dayjs } from 'dayjs';
+import 'dayjs/locale/ru';
 import { FinancialReportCreate } from '../types';
 import {
     getMoexPrice,
@@ -10,26 +14,47 @@ import {
 } from '../services/api';
 import './ReportForm.css';
 
+dayjs.locale('ru');
+
 /**
- * Преобразует ответ FastAPI/Pydantic об ошибке в читаемую строку.
- * FastAPI при 422 возвращает detail как массив объектов:
- *   [{type, loc, msg, input, ctx}, ...]
- * При других ошибках detail может быть строкой.
+ * Преобразует ответ FastAPI/Pydantic об ошибке в строку (для alert / UI / setState).
+ * 422: detail — строка, массив {type, loc, msg, ...} или один такой объект.
  */
-function extractErrorMessage(err: any): string {
+function formatApiErrorMessage(err: any, fallback: string): string {
     const detail = err?.response?.data?.detail;
-    if (!detail) return 'Ошибка при сохранении отчёта';
+    if (detail === undefined || detail === null || detail === '') {
+        return typeof err?.message === 'string' && err.message ? err.message : fallback;
+    }
     if (typeof detail === 'string') return detail;
     if (Array.isArray(detail)) {
-        return detail
+        const s = detail
             .map((e: any) => {
-                const field = Array.isArray(e.loc) ? e.loc.slice(1).join(' → ') : '';
-                const msg = e.msg ?? 'неверное значение';
-                return field ? `${field}: ${msg}` : msg;
+                if (e && typeof e === 'object') {
+                    const field = Array.isArray(e.loc) ? e.loc.slice(1).join(' → ') : '';
+                    const msg = e.msg ?? 'неверное значение';
+                    return field ? `${field}: ${msg}` : msg;
+                }
+                return String(e);
             })
             .join('\n');
+        return s || fallback;
     }
-    return 'Ошибка при сохранении отчёта';
+    if (typeof detail === 'object' && detail !== null && 'msg' in detail) {
+        const e = detail as { loc?: unknown[]; msg?: string };
+        const field = Array.isArray(e.loc) ? e.loc.slice(1).join(' → ') : '';
+        const msg = e.msg ?? 'неверное значение';
+        return field ? `${field}: ${msg}` : msg;
+    }
+    return fallback;
+}
+
+function extractErrorMessage(err: any): string {
+    return formatApiErrorMessage(err, 'Ошибка при сохранении отчёта');
+}
+
+function isPlausibleFiscalYear(y: number | null | undefined): boolean {
+    if (y == null || Number.isNaN(Number(y))) return false;
+    return y >= 1900 && y <= 2100;
 }
 
 interface ReportFormProps {
@@ -259,7 +284,7 @@ const ReportForm: React.FC<ReportFormProps> = ({ companyId, companyName, ticker,
                 shares_outstanding: prev.shares_outstanding ?? result.issuesize,
             }));
         } catch (err: any) {
-            const msg = err.response?.data?.detail ?? 'Не удалось получить данные из Мосбиржи';
+            const msg = formatApiErrorMessage(err, 'Не удалось получить данные из Мосбиржи');
             setSharesState({ loading: false, result: null, error: msg, applied: false });
         }
     }, [ticker]);
@@ -300,7 +325,7 @@ const ReportForm: React.FC<ReportFormProps> = ({ companyId, companyName, ticker,
                 }));
             }
         } catch (err: any) {
-            const msg = err.response?.data?.detail ?? 'Не удалось получить данные с Мосбиржи';
+            const msg = formatApiErrorMessage(err, 'Не удалось получить данные с Мосбиржи');
             setDividendsState({ loading: false, result: null, error: msg });
         }
     }, [ticker]);
@@ -308,6 +333,10 @@ const ReportForm: React.FC<ReportFormProps> = ({ companyId, companyName, ticker,
     // Авто-загрузка дивидендов при смене года или типа/квартала периода
     useEffect(() => {
         if (!ticker) return;
+        if (!isPlausibleFiscalYear(formData.fiscal_year)) {
+            setDividendsState({ loading: false, result: null, error: null });
+            return;
+        }
         // Для quarterly ждём пока выбран квартал
         if (formData.period_type === 'quarterly' && !formData.fiscal_quarter) return;
         fetchDividends(
@@ -332,10 +361,35 @@ const ReportForm: React.FC<ReportFormProps> = ({ companyId, companyName, ticker,
             setState({ loading: false, result, error: null });
             setFormData(prev => ({ ...prev, [field]: result.price }));
         } catch (err: any) {
-            const msg = err.response?.data?.detail ?? 'Не удалось получить цену';
+            const msg = formatApiErrorMessage(err, 'Не удалось получить цену');
             setState({ loading: false, result: null, error: msg });
         }
     }, [ticker]);
+
+    const parseReportDate = (d: Dayjs | null): string =>
+        d && d.isValid() ? d.format('YYYY-MM-DD') : '';
+
+    const onReportDateChange = useCallback(
+        (d: Dayjs | null) => {
+            const value = parseReportDate(d);
+            setFormData(prev => ({ ...prev, report_date: value }));
+            if (value && ticker) {
+                fetchPrice(value, 'price_per_share', setPriceReportState);
+            }
+        },
+        [ticker, fetchPrice],
+    );
+
+    const onFilingDateChange = useCallback(
+        (d: Dayjs | null) => {
+            const value = parseReportDate(d);
+            setFormData(prev => ({ ...prev, filing_date: value || null }));
+            if (value && ticker) {
+                fetchPrice(value, 'price_at_filing', setPriceFilingState);
+            }
+        },
+        [ticker, fetchPrice],
+    );
     
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name, value, type } = e.target;
@@ -347,13 +401,6 @@ const ReportForm: React.FC<ReportFormProps> = ({ companyId, companyName, ticker,
             setFormData(prev => ({ ...prev, [name]: value ? parseFloat(value) : null }));
         } else {
             setFormData(prev => ({ ...prev, [name]: value }));
-            // Авто-загрузка цены при изменении дат
-            if (name === 'report_date' && value) {
-                fetchPrice(value, 'price_per_share', setPriceReportState);
-            }
-            if (name === 'filing_date' && value) {
-                fetchPrice(value, 'price_at_filing', setPriceFilingState);
-            }
         }
     };
 
@@ -396,6 +443,7 @@ const ReportForm: React.FC<ReportFormProps> = ({ companyId, companyName, ticker,
     };
 
     return (
+        <ConfigProvider locale={ruRU}>
         <div className="report-form-overlay">
             <div className="report-form-container">
                 <div className="report-form-header">
@@ -504,24 +552,31 @@ const ReportForm: React.FC<ReportFormProps> = ({ companyId, companyName, ticker,
                         <div className="form-row">
                             <label className="form-label required">
                                 Дата окончания периода:
-                                <input
-                                    type="date"
-                                    name="report_date"
-                                    value={formData.report_date}
-                                    onChange={handleInputChange}
-                                    required
-                                    className="form-input"
+                                <DatePicker
+                                    className="report-form-date-picker"
+                                    value={formData.report_date ? dayjs(formData.report_date) : null}
+                                    onChange={onReportDateChange}
+                                    format="DD.MM.YYYY"
+                                    placeholder="Выберите дату"
+                                    allowClear={false}
+                                    style={{ width: '100%' }}
+                                    popupStyle={{ zIndex: 1100 }}
+                                    getPopupContainer={() => document.body}
                                 />
                             </label>
                             
                             <label className="form-label">
                                 Дата публикации:
-                                <input
-                                    type="date"
-                                    name="filing_date"
-                                    value={formData.filing_date || ''}
-                                    onChange={handleInputChange}
-                                    className="form-input"
+                                <DatePicker
+                                    className="report-form-date-picker"
+                                    value={formData.filing_date ? dayjs(formData.filing_date) : null}
+                                    onChange={onFilingDateChange}
+                                    format="DD.MM.YYYY"
+                                    placeholder="Необязательно"
+                                    allowClear
+                                    style={{ width: '100%' }}
+                                    popupStyle={{ zIndex: 1100 }}
+                                    getPopupContainer={() => document.body}
                                 />
                             </label>
                         </div>
@@ -864,6 +919,7 @@ const ReportForm: React.FC<ReportFormProps> = ({ companyId, companyName, ticker,
                 </form>
             </div>
         </div>
+        </ConfigProvider>
     );
 };
 

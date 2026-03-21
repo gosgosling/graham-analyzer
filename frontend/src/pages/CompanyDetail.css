@@ -40,8 +40,89 @@
   box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
 }
 
+/* Логотип + заголовок в одну линию */
+.company-hero-main {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  flex-wrap: wrap;
+  margin-bottom: 30px;
+}
+
+.company-hero-logo {
+  height: 72px;
+  width: auto;
+  max-width: 200px;
+  object-fit: contain;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.14);
+  padding: 10px 14px;
+  box-sizing: content-box;
+  flex-shrink: 0;
+}
+
+/* Чуть лучше читаемость текста на произвольном фирменном цвете (тёмный фон) */
+.company-hero--branded:not(.company-hero--light-brand) .company-title,
+.company-hero--branded:not(.company-hero--light-brand) .company-meta span,
+.company-hero--branded:not(.company-hero--light-brand) .stat-label,
+.company-hero--branded:not(.company-hero--light-brand) .stat-value,
+.company-hero--branded:not(.company-hero--light-brand) .stat-date,
+.company-hero--branded:not(.company-hero--light-brand) .stat-hint {
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+}
+
+/* Светлый / белый / серый бренд — тёмный текст и приглушённый градиент */
+.company-hero--branded.company-hero--light-brand {
+  color: #0f172a;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.14);
+}
+
+.company-hero--branded.company-hero--light-brand .company-title,
+.company-hero--branded.company-hero--light-brand .company-meta span {
+  text-shadow: none;
+  color: #0f172a;
+}
+
+.company-hero--branded.company-hero--light-brand .company-ticker,
+.company-hero--branded.company-hero--light-brand .company-sector,
+.company-hero--branded.company-hero--light-brand .company-currency {
+  background-color: rgba(0, 0, 0, 0.07);
+  color: #1e293b;
+}
+
+.company-hero--branded.company-hero--light-brand .quick-stat {
+  background-color: rgba(0, 0, 0, 0.06);
+  color: #0f172a;
+}
+
+.company-hero--branded.company-hero--light-brand .stat-label {
+  color: rgba(15, 23, 42, 0.72);
+  opacity: 1;
+}
+
+.company-hero--branded.company-hero--light-brand .stat-value {
+  color: #0f172a;
+}
+
+.company-hero--branded.company-hero--light-brand .stat-date,
+.company-hero--branded.company-hero--light-brand .stat-hint {
+  color: rgba(15, 23, 42, 0.62);
+  opacity: 1;
+}
+
+.company-hero--branded.company-hero--light-brand .company-hero-logo {
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.1);
+}
+
 .company-title-section {
   margin-bottom: 30px;
+}
+
+.company-hero-main .company-title-section {
+  margin-bottom: 0;
+  flex: 1;
+  min-width: 200px;
 }
 
 .company-title {
@@ -547,6 +628,9 @@
 .report-detail-header h2 {
   margin: 0;
   font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
 }
 
 .btn-close {
@@ -570,17 +654,19 @@
 }
 
 .report-detail-content {
-  padding: 30px;
+  padding: 28px 30px 32px;
   display: flex;
   flex-direction: column;
   gap: 25px;
+  background: #fff;
 }
 
 .detail-section {
-  background-color: #f9f9f9;
+  background-color: #fafbfc;
   padding: 20px;
-  border-radius: 8px;
-  border: 1px solid #e0e0e0;
+  border-radius: 10px;
+  border: 1px solid #e8ecf0;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
 }
 
 .detail-section h3 {
@@ -658,12 +744,14 @@
   border-radius: 4px;
 }
 
-/* Модальное окно — заголовок с подзаголовком */
-.report-detail-subtitle {
-  font-size: 13px;
-  color: #7f8c8d;
-  margin: 4px 0 0 0;
-  font-weight: 400;
+/* Подзаголовок только в шапке модалки: светлый текст на градиенте (не серый из общих стилей) */
+.report-detail-header .report-detail-subtitle {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.95);
+  margin: 8px 0 0 0;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
 }
 
 /* Единицы измерения в заголовке секции */
@@ -681,11 +769,14 @@
 
 /* Футер модального окна */
 .report-detail-footer {
-  padding: 20px 30px;
-  border-top: 2px solid #e0e0e0;
+  padding: 18px 30px;
+  border-top: 2px solid #e8ecf0;
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  background: #fafbfc;
 }
 
 .report-detail-meta {
@@ -700,19 +791,27 @@
 }
 
 .btn-edit-report {
-  background: #f59e0b;
-  color: white;
+  background: linear-gradient(180deg, #3b82f6 0%, #2563eb 100%);
+  color: #fff;
   border: none;
   padding: 10px 20px;
-  border-radius: 6px;
+  border-radius: 8px;
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
-  transition: background 0.2s;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.35);
+  transition: background 0.2s, box-shadow 0.2s, transform 0.15s;
 }
 
 .btn-edit-report:hover {
-  background: #d97706;
+  background: linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%);
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.45);
+  transform: translateY(-1px);
+}
+
+.btn-edit-report:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.35);
 }
 
 .report-edit-hint {
@@ -722,21 +821,37 @@
 }
 
 .btn-close-detail {
-  background-color: #95a5a6;
-  color: white;
-  border: none;
-  padding: 12px 30px;
-  border-radius: 6px;
-  font-size: 16px;
-  font-weight: 500;
+  background-color: #ecf0f1;
+  color: #2c3e50;
+  border: 1px solid #d5dbdb;
+  padding: 10px 24px;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background 0.2s, border-color 0.2s, transform 0.15s;
 }
 
 .btn-close-detail:hover {
-  background-color: #7f8c8d;
+  background-color: #dfe6e9;
+  border-color: #b2bec3;
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(127, 140, 141, 0.3);
+}
+
+@media (max-width: 600px) {
+  .report-detail-footer {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .report-detail-footer-actions {
+    flex-direction: column;
+  }
+
+  .report-detail-footer-actions .btn-edit-report,
+  .report-detail-footer-actions .btn-close-detail {
+    width: 100%;
+  }
 }
 
 /* Responsive Design */

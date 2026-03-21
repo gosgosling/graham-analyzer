@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { getCompanies, createFinancialReport, getCompanyReports, updateFinancialReport, refreshCompanyMultipliers } from '../services/api';
 import { Company, FinancialReportCreate, FinancialReport } from '../types';
 import ReportForm from '../components/ReportForm';
+import TInvestSyncBar from '../components/TInvestSyncBar';
 import './SecuritiesList.css';
 import './CompaniesList.css';
 
@@ -114,6 +115,7 @@ const CompaniesList: React.FC = () => {
   return (
     <div className="securities-container">
       <h1 className="securities-title">Российские компании и компании Мосбиржи (T Invest API)</h1>
+      <TInvestSyncBar />
       <div className="table-wrapper">
         <table className="securities-table companies-expandable-table">
           <thead>
