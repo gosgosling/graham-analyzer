@@ -459,16 +459,121 @@ const MultipliersCharts: React.FC<MultipliersChartsProps> = ({ rows, currentRow 
   );
 };
 
-// ─── Главный компонент панели ─────────────────────────────────────────────────
+// ─── Пара графиков с пагинацией ───────────────────────────────────────────────
 
-type Tab = 'current' | 'table' | 'charts';
+interface ChartsPairProps {
+  rows: MultiplierRecord[];
+  currentRow?: CurrentMultipliers;
+}
+
+const CHART_PAGE_SIZE = 2;
+
+const ChartsPager: React.FC<ChartsPairProps> = ({ rows, currentRow }) => {
+  const [page, setPage] = useState(0);
+  const totalPages = Math.ceil(CHARTS.length / CHART_PAGE_SIZE);
+  const visibleCharts = CHARTS.slice(page * CHART_PAGE_SIZE, (page + 1) * CHART_PAGE_SIZE);
+
+  const historical = [...rows].reverse();
+  const chartData = [
+    ...historical.map((r) => ({
+      year: fmtDate(r.date),
+      pe_ratio: r.pe_ratio,
+      pb_ratio: r.pb_ratio,
+      roe: r.roe,
+      debt_to_equity: r.debt_to_equity,
+      current_ratio: r.current_ratio,
+      dividend_yield: r.dividend_yield,
+      isLtm: false,
+    })),
+    ...(currentRow ? [{
+      year: 'LTM',
+      pe_ratio: currentRow.pe_ratio,
+      pb_ratio: currentRow.pb_ratio,
+      roe: currentRow.roe,
+      debt_to_equity: currentRow.debt_to_equity,
+      current_ratio: currentRow.current_ratio,
+      dividend_yield: currentRow.dividend_yield,
+      isLtm: true,
+    }] : []),
+  ];
+
+  if (chartData.length === 0) {
+    return <div className="charts-empty">Недостаточно данных для построения графиков</div>;
+  }
+
+  return (
+    <div className="charts-pager">
+      <div className="charts-pager-nav">
+        <span className="charts-pager-label">
+          {page * CHART_PAGE_SIZE + 1}–{Math.min((page + 1) * CHART_PAGE_SIZE, CHARTS.length)} из {CHARTS.length}
+        </span>
+        <button
+          className="charts-nav-btn"
+          onClick={() => setPage((p) => Math.max(0, p - 1))}
+          disabled={page === 0}
+        >‹</button>
+        <button
+          className="charts-nav-btn"
+          onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+          disabled={page === totalPages - 1}
+        >›</button>
+      </div>
+
+      {visibleCharts.map(({ key, label, color, referenceLines, suffix }) => (
+        <div key={String(key)} className="chart-card">
+          <div className="chart-card-title">{label}</div>
+          <ResponsiveContainer width="100%" height={200}>
+            <LineChart data={chartData} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+              <XAxis dataKey="year" tick={{ fontSize: 11, fill: '#64748b' }} />
+              <YAxis
+                tick={{ fontSize: 11, fill: '#64748b' }}
+                tickFormatter={(v) => `${v}${suffix ?? ''}`}
+                width={45}
+              />
+              <Tooltip
+                formatter={(value: any) => [
+                  `${fmt(typeof value === 'number' ? value : null)}${suffix ?? ''}`, label,
+                ]}
+                labelStyle={{ color: '#1e293b', fontWeight: 600 }}
+              />
+              {referenceLines?.map((rl) => (
+                <ReferenceLine
+                  key={rl.value}
+                  y={rl.value}
+                  stroke={rl.color}
+                  strokeDasharray="6 3"
+                  label={{ value: rl.label, position: 'insideTopRight', fontSize: 10, fill: rl.color }}
+                />
+              ))}
+              <Line
+                type="monotone"
+                dataKey={String(key)}
+                stroke={color}
+                strokeWidth={2}
+                dot={(props: any) => {
+                  const { cx, cy, payload } = props;
+                  return payload.isLtm
+                    ? <circle key="ltm" cx={cx} cy={cy} r={5} fill={color} stroke="#fff" strokeWidth={2} />
+                    : <circle key={payload.year} cx={cx} cy={cy} r={3} fill={color} />;
+                }}
+                connectNulls
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+// ─── Главный компонент панели ─────────────────────────────────────────────────
 
 interface MultipliersPanelProps {
   company: Company;
 }
 
 const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company }) => {
-  const [activeTab, setActiveTab] = useState<Tab>('current');
   const [refreshMsg, setRefreshMsg] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
@@ -506,12 +611,6 @@ const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company }) => {
 
   const rows = histData ?? [];
 
-  const tabs: { key: Tab; label: string }[] = [
-    { key: 'current', label: 'Текущие' },
-    { key: 'table', label: 'История' },
-    { key: 'charts', label: 'Графики' },
-  ];
-
   return (
     <div className="mult-panel">
       {/* Заголовок */}
@@ -529,7 +628,7 @@ const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company }) => {
         </div>
       </div>
 
-      {/* Легенда цветовой кодировки */}
+      {/* Легенда */}
       <div className="legend-bar">
         <span className="legend-item good">● Норма по Грэму</span>
         <span className="legend-item warn">● Внимание</span>
@@ -537,84 +636,72 @@ const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company }) => {
         <span className="legend-item neutral">● Нет данных</span>
       </div>
 
-      {/* Табы */}
-      <div className="mult-tabs">
-        {tabs.map((t) => (
-          <button
-            key={t.key}
-            className={`mult-tab ${activeTab === t.key ? 'active' : ''}`}
-            onClick={() => setActiveTab(t.key)}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
-
       {/* Контент */}
       <div className="mult-tab-content">
-        {/* ── Текущие ── */}
-        {activeTab === 'current' && (
+        {(currentLoading || histLoading) && (
+          <div className="mult-loading">Загрузка мультипликаторов...</div>
+        )}
+
+        {!currentLoading && !histLoading && (
           <>
-            {currentLoading && <div className="mult-loading">Загрузка мультипликаторов...</div>}
-            {currentError && (
-              <div className="mult-error">
-                Нет данных: убедитесь, что добавлены финансовые отчёты и задана текущая цена.
-              </div>
-            )}
-            {currentData && (
-              <>
-                <LtmMeta data={currentData} />
-                <CurrentCards data={currentData} />
-                <div className="ltm-financials">
-                  <h3 className="ltm-fin-title">Финансовые показатели LTM</h3>
-                  <div className="ltm-fin-grid">
-                    <div className="ltm-fin-item">
-                      <span className="ltm-fin-label">Выручка</span>
-                      <span className="ltm-fin-value">{fmtMln(currentData.ltm_revenue)}</span>
-                    </div>
-                    <div className="ltm-fin-item">
-                      <span className="ltm-fin-label">Чистая прибыль</span>
-                      <span className="ltm-fin-value">{fmtMln(currentData.ltm_net_income)}</span>
-                    </div>
-                    <div className="ltm-fin-item">
-                      <span className="ltm-fin-label">Дивиденды на акцию</span>
-                      <span className="ltm-fin-value">
-                        {currentData.ltm_dividends_per_share !== null
-                          ? `${fmt(currentData.ltm_dividends_per_share)} ₽`
-                          : '—'}
-                      </span>
-                    </div>
-                    <div className="ltm-fin-item">
-                      <span className="ltm-fin-label">Кол-во акций</span>
-                      <span className="ltm-fin-value">
-                        {currentData.shares_used !== null
-                          ? currentData.shares_used.toLocaleString('ru-RU')
-                          : '—'}
-                      </span>
-                    </div>
+            {/* ── Верхняя строка: текущие (лево) + графики (право) ── */}
+            <div className="mult-top-row">
+              {/* Левая часть — текущие показатели */}
+              <div className="mult-current-col">
+                {currentError && (
+                  <div className="mult-error">
+                    Нет данных: убедитесь, что добавлены финансовые отчёты и задана текущая цена.
                   </div>
-                </div>
-              </>
-            )}
-          </>
-        )}
+                )}
+                {currentData && (
+                  <>
+                    <LtmMeta data={currentData} />
+                    <CurrentCards data={currentData} />
+                    <div className="ltm-financials">
+                      <h3 className="ltm-fin-title">Финансовые показатели LTM</h3>
+                      <div className="ltm-fin-grid">
+                        <div className="ltm-fin-item">
+                          <span className="ltm-fin-label">Выручка</span>
+                          <span className="ltm-fin-value">{fmtMln(currentData.ltm_revenue)}</span>
+                        </div>
+                        <div className="ltm-fin-item">
+                          <span className="ltm-fin-label">Чистая прибыль</span>
+                          <span className="ltm-fin-value">{fmtMln(currentData.ltm_net_income)}</span>
+                        </div>
+                        <div className="ltm-fin-item">
+                          <span className="ltm-fin-label">Дивиденды на акцию</span>
+                          <span className="ltm-fin-value">
+                            {currentData.ltm_dividends_per_share !== null
+                              ? `${fmt(currentData.ltm_dividends_per_share)} ₽`
+                              : '—'}
+                          </span>
+                        </div>
+                        <div className="ltm-fin-item">
+                          <span className="ltm-fin-label">Кол-во акций</span>
+                          <span className="ltm-fin-value">
+                            {currentData.shares_used !== null
+                              ? currentData.shares_used.toLocaleString('ru-RU')
+                              : '—'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
 
-        {/* ── История ── */}
-        {activeTab === 'table' && (
-          <>
-            {histLoading && <div className="mult-loading">Загрузка истории...</div>}
-            {!histLoading && (
-              <HistTable rows={rows} currentRow={currentData ?? undefined} />
-            )}
-          </>
-        )}
+              {/* Правая часть — 2 графика с пагинацией */}
+              <div className="mult-charts-col">
+                <ChartsPager rows={rows} currentRow={currentData ?? undefined} />
+              </div>
+            </div>
 
-        {/* ── Графики ── */}
-        {activeTab === 'charts' && (
-          <>
-            {histLoading && <div className="mult-loading">Загрузка данных для графиков...</div>}
-            {!histLoading && (
-              <MultipliersCharts rows={rows} currentRow={currentData ?? undefined} />
+            {/* ── Нижняя строка: история на всю ширину ── */}
+            {(rows.length > 0 || currentData) && (
+              <div className="mult-history-row">
+                <div className="mult-history-label">История мультипликаторов</div>
+                <HistTable rows={rows} currentRow={currentData ?? undefined} />
+              </div>
             )}
           </>
         )}

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { getCompanyById, getCompanyReports, updateFinancialReport, refreshCompanyMultipliers } from '../services/api';
@@ -7,12 +7,19 @@ import MultipliersPanel from '../components/MultipliersPanel';
 import ReportForm from '../components/ReportForm';
 import './CompanyDetail.css';
 
+type ReportPeriodFilter = 'all' | 'annual' | 'quarterly' | 'semi_annual';
+
 const CompanyDetail: React.FC = () => {
   const { companyId } = useParams<{ companyId: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [selectedReport, setSelectedReport] = useState<FinancialReport | null>(null);
   const [editingReport, setEditingReport] = useState<FinancialReport | null>(null);
+  // Состояние раздела отчётов
+  const [reportsExpanded, setReportsExpanded] = useState(true);
+  const [reportPeriodFilter, setReportPeriodFilter] = useState<ReportPeriodFilter>('annual');
+  const [reportStandardFilter, setReportStandardFilter] = useState<string>('all');
+  const [showAllReports, setShowAllReports] = useState(false);
 
   const updateReportMutation = useMutation({
     mutationFn: ({ id, data }: { id: number; data: FinancialReportCreate }) =>
@@ -45,6 +52,25 @@ const CompanyDetail: React.FC = () => {
     queryFn: () => getCompanyReports(Number(companyId)),
     enabled: !!companyId,
   });
+
+  // Уникальные стандарты учёта для фильтра — хук должен быть до любых return
+  const availableStandards = useMemo(() => {
+    if (!reports) return [];
+    return Array.from(new Set(reports.map((r) => r.accounting_standard).filter(Boolean)));
+  }, [reports]);
+
+  // Отфильтрованные отчёты — хук должен быть до любых return
+  const filteredReports = useMemo(() => {
+    if (!reports) return [];
+    return reports.filter((r) => {
+      const pt = r.period_type.toLowerCase();
+      if (reportPeriodFilter !== 'all' && pt !== reportPeriodFilter) return false;
+      if (reportStandardFilter !== 'all' && r.accounting_standard !== reportStandardFilter) return false;
+      return true;
+    });
+  }, [reports, reportPeriodFilter, reportStandardFilter]);
+
+  const visibleReports = showAllReports ? filteredReports : filteredReports.slice(0, 5);
 
   if (companyLoading) {
     return (
@@ -126,6 +152,9 @@ const CompanyDetail: React.FC = () => {
         )}
       </div>
 
+      {/* Мультипликаторы — сразу под шапкой */}
+      <MultipliersPanel company={company} />
+
       {/* Основная сетка с информацией */}
       <div className="company-content-grid">
         {/* Левая колонка - Основная информация */}
@@ -185,58 +214,139 @@ const CompanyDetail: React.FC = () => {
               </div>
             </div>
           </section>
-
-          {/* Мультипликаторы */}
-          <MultipliersPanel company={company} />
         </div>
 
         {/* Правая колонка - Отчеты и новости */}
         <div className="content-column">
           {/* Финансовые отчеты */}
           <section className="info-card">
-            <h2 className="card-title">📋 Финансовые отчеты</h2>
-            {reportsLoading ? (
-              <div className="loading-small">Загрузка отчетов...</div>
-            ) : reports && reports.length > 0 ? (
-              <div className="reports-compact-list">
-                {reports.map((report) => {
-                  const pt = report.period_type.toLowerCase();
-                  const periodLabel = pt === 'annual'
-                    ? 'Годовой'
-                    : pt === 'semi_annual'
-                    ? 'Полугодовой'
-                    : `Q${report.fiscal_quarter}`;
-                  return (
-                    <div key={report.id} className="report-compact-item">
-                      <div className="report-compact-info">
-                        <span className="report-compact-year">{report.fiscal_year}</span>
-                        <span className="report-compact-period">{periodLabel}</span>
-                        <span className="report-compact-date">{report.report_date}</span>
-                        <div className="report-compact-meta">
-                          <span className="report-compact-standard">{report.accounting_standard}</span>
-                          <span className="report-compact-currency">{report.currency}</span>
-                          {report.dividends_paid && (
-                            <span className="report-compact-dividend">💵</span>
-                          )}
-                        </div>
+            {/* Заголовок — кликабельный для сворачивания */}
+            <div
+              className="reports-card-header"
+              onClick={() => setReportsExpanded((v) => !v)}
+            >
+              <h2 className="card-title" style={{ margin: 0, paddingBottom: 0, borderBottom: 'none' }}>
+                📋 Финансовые отчеты
+                {reports && reports.length > 0 && (
+                  <span className="reports-count-badge">{reports.length}</span>
+                )}
+              </h2>
+              <span className="reports-toggle-arrow">{reportsExpanded ? '▲' : '▼'}</span>
+            </div>
+
+            {reportsExpanded && (
+              <>
+                {reportsLoading ? (
+                  <div className="loading-small">Загрузка отчетов...</div>
+                ) : reports && reports.length > 0 ? (
+                  <>
+                    {/* Фильтры */}
+                    <div className="reports-filters">
+                      <div className="reports-filter-row">
+                        {(
+                          [
+                            { key: 'all',        label: 'Все' },
+                            { key: 'annual',     label: 'Годовые' },
+                            { key: 'quarterly',  label: 'Квартальные' },
+                            { key: 'semi_annual',label: 'Полугодовые' },
+                          ] as { key: ReportPeriodFilter; label: string }[]
+                        ).map(({ key, label }) => (
+                          <button
+                            key={key}
+                            className={`reports-filter-pill ${reportPeriodFilter === key ? 'active' : ''}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setReportPeriodFilter(key);
+                              setShowAllReports(false);
+                            }}
+                          >
+                            {label}
+                          </button>
+                        ))}
+                        {availableStandards.length > 1 && (
+                          <>
+                            <span className="reports-filter-sep">|</span>
+                            <button
+                              className={`reports-filter-pill ${reportStandardFilter === 'all' ? 'active' : ''}`}
+                              onClick={(e) => { e.stopPropagation(); setReportStandardFilter('all'); }}
+                            >
+                              Все стандарты
+                            </button>
+                            {availableStandards.map((s) => (
+                              <button
+                                key={s}
+                                className={`reports-filter-pill ${reportStandardFilter === s ? 'active' : ''}`}
+                                onClick={(e) => { e.stopPropagation(); setReportStandardFilter(s); setShowAllReports(false); }}
+                              >
+                                {s}
+                              </button>
+                            ))}
+                          </>
+                        )}
                       </div>
-                      <button
-                        onClick={() => setSelectedReport(report)}
-                        className="btn-compact-view"
-                      >
-                        Просмотр
-                      </button>
                     </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="placeholder-content">
-                <p>Финансовых отчетов пока нет</p>
-                <p className="placeholder-hint">
-                  Добавьте отчеты вручную через список компаний или загрузите из внешних источников
-                </p>
-              </div>
+
+                    {filteredReports.length === 0 ? (
+                      <div className="placeholder-content" style={{ marginTop: 12 }}>
+                        <p>Нет отчётов по выбранным фильтрам</p>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="reports-compact-list">
+                          {visibleReports.map((report) => {
+                            const pt = report.period_type.toLowerCase();
+                            const periodLabel = pt === 'annual'
+                              ? 'Годовой'
+                              : pt === 'semi_annual'
+                              ? 'Полугодовой'
+                              : `Q${report.fiscal_quarter}`;
+                            return (
+                              <div key={report.id} className="report-compact-item">
+                                <div className="report-compact-info">
+                                  <span className="report-compact-year">{report.fiscal_year}</span>
+                                  <span className="report-compact-period">{periodLabel}</span>
+                                  <span className="report-compact-date">{report.report_date}</span>
+                                  <div className="report-compact-meta">
+                                    <span className="report-compact-standard">{report.accounting_standard}</span>
+                                    <span className="report-compact-currency">{report.currency}</span>
+                                    {report.dividends_paid && (
+                                      <span className="report-compact-dividend">💵</span>
+                                    )}
+                                  </div>
+                                </div>
+                                <button
+                                  onClick={() => setSelectedReport(report)}
+                                  className="btn-compact-view"
+                                >
+                                  Просмотр
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {filteredReports.length > 5 && (
+                          <button
+                            className="reports-show-more"
+                            onClick={(e) => { e.stopPropagation(); setShowAllReports((v) => !v); }}
+                          >
+                            {showAllReports
+                              ? '▲ Свернуть'
+                              : `▼ Показать все (${filteredReports.length})`}
+                          </button>
+                        )}
+                      </>
+                    )}
+                  </>
+                ) : (
+                  <div className="placeholder-content" style={{ marginTop: 16 }}>
+                    <p>Финансовых отчетов пока нет</p>
+                    <p className="placeholder-hint">
+                      Добавьте отчеты вручную через список компаний или загрузите из внешних источников
+                    </p>
+                  </div>
+                )}
+              </>
             )}
           </section>
 

@@ -418,12 +418,90 @@
   font-size: 0.9rem;
 }
 
+/* ── Двухколонная верхняя строка ─────────────────────────────────────────── */
+
+.mult-top-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  align-items: start;
+}
+
+.mult-current-col {
+  /* занимает левую половину, никаких доп. стилей — всё уже есть */
+}
+
+.mult-charts-col {
+  /* занимает правую половину */
+}
+
+/* ── Пагинатор графиков ──────────────────────────────────────────────────── */
+
+.charts-pager {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.charts-pager-nav {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.charts-pager-label {
+  font-size: 0.76rem;
+  color: #94a3b8;
+  margin-right: 4px;
+}
+
+.charts-nav-btn {
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  width: 28px;
+  height: 28px;
+  font-size: 1rem;
+  color: #475569;
+  cursor: pointer;
+  line-height: 1;
+  transition: background 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.charts-nav-btn:hover:not(:disabled) { background: #e2e8f0; }
+.charts-nav-btn:disabled { opacity: 0.35; cursor: default; }
+
+/* ── Нижняя строка: история ──────────────────────────────────────────────── */
+
+.mult-history-row {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.mult-history-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #94a3b8;
+  margin-bottom: 12px;
+}
+
 /* ── Адаптивность ────────────────────────────────────────────────────────── */
+
+@media (max-width: 900px) {
+  .mult-top-row {
+    grid-template-columns: 1fr;
+  }
+}
 
 @media (max-width: 640px) {
   .mult-panel-header,
   .legend-bar,
-  .mult-tabs,
   .mult-tab-content {
     padding-left: 16px;
     padding-right: 16px;
@@ -431,14 +509,5 @@
 
   .current-cards-grid {
     grid-template-columns: repeat(2, 1fr);
-  }
-
-  .charts-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .mult-tab {
-    padding: 8px 12px;
-    font-size: 0.82rem;
   }
 }

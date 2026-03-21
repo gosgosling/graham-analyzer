@@ -273,6 +273,94 @@
   color: #2c3e50;
 }
 
+/* Reports Card Header (collapsible toggle) */
+.reports-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  user-select: none;
+  margin-bottom: 4px;
+}
+
+.reports-count-badge {
+  display: inline-block;
+  margin-left: 8px;
+  background: #e8eaf6;
+  color: #3949ab;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 1px 7px;
+  border-radius: 10px;
+  vertical-align: middle;
+}
+
+.reports-toggle-arrow {
+  font-size: 13px;
+  color: #95a5a6;
+  padding: 2px 4px;
+}
+
+/* Reports Filters */
+.reports-filters {
+  margin: 12px 0 10px;
+}
+
+.reports-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.reports-filter-pill {
+  padding: 3px 11px;
+  border-radius: 20px;
+  border: 1.5px solid #e1e8ed;
+  background: #f8f9fa;
+  color: #7f8c8d;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.reports-filter-pill:hover {
+  border-color: #9b59b6;
+  color: #9b59b6;
+}
+.reports-filter-pill.active {
+  background: #9b59b6;
+  border-color: #9b59b6;
+  color: #fff;
+  font-weight: 600;
+}
+
+.reports-filter-sep {
+  color: #e1e8ed;
+  font-size: 14px;
+  padding: 0 2px;
+}
+
+/* Show more button */
+.reports-show-more {
+  width: 100%;
+  margin-top: 8px;
+  padding: 7px;
+  background: none;
+  border: 1.5px dashed #dcdde1;
+  border-radius: 6px;
+  color: #9b59b6;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.reports-show-more:hover {
+  background: #f5eef8;
+  border-color: #9b59b6;
+}
+
 /* Reports Compact List */
 .reports-compact-list {
   display: flex;
