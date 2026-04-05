@@ -98,6 +98,10 @@
     font-size: 14px;
 }
 
+.form-label-full {
+    grid-column: 1 / -1;
+}
+
 .form-label.required::after {
     content: ' *';
     color: #e74c3c;
@@ -109,6 +113,11 @@
     border-radius: 6px;
     font-size: 14px;
     transition: border-color 0.2s;
+}
+
+/* Крупные суммы с пробелами между тысячами — ровные цифры */
+.form-input-thousands {
+    font-variant-numeric: tabular-nums;
 }
 
 .form-input:focus {

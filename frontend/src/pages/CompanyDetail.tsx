@@ -1,7 +1,13 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
-import { getCompanyById, getCompanyReports, updateFinancialReport, refreshCompanyMultipliers } from '../services/api';
+import {
+  getCompanyById,
+  getCompanyReports,
+  createFinancialReport,
+  updateFinancialReport,
+  refreshCompanyMultipliers,
+} from '../services/api';
 import { FinancialReport, FinancialReportCreate } from '../types';
 import MultipliersPanel from '../components/MultipliersPanel';
 import ReportForm from '../components/ReportForm';
@@ -17,11 +23,34 @@ const CompanyDetail: React.FC = () => {
   const queryClient = useQueryClient();
   const [selectedReport, setSelectedReport] = useState<FinancialReport | null>(null);
   const [editingReport, setEditingReport] = useState<FinancialReport | null>(null);
+  const [showAddReportForm, setShowAddReportForm] = useState(false);
   // Состояние раздела отчётов
   const [reportsExpanded, setReportsExpanded] = useState(true);
   const [reportPeriodFilter, setReportPeriodFilter] = useState<ReportPeriodFilter>('annual');
   const [reportStandardFilter, setReportStandardFilter] = useState<string>('all');
   const [showAllReports, setShowAllReports] = useState(false);
+
+  const createReportMutation = useMutation({
+    mutationFn: createFinancialReport,
+    onSuccess: async () => {
+      queryClient.invalidateQueries({ queryKey: ['reports', companyId] });
+      queryClient.invalidateQueries({ queryKey: ['multipliers', companyId] });
+      await refreshCompanyMultipliers(Number(companyId), true);
+      queryClient.invalidateQueries({ queryKey: ['multipliers', companyId] });
+      setShowAddReportForm(false);
+      alert('Отчёт успешно добавлен');
+    },
+    onError: (err: any) => {
+      const d = err?.response?.data?.detail;
+      const msg =
+        typeof d === 'string'
+          ? d
+          : Array.isArray(d)
+            ? d.map((e: { msg?: string }) => e?.msg).filter(Boolean).join('; ')
+            : 'Ошибка при создании отчёта';
+      alert(msg);
+    },
+  });
 
   const updateReportMutation = useMutation({
     mutationFn: ({ id, data }: { id: number; data: FinancialReportCreate }) =>
@@ -285,18 +314,56 @@ const CompanyDetail: React.FC = () => {
         <div className="content-column">
           {/* Финансовые отчеты */}
           <section className="info-card">
-            {/* Заголовок — кликабельный для сворачивания */}
-            <div
-              className="reports-card-header"
-              onClick={() => setReportsExpanded((v) => !v)}
-            >
-              <h2 className="card-title" style={{ margin: 0, paddingBottom: 0, borderBottom: 'none' }}>
-                📋 Финансовые отчеты
-                {reports && reports.length > 0 && (
-                  <span className="reports-count-badge">{reports.length}</span>
-                )}
-              </h2>
-              <span className="reports-toggle-arrow">{reportsExpanded ? '▲' : '▼'}</span>
+            {/* Заголовок: сворачивание по клику на название; справа — как в списке компаний + стрелка */}
+            <div className="reports-card-header">
+              <div
+                className="reports-card-header-title"
+                role="button"
+                tabIndex={0}
+                aria-expanded={reportsExpanded}
+                onClick={() => setReportsExpanded((v) => !v)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setReportsExpanded((v) => !v);
+                  }
+                }}
+              >
+                <h2 className="card-title" style={{ margin: 0, paddingBottom: 0, borderBottom: 'none' }}>
+                  📋 Финансовые отчеты
+                  {reports && reports.length > 0 && (
+                    <span className="reports-count-badge">{reports.length}</span>
+                  )}
+                </h2>
+              </div>
+              <div className="reports-card-header-actions">
+                <button
+                  type="button"
+                  className="btn-add-report-inline"
+                  disabled={createReportMutation.isPending}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowAddReportForm(true);
+                    setSelectedReport(null);
+                    setEditingReport(null);
+                    setReportsExpanded(true);
+                  }}
+                >
+                  + Добавить отчет
+                </button>
+                <button
+                  type="button"
+                  className="reports-toggle-arrow-btn"
+                  aria-expanded={reportsExpanded}
+                  aria-label={reportsExpanded ? 'Свернуть список отчётов' : 'Развернуть список отчётов'}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setReportsExpanded((v) => !v);
+                  }}
+                >
+                  {reportsExpanded ? '▲' : '▼'}
+                </button>
+              </div>
             </div>
 
             {reportsExpanded && (
@@ -404,11 +471,23 @@ const CompanyDetail: React.FC = () => {
                     )}
                   </>
                 ) : (
-                  <div className="placeholder-content" style={{ marginTop: 16 }}>
-                    <p>Финансовых отчетов пока нет</p>
-                    <p className="placeholder-hint">
-                      Добавьте отчеты вручную через список компаний или загрузите из внешних источников
+                  <div className="reports-empty-state">
+                    <p className="reports-empty-title">Финансовых отчётов пока нет</p>
+                    <p className="reports-empty-hint">
+                      Добавьте отчёт по этой компании — данные появятся в мультипликаторах и показателях.
                     </p>
+                    <button
+                      type="button"
+                      className="btn-add-report-inline"
+                      disabled={createReportMutation.isPending}
+                      onClick={() => {
+                        setShowAddReportForm(true);
+                        setSelectedReport(null);
+                        setEditingReport(null);
+                      }}
+                    >
+                      + Добавить отчет
+                    </button>
                   </div>
                 )}
               </>
@@ -500,14 +579,28 @@ const CompanyDetail: React.FC = () => {
           report={selectedReport}
           onClose={() => setSelectedReport(null)}
           onEdit={(report) => {
+            setShowAddReportForm(false);
             setEditingReport(report);
             setSelectedReport(null);
           }}
         />
       )}
 
+      {/* Форма создания отчёта */}
+      {showAddReportForm && company && !editingReport && (
+        <ReportForm
+          companyId={Number(companyId)}
+          companyName={company.name}
+          ticker={company.ticker}
+          onSubmit={async (data) => {
+            await createReportMutation.mutateAsync(data);
+          }}
+          onCancel={() => setShowAddReportForm(false)}
+        />
+      )}
+
       {/* Форма редактирования отчёта */}
-      {editingReport && company && (
+      {editingReport && company && !showAddReportForm && (
         <ReportForm
           companyId={Number(companyId)}
           companyName={company.name}
@@ -635,7 +728,9 @@ const ReportDetailModal: React.FC<ReportDetailModalProps> = ({ report, onClose, 
           )}
 
           {/* Отчёт о прибылях и убытках */}
-          {(report.revenue || report.net_income) && (
+          {(report.revenue != null ||
+            report.net_income != null ||
+            report.net_income_reported != null) && (
             <div className="detail-section">
               <h3>Отчёт о прибылях и убытках <span className="section-units">(млн {cur})</span></h3>
               <div className="detail-grid">
@@ -649,6 +744,12 @@ const ReportDetailModal: React.FC<ReportDetailModalProps> = ({ report, onClose, 
                   <div className="detail-item">
                     <span className="detail-label">Чистая прибыль:</span>
                     <span className="detail-value">{fmtMln(report.net_income)}</span>
+                  </div>
+                )}
+                {report.net_income_reported != null && (
+                  <div className="detail-item">
+                    <span className="detail-label">Фактическая прибыль (отчётная):</span>
+                    <span className="detail-value">{fmtMln(report.net_income_reported)}</span>
                   </div>
                 )}
               </div>

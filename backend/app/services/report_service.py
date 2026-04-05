@@ -47,6 +47,7 @@ def create_report(db: Session, report_data: FinancialReportCreate) -> FinancialR
         # Финансовые данные
         revenue=report_data.revenue,
         net_income=report_data.net_income,
+        net_income_reported=report_data.net_income_reported,
         total_assets=report_data.total_assets,
         current_assets=report_data.current_assets,
         total_liabilities=report_data.total_liabilities,
@@ -196,6 +197,7 @@ def update_report(
     # Финансовые данные
     db_report.revenue = report_data.revenue  # type: ignore
     db_report.net_income = report_data.net_income  # type: ignore
+    db_report.net_income_reported = report_data.net_income_reported  # type: ignore
     db_report.total_assets = report_data.total_assets  # type: ignore
     db_report.current_assets = report_data.current_assets  # type: ignore
     db_report.total_liabilities = report_data.total_liabilities  # type: ignore

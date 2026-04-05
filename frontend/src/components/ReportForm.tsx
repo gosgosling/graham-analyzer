@@ -57,6 +57,97 @@ function isPlausibleFiscalYear(y: number | null | undefined): boolean {
     return y >= 1900 && y <= 2100;
 }
 
+
+function formatNumberWithSpaces(value: number | null | undefined): string {
+    if (value === null || value === undefined || Number.isNaN(Number(value))) return '';
+    const n = Number(value);
+    if (!Number.isFinite(n)) return '';
+    const neg = n < 0;
+    const abs = Math.abs(n);
+    const raw = abs.toString();
+    const [intPart, frac] = raw.includes('.') ? raw.split('.') : [raw, undefined];
+    const grouped = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+    return (neg ? '-' : '') + grouped + (frac !== undefined && frac !== '' ? '.' + frac : '');
+}
+
+function parseFormattedNumberInput(raw: string, field: string): number | null {
+    let t = raw.replace(/\s/g, '').replace(',', '.');
+    if (t === '' || t === '-' || t === '.') return null;
+    if (field === 'shares_outstanding') {
+        const n = parseInt(t.split('.')[0], 10);
+        return Number.isNaN(n) ? null : n;
+    }
+    const n = parseFloat(t);
+    return Number.isNaN(n) ? null : n;
+}
+
+/**
+ * Поле с форматированием тысяч пробелами.
+ * Во время ввода хранит «сырую» строку (минус, незаконченное число и т.д. не съедаются).
+ * При потере фокуса применяет форматирование.
+ */
+interface FormattedInputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'value' | 'onChange' | 'type' | 'inputMode' | 'autoComplete'> {
+    name: string;
+    numericValue: number | null | undefined;
+    onNumericChange: (name: string, value: number | null) => void;
+    isInt?: boolean;
+}
+
+const FormattedInput: React.FC<FormattedInputProps> = ({
+    name,
+    numericValue,
+    onNumericChange,
+    isInt,
+    ...rest
+}) => {
+    const [display, setDisplay] = React.useState<string>(formatNumberWithSpaces(numericValue));
+    const [focused, setFocused] = React.useState(false);
+
+    // Синхронизируем display с внешним изменением (например, автозаполнение Мосбиржи),
+    // но только когда поле НЕ в фокусе, чтобы не сбросить то, что печатает пользователь.
+    React.useEffect(() => {
+        if (!focused) {
+            setDisplay(formatNumberWithSpaces(numericValue));
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [numericValue]);
+
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const raw = e.target.value;
+        setDisplay(raw);
+        const parsed = parseFormattedNumberInput(raw, name);
+        onNumericChange(name, parsed);
+    };
+
+    const handleFocus = (e: React.FocusEvent<HTMLInputElement>) => {
+        setFocused(true);
+        // Показываем «чистое» число без пробелов, чтобы легко редактировать
+        const plain = numericValue !== null && numericValue !== undefined ? String(numericValue) : '';
+        setDisplay(plain);
+        // Выделяем всё для удобной замены
+        window.setTimeout(() => e.target.select(), 0);
+    };
+
+    const handleBlur = () => {
+        setFocused(false);
+        setDisplay(formatNumberWithSpaces(numericValue));
+    };
+
+    return (
+        <input
+            type="text"
+            inputMode="decimal"
+            autoComplete="off"
+            name={name}
+            value={display}
+            onChange={handleChange}
+            onFocus={handleFocus}
+            onBlur={handleBlur}
+            {...rest}
+        />
+    );
+};
+
 interface ReportFormProps {
     companyId: number;
     companyName: string;
@@ -256,6 +347,7 @@ const ReportForm: React.FC<ReportFormProps> = ({ companyId, companyName, ticker,
         shares_outstanding: null,
         revenue: null,
         net_income: null,
+        net_income_reported: null,
         total_assets: null,
         current_assets: null,
         total_liabilities: null,
@@ -330,6 +422,23 @@ const ReportForm: React.FC<ReportFormProps> = ({ companyId, companyName, ticker,
         }
     }, [ticker]);
 
+    // Авто-заполнение даты окончания периода для годовых отчётов: 31 декабря финансового года
+    useEffect(() => {
+        if (formData.period_type === 'annual' && isPlausibleFiscalYear(formData.fiscal_year)) {
+            const autoDate = `${formData.fiscal_year}-12-31`;
+            setFormData(prev => {
+                // Не перезаписываем, если дата уже соответствует этому году или была установлена вручную
+                // (перезаписываем только если пусто, или уже стоит другой авто-31-декабря)
+                const prevDate = prev.report_date;
+                if (!prevDate || /^\d{4}-12-31$/.test(prevDate)) {
+                    return { ...prev, report_date: autoDate };
+                }
+                return prev;
+            });
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [formData.period_type, formData.fiscal_year]);
+
     // Авто-загрузка дивидендов при смене года или типа/квартала периода
     useEffect(() => {
         if (!ticker) return;
@@ -391,6 +500,11 @@ const ReportForm: React.FC<ReportFormProps> = ({ companyId, companyName, ticker,
         [ticker, fetchPrice],
     );
     
+    /** Используется FormattedInput для обновления числовых полей с пробелами */
+    const handleNumericChange = (fieldName: string, value: number | null) => {
+        setFormData(prev => ({ ...prev, [fieldName]: value }));
+    };
+
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name, value, type } = e.target;
 
@@ -696,13 +810,13 @@ const ReportForm: React.FC<ReportFormProps> = ({ companyId, companyName, ticker,
                                         </button>
                                     )}
                                 </div>
-                                <input
-                                    type="number"
+                                <FormattedInput
                                     name="shares_outstanding"
-                                    value={formData.shares_outstanding || ''}
-                                    onChange={handleInputChange}
-                                    placeholder={sharesState.loading ? 'Загрузка...' : '0'}
-                                    className={`form-input ${sharesState.loading ? 'input-loading' : ''}`}
+                                    numericValue={formData.shares_outstanding}
+                                    onNumericChange={handleNumericChange}
+                                    isInt
+                                    placeholder={sharesState.loading ? 'Загрузка...' : 'напр. 15 000 000 000'}
+                                    className={`form-input form-input-thousands ${sharesState.loading ? 'input-loading' : ''}`}
                                 />
                                 <SharesFetchBadge state={sharesState} />
                             </div>
@@ -719,30 +833,41 @@ const ReportForm: React.FC<ReportFormProps> = ({ companyId, companyName, ticker,
                         <div className="form-row">
                             <label className="form-label">
                                 Выручка, млн {formData.currency}:
-                                <input
-                                    type="number"
+                                <FormattedInput
                                     name="revenue"
-                                    value={formData.revenue || ''}
-                                    onChange={handleInputChange}
-                                    step="1"
-                                    placeholder="например: 1459000"
-                                    className="form-input"
+                                    numericValue={formData.revenue}
+                                    onNumericChange={handleNumericChange}
+                                    placeholder="например: 1 459 000"
+                                    className="form-input form-input-thousands"
                                 />
-                                <small className="field-hint">Введите сумму в миллионах</small>
+                                <small className="field-hint">Сумма в миллионах; тысячи можно отделять пробелом</small>
                             </label>
                             
                             <label className="form-label">
-                                Чистая прибыль, млн {formData.currency}:
-                                <input
-                                    type="number"
+                                Чистая прибыль / убыток, млн {formData.currency}:
+                                <FormattedInput
                                     name="net_income"
-                                    value={formData.net_income || ''}
-                                    onChange={handleInputChange}
-                                    step="1"
-                                    placeholder="например: 50000"
-                                    className="form-input"
+                                    numericValue={formData.net_income}
+                                    onNumericChange={handleNumericChange}
+                                    placeholder="например: 50 000 (убыток: -5 000)"
+                                    className="form-input form-input-thousands"
                                 />
-                                <small className="field-hint">Введите сумму в миллионах</small>
+                                <small className="field-hint">Сумма в миллионах; отрицательное = убыток; тысячи можно разделять пробелом</small>
+                            </label>
+                        </div>
+                        <div className="form-row">
+                            <label className="form-label form-label-full">
+                                Фактическая прибыль / убыток (отчётная), млн {formData.currency}:
+                                <FormattedInput
+                                    name="net_income_reported"
+                                    numericValue={formData.net_income_reported}
+                                    onNumericChange={handleNumericChange}
+                                    placeholder="если в отчёте указана отдельно (убыток — со знаком минус)"
+                                    className="form-input form-input-thousands"
+                                />
+                                <small className="field-hint">
+                                    Необязательно: значение из раскрытия, если отличается от поля «чистая прибыль»
+                                </small>
                             </label>
                         </div>
                     </div>
@@ -757,27 +882,23 @@ const ReportForm: React.FC<ReportFormProps> = ({ companyId, companyName, ticker,
                         <div className="form-row">
                             <label className="form-label">
                                 Всего активов, млн {formData.currency}:
-                                <input
-                                    type="number"
+                                <FormattedInput
                                     name="total_assets"
-                                    value={formData.total_assets || ''}
-                                    onChange={handleInputChange}
-                                    step="1"
-                                    placeholder="например: 500000"
-                                    className="form-input"
+                                    numericValue={formData.total_assets}
+                                    onNumericChange={handleNumericChange}
+                                    placeholder="например: 500 000"
+                                    className="form-input form-input-thousands"
                                 />
                             </label>
                             
                             <label className="form-label">
                                 Оборотные активы, млн {formData.currency}:
-                                <input
-                                    type="number"
+                                <FormattedInput
                                     name="current_assets"
-                                    value={formData.current_assets || ''}
-                                    onChange={handleInputChange}
-                                    step="1"
-                                    placeholder="например: 200000"
-                                    className="form-input"
+                                    numericValue={formData.current_assets}
+                                    onNumericChange={handleNumericChange}
+                                    placeholder="например: 200 000"
+                                    className="form-input form-input-thousands"
                                 />
                             </label>
                         </div>
@@ -785,27 +906,23 @@ const ReportForm: React.FC<ReportFormProps> = ({ companyId, companyName, ticker,
                         <div className="form-row">
                             <label className="form-label">
                                 Всего обязательств, млн {formData.currency}:
-                                <input
-                                    type="number"
+                                <FormattedInput
                                     name="total_liabilities"
-                                    value={formData.total_liabilities || ''}
-                                    onChange={handleInputChange}
-                                    step="1"
-                                    placeholder="например: 250000"
-                                    className="form-input"
+                                    numericValue={formData.total_liabilities}
+                                    onNumericChange={handleNumericChange}
+                                    placeholder="например: 250 000"
+                                    className="form-input form-input-thousands"
                                 />
                             </label>
                             
                             <label className="form-label">
                                 Краткосрочные обязательства, млн {formData.currency}:
-                                <input
-                                    type="number"
+                                <FormattedInput
                                     name="current_liabilities"
-                                    value={formData.current_liabilities || ''}
-                                    onChange={handleInputChange}
-                                    step="1"
-                                    placeholder="например: 80000"
-                                    className="form-input"
+                                    numericValue={formData.current_liabilities}
+                                    onNumericChange={handleNumericChange}
+                                    placeholder="например: 80 000"
+                                    className="form-input form-input-thousands"
                                 />
                             </label>
                         </div>
@@ -813,14 +930,12 @@ const ReportForm: React.FC<ReportFormProps> = ({ companyId, companyName, ticker,
                         <div className="form-row">
                             <label className="form-label">
                                 Собственный капитал, млн {formData.currency}:
-                                <input
-                                    type="number"
+                                <FormattedInput
                                     name="equity"
-                                    value={formData.equity || ''}
-                                    onChange={handleInputChange}
-                                    step="1"
-                                    placeholder="например: 250000"
-                                    className="form-input"
+                                    numericValue={formData.equity}
+                                    onNumericChange={handleNumericChange}
+                                    placeholder="например: 250 000"
+                                    className="form-input form-input-thousands"
                                 />
                             </label>
                         </div>

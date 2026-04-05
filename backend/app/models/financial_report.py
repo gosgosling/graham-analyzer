@@ -84,6 +84,9 @@ class FinancialReport(Base):
     # Отчёт о прибылях и убытках (млн валюты)
     revenue: Mapped[Optional[float]] = mapped_column(Numeric(15, 3), nullable=True)  # Выручка, млн
     net_income: Mapped[Optional[float]] = mapped_column(Numeric(15, 3), nullable=True)  # Чистая прибыль, млн
+    net_income_reported: Mapped[Optional[float]] = mapped_column(
+        Numeric(15, 3), nullable=True
+    )  # Фактическая (отчётная) прибыль по раскрытию, млн — если отличается от net_income
 
     # Дивиденды
     dividends_per_share: Mapped[Optional[float]] = mapped_column(Numeric(10, 4), nullable=True)  # Дивиденды на акцию (₽ или $ за акцию)

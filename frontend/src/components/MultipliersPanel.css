@@ -79,6 +79,7 @@
 .legend-item.good   { color: #15803d; }
 .legend-item.warn   { color: #b45309; }
 .legend-item.bad    { color: #b91c1c; }
+.legend-item.loss   { color: #9a3412; }
 .legend-item.neutral { color: #94a3b8; }
 
 /* ── Табы ─────────────────────────────────────────────────────────────────── */
@@ -202,6 +203,11 @@
   border-color: #fecaca;
 }
 
+.current-card.level-loss {
+  background: #fff7ed;
+  border-color: #fed7aa;
+}
+
 .current-card.level-neutral {
   background: #f8fafc;
   border-color: #e2e8f0;
@@ -227,6 +233,7 @@
 .current-card.level-good  .current-card-value { color: #166534; }
 .current-card.level-warn  .current-card-value { color: #92400e; }
 .current-card.level-bad   .current-card-value { color: #991b1b; }
+.current-card.level-loss  .current-card-value { color: #9a3412; font-size: 1.25rem; }
 
 .current-card-hint {
   font-size: 0.72rem;
@@ -242,6 +249,7 @@
 .current-card-threshold.level-good   { color: #15803d; }
 .current-card-threshold.level-warn   { color: #b45309; }
 .current-card-threshold.level-bad    { color: #b91c1c; }
+.current-card-threshold.level-loss   { color: #9a3412; }
 .current-card-threshold.level-neutral { color: #94a3b8; }
 
 /* ── LTM Финансовые показатели ───────────────────────────────────────────── */
@@ -379,11 +387,33 @@
 .mult-cell.warn    { background: #fef9c3; color: #854d0e; }
 .mult-cell.bad     { background: #fee2e2; color: #991b1b; }
 .mult-cell.neutral { color: #94a3b8; font-weight: 400; }
+.mult-cell.loss    { background: #fff7ed; color: #9a3412; border: 1px solid #fed7aa; }
 
 /* Подсказка при null-значении: пунктирное подчёркивание и курсор-помощь */
 .mult-cell.null-hint {
   cursor: help;
-  text-decoration: underline dotted #94a3b8;
+  text-decoration: underline dotted currentColor;
+  text-underline-offset: 2px;
+}
+
+/* Ячейка убытка в таблице истории */
+.cell-loss {
+  color: #9a3412;
+  font-weight: 600;
+}
+
+/* Значение убытка в LTM-финансах */
+.value-loss {
+  color: #9a3412 !important;
+  font-weight: 700;
+}
+
+/* LTM блок — выделяем строку убытка */
+.ltm-fin-item--loss {
+  background: #fff7ed;
+  border-radius: 6px;
+  padding: 4px 8px;
+  margin: -4px -8px;
 }
 
 /* ── Графики ─────────────────────────────────────────────────────────────── */
