@@ -413,7 +413,9 @@ const ReportDetailModal: React.FC<ReportDetailModalProps> = ({ report, onClose, 
             </div>
           )}
 
-          {(report.revenue != null || report.net_income != null) && (
+          {(report.revenue != null ||
+            report.net_income != null ||
+            report.net_income_reported != null) && (
             <div className="detail-section">
               <h3>Отчёт о прибылях и убытках <span className="section-units">(млн {cur})</span></h3>
               <div className="detail-grid">
@@ -427,6 +429,12 @@ const ReportDetailModal: React.FC<ReportDetailModalProps> = ({ report, onClose, 
                   <div className="detail-item">
                     <span className="detail-label">Чистая прибыль:</span>
                     <span className="detail-value">{fmtMln(report.net_income)}</span>
+                  </div>
+                )}
+                {report.net_income_reported != null && (
+                  <div className="detail-item">
+                    <span className="detail-label">Фактическая прибыль (отчётная):</span>
+                    <span className="detail-value">{fmtMln(report.net_income_reported)}</span>
                   </div>
                 )}
               </div>

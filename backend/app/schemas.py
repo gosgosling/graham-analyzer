@@ -107,7 +107,7 @@ class FinancialReportCreate(BaseModel):
     ⚠️ ЕДИНИЦЫ ВВОДА:
       - price_per_share, price_at_filing, dividends_per_share — в полных ₽ или $ (за акцию)
       - shares_outstanding — количество акций в штуках
-      - revenue, net_income, total_assets, current_assets,
+      - revenue, net_income, net_income_reported, total_assets, current_assets,
         total_liabilities, current_liabilities, equity — в МИЛЛИОНАХ валюты (млн ₽ или млн $)
 
     Пример: выручка Сбербанка 1 459 000 млн ₽ → вводить 1459000
@@ -134,6 +134,7 @@ class FinancialReportCreate(BaseModel):
     # Финансовые показатели — в МИЛЛИОНАХ валюты (млн ₽ или млн $)
     revenue: Optional[float] = None
     net_income: Optional[float] = None
+    net_income_reported: Optional[float] = None  # фактическая отчётная прибыль, млн
     total_assets: Optional[float] = None
     current_assets: Optional[float] = None
     total_liabilities: Optional[float] = None
@@ -192,6 +193,7 @@ class FinancialReport(BaseModel):
     # Финансовые показатели
     revenue: Optional[float] = None
     net_income: Optional[float] = None
+    net_income_reported: Optional[float] = None
     total_assets: Optional[float] = None
     current_assets: Optional[float] = None
     total_liabilities: Optional[float] = None
@@ -261,6 +263,12 @@ class FinancialReport(BaseModel):
     def net_income_rub(self) -> Optional[float]:
         """Чистая прибыль в рублях"""
         return self._convert_to_rub(self.net_income)
+
+    @computed_field  # type: ignore
+    @property
+    def net_income_reported_rub(self) -> Optional[float]:
+        """Фактическая отчётная прибыль в рублях"""
+        return self._convert_to_rub(self.net_income_reported)
 
     @computed_field  # type: ignore
     @property

@@ -162,6 +162,8 @@ export interface FinancialReportCreate {
     // Финансовые показатели
     revenue?: number | null;
     net_income?: number | null;
+    /** Фактическая отчётная прибыль по раскрытию, млн (если отличается от net_income) */
+    net_income_reported?: number | null;
     total_assets?: number | null;
     current_assets?: number | null;
     total_liabilities?: number | null;
@@ -184,6 +186,7 @@ export interface FinancialReport extends FinancialReportCreate {
     price_at_filing_rub?: number | null;
     revenue_rub?: number | null;
     net_income_rub?: number | null;
+    net_income_reported_rub?: number | null;
     total_assets_rub?: number | null;
     current_assets_rub?: number | null;
     total_liabilities_rub?: number | null;
