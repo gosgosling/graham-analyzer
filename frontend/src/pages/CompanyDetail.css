@@ -354,14 +354,90 @@
   color: #2c3e50;
 }
 
-/* Reports Card Header (collapsible toggle) */
+/* Reports Card Header: название сворачивает блок; справа — кнопка как в списке компаний + стрелка */
 .reports-card-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+.reports-card-header-title {
+  flex: 1;
+  min-width: 0;
   cursor: pointer;
   user-select: none;
-  margin-bottom: 4px;
+}
+
+.reports-card-header-title:focus-visible {
+  outline: 2px solid #9b59b6;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.reports-card-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* Те же стили, что .btn-add-report-inline в CompaniesList.css */
+.btn-add-report-inline {
+  background-color: #3498db;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.btn-add-report-inline:hover:not(:disabled) {
+  background-color: #2980b9;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(52, 152, 219, 0.3);
+}
+
+.btn-add-report-inline:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.btn-add-report-inline:focus-visible {
+  outline: 2px solid #3498db;
+  outline-offset: 2px;
+}
+
+.reports-toggle-arrow-btn {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid #e1e8ed;
+  border-radius: 6px;
+  background: #f8f9fa;
+  color: #7f8c8d;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.reports-toggle-arrow-btn:hover {
+  background: #eef1f4;
+  border-color: #cfd8dc;
+  color: #2c3e50;
+}
+
+.reports-toggle-arrow-btn:focus-visible {
+  outline: 2px solid #9b59b6;
+  outline-offset: 2px;
 }
 
 .reports-count-badge {
@@ -376,10 +452,31 @@
   vertical-align: middle;
 }
 
-.reports-toggle-arrow {
-  font-size: 13px;
-  color: #95a5a6;
-  padding: 2px 4px;
+.reports-empty-state {
+  text-align: center;
+  padding: 24px 16px;
+  margin-top: 8px;
+  background-color: #f8f9fa;
+  border: 2px dashed #cbd5e0;
+  border-radius: 8px;
+}
+
+.reports-empty-title {
+  margin: 0 0 8px;
+  color: #2c3e50;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.reports-empty-hint {
+  margin: 0 0 16px;
+  color: #7f8c8d;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.reports-empty-state .btn-add-report-inline {
+  margin-top: 4px;
 }
 
 /* Reports Filters */

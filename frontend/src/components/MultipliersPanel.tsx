@@ -14,7 +14,7 @@ import './MultipliersPanel.css';
 
 // ─── Критерии Грэма для цветовой кодировки ───────────────────────────────────
 
-type Level = 'good' | 'warn' | 'bad' | 'neutral';
+type Level = 'good' | 'warn' | 'bad' | 'neutral' | 'loss';
 
 function peLevel(v: number | null): Level {
   if (v === null) return 'neutral';
@@ -22,20 +22,50 @@ function peLevel(v: number | null): Level {
   if (v <= 25) return 'warn';
   return 'bad';
 }
+
+/**
+ * Уровень для P/E с учётом убытка.
+ * Если P/E есть — стандартная градация.
+ * Если P/E null + доход < 0 — компания убыточна ('loss').
+ * Иначе — нет данных ('neutral').
+ */
+function peLevelContext(pe: number | null, income: number | null): Level {
+  if (pe !== null) return peLevel(pe);
+  if (income !== null && income < 0) return 'loss';
+  return 'neutral';
+}
+
 function pbLevel(v: number | null): Level {
   if (v === null) return 'neutral';
   if (v <= 1.5) return 'good';
   if (v <= 3) return 'warn';
   return 'bad';
 }
+
+/**
+ * Уровень P/B с учётом отрицательного капитала:
+ * если капитал < 0, P/B не считается и показываем 'bad' (book deficit).
+ */
+function pbLevelContext(pb: number | null, equity: number | null): Level {
+  if (pb !== null) return pbLevel(pb);
+  if (equity !== null && equity < 0) return 'loss';
+  return 'neutral';
+}
+
 function roeLevel(v: number | null): Level {
   if (v === null) return 'neutral';
   if (v >= 15) return 'good';
   if (v >= 10) return 'warn';
   return 'bad';
 }
+
+/**
+ * D/E с учётом отрицательного капитала.
+ * Отрицательный D/E = знаменатель (капитал) отрицателен → книжная стоимость дефицит, 'bad'.
+ */
 function deLevel(v: number | null): Level {
   if (v === null) return 'neutral';
+  if (v < 0) return 'bad';   // отрицательный капитал: формально «хорошо», фактически плохо
   if (v <= 0.5) return 'good';
   if (v <= 1) return 'warn';
   return 'bad';
@@ -64,11 +94,15 @@ function MetricBadge({
   nullHint?: string;
 }) {
   if (value === null) {
+    if (level === 'loss') {
+      return (
+        <span className="mult-cell loss null-hint" title={nullHint ?? 'Убыток за период — показатель не применим'}>
+          Убыток
+        </span>
+      );
+    }
     return (
-      <span
-        className="mult-cell neutral null-hint"
-        title={nullHint ?? 'Недостаточно данных'}
-      >
+      <span className="mult-cell neutral null-hint" title={nullHint ?? 'Недостаточно данных'}>
         —
       </span>
     );
@@ -108,18 +142,21 @@ interface CurrentCardsProps {
 }
 
 const CurrentCards: React.FC<CurrentCardsProps> = ({ data }) => {
+  const income = data.ltm_net_income;
+  const isLoss = income !== null && income < 0;
+
   const cards = [
     {
       label: 'P/E',
       value: data.pe_ratio,
-      level: peLevel(data.pe_ratio),
+      level: peLevelContext(data.pe_ratio, income),
       hint: 'Цена / Прибыль',
-      threshold: '≤ 15 — хорошо',
+      threshold: isLoss ? 'Убыток — P/E не применим' : '≤ 15 — хорошо',
     },
     {
       label: 'P/B',
       value: data.pb_ratio,
-      level: pbLevel(data.pb_ratio),
+      level: pbLevelContext(data.pb_ratio, data.market_cap),
       hint: 'Цена / Балансовая стоимость',
       threshold: '≤ 1.5 — хорошо',
     },
@@ -128,7 +165,7 @@ const CurrentCards: React.FC<CurrentCardsProps> = ({ data }) => {
       value: data.roe,
       level: roeLevel(data.roe),
       hint: 'Рентабельность капитала',
-      threshold: '≥ 15% — хорошо',
+      threshold: isLoss && data.roe !== null && data.roe < 0 ? 'Отрицательный ROE' : '≥ 15% — хорошо',
       suffix: '%',
     },
     {
@@ -136,7 +173,9 @@ const CurrentCards: React.FC<CurrentCardsProps> = ({ data }) => {
       value: data.debt_to_equity,
       level: deLevel(data.debt_to_equity),
       hint: 'Total Liabilities / Equity',
-      threshold: '≤ 0.5 — хорошо',
+      threshold: data.debt_to_equity !== null && data.debt_to_equity < 0
+        ? 'Отрицательный капитал'
+        : '≤ 0.5 — хорошо',
     },
     {
       label: 'Current Ratio',
@@ -161,7 +200,9 @@ const CurrentCards: React.FC<CurrentCardsProps> = ({ data }) => {
         <div key={label} className={`current-card level-${level}`}>
           <div className="current-card-label">{label}</div>
           <div className="current-card-value">
-            {value !== null ? `${fmt(value)}${suffix}` : '—'}
+            {value !== null
+              ? `${fmt(value)}${suffix}`
+              : level === 'loss' ? 'Убыток' : '—'}
           </div>
           <div className="current-card-hint">{hint}</div>
           <div className={`current-card-threshold level-${level}`}>{threshold}</div>
@@ -236,52 +277,90 @@ const HistTable: React.FC<HistTableProps> = ({ rows, currentRow }) => {
         </thead>
         <tbody>
           {/* LTM-строка (актуальные данные) */}
-          {currentRow && (
-            <tr className="row-ltm">
-              <td className="col-year">
-                <span className="badge-ltm">LTM</span>
-              </td>
-              <td>{currentRow.price_used !== null ? fmt(currentRow.price_used) : '—'}</td>
-              <td>{currentRow.market_cap !== null ? (currentRow.market_cap / 1_000).toFixed(2) : '—'}</td>
-              <td><MetricBadge value={currentRow.pe_ratio} level={peLevel(currentRow.pe_ratio)} /></td>
-              <td><MetricBadge value={currentRow.pb_ratio} level={pbLevel(currentRow.pb_ratio)} /></td>
-              <td><MetricBadge value={currentRow.roe} level={roeLevel(currentRow.roe)} suffix="%" /></td>
-              <td><MetricBadge value={currentRow.debt_to_equity} level={deLevel(currentRow.debt_to_equity)} /></td>
-              <td><MetricBadge value={currentRow.current_ratio} level={crLevel(currentRow.current_ratio)} /></td>
-              <td><MetricBadge value={currentRow.dividend_yield} level={dyLevel(currentRow.dividend_yield)} suffix="%" /></td>
-              <td>{fmtMln(currentRow.ltm_revenue)}</td>
-              <td>{fmtMln(currentRow.ltm_net_income)}</td>
-            </tr>
-          )}
+          {currentRow && (() => {
+            const ltmIsLoss = currentRow.ltm_net_income !== null && currentRow.ltm_net_income < 0;
+            return (
+              <tr className="row-ltm">
+                <td className="col-year"><span className="badge-ltm">LTM</span></td>
+                <td>{currentRow.price_used !== null ? fmt(currentRow.price_used) : '—'}</td>
+                <td>{currentRow.market_cap !== null ? (currentRow.market_cap / 1_000).toFixed(2) : '—'}</td>
+                <td><MetricBadge
+                  value={currentRow.pe_ratio}
+                  level={peLevelContext(currentRow.pe_ratio, currentRow.ltm_net_income)}
+                  nullHint={ltmIsLoss ? 'Убыток за период — P/E не рассчитывается' : undefined}
+                /></td>
+                <td><MetricBadge value={currentRow.pb_ratio} level={pbLevel(currentRow.pb_ratio)} /></td>
+                <td><MetricBadge value={currentRow.roe} level={roeLevel(currentRow.roe)} suffix="%" /></td>
+                <td><MetricBadge
+                  value={currentRow.debt_to_equity}
+                  level={deLevel(currentRow.debt_to_equity)}
+                  nullHint={currentRow.debt_to_equity !== null && currentRow.debt_to_equity < 0 ? 'Отрицательный капитал' : undefined}
+                /></td>
+                <td><MetricBadge value={currentRow.current_ratio} level={crLevel(currentRow.current_ratio)} /></td>
+                <td><MetricBadge value={currentRow.dividend_yield} level={dyLevel(currentRow.dividend_yield)} suffix="%" /></td>
+                <td>{fmtMln(currentRow.ltm_revenue)}</td>
+                <td className={ltmIsLoss ? 'cell-loss' : ''}>{fmtMln(currentRow.ltm_net_income)}</td>
+              </tr>
+            );
+          })()}
 
           {/* Исторические строки */}
           {rows.map((r) => {
             const noPrice   = r.price_used === null || r.shares_used === null;
             const noIncome  = r.ltm_net_income === null;
+            const isLoss    = r.ltm_net_income !== null && r.ltm_net_income < 0;
             const noEquity  = r.equity === null;
+            const negEquity = r.equity !== null && r.equity < 0;
             const noLiab    = r.total_liabilities === null;
             const noCurr    = r.current_assets === null || r.current_liabilities === null;
             const noDivs    = r.ltm_dividends_per_share === null;
+
+            const peHint = isLoss
+              ? 'Убыток за период — P/E не рассчитывается'
+              : noIncome ? 'Нет данных о чистой прибыли (net_income)'
+              : noPrice  ? 'Нет цены / акций'
+              : undefined;
+
+            const pbHint = negEquity
+              ? 'Отрицательный капитал — P/B не рассчитывается'
+              : noEquity ? 'Нет данных о капитале (equity)'
+              : noPrice  ? 'Нет цены / акций'
+              : undefined;
+
+            const roeHint = noIncome
+              ? 'Нет данных о чистой прибыли (net_income)'
+              : noEquity ? 'Нет данных о капитале (equity)'
+              : undefined;
+
+            const deHint = negEquity
+              ? 'Отрицательный капитал: формула даёт отрицательный результат'
+              : noLiab  ? 'Нет данных об обязательствах (total_liabilities)'
+              : noEquity ? 'Нет данных о капитале (equity)'
+              : undefined;
 
             return (
               <tr key={r.id} className="row-hist">
                 <td className="col-year">{fmtDate(r.date)}</td>
                 <td>{r.price_used !== null ? fmt(r.price_used) : '—'}</td>
                 <td>{r.market_cap !== null ? (r.market_cap / 1_000).toFixed(2) : '—'}</td>
-                <td><MetricBadge value={r.pe_ratio} level={peLevel(r.pe_ratio)}
-                  nullHint={noIncome ? 'Нет данных о чистой прибыли (net_income)' : noPrice ? 'Нет цены / акций' : undefined} /></td>
-                <td><MetricBadge value={r.pb_ratio} level={pbLevel(r.pb_ratio)}
-                  nullHint={noEquity ? 'Нет данных о капитале (equity)' : noPrice ? 'Нет цены / акций' : undefined} /></td>
-                <td><MetricBadge value={r.roe} level={roeLevel(r.roe)} suffix="%"
-                  nullHint={noIncome ? 'Нет данных о чистой прибыли (net_income)' : noEquity ? 'Нет данных о капитале (equity)' : undefined} /></td>
-                <td><MetricBadge value={r.debt_to_equity} level={deLevel(r.debt_to_equity)}
-                  nullHint={noLiab ? 'Нет данных об обязательствах (total_liabilities)' : noEquity ? 'Нет данных о капитале (equity)' : undefined} /></td>
+                <td><MetricBadge
+                  value={r.pe_ratio}
+                  level={peLevelContext(r.pe_ratio, r.ltm_net_income)}
+                  nullHint={peHint}
+                /></td>
+                <td><MetricBadge
+                  value={r.pb_ratio}
+                  level={pbLevelContext(r.pb_ratio, r.equity)}
+                  nullHint={pbHint}
+                /></td>
+                <td><MetricBadge value={r.roe} level={roeLevel(r.roe)} suffix="%" nullHint={roeHint} /></td>
+                <td><MetricBadge value={r.debt_to_equity} level={deLevel(r.debt_to_equity)} nullHint={deHint} /></td>
                 <td><MetricBadge value={r.current_ratio} level={crLevel(r.current_ratio)}
                   nullHint={noCurr ? 'Нет оборотных активов или краткосрочных обязательств' : undefined} /></td>
                 <td><MetricBadge value={r.dividend_yield} level={dyLevel(r.dividend_yield)} suffix="%"
                   nullHint={noDivs ? 'Дивиденды не указаны' : noPrice ? 'Нет цены акции' : undefined} /></td>
                 <td>{fmtMln(r.ltm_revenue)}</td>
-                <td>{fmtMln(r.ltm_net_income)}</td>
+                <td className={isLoss ? 'cell-loss' : ''}>{fmtMln(r.ltm_net_income)}</td>
               </tr>
             );
           })}
@@ -635,6 +714,7 @@ const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company }) => {
         <span className="legend-item good">● Норма по Грэму</span>
         <span className="legend-item warn">● Внимание</span>
         <span className="legend-item bad">● Превышение</span>
+        <span className="legend-item loss">● Убыток</span>
         <span className="legend-item neutral">● Нет данных</span>
       </div>
 
@@ -666,9 +746,15 @@ const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company }) => {
                           <span className="ltm-fin-label">Выручка</span>
                           <span className="ltm-fin-value">{fmtMln(currentData.ltm_revenue)}</span>
                         </div>
-                        <div className="ltm-fin-item">
-                          <span className="ltm-fin-label">Чистая прибыль</span>
-                          <span className="ltm-fin-value">{fmtMln(currentData.ltm_net_income)}</span>
+                        <div className={`ltm-fin-item${currentData.ltm_net_income !== null && currentData.ltm_net_income < 0 ? ' ltm-fin-item--loss' : ''}`}>
+                          <span className="ltm-fin-label">
+                            {currentData.ltm_net_income !== null && currentData.ltm_net_income < 0
+                              ? 'Чистый убыток'
+                              : 'Чистая прибыль'}
+                          </span>
+                          <span className={`ltm-fin-value${currentData.ltm_net_income !== null && currentData.ltm_net_income < 0 ? ' value-loss' : ''}`}>
+                            {fmtMln(currentData.ltm_net_income)}
+                          </span>
                         </div>
                         <div className="ltm-fin-item">
                           <span className="ltm-fin-label">Дивиденды на акцию</span>
