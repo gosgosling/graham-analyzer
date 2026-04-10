@@ -8,7 +8,7 @@ import {
   getCompanyCurrentMultipliers,
   getCompanyMultipliersHistory,
   refreshCompanyMultipliers,
-} from '../services/api';
+} from '../services';
 import { MultiplierRecord, CurrentMultipliers, Company } from '../types';
 import './MultipliersPanel.css';
 

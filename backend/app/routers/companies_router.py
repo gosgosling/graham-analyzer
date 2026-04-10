@@ -5,8 +5,8 @@ from sqlalchemy.orm import Session
 from app.schemas import Company
 from typing import List
 from app.database import get_db
-from app.services.company_service import get_all_companies, get_company_by_id
-from app.services.sync_service import sync_companies_from_tinkoff
+from app.services.companies.company_service import get_all_companies, get_company_by_id
+from app.services.companies.sync_service import sync_companies_from_tinkoff
 from app.models.company import Company as CompanyModel
 
 router = APIRouter(prefix="/companies", tags=["companies"])

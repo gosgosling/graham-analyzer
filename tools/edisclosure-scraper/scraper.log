@@ -1,0 +1,980 @@
+2026-04-06 21:55:47  INFO      ============================================================
+2026-04-06 21:55:47  INFO      Сервис загрузки отчётов e-disclosure.ru стартовал.
+2026-04-06 21:55:47  INFO      Папка для отчётов: /home/devops/Reports
+2026-04-06 21:55:47  INFO      robots.txt: /portal/files.aspx и /portal/FileLoad.ashx — РАЗРЕШЕНЫ
+2026-04-06 21:55:47  INFO      ============================================================
+2026-04-06 21:55:47  INFO      Загружено 179 компаний из PostgreSQL.
+2026-04-06 21:55:47  INFO      К обработке: 2 компаний.
+2026-04-06 21:55:47  INFO      ─── [1/2] ROSN  (e-disclosure id=6505) ──────────────────
+2026-04-06 21:56:01  ERROR     [ROSN] HTTP 403 для https://www.e-disclosure.ru/portal/files.aspx?id=6505&type=4
+2026-04-06 21:56:01  INFO      ─── [2/2] SBER  (e-disclosure id=3043) ──────────────────
+2026-04-06 21:56:16  ERROR     [SBER] HTTP 403 для https://www.e-disclosure.ru/portal/files.aspx?id=3043&type=4
+2026-04-06 21:56:48  INFO      ============================================================
+2026-04-06 21:56:48  INFO      Сервис загрузки отчётов e-disclosure.ru стартовал.
+2026-04-06 21:56:48  INFO      Папка для отчётов: /home/devops/Reports
+2026-04-06 21:56:48  INFO      robots.txt: /portal/files.aspx и /portal/FileLoad.ashx — РАЗРЕШЕНЫ
+2026-04-06 21:56:48  INFO      ============================================================
+2026-04-06 21:56:48  INFO      Загружено 179 компаний из PostgreSQL.
+2026-04-06 21:56:48  INFO      К обработке: 1 компаний.
+2026-04-06 21:56:48  INFO      ─── [1/1] ROSN  (e-disclosure id=6505) ──────────────────
+2026-04-06 21:56:48  DEBUG     [ROSN] Ждём 11.7 с перед запросом страницы...
+2026-04-06 21:57:00  DEBUG     Starting new HTTPS connection (1): www.e-disclosure.ru:443
+2026-04-06 21:57:01  DEBUG     https://www.e-disclosure.ru:443 "GET /portal/files.aspx?id=6505&type=4 HTTP/1.1" 200 None
+2026-04-06 21:57:01  WARNING   [ROSN] Таблицы не найдены на странице.
+2026-04-06 22:08:11  INFO      ============================================================
+2026-04-06 22:08:11  INFO      Сервис загрузки отчётов e-disclosure.ru стартовал.
+2026-04-06 22:08:11  INFO      Папка для отчётов: /home/devops/Reports
+2026-04-06 22:08:11  INFO      robots.txt: /portal/files.aspx и /portal/FileLoad.ashx — РАЗРЕШЕНЫ
+2026-04-06 22:08:11  INFO      ============================================================
+2026-04-06 22:08:11  INFO      Загружено 179 компаний из PostgreSQL.
+2026-04-06 22:08:11  INFO      К обработке: 1 компаний.
+2026-04-06 22:08:11  INFO      ─── [1/1] ROSN  (e-disclosure id=6505) ──────────────────
+2026-04-06 22:08:11  DEBUG     [ROSN] Ждём 9.1 с перед запросом страницы...
+2026-04-06 22:08:20  DEBUG     Using selector: EpollSelector
+2026-04-06 22:08:21  DEBUG     [ROSN] Открываем https://www.e-disclosure.ru/portal/files.aspx?id=6505&type=4
+2026-04-06 22:08:53  INFO      [ROSN] Найдено 14 годовых консолидированных отчётов.
+2026-04-06 22:09:07  INFO      ============================================================
+2026-04-06 22:09:07  INFO      Сервис загрузки отчётов e-disclosure.ru стартовал.
+2026-04-06 22:09:07  INFO      Папка для отчётов: /home/devops/Reports
+2026-04-06 22:09:07  INFO      robots.txt: /portal/files.aspx и /portal/FileLoad.ashx — РАЗРЕШЕНЫ
+2026-04-06 22:09:07  INFO      ============================================================
+2026-04-06 22:09:07  INFO      Загружено 179 компаний из PostgreSQL.
+2026-04-06 22:09:07  INFO      К обработке: 1 компаний.
+2026-04-06 22:09:07  INFO      ─── [1/1] ROSN  (e-disclosure id=6505) ──────────────────
+2026-04-06 22:09:07  DEBUG     [ROSN] Ждём 9.1 с перед запросом страницы...
+2026-04-06 22:09:17  DEBUG     Using selector: EpollSelector
+2026-04-06 22:09:17  DEBUG     [ROSN] Открываем https://www.e-disclosure.ru/portal/files.aspx?id=6505&type=4
+2026-04-06 22:09:50  INFO      [ROSN] Найдено 14 годовых консолидированных отчётов.
+2026-04-06 22:09:50  INFO      Получаем ServicePipe-cookies через Playwright...
+2026-04-06 22:09:50  DEBUG     Using selector: EpollSelector
+2026-04-06 22:10:24  INFO      Получено 24 cookies.
+2026-04-06 22:10:24  DEBUG     [ROSN] Ждём 19.0 с перед скачиванием 2024_annual_consolidated.zip...
+2026-04-06 22:10:43  INFO      [ROSN] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1869788 → 2024_annual_consolidated.zip
+2026-04-06 22:10:43  DEBUG     Starting new HTTPS connection (1): www.e-disclosure.ru:443
+2026-04-06 22:10:44  DEBUG     https://www.e-disclosure.ru:443 "GET /portal/FileLoad.ashx?Fileid=1869788 HTTP/1.1" 200 1973067
+2026-04-06 22:10:46  INFO      [ROSN] ✓ Сохранён 2024_annual_consolidated.zip (1927 КБ)
+2026-04-06 22:10:46  DEBUG     [ROSN] Ждём 17.3 с перед скачиванием 2023_annual_consolidated.zip...
+2026-04-06 22:11:03  INFO      [ROSN] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1823277 → 2023_annual_consolidated.zip
+2026-04-06 22:11:04  DEBUG     https://www.e-disclosure.ru:443 "GET /portal/FileLoad.ashx?Fileid=1823277 HTTP/1.1" 200 1024105
+2026-04-06 22:11:06  INFO      [ROSN] ✓ Сохранён 2023_annual_consolidated.zip (1000 КБ)
+2026-04-06 22:11:06  DEBUG     [ROSN] Ждём 19.8 с перед скачиванием 2021_annual_consolidated.zip...
+2026-04-06 22:11:25  INFO      [ROSN] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1734562 → 2021_annual_consolidated.zip
+2026-04-06 22:11:26  DEBUG     https://www.e-disclosure.ru:443 "GET /portal/FileLoad.ashx?Fileid=1734562 HTTP/1.1" 200 3316061
+2026-04-06 22:11:30  INFO      [ROSN] ✓ Сохранён 2021_annual_consolidated.zip (3238 КБ)
+2026-04-06 22:11:30  DEBUG     [ROSN] Ждём 19.5 с перед скачиванием 2020_annual_consolidated.zip...
+2026-04-06 22:11:49  INFO      [ROSN] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1680476 → 2020_annual_consolidated.zip
+2026-04-06 22:11:50  DEBUG     https://www.e-disclosure.ru:443 "GET /portal/FileLoad.ashx?Fileid=1680476 HTTP/1.1" 200 5558315
+2026-04-06 22:11:55  INFO      [ROSN] ✓ Сохранён 2020_annual_consolidated.zip (5428 КБ)
+2026-04-06 22:11:55  DEBUG     [ROSN] Ждём 13.1 с перед скачиванием 2019_annual_consolidated.zip...
+2026-04-06 22:12:08  INFO      [ROSN] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1614653 → 2019_annual_consolidated.zip
+2026-04-06 22:12:09  DEBUG     https://www.e-disclosure.ru:443 "GET /portal/FileLoad.ashx?Fileid=1614653 HTTP/1.1" 200 2744284
+2026-04-06 22:12:12  INFO      [ROSN] ✓ Сохранён 2019_annual_consolidated.zip (2680 КБ)
+2026-04-06 22:12:12  DEBUG     [ROSN] Ждём 18.4 с перед скачиванием 2018_annual_consolidated.zip...
+2026-04-06 22:12:30  INFO      [ROSN] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1486510 → 2018_annual_consolidated.zip
+2026-04-06 22:12:30  DEBUG     https://www.e-disclosure.ru:443 "GET /portal/FileLoad.ashx?Fileid=1486510 HTTP/1.1" 200 4496737
+2026-04-06 22:12:35  INFO      [ROSN] ✓ Сохранён 2018_annual_consolidated.zip (4391 КБ)
+2026-04-06 22:12:35  DEBUG     [ROSN] Ждём 11.0 с перед скачиванием 2017_annual_consolidated.zip...
+2026-04-06 22:12:46  INFO      [ROSN] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1402895 → 2017_annual_consolidated.zip
+2026-04-06 22:12:47  DEBUG     https://www.e-disclosure.ru:443 "GET /portal/FileLoad.ashx?Fileid=1402895 HTTP/1.1" 200 4957629
+2026-04-06 22:12:52  INFO      [ROSN] ✓ Сохранён 2017_annual_consolidated.zip (4841 КБ)
+2026-04-06 22:12:52  DEBUG     [ROSN] Ждём 15.8 с перед скачиванием 2016_annual_consolidated.zip...
+2026-04-06 22:13:08  INFO      [ROSN] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1301712 → 2016_annual_consolidated.zip
+2026-04-06 22:13:09  DEBUG     https://www.e-disclosure.ru:443 "GET /portal/FileLoad.ashx?Fileid=1301712 HTTP/1.1" 200 2567233
+2026-04-06 22:13:13  INFO      [ROSN] ✓ Сохранён 2016_annual_consolidated.zip (2507 КБ)
+2026-04-06 22:13:13  DEBUG     [ROSN] Ждём 10.7 с перед скачиванием 2015_annual_consolidated.zip...
+2026-04-06 22:13:24  INFO      [ROSN] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1191183 → 2015_annual_consolidated.zip
+2026-04-06 22:13:24  DEBUG     https://www.e-disclosure.ru:443 "GET /portal/FileLoad.ashx?Fileid=1191183 HTTP/1.1" 200 4600941
+2026-04-06 22:13:29  INFO      [ROSN] ✓ Сохранён 2015_annual_consolidated.zip (4493 КБ)
+2026-04-06 22:13:29  DEBUG     [ROSN] Ждём 13.9 с перед скачиванием 2014_annual_consolidated.zip...
+2026-04-06 22:13:43  INFO      [ROSN] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1004521 → 2014_annual_consolidated.zip
+2026-04-06 22:13:43  DEBUG     https://www.e-disclosure.ru:443 "GET /portal/FileLoad.ashx?Fileid=1004521 HTTP/1.1" 200 1790168
+2026-04-06 22:13:46  INFO      [ROSN] ✓ Сохранён 2014_annual_consolidated.zip (1748 КБ)
+2026-04-06 22:13:46  DEBUG     [ROSN] Ждём 18.9 с перед скачиванием 2013_annual_consolidated.zip...
+2026-04-06 22:14:05  INFO      [ROSN] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=791406 → 2013_annual_consolidated.zip
+2026-04-06 22:14:05  DEBUG     https://www.e-disclosure.ru:443 "GET /portal/FileLoad.ashx?Fileid=791406 HTTP/1.1" 200 3784067
+2026-04-06 22:14:09  INFO      [ROSN] ✓ Сохранён 2013_annual_consolidated.zip (3695 КБ)
+2026-04-06 22:14:09  DEBUG     [ROSN] Ждём 13.2 с перед скачиванием 2012_annual_consolidated.zip...
+2026-04-06 22:14:23  INFO      [ROSN] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=556737 → 2012_annual_consolidated.zip
+2026-04-06 22:14:23  DEBUG     https://www.e-disclosure.ru:443 "GET /portal/FileLoad.ashx?Fileid=556737 HTTP/1.1" 200 1091697
+2026-04-06 22:14:25  INFO      [ROSN] ✓ Сохранён 2012_annual_consolidated.zip (1066 КБ)
+2026-04-06 22:14:25  DEBUG     [ROSN] Ждём 14.1 с перед скачиванием 2011_annual_consolidated.zip...
+2026-04-06 22:14:39  INFO      [ROSN] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=403602 → 2011_annual_consolidated.zip
+2026-04-06 22:14:42  DEBUG     https://www.e-disclosure.ru:443 "GET /portal/FileLoad.ashx?Fileid=403602 HTTP/1.1" 200 3073056
+2026-04-06 22:14:46  INFO      [ROSN] ✓ Сохранён 2011_annual_consolidated.zip (3001 КБ)
+2026-04-06 22:14:46  INFO      [ROSN] Файл 2011_annual_consolidated.zip уже существует — пропускаем.
+2026-04-06 22:14:46  INFO      ============================================================
+2026-04-06 22:14:46  INFO      Готово. Загружено новых файлов: 13, пропущено/ошибок: 1.
+2026-04-06 22:15:05  INFO      ============================================================
+2026-04-06 22:15:05  INFO      Сервис загрузки отчётов e-disclosure.ru стартовал.
+2026-04-06 22:15:05  INFO      Папка для отчётов: /home/devops/Reports
+2026-04-06 22:15:05  INFO      robots.txt: /portal/files.aspx и /portal/FileLoad.ashx — РАЗРЕШЕНЫ
+2026-04-06 22:15:05  INFO      ============================================================
+2026-04-06 22:15:05  INFO      Загружено 179 компаний из PostgreSQL.
+2026-04-06 22:15:05  WARNING   Тикер ABIO (Артген) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер ABRD (АбрауДюрсо) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер AFKS (АФК Система) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер AFLT (Аэрофлот) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер AKRN (Акрон) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер APTK (Аптечная сеть 36,6) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер AQUA (ИНАРКТИКА) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер ASTR (Группа Астра) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер BANE (Башнефть) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер BANEP (Башнефть - привилегированные акции) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер BAZA (ГК БАЗИС) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер BELU (Novabev Group) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер BLNG (Белон) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер BSPB (Банк Санкт-Петербург) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер CARM (КарМани) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер CBOM (МКБ) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер CHMK (ЧМК) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер CIAN@US (Циан АДР) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер CNRU (Циан) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер CNTL (Центральный Телеграф) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер CNTLP (Центральный Телеграф - акции привилегированные) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер DATA (Группа Аренадата) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер DELI (Делимобиль) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер DIAS (Диасофт) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер DOMRF (ПАО ДОМ.РФ) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер DVEC (ДЭК) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер ELFV (ЭЛ5-Энерго) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер ELMT (Элемент) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер ENPG (Эн+) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер ETLN (МКПАО Эталон Груп) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер EUTR (ЕвроТранс) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер FEES (ФСК Россети) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер FESH (ДВМП) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер FIVE@GS (X5 RetailGroup ГДР) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер FIXR (Публичное акционерное общество "Фикс Прайс") отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер FLOT (Совкомфлот) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер FRHC (Freedom Holding Corp/NV) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер GCHE (Группа Черкизово) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер GECO (Генетико) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер GEMC (МКПАО ЮМГ) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер GLRX (ПАО Глоракс) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер GLTR@GS (Globaltrans Investment PLC) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер GRNT (Городские Инновационные Технологии) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер GTRK (ГТМ) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер HEAD (Хэдхантер) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер HHRU (HeadHunter Group PLC) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер HNFG (HENDERSON) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер HYDR (РусГидро) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер IRAO (Интер РАО ЕЭС) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер IRKT (Яковлев) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер IVAT (IVA Technologies) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер JETL (Джетленд Холдинг) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер KAZT (КуйбышевАзот) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер KAZTP (КуйбышевАзот - Акции привилегированные) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер KLSB (Калужская сбытовая компания) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер KLVZ (Кристалл) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер KMAZ (КАМАЗ) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер KRKNP (Саратовский НПЗ - акции привилегированные) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер KROT (Красный Октябрь) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер KZIZ (Красногорский завод им. С.А. Зверева - ао) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер KZIZP (Красногорский завод им. С.А. Зверева - привилегированные акции) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер KZOS (Казаньоргсинтез - акции обыкновенные) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер KZOSP (Казаньоргсинтез - акции привилегированные) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер LEAS (Европлан) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер LENT (Лента) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер LIFE (Фармсинтез) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер LNZL (Лензолото) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер LNZLP (Лензолото - привилегированные акции) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер LSNG (Россети Ленэнерго) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер LSNGP (Россети Ленэнерго - акции привилегированные) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер LSRG (Группа ЛСР) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер MAGN (Магнитогорский металлургический комбинат) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер MBNK (МТС-Банк) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер MDMG (Мать и дитя) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер MGKL (МГКЛ) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер MGTSP (МГТС - акции привилегированные) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер MOEX (Московская Биржа) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер MRKC (Россети Центр) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер MRKP (Россети Центр и Приволжье) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер MRKS (Россети Сибирь) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер MRKU (Россети Урал) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер MRKV (Россети Волга) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер MRKY (Россети Юг) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер MRKZ (Россети Северо-Запад) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер MSNG (Мосэнерго) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер MSRS (Россети Московский регион) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер MSTT (Мостотрест) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер MTLR (Мечел) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер MTLRP (Мечел - Привилегированные акции) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер MVID (М.Видео) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер NKHP (НКХП) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер NKNC (Нижнекамскнефтехим) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер NKNCP (Нижнекамскнефтехим (привилегированные)) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер NMTP (НМТП) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер NOMP (Новошип - ао) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер NOMPP (Новошип - привилегированные акции) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер NSVZ (Наука-Связь) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер NTZL (НИТЕЛ) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер OBNE (Обьнефтегазгеология - ао) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер OBNEP (Обьнефтегазгеология - привилегированные акции) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер OGKB (Вторая генерирующая компания оптового рынка электроэнергии) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер OKEY (O'Key Group SA) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер OZON (МКПАО Озон) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер OZPH (Озон Фармацевтика) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер PHOR (ФосАгро) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер PIKK (ПИК СЗ (ПАО) ао) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер PMSB (Пермэнергосбыт) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер PMSBP (Пермэнергосбыт - акции привилегированные) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер POSI (Группа Позитив) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер PRFN (ЧЗПСН-Профнастил) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер PRMD (Промомед) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер RAGR (РусАгро) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер RASP (Распадская) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер RBCM (РБК) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер RENI (Ренессанс Страхование) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер RKKE (РКК Энергия им.С.П.Королева) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер RNFT (РуссНефть) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер ROLO (Русолово) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер RTKM (Ростелеком) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер RTKMP (Ростелеком - Привилегированные акции) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер RUAL (РУСАЛ) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер SELG (Селигдар) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер SFIN (ЭсЭфАй) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер SFTL (Noventiq ГДР) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер SGZH (Сегежа) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер SLAV (Славнефть) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер SMLT (ГК Самолет) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер SNGS (Сургутнефтегаз) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер SNGSP (Сургутнефтегаз - привилегированные акции) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер SOFL (Софтлайн) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер SPBE (СПБ Биржа) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер SVAV (СОЛЛЕРС) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер SVCB (Совкомбанк) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер T (Т-Технологии) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер TATNP (Татнефть - привилегированные акции) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер TGKA (ТГК-1) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер TGKB (ТГК-2) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер TGKBP (ТГК-2 - акции привилегированные) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер TGKJ (Форвард Энерго) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер TGKN (ТГК-14) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер TRMK (Трубная Металлургическая Компания) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер TRNFP (Транснефть - привилегированные акции) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер TTLK (Таттелеком) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер UDMN (Удмуртнефть) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер UFOSP (Уфаоргсинтез - привилегированные акции) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер UGLD (Южуралзолото ГК) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер UNAC (Объединенная авиастроительная корпорация) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер UNKL (ЮУНК) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер UPRO (Юнипро) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер UWGN (ОВК) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер VEON (VEON) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер VEON-RX (VEON) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер VKCO (ВК) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер VRSB (ТНС энерго Воронеж) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер VSEH (ВИ.РУ) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер VSMO (ВСМПО-АВИСМА) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер WUSH (Whoosh) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер X5 (Корпоративный Центр Икс 5) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер YAKG (ЯТЭК) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер YDEX (Яндекс) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер YNDX@US (Nebius Group N.V.) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер ZAYM (Займер ао) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  WARNING   Тикер ZILLP (ЗИЛ - акции привилегированные) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:15:05  INFO      К обработке: 16 компаний.
+2026-04-06 22:15:05  INFO      ─── [1/16] ALRS  (e-disclosure id=199) ──────────────────
+2026-04-06 22:20:25  INFO      ============================================================
+2026-04-06 22:20:25  INFO      Сервис загрузки отчётов e-disclosure.ru стартовал.
+2026-04-06 22:20:25  INFO      Папка для отчётов: /home/devops/Reports
+2026-04-06 22:20:25  INFO      robots.txt: /portal/files.aspx и /portal/FileLoad.ashx — РАЗРЕШЕНЫ
+2026-04-06 22:20:25  INFO      ============================================================
+2026-04-06 22:20:25  INFO      Загружено 179 компаний из PostgreSQL.
+2026-04-06 22:20:25  WARNING   Тикер ABIO (Артген) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер ABRD (АбрауДюрсо) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер APTK (Аптечная сеть 36,6) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер AQUA (ИНАРКТИКА) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер ASTR (Группа Астра) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер BAZA (ГК БАЗИС) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер BELU (Novabev Group) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер BLNG (Белон) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер BSPB (Банк Санкт-Петербург) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер CARM (КарМани) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер CBOM (МКБ) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер CHMK (ЧМК) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер CIAN@US (Циан АДР) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер CNRU (Циан) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер CNTL (Центральный Телеграф) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер CNTLP (Центральный Телеграф - акции привилегированные) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер DATA (Группа Аренадата) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер DELI (Делимобиль) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер DIAS (Диасофт) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер DOMRF (ПАО ДОМ.РФ) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер DVEC (ДЭК) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер ELFV (ЭЛ5-Энерго) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер ELMT (Элемент) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер ENPG (Эн+) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер ETLN (МКПАО Эталон Груп) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер EUTR (ЕвроТранс) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер FESH (ДВМП) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер FIVE@GS (X5 RetailGroup ГДР) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер FIXR (Публичное акционерное общество "Фикс Прайс") отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер FRHC (Freedom Holding Corp/NV) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер GCHE (Группа Черкизово) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер GECO (Генетико) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер GEMC (МКПАО ЮМГ) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер GLRX (ПАО Глоракс) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер GLTR@GS (Globaltrans Investment PLC) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер GRNT (Городские Инновационные Технологии) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер GTRK (ГТМ) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер HEAD (Хэдхантер) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер HHRU (HeadHunter Group PLC) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер HNFG (HENDERSON) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер IRKT (Яковлев) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер IVAT (IVA Technologies) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер JETL (Джетленд Холдинг) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер KAZT (КуйбышевАзот) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер KAZTP (КуйбышевАзот - Акции привилегированные) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер KLSB (Калужская сбытовая компания) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер KLVZ (Кристалл) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер KMAZ (КАМАЗ) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер KRKNP (Саратовский НПЗ - акции привилегированные) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер KROT (Красный Октябрь) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер KZIZ (Красногорский завод им. С.А. Зверева - ао) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер KZIZP (Красногорский завод им. С.А. Зверева - привилегированные акции) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер KZOS (Казаньоргсинтез - акции обыкновенные) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер KZOSP (Казаньоргсинтез - акции привилегированные) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер LEAS (Европлан) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер LENT (Лента) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер LIFE (Фармсинтез) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер LNZL (Лензолото) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер LNZLP (Лензолото - привилегированные акции) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер LSNG (Россети Ленэнерго) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер LSNGP (Россети Ленэнерго - акции привилегированные) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер LSRG (Группа ЛСР) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер MAGN (Магнитогорский металлургический комбинат) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер MBNK (МТС-Банк) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер MDMG (Мать и дитя) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер MGKL (МГКЛ) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер MGTSP (МГТС - акции привилегированные) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер MOEX (Московская Биржа) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер MRKC (Россети Центр) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер MRKP (Россети Центр и Приволжье) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер MRKS (Россети Сибирь) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер MRKU (Россети Урал) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер MRKV (Россети Волга) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер MRKY (Россети Юг) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер MRKZ (Россети Северо-Запад) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер MSNG (Мосэнерго) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер MSRS (Россети Московский регион) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер MSTT (Мостотрест) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер MTLR (Мечел) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер MTLRP (Мечел - Привилегированные акции) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер MVID (М.Видео) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер NKHP (НКХП) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер NKNC (Нижнекамскнефтехим) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер NKNCP (Нижнекамскнефтехим (привилегированные)) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер NMTP (НМТП) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер NOMP (Новошип - ао) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер NOMPP (Новошип - привилегированные акции) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер NSVZ (Наука-Связь) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер NTZL (НИТЕЛ) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер OBNE (Обьнефтегазгеология - ао) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер OBNEP (Обьнефтегазгеология - привилегированные акции) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер OGKB (Вторая генерирующая компания оптового рынка электроэнергии) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер OKEY (O'Key Group SA) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер OZON (МКПАО Озон) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер OZPH (Озон Фармацевтика) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер PIKK (ПИК СЗ (ПАО) ао) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер PMSB (Пермэнергосбыт) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер PMSBP (Пермэнергосбыт - акции привилегированные) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер POSI (Группа Позитив) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер PRFN (ЧЗПСН-Профнастил) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер PRMD (Промомед) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер RAGR (РусАгро) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер RASP (Распадская) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер RBCM (РБК) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер RENI (Ренессанс Страхование) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер RKKE (РКК Энергия им.С.П.Королева) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер RNFT (РуссНефть) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер ROLO (Русолово) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер RTKM (Ростелеком) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер RTKMP (Ростелеком - Привилегированные акции) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер RUAL (РУСАЛ) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер SELG (Селигдар) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер SFIN (ЭсЭфАй) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер SFTL (Noventiq ГДР) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер SGZH (Сегежа) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер SLAV (Славнефть) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер SMLT (ГК Самолет) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер SNGS (Сургутнефтегаз) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер SNGSP (Сургутнефтегаз - привилегированные акции) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер SOFL (Софтлайн) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер SPBE (СПБ Биржа) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер SVAV (СОЛЛЕРС) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер SVCB (Совкомбанк) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер T (Т-Технологии) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер TGKA (ТГК-1) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер TGKB (ТГК-2) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер TGKBP (ТГК-2 - акции привилегированные) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер TGKJ (Форвард Энерго) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер TGKN (ТГК-14) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер TRMK (Трубная Металлургическая Компания) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер TTLK (Таттелеком) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер UDMN (Удмуртнефть) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер UFOSP (Уфаоргсинтез - привилегированные акции) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер UGLD (Южуралзолото ГК) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер UNAC (Объединенная авиастроительная корпорация) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер UNKL (ЮУНК) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер UPRO (Юнипро) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер UWGN (ОВК) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер VEON (VEON) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер VEON-RX (VEON) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер VKCO (ВК) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер VRSB (ТНС энерго Воронеж) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер VSEH (ВИ.РУ) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер VSMO (ВСМПО-АВИСМА) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер WUSH (Whoosh) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер X5 (Корпоративный Центр Икс 5) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер YAKG (ЯТЭК) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер YDEX (Яндекс) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер YNDX@US (Nebius Group N.V.) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер ZAYM (Займер ао) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  WARNING   Тикер ZILLP (ЗИЛ - акции привилегированные) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-06 22:20:25  INFO      К обработке: 28 компаний.
+2026-04-06 22:20:25  INFO      ─── [1/28] AFKS  (e-disclosure id=4772) ──────────────────
+2026-04-06 22:21:09  INFO      [AFKS] Найдено 4 годовых консолидированных отчётов.
+2026-04-06 22:21:09  INFO      Получаем ServicePipe-cookies через Playwright...
+2026-04-06 22:21:42  INFO      Получено 24 cookies.
+2026-04-06 22:21:58  INFO      [AFKS] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1875653 → 2024_annual_consolidated.zip
+2026-04-06 22:22:06  INFO      [AFKS] ✓ Сохранён 2024_annual_consolidated.zip (1573 КБ)
+2026-04-06 22:22:24  INFO      [AFKS] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1862050 → 2023_annual_consolidated.zip
+2026-04-06 22:22:29  INFO      [AFKS] ✓ Сохранён 2023_annual_consolidated.zip (1556 КБ)
+2026-04-06 22:22:43  INFO      [AFKS] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1787270 → 2022_annual_consolidated.zip
+2026-04-06 22:22:46  INFO      [AFKS] ✓ Сохранён 2022_annual_consolidated.zip (1844 КБ)
+2026-04-06 22:22:57  INFO      [AFKS] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1744472 → 2021_annual_consolidated.zip
+2026-04-06 22:23:00  INFO      [AFKS] ✓ Сохранён 2021_annual_consolidated.zip (1832 КБ)
+2026-04-06 22:23:00  INFO      Пауза 67 с перед следующей компанией...
+2026-04-06 22:24:07  INFO      ─── [2/28] AFLT  (e-disclosure id=1480) ──────────────────
+2026-04-06 22:24:23  INFO      [AFLT] Найдено 16 годовых консолидированных отчётов.
+2026-04-06 22:24:42  INFO      [AFLT] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1915102 → 2025_annual_consolidated.zip
+2026-04-06 22:24:55  INFO      [AFLT] ✓ Сохранён 2025_annual_consolidated.zip (5790 КБ)
+2026-04-06 22:25:14  INFO      [AFLT] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1869437 → 2024_annual_consolidated.zip
+2026-04-06 22:25:20  INFO      [AFLT] ✓ Сохранён 2024_annual_consolidated.zip (4457 КБ)
+2026-04-06 22:25:39  INFO      [AFLT] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1828179 → 2023_annual_consolidated.zip
+2026-04-06 22:25:43  INFO      [AFLT] ✓ Сохранён 2023_annual_consolidated.zip (3914 КБ)
+2026-04-06 22:25:59  INFO      [AFLT] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1738427 → 2021_annual_consolidated.zip
+2026-04-06 22:26:01  INFO      [AFLT] ✓ Сохранён 2021_annual_consolidated.zip (1562 КБ)
+2026-04-06 22:26:16  INFO      [AFLT] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1684540 → 2020_annual_consolidated.zip
+2026-04-06 22:26:21  INFO      [AFLT] ✓ Сохранён 2020_annual_consolidated.zip (1999 КБ)
+2026-04-06 22:26:37  INFO      [AFLT] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1616521 → 2019_annual_consolidated.zip
+2026-04-06 22:26:41  INFO      [AFLT] ✓ Сохранён 2019_annual_consolidated.zip (2052 КБ)
+2026-04-06 22:27:00  INFO      [AFLT] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1492984 → 2018_annual_consolidated.zip
+2026-04-06 22:27:04  INFO      [AFLT] ✓ Сохранён 2018_annual_consolidated.zip (2416 КБ)
+2026-04-06 22:27:23  INFO      [AFLT] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1400025 → 2017_annual_consolidated.zip
+2026-04-06 22:27:28  INFO      [AFLT] ✓ Сохранён 2017_annual_consolidated.zip (1780 КБ)
+2026-04-06 22:27:39  INFO      [AFLT] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1303744 → 2016_annual_consolidated.zip
+2026-04-06 22:27:42  INFO      [AFLT] ✓ Сохранён 2016_annual_consolidated.zip (1405 КБ)
+2026-04-06 22:28:00  INFO      [AFLT] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1177696 → 2015_annual_consolidated.zip
+2026-04-06 22:28:02  INFO      [AFLT] ✓ Сохранён 2015_annual_consolidated.zip (1797 КБ)
+2026-04-06 22:28:19  INFO      [AFLT] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1005601 → 2014_annual_consolidated.zip
+2026-04-06 22:28:21  INFO      [AFLT] ✓ Сохранён 2014_annual_consolidated.zip (1443 КБ)
+2026-04-06 22:28:37  INFO      [AFLT] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=805067 → 2013_annual_consolidated.zip
+2026-04-06 22:28:40  INFO      [AFLT] ✓ Сохранён 2013_annual_consolidated.zip (1415 КБ)
+2026-04-06 22:28:52  INFO      [AFLT] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=763316 → 2012_annual_consolidated.zip
+2026-04-06 22:28:56  INFO      [AFLT] ✓ Сохранён 2012_annual_consolidated.zip (2377 КБ)
+2026-04-06 22:29:14  INFO      [AFLT] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=763793 → 2011_annual_consolidated.zip
+2026-04-06 22:29:17  INFO      [AFLT] ✓ Сохранён 2011_annual_consolidated.zip (2117 КБ)
+2026-04-06 22:29:32  INFO      [AFLT] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=763794 → 2010_annual_consolidated.zip
+2026-04-06 22:29:35  INFO      [AFLT] ✓ Сохранён 2010_annual_consolidated.zip (1860 КБ)
+2026-04-06 22:29:54  INFO      [AFLT] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=763795 → 2009_annual_consolidated.zip
+2026-04-06 22:29:57  INFO      [AFLT] ✓ Сохранён 2009_annual_consolidated.zip (1983 КБ)
+2026-04-06 22:29:57  INFO      Пауза 49 с перед следующей компанией...
+2026-04-06 22:30:46  INFO      ─── [3/28] AKRN  (e-disclosure id=357) ──────────────────
+2026-04-06 22:31:35  INFO      [AKRN] Найдено 11 годовых консолидированных отчётов.
+2026-04-06 22:31:47  INFO      [AKRN] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1915889 → 2025_annual_consolidated.zip
+2026-04-06 22:32:24  INFO      [AKRN] ✓ Сохранён 2025_annual_consolidated.zip (1433 КБ)
+2026-04-06 22:32:41  INFO      [AKRN] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1870082 → 2024_annual_consolidated.zip
+2026-04-06 22:32:54  INFO      [AKRN] ✓ Сохранён 2024_annual_consolidated.zip (1962 КБ)
+2026-04-06 22:33:12  INFO      [AKRN] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1828209 → 2023_annual_consolidated.zip
+2026-04-06 22:33:15  INFO      [AKRN] ✓ Сохранён 2023_annual_consolidated.zip (1329 КБ)
+2026-04-06 22:33:32  INFO      [AKRN] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1684736 → 2020_annual_consolidated.zip
+2026-04-06 22:33:39  INFO      [AKRN] ✓ Сохранён 2020_annual_consolidated.zip (6365 КБ)
+2026-04-06 22:33:54  INFO      [AKRN] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1619393 → 2019_annual_consolidated.zip
+2026-04-06 22:33:58  INFO      [AKRN] ✓ Сохранён 2019_annual_consolidated.zip (2221 КБ)
+2026-04-06 22:34:12  INFO      [AKRN] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1496746 → 2018_annual_consolidated.zip
+2026-04-06 22:34:20  INFO      [AKRN] ✓ Сохранён 2018_annual_consolidated.zip (3064 КБ)
+2026-04-06 22:34:32  INFO      [AKRN] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1407074 → 2017_annual_consolidated.zip
+2026-04-06 22:34:36  INFO      [AKRN] ✓ Сохранён 2017_annual_consolidated.zip (1316 КБ)
+2026-04-06 22:34:48  INFO      [AKRN] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1320317 → 2016_annual_consolidated.zip
+2026-04-06 22:34:51  INFO      [AKRN] ✓ Сохранён 2016_annual_consolidated.zip (2083 КБ)
+2026-04-06 22:35:02  INFO      [AKRN] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1211763 → 2015_annual_consolidated.zip
+2026-04-06 22:35:04  INFO      [AKRN] ✓ Сохранён 2015_annual_consolidated.zip (1525 КБ)
+2026-04-06 22:35:20  INFO      [AKRN] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1047853 → 2014_annual_consolidated.zip
+2026-04-06 22:35:24  INFO      [AKRN] ✓ Сохранён 2014_annual_consolidated.zip (1555 КБ)
+2026-04-06 22:35:38  INFO      [AKRN] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=850855 → 2013_annual_consolidated.zip
+2026-04-06 22:35:41  INFO      [AKRN] ✓ Сохранён 2013_annual_consolidated.zip (1219 КБ)
+2026-04-06 22:35:41  INFO      Пауза 50 с перед следующей компанией...
+2026-04-06 22:36:32  INFO      ─── [4/28] ALRS  (e-disclosure id=199) ──────────────────
+2026-04-06 22:36:52  INFO      [ALRS] Найдено 17 годовых консолидированных отчётов.
+2026-04-06 22:37:11  INFO      [ALRS] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1913026 → 2025_annual_consolidated.zip
+2026-04-06 22:37:12  INFO      [ALRS] ✓ Сохранён 2025_annual_consolidated.zip (1577 КБ)
+2026-04-10 19:02:35  INFO      ============================================================
+2026-04-10 19:02:35  INFO      Сервис загрузки отчётов e-disclosure.ru стартовал.
+2026-04-10 19:02:35  INFO      Папка для отчётов: /home/devops/Reports
+2026-04-10 19:02:35  INFO      robots.txt: /portal/files.aspx и /portal/FileLoad.ashx — РАЗРЕШЕНЫ
+2026-04-10 19:02:35  INFO      ============================================================
+2026-04-10 19:02:35  WARNING   Не удалось подключиться к PostgreSQL (connection to server at "localhost" (127.0.0.1), port 5432 failed: Connection refused
+	Is the server running on that host and accepting TCP/IP connections?
+connection to server at "localhost" (::1), port 5432 failed: Cannot assign requested address
+	Is the server running on that host and accepting TCP/IP connections?
+) — используется mock-список.
+2026-04-10 19:02:35  INFO      Загружено 5 компаний из mock_data.py.
+2026-04-10 19:02:35  WARNING   Тикер ALFA (Alfa-Bank) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:02:35  INFO      К обработке: 4 компаний.
+2026-04-10 19:02:35  INFO      ─── [1/4] LKOH  (e-disclosure id=17) ──────────────────
+2026-04-10 19:03:52  INFO      ============================================================
+2026-04-10 19:03:52  INFO      Сервис загрузки отчётов e-disclosure.ru стартовал.
+2026-04-10 19:03:52  INFO      Папка для отчётов: /home/devops/Reports
+2026-04-10 19:03:52  INFO      robots.txt: /portal/files.aspx и /portal/FileLoad.ashx — РАЗРЕШЕНЫ
+2026-04-10 19:03:52  INFO      ============================================================
+2026-04-10 19:03:52  INFO      Загружено 179 компаний из PostgreSQL.
+2026-04-10 19:03:52  WARNING   Тикер ABIO (Артген) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер ABRD (АбрауДюрсо) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер APTK (Аптечная сеть 36,6) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер AQUA (ИНАРКТИКА) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер ASTR (Группа Астра) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер BAZA (ГК БАЗИС) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер BELU (Novabev Group) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер BLNG (Белон) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер BSPB (Банк Санкт-Петербург) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер CARM (КарМани) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер CBOM (МКБ) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер CHMK (ЧМК) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер CIAN@US (Циан АДР) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер CNRU (Циан) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер CNTL (Центральный Телеграф) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер CNTLP (Центральный Телеграф - акции привилегированные) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер DATA (Группа Аренадата) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер DELI (Делимобиль) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер DIAS (Диасофт) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер DOMRF (ПАО ДОМ.РФ) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер DVEC (ДЭК) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер ELFV (ЭЛ5-Энерго) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер ELMT (Элемент) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер ENPG (Эн+) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер ETLN (МКПАО Эталон Груп) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер EUTR (ЕвроТранс) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер FESH (ДВМП) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер FIVE@GS (X5 RetailGroup ГДР) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер FIXR (Публичное акционерное общество "Фикс Прайс") отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер FRHC (Freedom Holding Corp/NV) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер GCHE (Группа Черкизово) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер GECO (Генетико) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер GEMC (МКПАО ЮМГ) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер GLRX (ПАО Глоракс) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер GLTR@GS (Globaltrans Investment PLC) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер GRNT (Городские Инновационные Технологии) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер GTRK (ГТМ) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер HEAD (Хэдхантер) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер HHRU (HeadHunter Group PLC) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер HNFG (HENDERSON) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер IRKT (Яковлев) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер IVAT (IVA Technologies) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер JETL (Джетленд Холдинг) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер KAZT (КуйбышевАзот) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер KAZTP (КуйбышевАзот - Акции привилегированные) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер KLSB (Калужская сбытовая компания) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер KLVZ (Кристалл) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер KMAZ (КАМАЗ) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер KRKNP (Саратовский НПЗ - акции привилегированные) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер KROT (Красный Октябрь) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер KZIZ (Красногорский завод им. С.А. Зверева - ао) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер KZIZP (Красногорский завод им. С.А. Зверева - привилегированные акции) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер KZOS (Казаньоргсинтез - акции обыкновенные) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер KZOSP (Казаньоргсинтез - акции привилегированные) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер LEAS (Европлан) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер LENT (Лента) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер LIFE (Фармсинтез) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер LNZL (Лензолото) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер LNZLP (Лензолото - привилегированные акции) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер LSNG (Россети Ленэнерго) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер LSNGP (Россети Ленэнерго - акции привилегированные) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер LSRG (Группа ЛСР) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер MAGN (Магнитогорский металлургический комбинат) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер MBNK (МТС-Банк) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер MDMG (Мать и дитя) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер MGKL (МГКЛ) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер MGTSP (МГТС - акции привилегированные) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер MOEX (Московская Биржа) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер MRKC (Россети Центр) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер MRKP (Россети Центр и Приволжье) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер MRKS (Россети Сибирь) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер MRKU (Россети Урал) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер MRKV (Россети Волга) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер MRKY (Россети Юг) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер MRKZ (Россети Северо-Запад) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер MSNG (Мосэнерго) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер MSRS (Россети Московский регион) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер MSTT (Мостотрест) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер MTLR (Мечел) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер MTLRP (Мечел - Привилегированные акции) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер MVID (М.Видео) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер NKHP (НКХП) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер NKNC (Нижнекамскнефтехим) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер NKNCP (Нижнекамскнефтехим (привилегированные)) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер NMTP (НМТП) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер NOMP (Новошип - ао) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер NOMPP (Новошип - привилегированные акции) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер NSVZ (Наука-Связь) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер NTZL (НИТЕЛ) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер OBNE (Обьнефтегазгеология - ао) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер OBNEP (Обьнефтегазгеология - привилегированные акции) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер OGKB (Вторая генерирующая компания оптового рынка электроэнергии) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер OKEY (O'Key Group SA) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер OZON (МКПАО Озон) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер OZPH (Озон Фармацевтика) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер PIKK (ПИК СЗ (ПАО) ао) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер PMSB (Пермэнергосбыт) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер PMSBP (Пермэнергосбыт - акции привилегированные) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер POSI (Группа Позитив) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер PRFN (ЧЗПСН-Профнастил) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер PRMD (Промомед) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер RAGR (РусАгро) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер RASP (Распадская) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер RBCM (РБК) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер RENI (Ренессанс Страхование) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер RKKE (РКК Энергия им.С.П.Королева) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер RNFT (РуссНефть) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер ROLO (Русолово) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер RTKM (Ростелеком) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер RTKMP (Ростелеком - Привилегированные акции) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер RUAL (РУСАЛ) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер SELG (Селигдар) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер SFIN (ЭсЭфАй) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер SFTL (Noventiq ГДР) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер SGZH (Сегежа) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер SLAV (Славнефть) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер SMLT (ГК Самолет) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер SNGS (Сургутнефтегаз) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер SNGSP (Сургутнефтегаз - привилегированные акции) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер SOFL (Софтлайн) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер SPBE (СПБ Биржа) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер SVAV (СОЛЛЕРС) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер SVCB (Совкомбанк) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер T (Т-Технологии) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер TGKA (ТГК-1) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер TGKB (ТГК-2) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер TGKBP (ТГК-2 - акции привилегированные) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер TGKJ (Форвард Энерго) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер TGKN (ТГК-14) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер TRMK (Трубная Металлургическая Компания) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер TTLK (Таттелеком) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер UDMN (Удмуртнефть) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер UFOSP (Уфаоргсинтез - привилегированные акции) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер UGLD (Южуралзолото ГК) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер UNAC (Объединенная авиастроительная корпорация) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер UNKL (ЮУНК) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер UPRO (Юнипро) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер UWGN (ОВК) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер VEON (VEON) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер VEON-RX (VEON) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер VKCO (ВК) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер VRSB (ТНС энерго Воронеж) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер VSEH (ВИ.РУ) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер VSMO (ВСМПО-АВИСМА) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер WUSH (Whoosh) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер X5 (Корпоративный Центр Икс 5) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер YAKG (ЯТЭК) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер YDEX (Яндекс) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер YNDX@US (Nebius Group N.V.) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер ZAYM (Займер ао) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  WARNING   Тикер ZILLP (ЗИЛ - акции привилегированные) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-04-10 19:03:52  INFO      К обработке: 28 компаний.
+2026-04-10 19:03:52  INFO      ─── [1/28] AFKS  (e-disclosure id=4772) ──────────────────
+2026-04-10 19:04:14  INFO      [AFKS] Найдено 4 годовых консолидированных отчётов.
+2026-04-10 19:04:14  INFO      Получаем ServicePipe-cookies через Playwright...
+2026-04-10 19:04:58  INFO      Получено 80 cookies.
+2026-04-10 19:04:58  INFO      [AFKS] Файл 2024_annual_consolidated.zip уже существует — пропускаем.
+2026-04-10 19:04:58  INFO      [AFKS] Файл 2023_annual_consolidated.zip уже существует — пропускаем.
+2026-04-10 19:04:58  INFO      [AFKS] Файл 2022_annual_consolidated.zip уже существует — пропускаем.
+2026-04-10 19:04:58  INFO      [AFKS] Файл 2021_annual_consolidated.zip уже существует — пропускаем.
+2026-04-10 19:04:58  INFO      Пауза 60 с перед следующей компанией...
+2026-04-10 19:05:59  INFO      ─── [2/28] AFLT  (e-disclosure id=1480) ──────────────────
+2026-04-10 19:06:17  INFO      [AFLT] Найдено 16 годовых консолидированных отчётов.
+2026-04-10 19:06:17  INFO      [AFLT] Файл 2025_annual_consolidated.zip уже существует — пропускаем.
+2026-04-10 19:06:17  INFO      [AFLT] Файл 2024_annual_consolidated.zip уже существует — пропускаем.
+2026-04-10 19:06:17  INFO      [AFLT] Файл 2023_annual_consolidated.zip уже существует — пропускаем.
+2026-04-10 19:06:17  INFO      [AFLT] Файл 2021_annual_consolidated.zip уже существует — пропускаем.
+2026-04-10 19:06:17  INFO      [AFLT] Файл 2020_annual_consolidated.zip уже существует — пропускаем.
+2026-04-10 19:06:17  INFO      [AFLT] Файл 2019_annual_consolidated.zip уже существует — пропускаем.
+2026-04-10 19:06:17  INFO      [AFLT] Файл 2018_annual_consolidated.zip уже существует — пропускаем.
+2026-04-10 19:06:17  INFO      [AFLT] Файл 2017_annual_consolidated.zip уже существует — пропускаем.
+2026-04-10 19:06:17  INFO      [AFLT] Файл 2016_annual_consolidated.zip уже существует — пропускаем.
+2026-04-10 19:06:17  INFO      [AFLT] Файл 2015_annual_consolidated.zip уже существует — пропускаем.
+2026-04-10 19:06:17  INFO      [AFLT] Файл 2014_annual_consolidated.zip уже существует — пропускаем.
+2026-04-10 19:06:17  INFO      [AFLT] Файл 2013_annual_consolidated.zip уже существует — пропускаем.
+2026-04-10 19:06:17  INFO      [AFLT] Файл 2012_annual_consolidated.zip уже существует — пропускаем.
+2026-04-10 19:06:17  INFO      [AFLT] Файл 2011_annual_consolidated.zip уже существует — пропускаем.
+2026-04-10 19:06:17  INFO      [AFLT] Файл 2010_annual_consolidated.zip уже существует — пропускаем.
+2026-04-10 19:06:17  INFO      [AFLT] Файл 2009_annual_consolidated.zip уже существует — пропускаем.
+2026-04-10 19:06:17  INFO      Пауза 88 с перед следующей компанией...
+2026-04-10 19:07:45  INFO      ─── [3/28] AKRN  (e-disclosure id=357) ──────────────────
+2026-04-10 19:08:37  INFO      [AKRN] Найдено 11 годовых консолидированных отчётов.
+2026-04-10 19:08:37  INFO      [AKRN] Файл 2025_annual_consolidated.zip уже существует — пропускаем.
+2026-04-10 19:08:37  INFO      [AKRN] Файл 2024_annual_consolidated.zip уже существует — пропускаем.
+2026-04-10 19:08:37  INFO      [AKRN] Файл 2023_annual_consolidated.zip уже существует — пропускаем.
+2026-04-10 19:08:37  INFO      [AKRN] Файл 2020_annual_consolidated.zip уже существует — пропускаем.
+2026-04-10 19:08:37  INFO      [AKRN] Файл 2019_annual_consolidated.zip уже существует — пропускаем.
+2026-04-10 19:08:37  INFO      [AKRN] Файл 2018_annual_consolidated.zip уже существует — пропускаем.
+2026-04-10 19:08:37  INFO      [AKRN] Файл 2017_annual_consolidated.zip уже существует — пропускаем.
+2026-04-10 19:08:37  INFO      [AKRN] Файл 2016_annual_consolidated.zip уже существует — пропускаем.
+2026-04-10 19:08:37  INFO      [AKRN] Файл 2015_annual_consolidated.zip уже существует — пропускаем.
+2026-04-10 19:08:37  INFO      [AKRN] Файл 2014_annual_consolidated.zip уже существует — пропускаем.
+2026-04-10 19:08:37  INFO      [AKRN] Файл 2013_annual_consolidated.zip уже существует — пропускаем.
+2026-04-10 19:08:37  INFO      Пауза 78 с перед следующей компанией...
+2026-04-10 19:09:55  INFO      ─── [4/28] ALRS  (e-disclosure id=199) ──────────────────
+2026-04-10 19:10:16  INFO      [ALRS] Найдено 17 годовых консолидированных отчётов.
+2026-04-10 19:10:16  INFO      [ALRS] Файл 2025_annual_consolidated.zip уже существует — пропускаем.
+2026-04-10 19:10:27  INFO      [ALRS] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1867059 → 2024_annual_consolidated.zip
+2026-04-10 19:10:30  INFO      [ALRS] ✓ Сохранён 2024_annual_consolidated.zip (3005 КБ)
+2026-04-10 19:10:41  INFO      [ALRS] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1843370 → 2023_annual_consolidated.zip
+2026-04-10 19:10:45  INFO      [ALRS] ✓ Сохранён 2023_annual_consolidated.zip (2845 КБ)
+2026-04-10 19:11:03  INFO      [ALRS] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1852490 → 2022_annual_consolidated.zip
+2026-04-10 19:11:06  INFO      [ALRS] ✓ Сохранён 2022_annual_consolidated.zip (1418 КБ)
+2026-04-10 19:11:18  INFO      [ALRS] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1737043 → 2021_annual_consolidated.zip
+2026-04-10 19:11:21  INFO      [ALRS] ✓ Сохранён 2021_annual_consolidated.zip (2095 КБ)
+2026-04-10 19:11:37  INFO      [ALRS] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1682599 → 2020_annual_consolidated.zip
+2026-04-10 19:11:40  INFO      [ALRS] ✓ Сохранён 2020_annual_consolidated.zip (1949 КБ)
+2026-04-10 19:11:52  INFO      [ALRS] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1616787 → 2019_annual_consolidated.zip
+2026-04-10 19:11:55  INFO      [ALRS] ✓ Сохранён 2019_annual_consolidated.zip (2785 КБ)
+2026-04-10 19:12:13  INFO      [ALRS] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1494275 → 2018_annual_consolidated.zip
+2026-04-10 19:12:16  INFO      [ALRS] ✓ Сохранён 2018_annual_consolidated.zip (2661 КБ)
+2026-04-10 19:12:30  INFO      [ALRS] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1402412 → 2017_annual_consolidated.zip
+2026-04-10 19:12:33  INFO      [ALRS] ✓ Сохранён 2017_annual_consolidated.zip (1934 КБ)
+2026-04-10 19:12:48  INFO      [ALRS] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1306173 → 2016_annual_consolidated.zip
+2026-04-10 19:12:52  INFO      [ALRS] ✓ Сохранён 2016_annual_consolidated.zip (2458 КБ)
+2026-04-10 19:13:10  INFO      [ALRS] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1180384 → 2015_annual_consolidated.zip
+2026-04-10 19:13:12  INFO      [ALRS] ✓ Сохранён 2015_annual_consolidated.zip (1592 КБ)
+2026-04-10 19:13:27  INFO      [ALRS] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1012846 → 2014_annual_consolidated.zip
+2026-04-10 19:13:30  INFO      [ALRS] ✓ Сохранён 2014_annual_consolidated.zip (2217 КБ)
+2026-04-10 19:13:45  INFO      [ALRS] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=850580 → 2013_annual_consolidated.zip
+2026-04-10 19:13:49  INFO      [ALRS] ✓ Сохранён 2013_annual_consolidated.zip (2794 КБ)
+2026-04-10 19:14:07  INFO      [ALRS] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=636836 → 2012_annual_consolidated.zip
+2026-04-10 19:14:09  INFO      [ALRS] ✓ Сохранён 2012_annual_consolidated.zip (1530 КБ)
+2026-04-10 19:14:26  INFO      [ALRS] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=337794 → 2011_annual_consolidated.zip
+2026-04-10 19:14:28  INFO      [ALRS] ✓ Сохранён 2011_annual_consolidated.zip (1328 КБ)
+2026-04-10 19:14:47  INFO      [ALRS] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=337781 → 2010_annual_consolidated.zip
+2026-04-10 19:14:49  INFO      [ALRS] ✓ Сохранён 2010_annual_consolidated.zip (1545 КБ)
+2026-04-10 19:15:04  INFO      [ALRS] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=337759 → 2009_annual_consolidated.zip
+2026-04-10 19:15:06  INFO      [ALRS] ✓ Сохранён 2009_annual_consolidated.zip (1384 КБ)
+2026-04-10 19:15:06  INFO      Пауза 69 с перед следующей компанией...
+2026-04-10 19:16:16  INFO      ─── [5/28] BANE  (e-disclosure id=1976) ──────────────────
+2026-04-10 19:17:10  INFO      [BANE] Найдено 14 годовых консолидированных отчётов.
+2026-04-10 19:17:30  INFO      [BANE] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1869828 → 2024_annual_consolidated.zip
+2026-04-10 19:17:33  INFO      [BANE] ✓ Сохранён 2024_annual_consolidated.zip (909 КБ)
+2026-04-10 19:17:47  INFO      [BANE] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1823303 → 2023_annual_consolidated.zip
+2026-04-10 19:17:48  INFO      [BANE] ✓ Сохранён 2023_annual_consolidated.zip (941 КБ)
+2026-04-10 19:18:07  INFO      [BANE] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1734568 → 2021_annual_consolidated.zip
+2026-04-10 19:18:12  INFO      [BANE] ✓ Сохранён 2021_annual_consolidated.zip (2856 КБ)
+2026-04-10 19:18:23  INFO      [BANE] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1680498 → 2020_annual_consolidated.zip
+2026-04-10 19:18:29  INFO      [BANE] ✓ Сохранён 2020_annual_consolidated.zip (4586 КБ)
+2026-04-10 19:18:44  INFO      [BANE] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1614655 → 2019_annual_consolidated.zip
+2026-04-10 19:18:46  INFO      [BANE] ✓ Сохранён 2019_annual_consolidated.zip (1735 КБ)
+2026-04-10 19:19:06  INFO      [BANE] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1489054 → 2018_annual_consolidated.zip
+2026-04-10 19:19:10  INFO      [BANE] ✓ Сохранён 2018_annual_consolidated.zip (3281 КБ)
+2026-04-10 19:19:23  INFO      [BANE] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1403003 → 2017_annual_consolidated.zip
+2026-04-10 19:19:26  INFO      [BANE] ✓ Сохранён 2017_annual_consolidated.zip (1397 КБ)
+2026-04-10 19:19:41  INFO      [BANE] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1301751 → 2016_annual_consolidated.zip
+2026-04-10 19:19:43  INFO      [BANE] ✓ Сохранён 2016_annual_consolidated.zip (1360 КБ)
+2026-04-10 19:20:00  INFO      [BANE] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1178720 → 2015_annual_consolidated.zip
+2026-04-10 19:20:02  INFO      [BANE] ✓ Сохранён 2015_annual_consolidated.zip (1257 КБ)
+2026-04-10 19:20:13  INFO      [BANE] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1015319 → 2014_annual_consolidated.zip
+2026-04-10 19:20:14  INFO      [BANE] ✓ Сохранён 2014_annual_consolidated.zip (1571 КБ)
+2026-04-10 19:20:25  INFO      [BANE] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=837921 → 2013_annual_consolidated.zip
+2026-04-10 19:20:27  INFO      [BANE] ✓ Сохранён 2013_annual_consolidated.zip (1730 КБ)
+2026-04-10 19:20:39  INFO      [BANE] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=627422 → 2012_annual_consolidated.zip
+2026-04-10 19:20:42  INFO      [BANE] ✓ Сохранён 2012_annual_consolidated.zip (1682 КБ)
+2026-04-10 19:21:02  INFO      [BANE] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=296138 → 2011_annual_consolidated.zip
+2026-04-10 19:21:03  INFO      [BANE] ✓ Сохранён 2011_annual_consolidated.zip (987 КБ)
+2026-04-10 19:21:14  INFO      [BANE] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=296279 → 2010_annual_consolidated.zip
+2026-04-10 19:21:15  INFO      [BANE] ✓ Сохранён 2010_annual_consolidated.zip (601 КБ)
+2026-04-10 19:21:15  INFO      Пауза 51 с перед следующей компанией...
+2026-04-10 19:22:06  INFO      ─── [6/28] BANEP  (e-disclosure id=1976) ──────────────────
+2026-04-10 19:22:30  INFO      [BANEP] Найдено 14 годовых консолидированных отчётов.
+2026-04-10 19:22:44  INFO      [BANEP] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1869828 → 2024_annual_consolidated.zip
+2026-04-10 19:22:45  INFO      [BANEP] ✓ Сохранён 2024_annual_consolidated.zip (909 КБ)
+2026-04-10 19:23:01  INFO      [BANEP] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1823303 → 2023_annual_consolidated.zip
+2026-04-10 19:23:02  INFO      [BANEP] ✓ Сохранён 2023_annual_consolidated.zip (941 КБ)
+2026-04-10 19:23:16  INFO      [BANEP] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1734568 → 2021_annual_consolidated.zip
+2026-04-10 19:23:21  INFO      [BANEP] ✓ Сохранён 2021_annual_consolidated.zip (2856 КБ)
+2026-04-10 19:23:38  INFO      [BANEP] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1680498 → 2020_annual_consolidated.zip
+2026-04-10 19:23:47  INFO      [BANEP] ✓ Сохранён 2020_annual_consolidated.zip (4586 КБ)
+2026-04-10 19:24:06  INFO      [BANEP] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1614655 → 2019_annual_consolidated.zip
+2026-04-10 19:24:09  INFO      [BANEP] ✓ Сохранён 2019_annual_consolidated.zip (1735 КБ)
+2026-04-10 19:24:23  INFO      [BANEP] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1489054 → 2018_annual_consolidated.zip
+2026-04-10 19:24:27  INFO      [BANEP] ✓ Сохранён 2018_annual_consolidated.zip (3281 КБ)
+2026-04-10 19:24:43  INFO      [BANEP] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1403003 → 2017_annual_consolidated.zip
+2026-04-10 19:24:45  INFO      [BANEP] ✓ Сохранён 2017_annual_consolidated.zip (1397 КБ)
+2026-04-10 19:25:00  INFO      [BANEP] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1301751 → 2016_annual_consolidated.zip
+2026-04-10 19:25:02  INFO      [BANEP] ✓ Сохранён 2016_annual_consolidated.zip (1360 КБ)
+2026-04-10 19:25:19  INFO      [BANEP] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1178720 → 2015_annual_consolidated.zip
+2026-04-10 19:25:21  INFO      [BANEP] ✓ Сохранён 2015_annual_consolidated.zip (1257 КБ)
+2026-04-10 19:25:41  INFO      [BANEP] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1015319 → 2014_annual_consolidated.zip
+2026-04-10 19:25:43  INFO      [BANEP] ✓ Сохранён 2014_annual_consolidated.zip (1571 КБ)
+2026-04-10 19:26:00  INFO      [BANEP] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=837921 → 2013_annual_consolidated.zip
+2026-04-10 19:26:03  INFO      [BANEP] ✓ Сохранён 2013_annual_consolidated.zip (1730 КБ)
+2026-04-10 19:26:16  INFO      [BANEP] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=627422 → 2012_annual_consolidated.zip
+2026-04-10 19:26:18  INFO      [BANEP] ✓ Сохранён 2012_annual_consolidated.zip (1682 КБ)
+2026-04-10 19:26:38  INFO      [BANEP] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=296138 → 2011_annual_consolidated.zip
+2026-04-10 19:26:40  INFO      [BANEP] ✓ Сохранён 2011_annual_consolidated.zip (987 КБ)
+2026-04-10 19:26:56  INFO      [BANEP] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=296279 → 2010_annual_consolidated.zip
+2026-04-10 19:26:57  INFO      [BANEP] ✓ Сохранён 2010_annual_consolidated.zip (601 КБ)
+2026-04-10 19:26:57  INFO      Пауза 63 с перед следующей компанией...
+2026-04-10 19:28:00  INFO      ─── [7/28] CHMF  (e-disclosure id=30) ──────────────────
+2026-04-10 19:28:21  INFO      [CHMF] Найдено 6 годовых консолидированных отчётов.
+2026-04-10 19:28:33  INFO      [CHMF] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1910980 → 2025_annual_consolidated.zip
+2026-04-10 19:28:35  INFO      [CHMF] ✓ Сохранён 2025_annual_consolidated.zip (1348 КБ)
+2026-04-10 19:28:53  INFO      [CHMF] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1864942 → 2024_annual_consolidated.zip
+2026-04-10 19:28:55  INFO      [CHMF] ✓ Сохранён 2024_annual_consolidated.zip (1396 КБ)
+2026-04-10 19:29:06  INFO      [CHMF] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1851694 → 2023_annual_consolidated.zip
+2026-04-10 19:29:09  INFO      [CHMF] ✓ Сохранён 2023_annual_consolidated.zip (1363 КБ)
+2026-04-10 19:29:20  INFO      [CHMF] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1736235 → 2021_annual_consolidated.zip
+2026-04-10 19:29:21  INFO      [CHMF] ✓ Сохранён 2021_annual_consolidated.zip (793 КБ)
+2026-04-10 19:29:37  INFO      [CHMF] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1679206 → 2020_annual_consolidated.zip
+2026-04-10 19:29:41  INFO      [CHMF] ✓ Сохранён 2020_annual_consolidated.zip (1787 КБ)
+2026-04-10 19:29:58  INFO      [CHMF] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1611163 → 2019_annual_consolidated.zip
+2026-04-10 19:30:09  INFO      [CHMF] ✓ Сохранён 2019_annual_consolidated.zip (5837 КБ)
+2026-04-10 19:30:09  INFO      Пауза 78 с перед следующей компанией...
+2026-04-10 19:31:27  INFO      ─── [8/28] FEES  (e-disclosure id=379) ──────────────────
+2026-04-10 19:31:48  INFO      [FEES] Найдено 15 годовых консолидированных отчётов.
+2026-04-10 19:32:01  INFO      [FEES] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1918464 → 2025_annual_consolidated.zip
+2026-04-10 19:32:06  INFO      [FEES] ✓ Сохранён 2025_annual_consolidated.zip (1612 КБ)
+2026-04-10 19:32:17  INFO      [FEES] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1871658 → 2024_annual_consolidated.zip
+2026-04-10 19:32:21  INFO      [FEES] ✓ Сохранён 2024_annual_consolidated.zip (1823 КБ)
+2026-04-10 19:32:33  INFO      [FEES] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1828391 → 2023_annual_consolidated.zip
+2026-04-10 19:32:39  INFO      [FEES] ✓ Сохранён 2023_annual_consolidated.zip (1864 КБ)
+2026-04-10 19:32:50  INFO      [FEES] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1686321 → 2020_annual_consolidated.zip
+2026-04-10 19:32:54  INFO      [FEES] ✓ Сохранён 2020_annual_consolidated.zip (1955 КБ)
+2026-04-10 19:33:09  INFO      [FEES] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1616531 → 2019_annual_consolidated.zip
+2026-04-10 19:33:13  INFO      [FEES] ✓ Сохранён 2019_annual_consolidated.zip (1823 КБ)
+2026-04-10 19:33:29  INFO      [FEES] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1494353 → 2018_annual_consolidated.zip
+2026-04-10 19:33:35  INFO      [FEES] ✓ Сохранён 2018_annual_consolidated.zip (5332 КБ)
+2026-04-10 19:33:52  INFO      [FEES] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1405429 → 2017_annual_consolidated.zip
+2026-04-10 19:33:57  INFO      [FEES] ✓ Сохранён 2017_annual_consolidated.zip (3036 КБ)
+2026-04-10 19:34:11  INFO      [FEES] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1310788 → 2016_annual_consolidated.zip
+2026-04-10 19:34:16  INFO      [FEES] ✓ Сохранён 2016_annual_consolidated.zip (2828 КБ)
+2026-04-10 19:34:29  INFO      [FEES] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1180407 → 2015_annual_consolidated.zip
+2026-04-10 19:34:33  INFO      [FEES] ✓ Сохранён 2015_annual_consolidated.zip (2341 КБ)
+2026-04-10 19:34:44  INFO      [FEES] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1053516 → 2014_annual_consolidated.zip
+2026-04-10 19:34:47  INFO      [FEES] ✓ Сохранён 2014_annual_consolidated.zip (2101 КБ)
+2026-04-10 19:35:02  INFO      [FEES] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=844763 → 2013_annual_consolidated.zip
+2026-04-10 19:35:09  INFO      [FEES] ✓ Сохранён 2013_annual_consolidated.zip (4666 КБ)
+2026-04-10 19:35:27  INFO      [FEES] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=632665 → 2012_annual_consolidated.zip
+2026-04-10 19:35:31  INFO      [FEES] ✓ Сохранён 2012_annual_consolidated.zip (2989 КБ)
+2026-04-10 19:35:43  INFO      [FEES] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=238516 → 2011_annual_consolidated.zip
+2026-04-10 19:35:45  INFO      [FEES] ✓ Сохранён 2011_annual_consolidated.zip (1346 КБ)
+2026-04-10 19:35:56  INFO      [FEES] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=238496 → 2010_annual_consolidated.zip
+2026-04-10 19:36:12  INFO      [FEES] ✓ Сохранён 2010_annual_consolidated.zip (11662 КБ)
+2026-04-10 19:36:25  INFO      [FEES] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=238455 → 2009_annual_consolidated.zip
+2026-04-10 19:36:27  INFO      [FEES] ✓ Сохранён 2009_annual_consolidated.zip (1539 КБ)
+2026-04-10 19:36:27  INFO      Пауза 61 с перед следующей компанией...
+2026-04-10 19:37:28  INFO      ─── [9/28] FLOT  (e-disclosure id=11967) ──────────────────
+2026-04-10 19:37:49  INFO      [FLOT] Найдено 13 годовых консолидированных отчётов.
+2026-04-10 19:38:08  INFO      [FLOT] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1914387 → 2025_annual_consolidated.zip
+2026-04-10 19:38:10  INFO      [FLOT] ✓ Сохранён 2025_annual_consolidated.zip (659 КБ)
+2026-04-10 19:38:23  INFO      [FLOT] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1867811 → 2024_annual_consolidated.zip
+2026-04-10 19:38:24  INFO      [FLOT] ✓ Сохранён 2024_annual_consolidated.zip (638 КБ)
+2026-04-10 19:38:35  INFO      [FLOT] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1856510 → 2023_annual_consolidated.zip
+2026-04-10 19:38:36  INFO      [FLOT] ✓ Сохранён 2023_annual_consolidated.zip (606 КБ)
+2026-04-10 19:38:54  INFO      [FLOT] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1684004 → 2020_annual_consolidated.zip
+2026-04-10 19:38:58  INFO      [FLOT] ✓ Сохранён 2020_annual_consolidated.zip (2052 КБ)
+2026-04-10 19:39:13  INFO      [FLOT] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1617410 → 2019_annual_consolidated.zip
+2026-04-10 19:39:19  INFO      [FLOT] ✓ Сохранён 2019_annual_consolidated.zip (4330 КБ)
+2026-04-10 19:39:31  INFO      [FLOT] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1494247 → 2018_annual_consolidated.zip
+2026-04-10 19:39:33  INFO      [FLOT] ✓ Сохранён 2018_annual_consolidated.zip (2146 КБ)
+2026-04-10 19:39:44  INFO      [FLOT] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1403127 → 2017_annual_consolidated.zip
+2026-04-10 19:39:47  INFO      [FLOT] ✓ Сохранён 2017_annual_consolidated.zip (1751 КБ)
+2026-04-10 19:40:02  INFO      [FLOT] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1307400 → 2016_annual_consolidated.zip
+2026-04-10 19:40:04  INFO      [FLOT] ✓ Сохранён 2016_annual_consolidated.zip (1603 КБ)
+2026-04-10 19:40:19  INFO      [FLOT] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1182204 → 2015_annual_consolidated.zip
+2026-04-10 19:40:22  INFO      [FLOT] ✓ Сохранён 2015_annual_consolidated.zip (2202 КБ)
+2026-04-10 19:40:38  INFO      [FLOT] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1014957 → 2014_annual_consolidated.zip
+2026-04-10 19:40:39  INFO      [FLOT] ✓ Сохранён 2014_annual_consolidated.zip (378 КБ)
+2026-04-10 19:40:51  INFO      [FLOT] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=807263 → 2013_annual_consolidated.zip
+2026-04-10 19:40:52  INFO      [FLOT] ✓ Сохранён 2013_annual_consolidated.zip (1057 КБ)
+2026-04-10 19:41:03  INFO      [FLOT] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=626441 → 2012_annual_consolidated.zip
+2026-04-10 19:41:04  INFO      [FLOT] ✓ Сохранён 2012_annual_consolidated.zip (406 КБ)
+2026-04-10 19:41:17  INFO      [FLOT] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=519049 → 2011_annual_consolidated.zip
+2026-04-10 19:41:19  INFO      [FLOT] ✓ Сохранён 2011_annual_consolidated.zip (855 КБ)
+2026-04-10 19:41:19  INFO      Пауза 71 с перед следующей компанией...
+2026-04-10 19:42:30  INFO      ─── [10/28] GAZP  (e-disclosure id=934) ──────────────────
+2026-04-10 19:42:56  INFO      [GAZP] Найдено 19 годовых консолидированных отчётов.
+2026-04-10 19:43:11  INFO      [GAZP] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1878634 → 2024_annual_consolidated.zip
+2026-04-10 19:43:49  INFO      [GAZP] ✓ Сохранён 2024_annual_consolidated.zip (2563 КБ)
+2026-04-10 19:44:01  INFO      [GAZP] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1835394 → 2023_annual_consolidated.zip
+2026-04-10 19:44:56  INFO      [GAZP] ✓ Сохранён 2023_annual_consolidated.zip (3684 КБ)
+2026-04-10 19:45:13  INFO      [GAZP] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1794547 → 2022_annual_consolidated.zip
+2026-04-10 19:46:35  INFO      [GAZP] ✓ Сохранён 2022_annual_consolidated.zip (5639 КБ)
+2026-04-10 19:46:48  INFO      [GAZP] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1747649 → 2021_annual_consolidated.zip
+2026-04-10 19:47:27  INFO      [GAZP] ✓ Сохранён 2021_annual_consolidated.zip (2363 КБ)
+2026-04-10 19:47:40  INFO      [GAZP] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1697511 → 2020_annual_consolidated.zip
+2026-04-10 19:48:23  INFO      [GAZP] ✓ Сохранён 2020_annual_consolidated.zip (2785 КБ)
+2026-04-10 19:48:35  INFO      [GAZP] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1630874 → 2019_annual_consolidated.zip
+2026-04-10 19:49:20  INFO      [GAZP] ✓ Сохранён 2019_annual_consolidated.zip (2858 КБ)
+2026-04-10 19:49:35  INFO      [GAZP] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1512352 → 2018_annual_consolidated.zip
+2026-04-10 19:50:56  INFO      [GAZP] ✓ Сохранён 2018_annual_consolidated.zip (5719 КБ)
+2026-04-10 19:51:08  INFO      [GAZP] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1426366 → 2017_annual_consolidated.zip
+2026-04-10 19:52:01  INFO      [GAZP] ✓ Сохранён 2017_annual_consolidated.zip (3445 КБ)
+2026-04-10 19:52:12  INFO      [GAZP] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1333227 → 2016_annual_consolidated.zip
+2026-04-10 19:54:11  INFO      [GAZP] ✓ Сохранён 2016_annual_consolidated.zip (8256 КБ)
+2026-04-10 19:54:28  INFO      [GAZP] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1216423 → 2015_annual_consolidated.zip
+2026-04-10 19:55:23  INFO      [GAZP] ✓ Сохранён 2015_annual_consolidated.zip (3647 КБ)
+2026-04-10 19:55:38  INFO      [GAZP] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1056313 → 2014_annual_consolidated.zip
+2026-04-10 19:56:03  INFO      [GAZP] ✓ Сохранён 2014_annual_consolidated.zip (1944 КБ)
+2026-04-10 19:56:17  INFO      [GAZP] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=857737 → 2013_annual_consolidated.zip
+2026-04-10 19:56:46  INFO      [GAZP] ✓ Сохранён 2013_annual_consolidated.zip (2056 КБ)
+2026-04-10 19:56:59  INFO      [GAZP] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=637283 → 2012_annual_consolidated.zip
+2026-04-10 19:57:33  INFO      [GAZP] ✓ Сохранён 2012_annual_consolidated.zip (2242 КБ)
+2026-04-10 19:57:50  INFO      [GAZP] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=400499 → 2011_annual_consolidated.zip
+2026-04-10 19:59:01  INFO      [GAZP] ✓ Сохранён 2011_annual_consolidated.zip (4783 КБ)
+2026-04-10 19:59:14  INFO      [GAZP] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=400961 → 2010_annual_consolidated.zip
+2026-04-10 19:59:52  INFO      [GAZP] ✓ Сохранён 2010_annual_consolidated.zip (2464 КБ)
+2026-04-10 20:00:11  INFO      [GAZP] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=401070 → 2009_annual_consolidated.zip
+2026-04-10 20:00:34  INFO      [GAZP] ✓ Сохранён 2009_annual_consolidated.zip (1444 КБ)
+2026-04-10 20:00:54  INFO      [GAZP] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=401104 → 2008_annual_consolidated.zip
+2026-04-10 20:01:13  INFO      [GAZP] ✓ Сохранён 2008_annual_consolidated.zip (1116 КБ)
+2026-04-10 20:01:25  INFO      [GAZP] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=401140 → 2007_annual_consolidated.zip
+2026-04-10 20:02:21  INFO      [GAZP] ✓ Сохранён 2007_annual_consolidated.zip (3851 КБ)
+2026-04-10 20:02:38  INFO      [GAZP] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=401172 → 2006_annual_consolidated.zip
+2026-04-10 20:03:20  INFO      [GAZP] ✓ Сохранён 2006_annual_consolidated.zip (2937 КБ)
+2026-04-10 20:03:20  INFO      Пауза 57 с перед следующей компанией...
+2026-04-10 20:04:17  INFO      ─── [11/28] GMKN  (e-disclosure id=564) ──────────────────
+2026-04-10 20:05:13  INFO      [GMKN] Найдено 12 годовых консолидированных отчётов.
+2026-04-10 20:05:25  INFO      [GMKN] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1911517 → 2025_annual_consolidated.rar
+2026-04-10 20:05:29  INFO      [GMKN] ✓ Сохранён 2025_annual_consolidated.rar (2627 КБ)
+2026-04-10 20:05:43  INFO      [GMKN] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1865538 → 2024_annual_consolidated.rar
+2026-04-10 20:05:46  INFO      [GMKN] ✓ Сохранён 2024_annual_consolidated.rar (3018 КБ)
+2026-04-10 20:06:06  INFO      [GMKN] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1822316 → 2023_annual_consolidated.rar
+2026-04-10 20:06:15  INFO      [GMKN] ✓ Сохранён 2023_annual_consolidated.rar (10197 КБ)
+2026-04-10 20:06:31  INFO      [GMKN] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1779117 → 2022_annual_consolidated.rar
+2026-04-10 20:06:34  INFO      [GMKN] ✓ Сохранён 2022_annual_consolidated.rar (1800 КБ)
+2026-04-10 20:06:54  INFO      [GMKN] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1734518 → 2021_annual_consolidated.rar
+2026-04-10 20:07:02  INFO      [GMKN] ✓ Сохранён 2021_annual_consolidated.rar (7488 КБ)
+2026-04-10 20:07:13  INFO      [GMKN] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1681423 → 2020_annual_consolidated.rar
+2026-04-10 20:07:19  INFO      [GMKN] ✓ Сохранён 2020_annual_consolidated.rar (7787 КБ)
+2026-04-10 20:07:38  INFO      [GMKN] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1615350 → 2019_annual_consolidated.rar
+2026-04-10 20:07:47  INFO      [GMKN] ✓ Сохранён 2019_annual_consolidated.rar (8627 КБ)
+2026-04-10 20:07:59  INFO      [GMKN] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1490913 → 2018_annual_consolidated.rar
+2026-04-10 20:08:04  INFO      [GMKN] ✓ Сохранён 2018_annual_consolidated.rar (4210 КБ)
+2026-04-10 20:08:18  INFO      [GMKN] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1400418 → 2017_annual_consolidated.zip
+2026-04-10 20:08:23  INFO      [GMKN] ✓ Сохранён 2017_annual_consolidated.zip (3701 КБ)
+2026-04-10 20:08:40  INFO      [GMKN] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1305979 → 2016_annual_consolidated.zip
+2026-04-10 20:08:59  INFO      [GMKN] ✓ Сохранён 2016_annual_consolidated.zip (8201 КБ)
+2026-04-10 20:09:11  INFO      [GMKN] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1179346 → 2015_annual_consolidated.zip
+2026-04-10 20:09:30  INFO      [GMKN] ✓ Сохранён 2015_annual_consolidated.zip (7412 КБ)
+2026-04-10 20:09:48  INFO      [GMKN] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1021925 → 2014_annual_consolidated.zip
+2026-04-10 20:09:51  INFO      [GMKN] ✓ Сохранён 2014_annual_consolidated.zip (2904 КБ)
+2026-04-10 20:09:51  INFO      Пауза 72 с перед следующей компанией...
+2026-04-10 20:11:04  INFO      ─── [12/28] HYDR  (e-disclosure id=8580) ──────────────────
+2026-04-10 20:12:00  INFO      [HYDR] Найдено 17 годовых консолидированных отчётов.
+2026-04-10 20:12:14  INFO      [HYDR] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1915496 → 2025_annual_consolidated.zip
+2026-04-10 20:12:17  INFO      [HYDR] ✓ Сохранён 2025_annual_consolidated.zip (1547 КБ)
+2026-04-10 20:12:33  INFO      [HYDR] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1868445 → 2024_annual_consolidated.zip
+2026-04-10 20:12:37  INFO      [HYDR] ✓ Сохранён 2024_annual_consolidated.zip (1645 КБ)
+2026-04-10 20:12:50  INFO      [HYDR] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1824442 → 2023_annual_consolidated.zip
+2026-04-10 20:12:52  INFO      [HYDR] ✓ Сохранён 2023_annual_consolidated.zip (1683 КБ)
+2026-04-10 20:13:08  INFO      [HYDR] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1780671 → 2022_annual_consolidated.zip
+2026-04-10 20:13:11  INFO      [HYDR] ✓ Сохранён 2022_annual_consolidated.zip (2701 КБ)
+2026-04-10 20:13:24  INFO      [HYDR] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1739920 → 2021_annual_consolidated.zip

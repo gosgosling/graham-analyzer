@@ -2,7 +2,7 @@ from sqlalchemy.orm import Session
 from typing import List, Dict
 from app.utils.tinkoff_client import get_tinkoff_companies
 from app.schemas import CompanyCreate
-from app.services.company_service import sync_company
+from app.services.companies.company_service import sync_company
 from app.models.company import Company
 
 def sync_companies_from_tinkoff(db: Session) -> Dict[str, int]:

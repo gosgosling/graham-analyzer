@@ -11,7 +11,7 @@ import {
     MoexPriceResult,
     MoexSharesResult,
     MoexDividendsResult,
-} from '../services/api';
+} from '../services';
 import './ReportForm.css';
 
 dayjs.locale('ru');
