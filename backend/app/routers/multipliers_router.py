@@ -27,7 +27,8 @@ from app.schemas import (
     CurrentMultipliersResponse,
     PriceUpdateResponse,
 )
-from app.services import multiplier_service, tinvest_price_service
+from app.services.analysis import multiplier_service
+from app.services.market import tinvest_price_service
 
 router = APIRouter(tags=["multipliers"])
 

@@ -1,6 +1,6 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { getSecurities } from '../services/api';
+import { getSecurities } from '../services';
 import { Security } from '../types';
 import TInvestSyncBar from '../components/TInvestSyncBar';
 import './SecuritiesList.css';

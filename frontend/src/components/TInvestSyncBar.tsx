@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getCompaniesSyncStatus, syncCompaniesFromTinkoff } from '../services/api';
+import { getCompaniesSyncStatus, syncCompaniesFromTinkoff } from '../services';
 import './TInvestSyncBar.css';
 
 /**

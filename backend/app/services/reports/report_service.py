@@ -5,7 +5,7 @@ from datetime import date, datetime
 from app.models.financial_report import FinancialReport
 from app.models.company import Company
 from app.schemas import FinancialReportCreate
-from app.services import multiplier_service
+from app.services.analysis import multiplier_service
 
 
 def create_report(db: Session, report_data: FinancialReportCreate) -> FinancialReport:

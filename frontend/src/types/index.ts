@@ -1,3 +1,24 @@
+export interface Bond {
+    figi: string;
+    ticker: string;
+    name: string;
+    isin: string;
+    currency: string;
+    sector: string;
+    country_of_risk: string;
+    country_of_risk_name: string;
+    exchange: string;
+    maturity_date: string | null;
+    placement_date: string | null;
+    nominal: number | null;
+    coupon_quantity_per_year: number | null;
+    floating_coupon_flag: boolean;
+    perpetual_flag: boolean;
+    amortization_flag: boolean;
+    issue_size: number | null;
+    lot: number;
+}
+
 export interface Security {
     secid: string;
     boardid: string;

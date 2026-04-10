@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 from fastapi import HTTPException
 from app.schemas import Security, CompanyResult, Multipliers, AnalysisItem, AnalysisResponse
-from app.services.graham_analyser import classify_company
+from app.services.analysis.graham_analyser import classify_company
 from app.data.mock_data import MOCK_COMPANIES, MOCK_MULTIPLIERS
 from typing import LiteralString, Optional
 from app.utils.moex_client import get_moex_securities
