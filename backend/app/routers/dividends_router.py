@@ -4,7 +4,7 @@ from typing import List, Dict
 
 from app.database import get_db
 from app.schemas import DividendContinuityResult
-from app.services.dividend_service import (
+from app.services.dividends.dividend_service import (
     calculate_dividend_continuity,
     get_dividend_history,
     update_dividend_start_year

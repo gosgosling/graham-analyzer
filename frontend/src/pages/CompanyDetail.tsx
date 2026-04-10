@@ -7,7 +7,7 @@ import {
   createFinancialReport,
   updateFinancialReport,
   refreshCompanyMultipliers,
-} from '../services/api';
+} from '../services';
 import { FinancialReport, FinancialReportCreate } from '../types';
 import MultipliersPanel from '../components/MultipliersPanel';
 import ReportForm from '../components/ReportForm';

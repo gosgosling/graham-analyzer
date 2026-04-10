@@ -1,0 +1,458 @@
+/* ── Дизайн-токены ─────────────────────────────────────────────────────── */
+:root {
+  --bond-primary: #4f46e5;
+  --bond-primary-dark: #3730a3;
+  --bond-primary-light: #e0e7ff;
+  --bond-violet: #7c3aed;
+  --bond-cyan: #0891b2;
+  --bond-emerald: #059669;
+  --bond-amber: #d97706;
+  --bond-rose: #e11d48;
+  --bond-bg: #f5f4ff;
+  --bond-surface: #ffffff;
+  --bond-border: rgba(79, 70, 229, 0.10);
+  --bond-text: #1e1b4b;
+  --bond-muted: #6b7280;
+  --bond-shadow-sm: 0 1px 3px rgba(79,70,229,0.06), 0 1px 2px rgba(0,0,0,0.04);
+  --bond-shadow: 0 4px 16px rgba(79,70,229,0.08), 0 1px 4px rgba(0,0,0,0.04);
+  --bond-shadow-lg: 0 8px 32px rgba(79,70,229,0.14), 0 2px 8px rgba(0,0,0,0.06);
+  --bond-radius: 12px;
+  --bond-radius-sm: 8px;
+}
+
+/* ── Страница ─────────────────────────────────────────────────────────── */
+.bl-page {
+  min-height: 100vh;
+  background: var(--bond-bg);
+  padding: 28px 24px 48px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.bl-inner {
+  max-width: 1380px;
+  margin: 0 auto;
+}
+
+/* ── Шапка страницы ──────────────────────────────────────────────────── */
+.bl-hero {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(135deg, #1e293b 0%, #2d3748 100%);
+  border-radius: 12px;
+  padding: 22px 28px 20px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.12), inset 0 1px 0 rgba(255,255,255,0.06);
+  color: #fff;
+}
+
+/* Декоративная сетка-паттерн */
+.bl-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    radial-gradient(circle, rgba(255,255,255,0.07) 1px, transparent 1px);
+  background-size: 28px 28px;
+  pointer-events: none;
+}
+
+/* Декоративный круг справа */
+.bl-hero::after {
+  content: '';
+  position: absolute;
+  right: -60px;
+  top: -60px;
+  width: 280px;
+  height: 280px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.bl-hero-body {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.bl-title {
+  margin: 0 0 5px;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+}
+
+.bl-subtitle {
+  margin: 0;
+  font-size: 13px;
+  color: rgba(255,255,255,0.6);
+  font-weight: 400;
+}
+
+/* ── Bento-stats ─────────────────────────────────────────────────────── */
+.bl-stats {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.bl-stat {
+  background: rgba(255,255,255,0.18);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255,255,255,0.25);
+  border-radius: 10px;
+  padding: 8px 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 70px;
+}
+
+.bl-stat-value {
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.bl-stat-label {
+  font-size: 10px;
+  color: rgba(255,255,255,0.6);
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-top: 2px;
+}
+
+/* ── Glassmorphism-панель фильтров ───────────────────────────────────── */
+.bl-filters {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+  background: rgba(255,255,255,0.75);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(255,255,255,0.9);
+  border-radius: var(--bond-radius);
+  padding: 14px 16px;
+  box-shadow: var(--bond-shadow-sm), inset 0 1px 0 rgba(255,255,255,0.8);
+}
+
+.bl-search {
+  flex: 1;
+  min-width: 200px;
+  padding: 9px 14px;
+  border: 1.5px solid rgba(79,70,229,0.18);
+  border-radius: 8px;
+  font-size: 14px;
+  color: var(--bond-text);
+  background: rgba(255,255,255,0.8);
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.bl-search::placeholder { color: #9ca3af; }
+
+.bl-search:focus {
+  border-color: var(--bond-primary);
+  box-shadow: 0 0 0 3px rgba(79,70,229,0.12);
+  background: #fff;
+}
+
+/* Pill-кнопки типа */
+.bl-type-pills {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.bl-pill {
+  padding: 7px 14px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 500;
+  border: 1.5px solid transparent;
+  cursor: pointer;
+  transition: all 0.18s cubic-bezier(0.4,0,0.2,1);
+  white-space: nowrap;
+  background: rgba(79,70,229,0.06);
+  color: var(--bond-muted);
+  border-color: rgba(79,70,229,0.12);
+}
+
+.bl-pill:hover {
+  background: rgba(79,70,229,0.12);
+  color: var(--bond-primary);
+  border-color: rgba(79,70,229,0.25);
+}
+
+.bl-pill.active {
+  background: var(--bond-primary);
+  color: #fff;
+  border-color: var(--bond-primary);
+  box-shadow: 0 2px 8px rgba(79,70,229,0.3);
+}
+
+/* ── Таблица ─────────────────────────────────────────────────────────── */
+.bl-table-wrap {
+  overflow-x: auto;
+  border-radius: var(--bond-radius);
+  box-shadow: var(--bond-shadow);
+  border: 1px solid var(--bond-border);
+}
+
+.bl-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--bond-surface);
+  font-size: 13.5px;
+  min-width: 860px;
+}
+
+/* Шапка таблицы — нейтральная, как в списке акций */
+.bl-table thead {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+
+.bl-table thead tr {
+  background: #f5f7fa;
+}
+
+.bl-table th {
+  padding: 12px 14px;
+  text-align: left;
+  font-weight: 600;
+  color: #2c3e50;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+  border-bottom: 2px solid #e1e8ed;
+}
+
+.bl-table th:first-child { border-radius: 0; }
+.bl-table th:last-child  { border-radius: 0; }
+
+/* Строки */
+.bl-table td {
+  padding: 11px 14px;
+  border-bottom: 1px solid #f1f0ff;
+  color: var(--bond-text);
+  vertical-align: middle;
+}
+
+.bl-table tbody tr {
+  cursor: pointer;
+  transition: background 0.15s cubic-bezier(0.4,0,0.2,1),
+              transform 0.15s cubic-bezier(0.4,0,0.2,1),
+              box-shadow 0.15s;
+}
+
+.bl-table tbody tr:hover {
+  background: #ede9fe;
+  transform: scale(1.005);
+  box-shadow: 0 2px 10px rgba(79,70,229,0.12);
+  position: relative;
+  z-index: 1;
+}
+
+.bl-table tbody tr:last-child td { border-bottom: none; }
+
+/* Чередование строк */
+.bl-table tbody tr:nth-child(even) { background: #faf9ff; }
+.bl-table tbody tr:nth-child(even):hover { background: #ede9fe; }
+
+/* ── Ячейки ──────────────────────────────────────────────────────────── */
+.bl-cell-name { display: flex; flex-direction: column; gap: 3px; }
+
+.bl-bond-name {
+  font-weight: 600;
+  color: #2c3e50;
+  font-size: 13px;
+  line-height: 1.3;
+}
+
+.bl-bond-ticker {
+  font-size: 11px;
+  color: #7f8c8d;
+  font-family: 'Courier New', monospace;
+  font-weight: 500;
+}
+
+.bl-isin {
+  font-size: 12px;
+  color: #6b7280;
+  font-family: 'SF Mono', 'Fira Code', 'Courier New', monospace;
+}
+
+/* Дата погашения */
+.bl-maturity { font-size: 13px; white-space: nowrap; font-weight: 500; }
+.bl-maturity.expired { color: var(--bond-rose); }
+.bl-maturity.soon    { color: var(--bond-amber); }
+.bl-maturity.ok      { color: #374151; }
+.bl-perpetual-chip {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--bond-violet);
+  background: #f3e8ff;
+  border: 1px solid #e9d5ff;
+  padding: 2px 8px;
+  border-radius: 20px;
+}
+
+/* Номинал */
+.bl-nominal {
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  color: #2c3e50;
+  white-space: nowrap;
+}
+
+/* Купон */
+.bl-coupon { font-size: 13px; color: #374151; }
+
+/* ── Бейджи типов ─────────────────────────────────────────────────────── */
+.bl-badges { display: flex; gap: 4px; flex-wrap: wrap; }
+
+.bl-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 9px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.bl-badge.floating {
+  background: linear-gradient(135deg, #dbeafe, #e0e7ff);
+  color: #3730a3;
+  border: 1px solid #c7d2fe;
+}
+
+.bl-badge.amortization {
+  background: linear-gradient(135deg, #f3e8ff, #ede9fe);
+  color: #5b21b6;
+  border: 1px solid #ddd6fe;
+}
+
+.bl-badge.perpetual {
+  background: linear-gradient(135deg, #ffe4e6, #fce7f3);
+  color: #9f1239;
+  border: 1px solid #fecdd3;
+}
+
+/* ── Скелетон загрузки ───────────────────────────────────────────────── */
+.bl-skeleton-wrap {
+  border-radius: var(--bond-radius);
+  overflow: hidden;
+  box-shadow: var(--bond-shadow);
+}
+
+.bl-skeleton-head {
+  height: 44px;
+  background: linear-gradient(135deg, #4f46e5, #6d28d9);
+  border-radius: var(--bond-radius) var(--bond-radius) 0 0;
+}
+
+.bl-skeleton-row {
+  display: flex;
+  gap: 12px;
+  padding: 13px 14px;
+  border-bottom: 1px solid #f1f0ff;
+  background: #fff;
+  align-items: center;
+}
+
+.bl-skeleton-row:nth-child(even) { background: #faf9ff; }
+
+.bl-skeleton-cell {
+  height: 14px;
+  border-radius: 6px;
+  background: linear-gradient(90deg, #e9e8ff 25%, #d5d3f7 50%, #e9e8ff 75%);
+  background-size: 200% 100%;
+  animation: bl-shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes bl-shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ── Пустые состояния ─────────────────────────────────────────────────── */
+.bl-empty {
+  text-align: center;
+  padding: 56px 24px;
+  color: var(--bond-muted);
+  background: var(--bond-surface);
+  border-radius: var(--bond-radius);
+  border: 1px dashed #c7d2fe;
+}
+
+.bl-empty-icon { font-size: 36px; margin-bottom: 12px; }
+.bl-empty-text { font-size: 15px; color: #374151; font-weight: 500; margin-bottom: 6px; }
+.bl-empty-sub  { font-size: 13px; color: var(--bond-muted); }
+
+.bl-no-token {
+  background: linear-gradient(135deg, #fffbeb, #fef3c7);
+  border: 1px solid #fde68a;
+  border-radius: var(--bond-radius);
+  padding: 32px;
+  color: #78350f;
+  text-align: center;
+  box-shadow: var(--bond-shadow-sm);
+}
+
+.bl-no-token-icon { font-size: 40px; margin-bottom: 12px; }
+.bl-no-token h3   { margin: 0 0 10px; font-size: 17px; font-weight: 700; }
+.bl-no-token p    { margin: 0; font-size: 14px; line-height: 1.6; opacity: 0.85; }
+.bl-no-token code {
+  background: rgba(0,0,0,0.07);
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: 13px;
+}
+
+.bl-error {
+  background: #fff5f5;
+  border: 1px solid #fecdd3;
+  border-radius: var(--bond-radius);
+  padding: 24px;
+  color: #9f1239;
+  box-shadow: var(--bond-shadow-sm);
+}
+
+/* ── Результаты / пагинация ───────────────────────────────────────────── */
+.bl-results-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  font-size: 13px;
+  color: var(--bond-muted);
+}
+
+.bl-results-count strong { color: var(--bond-text); font-weight: 700; }
+
+/* ── Адаптив ──────────────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .bl-page { padding: 16px 12px 32px; }
+  .bl-hero { padding: 20px 18px; border-radius: 14px; }
+  .bl-title { font-size: 20px; }
+  .bl-filters { flex-direction: column; padding: 12px; }
+  .bl-search { min-width: 0; }
+}

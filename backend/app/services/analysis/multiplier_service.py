@@ -18,7 +18,7 @@ from app.models.financial_report import FinancialReport
 from app.models.multiplier import Multiplier
 from app.models.company import Company
 from app.models.enums import PeriodType
-from app.services.calc_multipliers import calculate_multipliers
+from app.services.analysis.calc_multipliers import calculate_multipliers
 from app.utils.currency_converter import convert_to_rub
 
 logger = logging.getLogger(__name__)

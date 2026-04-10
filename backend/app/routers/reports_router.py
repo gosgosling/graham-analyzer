@@ -4,7 +4,7 @@ from typing import List
 
 from app.database import get_db
 from app.schemas import FinancialReport, FinancialReportCreate
-from app.services import report_service
+from app.services.reports import report_service
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 

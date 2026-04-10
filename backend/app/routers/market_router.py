@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.company import Company
-from app.services.price_history_service import backfill_company_prices, backfill_all_companies
+from app.services.market.price_history_service import backfill_company_prices, backfill_all_companies
 from app.utils.moex_client import (
     get_closing_price_on_or_before,
     get_shares_outstanding,

@@ -27,8 +27,8 @@ def _daily_price_update() -> None:
          был выключен несколько дней).
       2. Текущая цена — T-Invest обновляет сегодняшнее значение.
     """
-    from app.services.price_history_service import backfill_all_companies
-    from app.services.tinvest_price_service import update_all_company_prices
+    from app.services.market.price_history_service import backfill_all_companies
+    from app.services.market.tinvest_price_service import update_all_company_prices
 
     logger.info("Планировщик: запуск ежедневного обновления цен")
     db = SessionLocal()
@@ -52,7 +52,7 @@ def _startup_backfill() -> None:
     Запускается один раз, через 5 секунд после старта (чтобы не блокировать
     инициализацию FastAPI).
     """
-    from app.services.price_history_service import backfill_all_companies
+    from app.services.market.price_history_service import backfill_all_companies
 
     logger.info("Старт сервера: проверка и бэкфилл пропущенных цен")
     db = SessionLocal()

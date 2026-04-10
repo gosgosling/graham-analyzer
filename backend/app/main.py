@@ -3,8 +3,8 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Optional
 
-from app.routers import companies_router, companies, reports_router, dividends_router
-from app.routers import multipliers_router, market_router
+from app.routers import companies_router, securities_router, reports_router, dividends_router
+from app.routers import multipliers_router, market_router, bonds_router
 from app.schemas import AnalysisResponse, Security, Multipliers
 from app.scheduler import start_scheduler, stop_scheduler
 
@@ -27,12 +27,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(companies.router)
+app.include_router(securities_router.router)
 app.include_router(companies_router.router)
 app.include_router(reports_router.router)
 app.include_router(dividends_router.router)
 app.include_router(multipliers_router.router)
 app.include_router(market_router.router)
+app.include_router(bonds_router.router)
 
 
 @app.get('/health')
