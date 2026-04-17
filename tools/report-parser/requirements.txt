@@ -1,0 +1,11 @@
+# CLI-обёртка переиспользует пакет app.* из backend.
+# Здесь только то, что нужно самой CLI (env-загрузчик и коннект к БД).
+# LLM/PDF-зависимости живут в backend/requirements.txt и устанавливаются в backend venv.
+#
+# Если хочешь запускать CLI из отдельного venv, установи и всё из
+# backend/requirements.txt:
+#   pip install -r ../../backend/requirements.txt
+#   pip install -r requirements.txt
+python-dotenv==1.0.1
+sqlalchemy==2.0.45
+psycopg2-binary==2.9.11

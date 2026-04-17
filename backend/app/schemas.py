@@ -143,9 +143,26 @@ class FinancialReportCreate(BaseModel):
     dividends_per_share: Optional[float] = None  # ₽/$ за акцию (полные единицы)
     dividends_paid: bool = False
 
+    # ─── Банковские показатели (заполняются только для банков) ───
+    # revenue при этом = Total Operating Income (NII + комиссии + трейдинг + прочее)
+    # current_assets / current_liabilities оставляем None — для банков неприменимо
+    net_interest_income: Optional[float] = None      # Чистые процентные доходы, млн
+    fee_commission_income: Optional[float] = None    # Чистые комиссионные доходы, млн
+    operating_expenses: Optional[float] = None       # Операционные расходы (до резервов), млн
+    provisions: Optional[float] = None               # Резервы под обесценение, млн
+
     # Валюта
     currency: str = "RUB"
     exchange_rate: Optional[float] = None
+
+    # ─── AI-извлечение и верификация ───
+    # При создании вручную: auto_extracted=False, verified_by_analyst=True (значения по умолчанию).
+    # При создании AI-парсером: auto_extracted=True, verified_by_analyst=False + extraction_* поля.
+    auto_extracted: bool = False
+    verified_by_analyst: bool = True
+    extraction_notes: Optional[str] = None
+    extraction_model: Optional[str] = None
+    source_pdf_path: Optional[str] = None
 
     @model_validator(mode='after')
     def validate_report(self):
@@ -202,9 +219,26 @@ class FinancialReport(BaseModel):
     dividends_per_share: Optional[float] = None
     dividends_paid: bool = False
 
+    # Тип отрасли
+    report_type: str = "general"
+
+    # Банковские показатели
+    net_interest_income: Optional[float] = None
+    fee_commission_income: Optional[float] = None
+    operating_expenses: Optional[float] = None
+    provisions: Optional[float] = None
+
     # Валюта
     currency: str = "RUB"
     exchange_rate: Optional[float] = None
+
+    # ─── AI-извлечение и верификация ───
+    auto_extracted: bool = False
+    verified_by_analyst: bool = True
+    extraction_notes: Optional[str] = None
+    extraction_model: Optional[str] = None
+    source_pdf_path: Optional[str] = None
+    verified_at: Optional[Union[datetime, str]] = None
 
     # Метаданные
     created_at: Optional[Union[datetime, str]] = None
@@ -222,7 +256,7 @@ class FinancialReport(BaseModel):
             return v.isoformat()
         return str(v)
 
-    @field_serializer('created_at', 'updated_at')
+    @field_serializer('created_at', 'updated_at', 'verified_at')
     def serialize_datetime(self, v: Optional[Union[datetime, str]]) -> Optional[str]:
         if v is None:
             return None
@@ -359,9 +393,14 @@ class MultiplierResponse(BaseModel):
     debt_to_equity: Optional[float] = None
     current_ratio: Optional[float] = None
     dividend_yield: Optional[float] = None
+    cost_to_income: Optional[float] = None  # % — только для банков
 
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
+
+    # Из связанного отчёта: дата публикации и цена на эту дату (в ₽), для подсказки в UI
+    filing_date: Optional[date] = None
+    price_at_filing_rub: Optional[float] = None
 
     class Config:
         from_attributes = True
@@ -393,6 +432,7 @@ class CurrentMultipliersResponse(BaseModel):
     debt_to_equity: Optional[float] = None
     current_ratio: Optional[float] = None
     dividend_yield: Optional[float] = None
+    cost_to_income: Optional[float] = None  # % — только для банков
 
 
 class PriceUpdateResponse(BaseModel):

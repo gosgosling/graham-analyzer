@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -135,6 +136,15 @@ function fmtDate(d: string): string {
   return d.split('-')[0];
 }
 
+/** Дата YYYY-MM-DD → дд.мм.гггг (без сдвига часового пояса) */
+function fmtDateFull(iso: string): string {
+  const p = iso.split('-');
+  if (p.length !== 3) return iso;
+  const [y, m, d] = p;
+  if (!y || !m || !d) return iso;
+  return `${d.padStart(2, '0')}.${m.padStart(2, '0')}.${y}`;
+}
+
 // ─── Карточки текущих мультипликаторов ────────────────────────────────────────
 
 interface CurrentCardsProps {
@@ -256,6 +266,79 @@ interface HistTableProps {
   currentRow?: CurrentMultipliers;
 }
 
+/** Всплывающая подсказка: цена в ячейке — на конец периода; рядом — на дату публикации отчёта. */
+const HistPriceCell: React.FC<{ row: MultiplierRecord }> = ({ row }) => {
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState({ x: 0, y: 0 });
+
+  const filing = row.filing_date?.trim() ?? '';
+  const hasTip = Boolean(filing) || row.price_at_filing_rub != null;
+
+  const onEnterMove = (e: React.MouseEvent) => {
+    setPos({ x: e.clientX + 14, y: e.clientY + 14 });
+  };
+
+  const tipBody = (() => {
+    if (filing && row.price_at_filing_rub != null) {
+      return (
+        <>
+          <div className="mult-price-tip-line">
+            На дату публикации ({fmtDateFull(filing)})
+          </div>
+          <div className="mult-price-tip-value">{fmt(row.price_at_filing_rub)} ₽</div>
+        </>
+      );
+    }
+    if (filing) {
+      return (
+        <>
+          <div className="mult-price-tip-line">Дата публикации: {fmtDateFull(filing)}</div>
+          <div className="mult-price-tip-muted">Цена на эту дату в отчёте не указана</div>
+        </>
+      );
+    }
+    if (row.price_at_filing_rub != null) {
+      return (
+        <div className="mult-price-tip-value">Цена на дату публикации: {fmt(row.price_at_filing_rub)} ₽</div>
+      );
+    }
+    return null;
+  })();
+
+  return (
+    <>
+      <span
+        className={hasTip ? 'mult-price-with-tip' : undefined}
+        onMouseEnter={(e) => {
+          if (!hasTip) return;
+          onEnterMove(e);
+          setOpen(true);
+        }}
+        onMouseMove={(e) => {
+          if (!open) return;
+          onEnterMove(e);
+        }}
+        onMouseLeave={() => setOpen(false)}
+      >
+        {row.price_used !== null ? fmt(row.price_used) : '—'}
+      </span>
+      {open && hasTip && tipBody
+        ? createPortal(
+            <div
+              className="mult-price-filing-tooltip"
+              style={{ left: pos.x, top: pos.y }}
+              role="tooltip"
+            >
+              <div className="mult-price-tip-title">Цена при выходе отчёта</div>
+              {tipBody}
+            </div>,
+            document.body,
+          )
+        : null}
+    </>
+  );
+};
+
 const HistTable: React.FC<HistTableProps> = ({ rows, currentRow }) => {
   return (
     <div className="hist-table-wrapper">
@@ -263,7 +346,12 @@ const HistTable: React.FC<HistTableProps> = ({ rows, currentRow }) => {
         <thead>
           <tr>
             <th className="col-year">Период</th>
-            <th className="col-price">Цена, ₽</th>
+            <th
+              className="col-price"
+              title="В ячейке — цена на дату окончания отчётного периода. Наведите для цены на дату публикации (если заполнено в отчёте)."
+            >
+              Цена, ₽
+            </th>
             <th className="col-mkt">Кап., млрд ₽</th>
             <th className="col-mult">P/E</th>
             <th className="col-mult">P/B</th>
@@ -341,7 +429,9 @@ const HistTable: React.FC<HistTableProps> = ({ rows, currentRow }) => {
             return (
               <tr key={r.id} className="row-hist">
                 <td className="col-year">{fmtDate(r.date)}</td>
-                <td>{r.price_used !== null ? fmt(r.price_used) : '—'}</td>
+                <td className="col-price-cell">
+                  <HistPriceCell row={r} />
+                </td>
                 <td>{r.market_cap !== null ? (r.market_cap / 1_000).toFixed(2) : '—'}</td>
                 <td><MetricBadge
                   value={r.pe_ratio}

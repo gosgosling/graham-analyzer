@@ -15,7 +15,7 @@
         — Мультипликаторы привязанные к конкретному отчёту
 """
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from typing import List, Optional
 
 from app.database import get_db
@@ -29,8 +29,31 @@ from app.schemas import (
 )
 from app.services.analysis import multiplier_service
 from app.services.market import tinvest_price_service
+from app.utils.currency_converter import convert_to_rub
 
 router = APIRouter(tags=["multipliers"])
+
+
+def _multiplier_to_response(
+    m: Multiplier,
+    report_override: Optional[FinancialReport] = None,
+) -> MultiplierResponse:
+    """ORM → API: добавляет дату публикации и цену на эту дату из связанного отчёта."""
+    base = MultiplierResponse.model_validate(m)
+    filing_date = None
+    price_at_filing_rub = None
+    rep = report_override if report_override is not None else m.report
+    if rep is not None:
+        filing_date = rep.filing_date
+        if rep.price_at_filing is not None:
+            rate = float(rep.exchange_rate) if rep.exchange_rate is not None else None
+            rub = convert_to_rub(float(rep.price_at_filing), rep.currency or "RUB", rate)
+            if rub is not None:
+                price_at_filing_rub = round(rub, 4)
+    return base.model_copy(update={
+        "filing_date": filing_date,
+        "price_at_filing_rub": price_at_filing_rub,
+    })
 
 
 # ---------------------------------------------------------------------------
@@ -149,7 +172,7 @@ def get_multipliers_history(
         mult_type=type,
         limit=limit,
     )
-    return history
+    return [_multiplier_to_response(m) for m in history]
 
 
 # ---------------------------------------------------------------------------
@@ -179,6 +202,7 @@ def get_report_multipliers(
     # Ищем кэш
     cached: Optional[Multiplier] = (
         db.query(Multiplier)
+        .options(joinedload(Multiplier.report))
         .filter(
             Multiplier.report_id == report_id,
             Multiplier.type == "report_based",
@@ -187,7 +211,7 @@ def get_report_multipliers(
     )
 
     if cached:
-        return cached
+        return _multiplier_to_response(cached)
 
     # Не нашли — вычисляем и сохраняем
     saved = multiplier_service.save_report_based_multiplier(db=db, report=report)
@@ -199,7 +223,7 @@ def get_report_multipliers(
                 "(нужны цена акции и количество акций)."
             ),
         )
-    return saved
+    return _multiplier_to_response(saved, report_override=report)
 
 
 # ---------------------------------------------------------------------------

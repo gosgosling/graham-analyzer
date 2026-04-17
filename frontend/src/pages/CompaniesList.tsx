@@ -1,10 +1,19 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { getCompanies, createFinancialReport, getCompanyReports, updateFinancialReport, refreshCompanyMultipliers } from '../services';
+import {
+  getCompanies,
+  createFinancialReport,
+  getCompanyReports,
+  updateFinancialReport,
+  refreshCompanyMultipliers,
+  getUnverifiedCountsByCompany,
+  verifyReport,
+} from '../services';
 import { Company, FinancialReportCreate, FinancialReport } from '../types';
 import ReportForm from '../components/ReportForm';
 import TInvestSyncBar from '../components/TInvestSyncBar';
+import VerificationBadge from '../components/VerificationBadge';
 import './SecuritiesList.css';
 import './CompaniesList.css';
 
@@ -41,6 +50,25 @@ const CompaniesList: React.FC = () => {
   const { data: companies, isLoading, error } = useQuery({
     queryKey: ['companies'],
     queryFn: getCompanies
+  });
+
+  const { data: unverifiedCounts } = useQuery({
+    queryKey: ['reports-unverified-counts'],
+    queryFn: getUnverifiedCountsByCompany,
+    staleTime: 30_000,
+  });
+
+  const verifyReportMutation = useMutation({
+    mutationFn: (reportId: number) => verifyReport(reportId),
+    onSuccess: (updated) => {
+      queryClient.invalidateQueries({ queryKey: ['reports'] });
+      queryClient.invalidateQueries({ queryKey: ['reports-unverified-counts'] });
+      setSelectedReport(updated);
+    },
+    onError: (err: any) => {
+      const d = err?.response?.data?.detail;
+      alert(typeof d === 'string' ? d : 'Не удалось подтвердить отчёт');
+    },
   });
 
   const createReportMutation = useMutation({
@@ -153,7 +181,28 @@ const CompaniesList: React.FC = () => {
                       </button>
                     </td>
                     <td className="ticker-cell">{company.ticker}</td>
-                    <td className="name-cell">{company.name}</td>
+                    <td className="name-cell">
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                        {company.name}
+                        {company.id && unverifiedCounts && unverifiedCounts[company.id] > 0 && (
+                          <span
+                            title={`${unverifiedCounts[company.id]} отчётов требуют проверки`}
+                            style={{
+                              background: '#fff7e6',
+                              border: '1px solid #ffd591',
+                              color: '#ad6800',
+                              fontSize: 11,
+                              fontWeight: 600,
+                              padding: '1px 7px',
+                              borderRadius: 10,
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            🤖 {unverifiedCounts[company.id]}
+                          </span>
+                        )}
+                      </span>
+                    </td>
                     <td className="isin-cell">{company.isin || '-'}</td>
                     <td>{company.sector || '-'}</td>
                     <td className="currency-cell">{company.currency}</td>
@@ -210,6 +259,8 @@ const CompaniesList: React.FC = () => {
             setEditingReport(report);
             setSelectedReport(null);
           }}
+          onVerify={(reportId) => verifyReportMutation.mutate(reportId)}
+          verifyPending={verifyReportMutation.isPending}
         />
       )}
 
@@ -279,7 +330,15 @@ const CompanyReportsSection: React.FC<CompanyReportsSectionProps> = ({
                 ? 'Полугодовой'
                 : `Q${report.fiscal_quarter}`;
             return (
-            <div key={report.id} className="report-item">
+            <div
+              key={report.id}
+              className="report-item"
+              style={
+                report.verified_by_analyst === false
+                  ? { background: '#fffbe6', borderLeft: '3px solid #ffa940' }
+                  : undefined
+              }
+            >
               <div className="report-info">
                 <span className="report-year">{report.fiscal_year}</span>
                 <span className="report-period">{periodLabel}</span>
@@ -288,6 +347,11 @@ const CompanyReportsSection: React.FC<CompanyReportsSectionProps> = ({
                 {report.dividends_paid && (
                   <span className="report-dividend">💵</span>
                 )}
+                <VerificationBadge
+                  autoExtracted={report.auto_extracted}
+                  verifiedByAnalyst={report.verified_by_analyst}
+                  compact
+                />
               </div>
               <button
                 onClick={() => onViewReport(report)}
@@ -318,10 +382,18 @@ interface ReportDetailModalProps {
   report: FinancialReport;
   onClose: () => void;
   onEdit?: (report: FinancialReport) => void;
+  onVerify?: (reportId: number) => void;
+  verifyPending?: boolean;
 }
 
 // Тот же полный компонент, что и в CompanyDetail
-const ReportDetailModal: React.FC<ReportDetailModalProps> = ({ report, onClose, onEdit }) => {
+const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
+  report,
+  onClose,
+  onEdit,
+  onVerify,
+  verifyPending,
+}) => {
   const cur = report.currency;
   const isUsd = cur === 'USD';
 
@@ -346,7 +418,13 @@ const ReportDetailModal: React.FC<ReportDetailModalProps> = ({ report, onClose, 
       <div className="report-detail-container" onClick={(e) => e.stopPropagation()}>
         <div className="report-detail-header">
           <div>
-            <h2>📊 Финансовый отчет</h2>
+            <h2 style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              📊 Финансовый отчет
+              <VerificationBadge
+                autoExtracted={report.auto_extracted}
+                verifiedByAnalyst={report.verified_by_analyst}
+              />
+            </h2>
             <p className="report-detail-subtitle">
               {report.fiscal_year} · {periodLabel} · {report.accounting_standard}
             </p>
@@ -355,6 +433,53 @@ const ReportDetailModal: React.FC<ReportDetailModalProps> = ({ report, onClose, 
         </div>
 
         <div className="report-detail-content">
+          {report.verified_by_analyst === false && (
+            <div
+              className="detail-section"
+              style={{
+                background: '#fff7e6',
+                border: '1px solid #ffd591',
+                borderRadius: 8,
+                padding: 14,
+              }}
+            >
+              <h3 style={{ color: '#ad6800', marginTop: 0 }}>
+                {report.auto_extracted ? '🤖 Черновик AI-парсера' : '⚠ Требует проверки'}
+              </h3>
+              <p style={{ margin: '4px 0', color: '#874d00', fontSize: 13 }}>
+                Отчёт ещё не подтверждён аналитиком.
+                {report.extraction_model && (
+                  <>
+                    {' '}Создан моделью <code>{report.extraction_model}</code>.
+                  </>
+                )}
+              </p>
+              {report.extraction_notes && (
+                <details style={{ marginTop: 8 }}>
+                  <summary style={{ cursor: 'pointer', fontSize: 13, fontWeight: 500, color: '#874d00' }}>
+                    Заметки модели
+                  </summary>
+                  <pre
+                    style={{
+                      margin: '8px 0 0',
+                      padding: 10,
+                      background: 'white',
+                      border: '1px solid #ffd591',
+                      borderRadius: 4,
+                      fontSize: 12,
+                      color: '#2c3e50',
+                      whiteSpace: 'pre-wrap',
+                      wordBreak: 'break-word',
+                      maxHeight: 220,
+                      overflowY: 'auto',
+                    }}
+                  >
+                    {report.extraction_notes}
+                  </pre>
+                </details>
+              )}
+            </div>
+          )}
           <div className="detail-section">
             <h3>Атрибуты отчёта</h3>
             <div className="detail-grid">
@@ -488,6 +613,17 @@ const ReportDetailModal: React.FC<ReportDetailModalProps> = ({ report, onClose, 
             Добавлен: {report.created_at ? new Date(report.created_at).toLocaleDateString('ru-RU') : '—'}
           </span>
           <div className="report-detail-footer-actions">
+            {onVerify && report.verified_by_analyst === false && (
+              <button
+                onClick={() => onVerify(report.id)}
+                className="btn-edit-report"
+                disabled={verifyPending}
+                style={{ background: '#52c41a', color: 'white', border: 'none' }}
+                title="Подтвердить, что отчёт проверен"
+              >
+                {verifyPending ? 'Подтверждаем…' : '✓ Подтвердить'}
+              </button>
+            )}
             {onEdit && (
               <button onClick={() => onEdit(report)} className="btn-edit-report">
                 ✏️ Редактировать

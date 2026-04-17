@@ -7,10 +7,13 @@ import {
   createFinancialReport,
   updateFinancialReport,
   refreshCompanyMultipliers,
+  verifyReport,
 } from '../services';
 import { FinancialReport, FinancialReportCreate } from '../types';
 import MultipliersPanel from '../components/MultipliersPanel';
 import ReportForm from '../components/ReportForm';
+import VerificationBadge from '../components/VerificationBadge';
+import AiParsePdfModal from '../components/AiParsePdfModal';
 import { shadeHex, isLightBrandHex, isNeutralBrandForHero } from '../utils/brandColor';
 import { getCompanyLogoCandidates } from '../utils/companyLogo';
 import './CompanyDetail.css';
@@ -24,6 +27,7 @@ const CompanyDetail: React.FC = () => {
   const [selectedReport, setSelectedReport] = useState<FinancialReport | null>(null);
   const [editingReport, setEditingReport] = useState<FinancialReport | null>(null);
   const [showAddReportForm, setShowAddReportForm] = useState(false);
+  const [aiParseMode, setAiParseMode] = useState<'create' | 'compare' | null>(null);
   // Состояние раздела отчётов
   const [reportsExpanded, setReportsExpanded] = useState(true);
   const [reportPeriodFilter, setReportPeriodFilter] = useState<ReportPeriodFilter>('annual');
@@ -72,6 +76,19 @@ const CompanyDetail: React.FC = () => {
     },
   });
 
+  const verifyReportMutation = useMutation({
+    mutationFn: (reportId: number) => verifyReport(reportId),
+    onSuccess: (updated) => {
+      queryClient.invalidateQueries({ queryKey: ['reports', companyId] });
+      queryClient.invalidateQueries({ queryKey: ['reports-unverified-counts'] });
+      setSelectedReport(updated);
+    },
+    onError: (err: any) => {
+      const d = err?.response?.data?.detail;
+      alert(typeof d === 'string' ? d : 'Не удалось подтвердить отчёт');
+    },
+  });
+
   const { data: company, isLoading: companyLoading, error: companyError } = useQuery({
     queryKey: ['company', companyId],
     queryFn: () => getCompanyById(Number(companyId)),
@@ -89,6 +106,11 @@ const CompanyDetail: React.FC = () => {
     if (!reports) return [];
     return Array.from(new Set(reports.map((r) => r.accounting_standard).filter(Boolean)));
   }, [reports]);
+
+  const unverifiedCount = useMemo(
+    () => (reports || []).filter((r) => r.verified_by_analyst === false).length,
+    [reports],
+  );
 
   // Отфильтрованные отчёты — хук должен быть до любых return
   const filteredReports = useMemo(() => {
@@ -329,14 +351,54 @@ const CompanyDetail: React.FC = () => {
                   }
                 }}
               >
-                <h2 className="card-title" style={{ margin: 0, paddingBottom: 0, borderBottom: 'none' }}>
+                <h2 className="card-title" style={{ margin: 0, paddingBottom: 0, borderBottom: 'none', display: 'flex', alignItems: 'center', gap: 8 }}>
                   📋 Финансовые отчеты
                   {reports && reports.length > 0 && (
                     <span className="reports-count-badge">{reports.length}</span>
                   )}
+                  {unverifiedCount > 0 && (
+                    <span
+                      title={`${unverifiedCount} отчётов требуют проверки аналитиком`}
+                      style={{
+                        background: '#fff7e6',
+                        border: '1px solid #ffd591',
+                        color: '#ad6800',
+                        fontSize: 11,
+                        fontWeight: 600,
+                        padding: '2px 8px',
+                        borderRadius: 12,
+                      }}
+                    >
+                      🤖 {unverifiedCount} не проверено
+                    </span>
+                  )}
                 </h2>
               </div>
               <div className="reports-card-header-actions">
+                <button
+                  type="button"
+                  className="btn-add-report-inline"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setAiParseMode('create');
+                    setReportsExpanded(true);
+                  }}
+                  title="Загрузить PDF и автоматически заполнить поля через LLM"
+                >
+                  🤖 Загрузить PDF
+                </button>
+                <button
+                  type="button"
+                  className="btn-add-report-inline"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setAiParseMode('compare');
+                    setReportsExpanded(true);
+                  }}
+                  title="Прогнать PDF через модель и сравнить с уже имеющимся отчётом. Ничего не пишется в БД."
+                >
+                  🔍 Сравнить PDF
+                </button>
                 <button
                   type="button"
                   className="btn-add-report-inline"
@@ -432,8 +494,20 @@ const CompanyDetail: React.FC = () => {
                               : pt === 'semi_annual'
                               ? 'Полугодовой'
                               : `Q${report.fiscal_quarter}`;
+                            const needsVerification = report.verified_by_analyst === false;
                             return (
-                              <div key={report.id} className="report-compact-item">
+                              <div
+                                key={report.id}
+                                className="report-compact-item"
+                                style={
+                                  needsVerification
+                                    ? {
+                                        background: '#fffbe6',
+                                        borderLeft: '3px solid #ffa940',
+                                      }
+                                    : undefined
+                                }
+                              >
                                 <div className="report-compact-info">
                                   <span className="report-compact-year">{report.fiscal_year}</span>
                                   <span className="report-compact-period">{periodLabel}</span>
@@ -444,6 +518,10 @@ const CompanyDetail: React.FC = () => {
                                     {report.dividends_paid && (
                                       <span className="report-compact-dividend">💵</span>
                                     )}
+                                    <VerificationBadge
+                                      autoExtracted={report.auto_extracted}
+                                      verifiedByAnalyst={report.verified_by_analyst}
+                                    />
                                   </div>
                                 </div>
                                 <button
@@ -583,6 +661,19 @@ const CompanyDetail: React.FC = () => {
             setEditingReport(report);
             setSelectedReport(null);
           }}
+          onVerify={(reportId) => verifyReportMutation.mutate(reportId)}
+          verifyPending={verifyReportMutation.isPending}
+        />
+      )}
+
+      {/* Модалка AI-парсинга PDF (create или compare) */}
+      {aiParseMode && company && (
+        <AiParsePdfModal
+          companyId={Number(companyId)}
+          companyName={company.name}
+          ticker={company.ticker}
+          initialMode={aiParseMode}
+          onClose={() => setAiParseMode(null)}
         />
       )}
 
@@ -592,6 +683,7 @@ const CompanyDetail: React.FC = () => {
           companyId={Number(companyId)}
           companyName={company.name}
           ticker={company.ticker}
+          sector={company.sector}
           onSubmit={async (data) => {
             await createReportMutation.mutateAsync(data);
           }}
@@ -605,6 +697,7 @@ const CompanyDetail: React.FC = () => {
           companyId={Number(companyId)}
           companyName={company.name}
           ticker={company.ticker}
+          sector={company.sector}
           reportId={editingReport.id}
           initialValues={{
             ...editingReport,
@@ -626,9 +719,17 @@ interface ReportDetailModalProps {
   report: FinancialReport;
   onClose: () => void;
   onEdit?: (report: FinancialReport) => void;
+  onVerify?: (reportId: number) => void;
+  verifyPending?: boolean;
 }
 
-const ReportDetailModal: React.FC<ReportDetailModalProps> = ({ report, onClose, onEdit }) => {
+const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
+  report,
+  onClose,
+  onEdit,
+  onVerify,
+  verifyPending,
+}) => {
   const cur = report.currency;
   const isUsd = cur === 'USD';
 
@@ -654,7 +755,13 @@ const ReportDetailModal: React.FC<ReportDetailModalProps> = ({ report, onClose, 
       <div className="report-detail-container" onClick={(e) => e.stopPropagation()}>
         <div className="report-detail-header">
           <div>
-            <h2>📊 Финансовый отчет</h2>
+            <h2 style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              📊 Финансовый отчет
+              <VerificationBadge
+                autoExtracted={report.auto_extracted}
+                verifiedByAnalyst={report.verified_by_analyst}
+              />
+            </h2>
             <p className="report-detail-subtitle">
               {report.fiscal_year} · {periodLabel} · {report.accounting_standard}
               {report.consolidated ? ' · Консолидированный' : ''}
@@ -664,6 +771,57 @@ const ReportDetailModal: React.FC<ReportDetailModalProps> = ({ report, onClose, 
         </div>
 
         <div className="report-detail-content">
+          {/* AI-блок: предупреждение и заметки модели */}
+          {report.verified_by_analyst === false && (
+            <div
+              className="detail-section"
+              style={{
+                background: '#fff7e6',
+                border: '1px solid #ffd591',
+                borderRadius: 8,
+                padding: 14,
+              }}
+            >
+              <h3 style={{ color: '#ad6800', marginTop: 0 }}>
+                {report.auto_extracted ? '🤖 Черновик AI-парсера' : '⚠ Требует проверки'}
+              </h3>
+              <p style={{ margin: '4px 0', color: '#874d00', fontSize: 13 }}>
+                Отчёт ещё не подтверждён аналитиком.
+                {report.extraction_model && (
+                  <>
+                    {' '}Создан моделью <code>{report.extraction_model}</code>.
+                  </>
+                )}{' '}
+                Сверьте значения с PDF и нажмите «Подтвердить» в футере этого окна
+                (или отредактируйте через «Редактировать» — сохранение формы тоже помечает отчёт как проверенный).
+              </p>
+              {report.extraction_notes && (
+                <details style={{ marginTop: 8 }}>
+                  <summary style={{ cursor: 'pointer', fontSize: 13, fontWeight: 500, color: '#874d00' }}>
+                    Заметки модели
+                  </summary>
+                  <pre
+                    style={{
+                      margin: '8px 0 0',
+                      padding: 10,
+                      background: 'white',
+                      border: '1px solid #ffd591',
+                      borderRadius: 4,
+                      fontSize: 12,
+                      color: '#2c3e50',
+                      whiteSpace: 'pre-wrap',
+                      wordBreak: 'break-word',
+                      maxHeight: 220,
+                      overflowY: 'auto',
+                    }}
+                  >
+                    {report.extraction_notes}
+                  </pre>
+                </details>
+              )}
+            </div>
+          )}
+
           {/* Период и даты */}
           <div className="detail-section">
             <h3>Атрибуты отчёта</h3>
@@ -822,6 +980,21 @@ const ReportDetailModal: React.FC<ReportDetailModalProps> = ({ report, onClose, 
             Добавлен: {report.created_at ? new Date(report.created_at).toLocaleDateString('ru-RU') : '—'}
           </span>
           <div className="report-detail-footer-actions">
+            {onVerify && report.verified_by_analyst === false && (
+              <button
+                onClick={() => onVerify(report.id)}
+                className="btn-edit-report"
+                disabled={verifyPending}
+                style={{
+                  background: '#52c41a',
+                  color: 'white',
+                  border: 'none',
+                }}
+                title="Подтвердить, что отчёт проверен аналитиком"
+              >
+                {verifyPending ? 'Подтверждаем…' : '✓ Подтвердить'}
+              </button>
+            )}
             {onEdit && (
               <button onClick={() => onEdit(report)} className="btn-edit-report">
                 ✏️ Редактировать
