@@ -148,11 +148,27 @@ const FormattedInput: React.FC<FormattedInputProps> = ({
     );
 };
 
+/**
+ * Определяет тип отрасли по строке сектора (зеркалит логику бэкенда sector_to_report_type).
+ * Используется только для отображения бейджа — реальный report_type всегда берётся из БД.
+ */
+function detectReportTypeFromSector(sector?: string | null): 'bank' | 'general' {
+    if (!sector) return 'general';
+    const s = sector.trim().toLowerCase();
+    const bankKeywords = ['banks', 'bank', 'banking', 'financials', 'financial', 'financial_services', 'финансы', 'банки', 'банк'];
+    for (const kw of bankKeywords) {
+        if (s === kw || s.includes(kw)) return 'bank';
+    }
+    return 'general';
+}
+
 interface ReportFormProps {
     companyId: number;
     companyName: string;
     /** Тикер (SECID) на Мосбирже для автоматической загрузки цены и акций */
     ticker?: string;
+    /** Сектор компании из T-Invest API — используется для авто-определения типа отрасли */
+    sector?: string | null;
     /** Если передан — форма работает в режиме редактирования, поля предзаполняются */
     initialValues?: Partial<FinancialReportCreate>;
     /** ID редактируемого отчёта (для заголовка и метаданных) */
@@ -313,7 +329,9 @@ const PriceFetchBadge: React.FC<{ state: PriceFetchState; requestedDate: string 
     return null;
 };
 
-const ReportForm: React.FC<ReportFormProps> = ({ companyId, companyName, ticker, initialValues, reportId, onSubmit, onCancel }) => {
+const ReportForm: React.FC<ReportFormProps> = ({ companyId, companyName, ticker, sector, initialValues, reportId, onSubmit, onCancel }) => {
+    const detectedReportType = detectReportTypeFromSector(sector);
+    const isBank = detectedReportType === 'bank';
     const isEditMode = !!reportId;
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -355,6 +373,10 @@ const ReportForm: React.FC<ReportFormProps> = ({ companyId, companyName, ticker,
         equity: null,
         dividends_per_share: null,
         dividends_paid: false,
+        net_interest_income: null,
+        fee_commission_income: null,
+        operating_expenses: null,
+        provisions: null,
         currency: 'RUB',
         exchange_rate: null,
     };
@@ -645,7 +667,22 @@ const ReportForm: React.FC<ReportFormProps> = ({ companyId, companyName, ticker,
                                     <option value="OTHER">Другой</option>
                                 </select>
                             </label>
-                            
+
+                            <div className="form-label">
+                                Тип отрасли:
+                                <div className={`sector-type-badge sector-type-badge--${detectedReportType}`}>
+                                    {detectedReportType === 'bank'
+                                        ? '🏦 Банк / финансовый институт'
+                                        : '🏭 Промышленная / нефтегаз / ритейл'}
+                                </div>
+                                <small className="field-hint">
+                                    Определяется автоматически по сектору компании
+                                    {sector ? ` (сектор: ${sector})` : ' (сектор не указан)'}
+                                </small>
+                            </div>
+                        </div>
+
+                        <div className="form-row">
                             <label className="form-label checkbox-label">
                                 <input
                                     type="checkbox"
@@ -826,13 +863,26 @@ const ReportForm: React.FC<ReportFormProps> = ({ companyId, companyName, ticker,
                     {/* Отчет о прибылях и убытках */}
                     <div className="form-section">
                         <h3>
-                            Отчёт о прибылях и убытках
+                            {isBank
+                                ? 'Отчёт о прибылях и убытках (банк)'
+                                : 'Отчёт о прибылях и убытках'}
                             <span className="section-units-hint">млн {formData.currency}</span>
                         </h3>
+
+                        {isBank && (
+                            <div className="bank-info-banner">
+                                <strong>Банковский режим:</strong> поле «Операционный доход (итого)» ниже
+                                соответствует сумме всех доходных статей (NII + комиссии + трейдинг + прочее)
+                                и используется как аналог выручки для расчёта мультипликаторов.
+                                Детализацию доходов вводите в секции «Банковские показатели».
+                            </div>
+                        )}
                         
                         <div className="form-row">
                             <label className="form-label">
-                                Выручка, млн {formData.currency}:
+                                {isBank
+                                    ? `Операционный доход (итого), млн ${formData.currency}:`
+                                    : `Выручка, млн ${formData.currency}:`}
                                 <FormattedInput
                                     name="revenue"
                                     numericValue={formData.revenue}
@@ -840,7 +890,11 @@ const ReportForm: React.FC<ReportFormProps> = ({ companyId, companyName, ticker,
                                     placeholder="например: 1 459 000"
                                     className="form-input form-input-thousands"
                                 />
-                                <small className="field-hint">Сумма в миллионах; тысячи можно отделять пробелом</small>
+                                <small className="field-hint">
+                                    {isBank
+                                        ? 'Сумма NII + комиссии + торговые доходы + прочие операционные доходы'
+                                        : 'Сумма в миллионах; тысячи можно отделять пробелом'}
+                                </small>
                             </label>
                             
                             <label className="form-label">
@@ -852,7 +906,7 @@ const ReportForm: React.FC<ReportFormProps> = ({ companyId, companyName, ticker,
                                     placeholder="например: 50 000 (убыток: -5 000)"
                                     className="form-input form-input-thousands"
                                 />
-                                <small className="field-hint">Сумма в миллионах; отрицательное = убыток; тысячи можно разделять пробелом</small>
+                                <small className="field-hint">Сумма в миллионах; отрицательное = убыток</small>
                             </label>
                         </div>
                         <div className="form-row">
@@ -871,6 +925,74 @@ const ReportForm: React.FC<ReportFormProps> = ({ companyId, companyName, ticker,
                             </label>
                         </div>
                     </div>
+
+                    {/* Банковские показатели (только для банков) */}
+                    {isBank && (
+                        <div className="form-section form-section-bank">
+                            <h3>
+                                Банковские показатели
+                                <span className="section-units-hint">млн {formData.currency}</span>
+                            </h3>
+                            <p className="section-description">
+                                Детализация доходов и расходов из отчёта о прибылях и убытках банка.
+                                Все поля необязательны — заполняйте, что есть в отчёте.
+                            </p>
+
+                            <div className="form-row">
+                                <label className="form-label">
+                                    Чистые процентные доходы (NII), млн {formData.currency}:
+                                    <FormattedInput
+                                        name="net_interest_income"
+                                        numericValue={formData.net_interest_income}
+                                        onNumericChange={handleNumericChange}
+                                        placeholder="например: 800 000"
+                                        className="form-input form-input-thousands"
+                                    />
+                                    <small className="field-hint">Процентные доходы минус процентные расходы</small>
+                                </label>
+
+                                <label className="form-label">
+                                    Чистые комиссионные доходы, млн {formData.currency}:
+                                    <FormattedInput
+                                        name="fee_commission_income"
+                                        numericValue={formData.fee_commission_income}
+                                        onNumericChange={handleNumericChange}
+                                        placeholder="например: 200 000"
+                                        className="form-input form-input-thousands"
+                                    />
+                                    <small className="field-hint">Комиссионные доходы минус комиссионные расходы</small>
+                                </label>
+                            </div>
+
+                            <div className="form-row">
+                                <label className="form-label">
+                                    Операционные расходы (до резервов), млн {formData.currency}:
+                                    <FormattedInput
+                                        name="operating_expenses"
+                                        numericValue={formData.operating_expenses}
+                                        onNumericChange={handleNumericChange}
+                                        placeholder="например: 500 000"
+                                        className="form-input form-input-thousands"
+                                    />
+                                    <small className="field-hint">
+                                        Используется для расчёта Cost-to-Income ratio (CIR = OpEx / OpIncome × 100%)
+                                    </small>
+                                </label>
+
+                                <label className="form-label">
+                                    Резервы под обесценение кредитов, млн {formData.currency}:
+                                    <FormattedInput
+                                        name="provisions"
+                                        numericValue={formData.provisions}
+                                        onNumericChange={handleNumericChange}
+                                        placeholder="например: 150 000"
+                                        className="form-input form-input-thousands"
+                                    />
+                                    <small className="field-hint">Charge for credit losses / loan loss provisions</small>
+                                </label>
+                            </div>
+                        </div>
+                    )}
                     
                     {/* Балансовые показатели */}
                     <div className="form-section">
@@ -879,6 +1001,13 @@ const ReportForm: React.FC<ReportFormProps> = ({ companyId, companyName, ticker,
                             <span className="section-units-hint">млн {formData.currency}</span>
                         </h3>
                         
+                        {isBank && (
+                            <p className="section-description">
+                                Для банков оборотные активы и краткосрочные обязательства не заполняются —
+                                эти понятия неприменимы к банковскому балансу.
+                            </p>
+                        )}
+
                         <div className="form-row">
                             <label className="form-label">
                                 Всего активов, млн {formData.currency}:
@@ -889,18 +1018,23 @@ const ReportForm: React.FC<ReportFormProps> = ({ companyId, companyName, ticker,
                                     placeholder="например: 500 000"
                                     className="form-input form-input-thousands"
                                 />
+                                {isBank && (
+                                    <small className="field-hint">Кредитный портфель + ценные бумаги + прочие активы</small>
+                                )}
                             </label>
-                            
-                            <label className="form-label">
-                                Оборотные активы, млн {formData.currency}:
-                                <FormattedInput
-                                    name="current_assets"
-                                    numericValue={formData.current_assets}
-                                    onNumericChange={handleNumericChange}
-                                    placeholder="например: 200 000"
-                                    className="form-input form-input-thousands"
-                                />
-                            </label>
+
+                            {!isBank && (
+                                <label className="form-label">
+                                    Оборотные активы, млн {formData.currency}:
+                                    <FormattedInput
+                                        name="current_assets"
+                                        numericValue={formData.current_assets}
+                                        onNumericChange={handleNumericChange}
+                                        placeholder="например: 200 000"
+                                        className="form-input form-input-thousands"
+                                    />
+                                </label>
+                            )}
                         </div>
                         
                         <div className="form-row">
@@ -913,18 +1047,23 @@ const ReportForm: React.FC<ReportFormProps> = ({ companyId, companyName, ticker,
                                     placeholder="например: 250 000"
                                     className="form-input form-input-thousands"
                                 />
+                                {isBank && (
+                                    <small className="field-hint">Депозиты клиентов + привлечённые средства + прочие обязательства</small>
+                                )}
                             </label>
-                            
-                            <label className="form-label">
-                                Краткосрочные обязательства, млн {formData.currency}:
-                                <FormattedInput
-                                    name="current_liabilities"
-                                    numericValue={formData.current_liabilities}
-                                    onNumericChange={handleNumericChange}
-                                    placeholder="например: 80 000"
-                                    className="form-input form-input-thousands"
-                                />
-                            </label>
+
+                            {!isBank && (
+                                <label className="form-label">
+                                    Краткосрочные обязательства, млн {formData.currency}:
+                                    <FormattedInput
+                                        name="current_liabilities"
+                                        numericValue={formData.current_liabilities}
+                                        onNumericChange={handleNumericChange}
+                                        placeholder="например: 80 000"
+                                        className="form-input form-input-thousands"
+                                    />
+                                </label>
+                            )}
                         </div>
                         
                         <div className="form-row">

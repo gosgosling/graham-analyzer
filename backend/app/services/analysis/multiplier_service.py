@@ -12,7 +12,7 @@ import logging
 from datetime import date, datetime, timezone
 from typing import Optional, List, Dict, Tuple
 
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.models.financial_report import FinancialReport
 from app.models.multiplier import Multiplier
@@ -117,10 +117,23 @@ def get_ltm_data(db: Session, company_id: int) -> Optional[Dict]:
         ltm_dividends = sum_rub(reports_available, "dividends_per_share")
         source = f"quarterly_{len(reports_available)}"
 
+    # Дополнительные банковские LTM-показатели (суммируем если report_type = "bank")
+    is_bank = getattr(latest, "report_type", "general") == "bank"
+    ltm_net_interest_income = None
+    ltm_fee_commission_income = None
+    if is_bank:
+        reports_for_bank = quarterly if len(quarterly) == 4 else (
+            [annual] if annual else (quarterly if quarterly else [])
+        )
+        ltm_net_interest_income = sum_rub(reports_for_bank, "net_interest_income")
+        ltm_fee_commission_income = sum_rub(reports_for_bank, "fee_commission_income")
+
     return {
         "ltm_net_income": ltm_net_income,
         "ltm_revenue": ltm_revenue,
         "ltm_dividends_per_share": ltm_dividends,
+        "ltm_net_interest_income": ltm_net_interest_income,
+        "ltm_fee_commission_income": ltm_fee_commission_income,
         "balance_report": latest,
         "source": source,
     }
@@ -258,6 +271,7 @@ def save_current_multiplier(
     existing.debt_to_equity = mults.get("debt_to_equity")  # type: ignore
     existing.current_ratio = mults.get("current_ratio")  # type: ignore
     existing.dividend_yield = mults.get("dividend_yield")  # type: ignore
+    existing.cost_to_income = mults.get("cost_to_income")  # type: ignore
 
     # Балансовые данные из отчёта (в рублях)
     balance_report_id = mults.get("balance_report_id")
@@ -321,6 +335,7 @@ def save_report_based_multiplier(
     existing.debt_to_equity = mults.get("debt_to_equity")  # type: ignore
     existing.current_ratio = mults.get("current_ratio")  # type: ignore
     existing.dividend_yield = mults.get("dividend_yield")  # type: ignore
+    existing.cost_to_income = mults.get("cost_to_income")  # type: ignore
 
     rate = _to_float(report.exchange_rate)
 
@@ -354,7 +369,11 @@ def get_multipliers_history(
         mult_type: Фильтр по типу ("report_based" | "current" | "daily")
         limit: Максимальное количество записей
     """
-    q = db.query(Multiplier).filter(Multiplier.company_id == company_id)
+    q = (
+        db.query(Multiplier)
+        .options(joinedload(Multiplier.report))
+        .filter(Multiplier.company_id == company_id)
+    )
     if mult_type:
         q = q.filter(Multiplier.type == mult_type)
     return q.order_by(Multiplier.date.desc()).limit(limit).all()

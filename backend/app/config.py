@@ -25,7 +25,28 @@ class Settings(BaseSettings):
     
     # Tinkoff Invest API
     TINKOFF_TOKEN: str = "your_token_here"
-    
+
+    # ─── LLM для AI-парсера финансовых отчётов ───
+    # Один OpenAI-совместимый API работает с OpenAI / Ollama / OpenRouter.
+    LLM_PROVIDER: str = "openai"  # openai | ollama | openrouter
+    LLM_BASE_URL: str = "https://api.openai.com/v1"
+    LLM_API_KEY: str = ""
+    LLM_MODEL: str = "gpt-4o-mini"
+    LLM_TEMPERATURE: float = 0.0
+    LLM_REQUEST_TIMEOUT: int = 600
+
+    @property
+    def llm_configured(self) -> bool:
+        """LLM настроен? Для Ollama api_key может быть пустым, base_url указан."""
+        if self.LLM_PROVIDER.lower() == "ollama":
+            return bool(self.LLM_BASE_URL and self.LLM_MODEL)
+        return bool(self.LLM_API_KEY and self.LLM_MODEL)
+
+    @property
+    def extraction_model_label(self) -> str:
+        """Идентификатор модели для колонки `financial_reports.extraction_model`."""
+        return f"{self.LLM_PROVIDER}:{self.LLM_MODEL}"
+
     @property
     def database_url(self) -> str:
         """Возвращает DATABASE_URL из .env или формирует из компонентов"""
