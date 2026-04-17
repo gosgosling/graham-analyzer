@@ -27,17 +27,24 @@ def calculate_multipliers(
     """
     Рассчитывает финансовые мультипликаторы.
 
+    Поведение зависит от report.report_type:
+    - "general": стандартный набор (P/E, P/B, ROE, D/E, Current Ratio, Dividend Yield)
+    - "bank": банковский набор (P/E, P/B, ROE, Dividend Yield, Cost-to-Income)
+              D/E и Current Ratio не рассчитываются — для банков не применимы.
+
     Args:
         report: Финансовый отчёт (источник балансовых данных и валюты)
         override_price: Переопределить цену акции (в полных ₽/$ за акцию)
         override_shares: Переопределить количество акций
         ltm_net_income: LTM чистая прибыль в млн валюты отчёта (None → из отчёта)
-        ltm_revenue: LTM выручка в млн валюты отчёта (None → из отчёта)
+        ltm_revenue: LTM выручка / Total Operating Income в млн (None → из отчёта)
         ltm_dividends_per_share: LTM дивиденды на акцию в ₽/$ (None → из отчёта)
 
     Returns:
         Словарь с мультипликаторами. market_cap — в МИЛЛИОНАХ рублей.
     """
+    is_bank = getattr(report, 'report_type', 'general') == 'bank'
+
     rate = float(report.exchange_rate) if report.exchange_rate else None
     currency = report.currency
 
@@ -78,7 +85,6 @@ def calculate_multipliers(
         market_cap_mln = round(market_cap_full / MILLION, 3)
 
     # P/E = Market Cap (полн. руб.) / Net Income (полн. руб.)
-    # Net Income (полн.) = net_income_mln * MILLION
     pe_ratio: Optional[float] = None
     if market_cap_full and net_income_mln and net_income_mln > 0:
         pe_ratio = round(market_cap_full / (net_income_mln * MILLION), 2)
@@ -93,20 +99,37 @@ def calculate_multipliers(
     if net_income_mln is not None and equity_mln and equity_mln != 0:
         roe = round(net_income_mln / equity_mln * 100, 2)
 
-    # Debt/Equity = Total Liabilities / Equity  (миллионы сокращаются)
-    debt_to_equity: Optional[float] = None
-    if total_liabilities_mln and equity_mln and equity_mln != 0:
-        debt_to_equity = round(total_liabilities_mln / equity_mln, 2)
-
-    # Current Ratio = Current Assets / Current Liabilities  (миллионы сокращаются)
-    current_ratio: Optional[float] = None
-    if current_assets_mln and current_liabilities_mln and current_liabilities_mln != 0:
-        current_ratio = round(current_assets_mln / current_liabilities_mln, 2)
-
     # Dividend Yield = Dividends per Share / Price × 100%  (оба в полных рублях)
     dividend_yield: Optional[float] = None
     if dividends_per_share_rub and price_rub and price_rub > 0:
         dividend_yield = round(dividends_per_share_rub / price_rub * 100, 2)
+
+    # ─── Показатели, зависящие от типа отрасли ───────────────────────────────
+    debt_to_equity: Optional[float] = None
+    current_ratio: Optional[float] = None
+    cost_to_income: Optional[float] = None
+
+    if is_bank:
+        # Для банков D/E и Current Ratio не применяются:
+        # депозиты — обязательства по природе, D/E 8-10x — норма.
+        # Вместо них рассчитываем Cost-to-Income (CIR).
+        #
+        # CIR = Operating Expenses / Total Operating Income × 100%
+        # revenue хранит Total Operating Income для банков
+        revenue_for_cir = (
+            to_rub_mln(ltm_revenue) if ltm_revenue is not None
+            else to_rub_mln(report.revenue)
+        )
+        opex_mln = to_rub_mln(report.operating_expenses)
+        if opex_mln and revenue_for_cir and revenue_for_cir > 0:
+            cost_to_income = round(opex_mln / revenue_for_cir * 100, 2)
+    else:
+        # Стандартные показатели для промышленных компаний
+        if total_liabilities_mln and equity_mln and equity_mln != 0:
+            debt_to_equity = round(total_liabilities_mln / equity_mln, 2)
+
+        if current_assets_mln and current_liabilities_mln and current_liabilities_mln != 0:
+            current_ratio = round(current_assets_mln / current_liabilities_mln, 2)
 
     return {
         "pe_ratio": pe_ratio,
@@ -115,7 +138,8 @@ def calculate_multipliers(
         "debt_to_equity": debt_to_equity,
         "current_ratio": current_ratio,
         "dividend_yield": dividend_yield,
-        "market_cap": market_cap_mln,    # млн рублей
+        "cost_to_income": cost_to_income,
+        "market_cap": market_cap_mln,          # млн рублей
         "price_used": round(price_rub, 4) if price_rub else None,  # ₽ за акцию
         "shares_used": shares,
     }

@@ -1,10 +1,10 @@
-from sqlalchemy import ForeignKey, Integer, BigInteger, Numeric, DateTime, Date, String, Enum as SQLEnum, UniqueConstraint
+from sqlalchemy import ForeignKey, Integer, BigInteger, Numeric, DateTime, Date, String, Text, Boolean, Enum as SQLEnum, UniqueConstraint
 from datetime import datetime, date
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 from typing import TYPE_CHECKING, Optional, List
 from app.database import Base
-from app.models.enums import PeriodType, AccountingStandard, ReportSource
+from app.models.enums import PeriodType, AccountingStandard, ReportSource, ReportType
 
 if TYPE_CHECKING:
     from app.models.company import Company
@@ -64,6 +64,13 @@ class FinancialReport(Base):
         default=ReportSource.MANUAL
     )  # Источник данных
 
+    report_type: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        default=ReportType.GENERAL.value,
+        index=True
+    )  # Тип отрасли: general (промышленность) или bank (банки)
+
     # Рыночные данные
     # price_per_share и dividends_per_share — в ПОЛНЫХ единицах валюты (рублях/долларах за акцию)
     # shares_outstanding — полное количество акций
@@ -92,9 +99,40 @@ class FinancialReport(Base):
     dividends_per_share: Mapped[Optional[float]] = mapped_column(Numeric(10, 4), nullable=True)  # Дивиденды на акцию (₽ или $ за акцию)
     dividends_paid: Mapped[Optional[bool]] = mapped_column(default=False)  # выплачивались ли дивиденды в этом периоде
 
+    # ─── Банковские показатели (только для report_type = "bank") ─────────────────
+    # revenue в банковском отчёте = Total Operating Income (сумма всех операц. доходов)
+    # current_assets / current_liabilities остаются NULL для банков (понятие неприменимо)
+    #
+    # Раскладка дохода:
+    net_interest_income: Mapped[Optional[float]] = mapped_column(
+        Numeric(15, 3), nullable=True
+    )  # Чистые процентные доходы (NII), млн
+    fee_commission_income: Mapped[Optional[float]] = mapped_column(
+        Numeric(15, 3), nullable=True
+    )  # Чистые комиссионные доходы, млн
+    operating_expenses: Mapped[Optional[float]] = mapped_column(
+        Numeric(15, 3), nullable=True
+    )  # Операционные расходы (до резервов), млн — для расчёта CIR
+    provisions: Mapped[Optional[float]] = mapped_column(
+        Numeric(15, 3), nullable=True
+    )  # Резервы под обесценение кредитов, млн
+
     # Валюта
     currency: Mapped[str] = mapped_column(String, default="RUB")  # Валюта отчета
     exchange_rate: Mapped[Optional[float]] = mapped_column(Numeric(10, 4), nullable=True)  # Курс на дату отчета
+
+    # ─── Источник данных и верификация ──────────────────────────────────────
+    # auto_extracted = True  → отчёт создан AI-парсером (требует проверки аналитиком)
+    # verified_by_analyst    → отчёт проверен и подтверждён финансовым аналитиком
+    # extraction_notes       → пометки AI о неуверенных полях, пропущенных значениях и т.п.
+    # extraction_model       → какая модель использовалась (например, "qwen2.5:7b" или "gpt-4o-mini")
+    # source_pdf_path        → путь к исходному PDF (для последующего ручного просмотра)
+    auto_extracted: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, index=True)
+    verified_by_analyst: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, index=True)
+    extraction_notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    extraction_model: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    source_pdf_path: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
+    verified_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # Метаданные
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

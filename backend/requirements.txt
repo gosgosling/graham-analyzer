@@ -6,3 +6,9 @@ sqlalchemy==2.0.45
 alembic==1.18.1
 psycopg2-binary==2.9.11
 pydantic-settings==2.12.0
+python-multipart==0.0.20
+
+# AI-парсер финансовых отчётов
+pymupdf==1.24.13
+openai==1.60.0
+tenacity==9.0.0

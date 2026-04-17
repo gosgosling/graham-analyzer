@@ -67,6 +67,9 @@ class Multiplier(Base):
     debt_to_equity: Mapped[Optional[float]] = mapped_column(Numeric(12, 4), nullable=True)
     current_ratio: Mapped[Optional[float]] = mapped_column(Numeric(12, 4), nullable=True)
     dividend_yield: Mapped[Optional[float]] = mapped_column(Numeric(12, 4), nullable=True)
+    # Банковский мультипликатор: Cost-to-Income ratio = Операционные расходы / Операционный доход × 100%
+    # NULL для промышленных компаний
+    cost_to_income: Mapped[Optional[float]] = mapped_column(Numeric(12, 4), nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()

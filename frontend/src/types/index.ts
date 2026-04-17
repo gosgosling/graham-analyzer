@@ -90,9 +90,16 @@ export interface MultiplierRecord {
     debt_to_equity: number | null;
     current_ratio: number | null;
     dividend_yield: number | null;
+    /** Cost-to-Income ratio (%), только для банков */
+    cost_to_income: number | null;
 
     created_at?: string;
     updated_at?: string | null;
+
+    /** Дата публикации отчёта (из financial_reports.filing_date) */
+    filing_date?: string | null;
+    /** Цена на дату публикации, в рублях (из price_at_filing) */
+    price_at_filing_rub?: number | null;
 }
 
 /** Актуальные мультипликаторы, вычисленные на лету */
@@ -118,6 +125,7 @@ export interface CurrentMultipliers {
     debt_to_equity: number | null;
     current_ratio: number | null;
     dividend_yield: number | null;
+    cost_to_income: number | null;
 }
 
 /** GET /companies/sync/status */
@@ -192,7 +200,14 @@ export interface FinancialReportCreate {
     equity?: number | null;
     dividends_per_share?: number | null;
     dividends_paid: boolean;
-    
+
+    // Банковские показатели (заполняются только для банков, определяется автоматически по сектору)
+    // revenue при этом = Total Operating Income (NII + комиссии + трейдинг + прочее)
+    net_interest_income?: number | null;   // Чистые процентные доходы, млн
+    fee_commission_income?: number | null; // Чистые комиссионные доходы, млн
+    operating_expenses?: number | null;    // Операционные расходы (до резервов), млн
+    provisions?: number | null;            // Резервы под обесценение кредитов, млн
+
     // Валюта
     currency: string; // "RUB" или "USD"
     exchange_rate?: number | null; // Обязателен для USD
@@ -214,4 +229,95 @@ export interface FinancialReport extends FinancialReportCreate {
     current_liabilities_rub?: number | null;
     equity_rub?: number | null;
     dividends_per_share_rub?: number | null;
+
+    // ─── AI-парсер / проверка аналитиком ────────────────────────────────
+    /** Был ли отчёт создан автоматически через AI-парсинг PDF */
+    auto_extracted?: boolean;
+    /** Проверен ли отчёт финансовым аналитиком вручную */
+    verified_by_analyst?: boolean;
+    /** Заметки о нюансах извлечения (флаги для аналитика, допущения модели) */
+    extraction_notes?: string | null;
+    /** Идентификатор модели, создавшей черновик (например, 'openai:gpt-4o-mini') */
+    extraction_model?: string | null;
+    /** Путь к исходному PDF (если парсили из CLI) */
+    source_pdf_path?: string | null;
+    /** Когда аналитик отметил отчёт как проверенный */
+    verified_at?: string | null;
+}
+
+/** Ответ эндпоинта POST /reports/parse-pdf */
+export interface ParsePdfResponse {
+    report: FinancialReport;
+    auto_extracted: boolean;
+    extraction_model: string;
+    selected_pages: number;
+    total_pages: number;
+    warnings: string[];
+}
+
+/** Статус настройки LLM (GET /reports/ai/status) */
+export interface LlmStatus {
+    configured: boolean;
+    provider: string;
+    model: string;
+    base_url: string;
+}
+
+/** Статус одного поля в diff-режиме сравнения */
+export type ReportDiffStatus =
+    | 'match'              // совпало
+    | 'close'              // отличается < 1% (обычно округление)
+    | 'mismatch'           // значимое расхождение
+    | 'missing_ai'         // аналитик заполнил, модель не нашла
+    | 'missing_existing'   // модель нашла, аналитик не заполнил
+    | 'both_missing';      // оба пустые
+
+/** Вид поля для форматирования в UI */
+export type ReportFieldKind =
+    | 'money_mln'
+    | 'int'
+    | 'float'
+    | 'bool'
+    | 'str'
+    | 'date';
+
+/** Одно поле в diff-таблице режима сравнения */
+export interface ReportFieldDiff {
+    field: string;
+    label: string;
+    kind: ReportFieldKind;
+    existing_value: number | string | boolean | null;
+    extracted_value: number | string | boolean | null;
+    abs_diff: number | null;
+    pct_diff: number | null;
+    status: ReportDiffStatus;
+    note: string | null;
+}
+
+/** Сводка режима сравнения */
+export interface ComparisonSummary {
+    total_fields: number;
+    matched: number;
+    close: number;
+    mismatched: number;
+    missing_in_ai: number;
+    missing_in_existing: number;
+    both_missing: number;
+    max_pct_diff: number | null;
+}
+
+/** Ответ POST /reports/compare-pdf */
+export interface ComparePdfResponse {
+    ticker: string;
+    fiscal_year: number;
+    report_type: 'general' | 'bank';
+    existing_report_id: number;
+    existing_report_verified: boolean;
+    extraction_model: string;
+    selected_pages: number;
+    total_pages: number;
+    diffs: ReportFieldDiff[];
+    summary: ComparisonSummary;
+    /** Сырой ExtractedReport — «как увидела модель» */
+    extracted: Record<string, unknown>;
 }
