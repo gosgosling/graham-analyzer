@@ -170,25 +170,107 @@ def _resolve_report_date(extracted: ExtractedReport) -> str:
     return f"{extracted.fiscal_year}-12-31"
 
 
-def _build_extraction_notes(
-    extracted: ExtractedReport,
-    pdf_label: str,
-    selected_pages: int,
-    total_pages: int,
-) -> str:
-    """Собрать финальный extraction_notes с техническими метаданными + заметки модели."""
-    header = (
-        f"[AUTO-EXTRACTED | model={settings.extraction_model_label} | "
-        f"pdf={pdf_label} | pages_used={selected_pages}/{total_pages} | "
-        f"scale_in_pdf={extracted.units_scale} | confidence={extracted.confidence or 'n/a'}]"
+# Порог, ниже которого shares_outstanding считается подозрительно малым для
+# крупного публичного эмитента MOEX. Практически все крупные российские эмитенты
+# имеют > 10 млн акций; значения < 10 млн обычно означают, что модель не учла
+# подпись '(тыс. штук)' рядом с таблицей EPS.
+_SUSPICIOUS_SHARES_THRESHOLD = 10_000_000
+
+# «Мягкий» порог — между ним и _SUSPICIOUS_SHARES_THRESHOLD мы НЕ делаем
+# auto-fix (риск false positive для мелких эмитентов типа Транснефти), но пишем
+# предупреждение в extraction_notes: «сверь с MOEX». Русгидро (~444 млрд акций,
+# подано в отчёте '(тыс. штук)' → модель легко может выдать 440 млн) — как раз
+# этот случай.
+_SHARES_SOFT_WARN_THRESHOLD = 1_000_000_000
+
+
+def _auto_fix_money_units(extracted: ExtractedReport) -> tuple[ExtractedReport, Optional[str]]:
+    """
+    Эвристика: модель иногда неверно выставляет `units_scale` даже при Structured
+    Outputs. Например, пишет в `extraction_notes` 'Единицы отчёта — миллиарды
+    рублей', но в enum-поле оставляет 'millions'.
+
+    Если в свободном тексте заметок явно упоминается 'млрд' / 'миллиард' и
+    units_scale != 'billions' — форсируем billions. Аналогично для 'тыс. руб'.
+    """
+    notes = (extracted.extraction_notes or "").lower()
+    if not notes:
+        return extracted, None
+
+    mentions_billions = any(kw in notes for kw in ("млрд", "миллиард", "billion"))
+    mentions_thousands = any(kw in notes for kw in ("тыс. руб", "тыс.руб", "тысяч", "thousand"))
+
+    if mentions_billions and extracted.units_scale != "billions":
+        fixed = extracted.model_copy(update={"units_scale": "billions"})
+        msg = (
+            f"AUTO-FIX: в заметках модели упоминаются 'миллиарды', но "
+            f"units_scale='{extracted.units_scale}'. Принудительно установлено "
+            f"'billions'. Все денежные значения будут × 1000 (в млн)."
+        )
+        logger.warning(msg)
+        return fixed, msg
+
+    if mentions_thousands and extracted.units_scale == "millions":
+        # Более консервативно — только если модель сказала 'millions' а пишет
+        # про тысячи. Не трогаем, если она уже thousands или units.
+        fixed = extracted.model_copy(update={"units_scale": "thousands"})
+        msg = (
+            f"AUTO-FIX: в заметках модели упоминаются 'тыс. руб.', но "
+            f"units_scale='millions'. Принудительно установлено 'thousands'."
+        )
+        logger.warning(msg)
+        return fixed, msg
+
+    return extracted, None
+
+
+def _auto_fix_shares_units(extracted: ExtractedReport) -> tuple[ExtractedReport, Optional[str]]:
+    """
+    Эвристика: если модель вернула shares_outstanding < 10 млн
+    и shares_units_scale='units', почти наверняка она не распознала '(тыс. штук)'.
+    В таком случае форсируем shares_units_scale='thousands' — дальнейший
+    rescale_to_millions умножит на 1000.
+
+    Возвращает (возможно обновлённый report, сообщение для notes или None).
+    """
+    shares = extracted.shares_outstanding
+    if shares is None:
+        return extracted, None
+    if shares <= 0:
+        return extracted, None
+    if extracted.shares_units_scale != "units":
+        # Модель уже указала thousands — rescale справится сам.
+        return extracted, None
+    if shares >= _SUSPICIOUS_SHARES_THRESHOLD:
+        return extracted, None
+
+    fixed = extracted.model_copy(update={"shares_units_scale": "thousands"})
+    msg = (
+        f"AUTO-FIX: shares_outstanding={shares:,} < 10 млн. "
+        f"Модель указала 'units', но это почти наверняка '(тыс. штук)'. "
+        f"Принудительно принято shares_units_scale='thousands', итоговое число "
+        f"× 1000 = {shares * 1000:,}. Проверь в отчёте!"
     )
-    model_notes = (extracted.extraction_notes or "").strip()
+    logger.warning(msg)
+    return fixed, msg
+
+
+def _collect_sanity_warnings(extracted: ExtractedReport) -> list[str]:
+    """Быстрые sanity-checks поверх извлечённых данных.
+
+    Цель — поймать типичные ошибки модели, которые видно по порядку цифр:
+      * не учла тыс. штук в акциях → shares_outstanding слишком маленький;
+      * перепутала млрд ↔ млн → revenue/activa микроскопические для крупной компании;
+      * нормализация прибыли не сделана (net_income == net_income_reported).
+    Предупреждения попадут в extraction_notes и verified_by_analyst=false.
+    """
     warnings: list[str] = []
 
     if extracted.net_income is None:
         warnings.append("net_income не найден — требует ручной проверки")
     if extracted.equity is None:
         warnings.append("equity не найден — требует ручной проверки")
+
     if extracted.report_type == "bank":
         if extracted.revenue is None:
             warnings.append(
@@ -199,6 +281,129 @@ def _build_extraction_notes(
             warnings.append(
                 "current_assets/current_liabilities не найдены — проверить баланс"
             )
+
+    # Проверка количества акций (после auto-fix и rescale — уже в штуках).
+    # Для российских крупных эмитентов на MOEX обычно >= 10 млн акций,
+    # а у флагманов (Сбер, Газпром, ВТБ, Русгидро) — миллиарды.
+    shares = extracted.shares_outstanding
+    if shares is None:
+        warnings.append(
+            "shares_outstanding не найден — бери 'Средневзвешенное количество "
+            "обыкновенных акций' из примечаний к EPS"
+        )
+    elif shares < _SUSPICIOUS_SHARES_THRESHOLD:
+        # Auto-fix не сработал (shares_units_scale уже был 'thousands' и всё
+        # равно получилось < 10 млн) — редкий случай, но всё равно пометим.
+        warnings.append(
+            f"shares_outstanding={shares:,} — ПОДОЗРИТЕЛЬНО МАЛО даже после "
+            f"нормализации единиц. Проверь отчёт вручную."
+        )
+    elif shares < _SHARES_SOFT_WARN_THRESHOLD:
+        # Мягкий уровень: 10M..1B — для мелких/средних эмитентов это норма
+        # (например Транснефть-п: ~1.5M), но для флагманов типа Русгидро или
+        # Сбера это явно 3 «потерянных» нуля. Автоисправление опасно из-за
+        # false-positive, поэтому просим аналитика сверить с MOEX.
+        warnings.append(
+            f"shares_outstanding={shares:,} — между 10 млн и 1 млрд. "
+            f"Для крупных эмитентов (Сбер, Газпром, Русгидро и т.п.) это "
+            f"подозрительно мало: скорее всего AI не учёл '(тыс. штук)' в "
+            f"отчёте. ОБЯЗАТЕЛЬНО сверь с актуальным реестром MOEX "
+            f"(в форме редактирования — кнопка «↺ MOEX»)."
+        )
+
+    # Проверка порядка цифр. Для годового отчёта крупной публичной компании
+    # revenue < 1000 млн руб (< 1 млрд) — крайне маловероятно.
+    revenue_mln = extracted.revenue
+    if revenue_mln is not None and 0 < revenue_mln < 1_000:
+        warnings.append(
+            f"revenue={revenue_mln:.2f} млн — ПОДОЗРИТЕЛЬНО МАЛО для годового "
+            f"отчёта крупной компании. Возможно, в шапке было 'млрд руб.', "
+            f"а units_scale определён как 'millions'. Проверь!"
+        )
+
+    total_assets_mln = extracted.total_assets
+    if total_assets_mln is not None and 0 < total_assets_mln < 1_000:
+        warnings.append(
+            f"total_assets={total_assets_mln:.2f} млн — ПОДОЗРИТЕЛЬНО МАЛО. "
+            f"Проверь единицы (млн vs млрд) в шапке баланса."
+        )
+
+    # Согласованность единиц между полями. Типичная ошибка gpt-4o-mini на
+    # сжатых отчётах (Роснефть): часть полей в млрд, часть в млн.
+    # Проверки инвариантов:
+    #   * net_income не может быть больше revenue (прибыль всегда ≤ выручки);
+    #   * total_assets обычно в 1..10 раз больше revenue (не 1/100).
+    if revenue_mln and extracted.net_income is not None:
+        if abs(extracted.net_income) > abs(revenue_mln) * 2 and abs(revenue_mln) > 0:
+            warnings.append(
+                f"net_income={extracted.net_income:.0f} млн > 2×revenue="
+                f"{revenue_mln:.0f} млн — ИНВАРИАНТ НАРУШЕН. Почти наверняка "
+                f"разные поля извлечены в разных единицах (часть в млрд, часть "
+                f"в млн). Проверь вручную."
+            )
+    if revenue_mln and total_assets_mln is not None:
+        if abs(revenue_mln) > 0 and abs(total_assets_mln) / abs(revenue_mln) > 1000:
+            warnings.append(
+                f"total_assets / revenue = {total_assets_mln/revenue_mln:.0f} — "
+                f"ПОДОЗРИТЕЛЬНОЕ соотношение. Вероятно, разные единицы."
+            )
+        if abs(total_assets_mln) > 0 and abs(revenue_mln) / abs(total_assets_mln) > 1000:
+            warnings.append(
+                f"revenue / total_assets = {revenue_mln/total_assets_mln:.0f} — "
+                f"ПОДОЗРИТЕЛЬНОЕ соотношение. Вероятно, разные единицы."
+            )
+
+    # Нормализация прибыли.
+    # Если net_income == net_income_reported и нет явного упоминания в заметках
+    # модели, что было сделано — значит нормализация не сработала, аналитику нужно
+    # посчитать самому.
+    ni = extracted.net_income
+    nir = extracted.net_income_reported
+    if ni is not None and nir is not None and abs(ni - nir) < 0.01:
+        model_notes_lc = (extracted.extraction_notes or "").lower()
+        normalized_mentioned = any(
+            kw in model_notes_lc
+            for kw in ("нормализован", "normalize", "adjust", "исключ", "разов")
+        )
+        if not normalized_mentioned:
+            warnings.append(
+                "net_income == net_income_reported (нормализация, вероятно, НЕ сделана). "
+                "По Грэму: из прибыли до налога исключить крупные разовые элементы "
+                "(> 10% в совокупности) и применить ставку 20% (× 0.8). "
+                "Это должен сделать финансовый аналитик."
+            )
+
+    # Дивиденды.
+    if extracted.dividends_per_share is None and extracted.dividends_paid:
+        warnings.append(
+            "dividends_paid=true, но dividends_per_share=null. "
+            "Возможно, финальные дивиденды за год ещё не объявлены (они будут "
+            "в отчёте за следующий год). Проверь вручную."
+        )
+
+    return warnings
+
+
+def _build_extraction_notes(
+    extracted: ExtractedReport,
+    pdf_label: str,
+    selected_pages: int,
+    total_pages: int,
+    extra_warnings: Optional[list[Optional[str]]] = None,
+) -> str:
+    """Собрать финальный extraction_notes с техническими метаданными + заметки модели."""
+    header = (
+        f"[AUTO-EXTRACTED | model={settings.extraction_model_label} | "
+        f"pdf={pdf_label} | pages_used={selected_pages}/{total_pages} | "
+        f"scale_in_pdf={extracted.units_scale} | "
+        f"shares_scale_in_pdf={extracted.shares_units_scale} | "
+        f"confidence={extracted.confidence or 'n/a'}]"
+    )
+    model_notes = (extracted.extraction_notes or "").strip()
+    warnings = _collect_sanity_warnings(extracted)
+    for w in extra_warnings or []:
+        if w:
+            warnings.insert(0, w)  # автокоррекции — в начало списка
 
     parts = [header]
     if model_notes:
@@ -328,10 +533,16 @@ def parse_pdf_to_report(
         user_prompt=user_prompt,
     )
 
-    # 5) Конвертация единиц в миллионы
+    # 5) Auto-fix units ДО rescale (пока числа ещё «сырые»).
+    # Сначала деньги (млрд ↔ млн), затем акции — порядок важен, т.к. акции
+    # не зависят от money scale, но лишняя инвариантность удобна.
+    extracted, money_autofix_msg = _auto_fix_money_units(extracted)
+    extracted, shares_autofix_msg = _auto_fix_shares_units(extracted)
+
+    # 5.1) Конвертация единиц в миллионы / акций в штуки
     extracted = rescale_to_millions(extracted)
 
-    # 5.1) Санити-чек: совпадает ли fiscal_year
+    # 5.2) Санити-чек: совпадает ли fiscal_year
     if extracted.fiscal_year != fiscal_year:
         logger.warning(
             "[%s %s] LLM вернул fiscal_year=%d, ожидали %d. Форсируем ожидаемый.",
@@ -347,6 +558,7 @@ def parse_pdf_to_report(
         pdf_label=label,
         selected_pages=len(extraction.selected_pages),
         total_pages=extraction.total_pages,
+        extra_warnings=[money_autofix_msg, shares_autofix_msg],
     )
 
     # 7) Для банка NULL'им current_assets/current_liabilities.
@@ -652,9 +864,23 @@ def compare_pdf_with_existing(
         system_prompt=system_prompt,
         user_prompt=user_prompt,
     )
+    extracted, money_autofix_msg = _auto_fix_money_units(extracted)
+    extracted, shares_autofix_msg = _auto_fix_shares_units(extracted)
     extracted = rescale_to_millions(extracted)
     if extracted.fiscal_year != fiscal_year:
         extracted = extracted.model_copy(update={"fiscal_year": fiscal_year})
+
+    # Обогатим extraction_notes тем же списком sanity-предупреждений, что
+    # используется в parse_pdf_to_report — чтобы аналитик видел красные флаги
+    # прямо в compare-режиме.
+    enriched_notes = _build_extraction_notes(
+        extracted=extracted,
+        pdf_label=label,
+        selected_pages=len(extraction.selected_pages),
+        total_pages=extraction.total_pages,
+        extra_warnings=[money_autofix_msg, shares_autofix_msg],
+    )
+    extracted = extracted.model_copy(update={"extraction_notes": enriched_notes})
 
     diffs, summary = compute_report_diff(
         existing, extracted, report_type=resolved_report_type

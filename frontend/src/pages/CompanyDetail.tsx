@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import {
@@ -27,7 +27,7 @@ const CompanyDetail: React.FC = () => {
   const [selectedReport, setSelectedReport] = useState<FinancialReport | null>(null);
   const [editingReport, setEditingReport] = useState<FinancialReport | null>(null);
   const [showAddReportForm, setShowAddReportForm] = useState(false);
-  const [aiParseMode, setAiParseMode] = useState<'create' | 'compare' | null>(null);
+  const [aiParseMode, setAiParseMode] = useState<'create' | 'compare' | 'batch' | null>(null);
   // Состояние раздела отчётов
   const [reportsExpanded, setReportsExpanded] = useState(true);
   const [reportPeriodFilter, setReportPeriodFilter] = useState<ReportPeriodFilter>('annual');
@@ -375,44 +375,27 @@ const CompanyDetail: React.FC = () => {
                 </h2>
               </div>
               <div className="reports-card-header-actions">
-                <button
-                  type="button"
-                  className="btn-add-report-inline"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setAiParseMode('create');
-                    setReportsExpanded(true);
-                  }}
-                  title="Загрузить PDF и автоматически заполнить поля через LLM"
-                >
-                  🤖 Загрузить PDF
-                </button>
-                <button
-                  type="button"
-                  className="btn-add-report-inline"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setAiParseMode('compare');
-                    setReportsExpanded(true);
-                  }}
-                  title="Прогнать PDF через модель и сравнить с уже имеющимся отчётом. Ничего не пишется в БД."
-                >
-                  🔍 Сравнить PDF
-                </button>
-                <button
-                  type="button"
-                  className="btn-add-report-inline"
+                <AddReportMenu
                   disabled={createReportMutation.isPending}
-                  onClick={(e) => {
-                    e.stopPropagation();
+                  onManualAdd={() => {
                     setShowAddReportForm(true);
                     setSelectedReport(null);
                     setEditingReport(null);
                     setReportsExpanded(true);
                   }}
-                >
-                  + Добавить отчет
-                </button>
+                  onAiCreate={() => {
+                    setAiParseMode('create');
+                    setReportsExpanded(true);
+                  }}
+                  onAiBatch={() => {
+                    setAiParseMode('batch');
+                    setReportsExpanded(true);
+                  }}
+                  onAiCompare={() => {
+                    setAiParseMode('compare');
+                    setReportsExpanded(true);
+                  }}
+                />
                 <button
                   type="button"
                   className="reports-toggle-arrow-btn"
@@ -1004,6 +987,145 @@ const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
           </div>
         </div>
       </div>
+    </div>
+  );
+};
+
+// ─── Выпадающее меню «Добавить отчёт» ──────────────────────────────────────
+//
+// Один компактный primary-CTA со стрелкой-переключателем выпадающего меню.
+// Современный паттерн вместо 4 рядом стоящих кнопок — не растягивает шапку
+// и логически группирует все способы создания отчёта.
+
+interface AddReportMenuProps {
+  disabled?: boolean;
+  onManualAdd: () => void;
+  onAiCreate: () => void;
+  onAiBatch: () => void;
+  onAiCompare: () => void;
+}
+
+const AddReportMenu: React.FC<AddReportMenuProps> = ({
+  disabled,
+  onManualAdd,
+  onAiCreate,
+  onAiBatch,
+  onAiCompare,
+}) => {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const firstItemRef = useRef<HTMLButtonElement | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handleClick = (e: MouseEvent) => {
+      if (!rootRef.current) return;
+      if (!rootRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('mousedown', handleClick);
+    document.addEventListener('keydown', handleKey);
+    // Автофокус на первый пункт меню — удобно для клавиатуры.
+    window.setTimeout(() => firstItemRef.current?.focus(), 0);
+    return () => {
+      document.removeEventListener('mousedown', handleClick);
+      document.removeEventListener('keydown', handleKey);
+    };
+  }, [open]);
+
+  const run = (fn: () => void) => (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setOpen(false);
+    fn();
+  };
+
+  return (
+    <div className="add-report-menu" ref={rootRef}>
+      <button
+        type="button"
+        className="add-report-menu-trigger"
+        disabled={disabled}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpen((prev) => !prev);
+        }}
+      >
+        <span className="add-report-menu-label">+ Добавить отчёт</span>
+        <span className={`add-report-menu-caret ${open ? 'is-open' : ''}`} aria-hidden>
+          ▾
+        </span>
+      </button>
+
+      {open && (
+        <div className="add-report-menu-dropdown" role="menu">
+          <div className="add-report-menu-section-label">Вручную</div>
+          <button
+            ref={firstItemRef}
+            type="button"
+            role="menuitem"
+            className="add-report-menu-item"
+            onClick={run(onManualAdd)}
+          >
+            <span className="add-report-menu-item-icon">✍️</span>
+            <span className="add-report-menu-item-body">
+              <span className="add-report-menu-item-title">Заполнить форму</span>
+              <span className="add-report-menu-item-sub">
+                Ручной ввод показателей по отчёту
+              </span>
+            </span>
+          </button>
+
+          <div className="add-report-menu-divider" />
+
+          <div className="add-report-menu-section-label">AI-парсер (PDF)</div>
+          <button
+            type="button"
+            role="menuitem"
+            className="add-report-menu-item"
+            onClick={run(onAiCreate)}
+          >
+            <span className="add-report-menu-item-icon">🤖</span>
+            <span className="add-report-menu-item-body">
+              <span className="add-report-menu-item-title">Загрузить один PDF</span>
+              <span className="add-report-menu-item-sub">
+                Модель извлечёт показатели и создаст черновик
+              </span>
+            </span>
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            className="add-report-menu-item"
+            onClick={run(onAiBatch)}
+          >
+            <span className="add-report-menu-item-icon">📁</span>
+            <span className="add-report-menu-item-body">
+              <span className="add-report-menu-item-title">Папка с PDF (пакет)</span>
+              <span className="add-report-menu-item-sub">
+                Все отчёты сразу; уже существующие годы пропускаются
+              </span>
+            </span>
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            className="add-report-menu-item"
+            onClick={run(onAiCompare)}
+          >
+            <span className="add-report-menu-item-icon">🔍</span>
+            <span className="add-report-menu-item-body">
+              <span className="add-report-menu-item-title">Сравнить PDF с базой</span>
+              <span className="add-report-menu-item-sub">
+                Проверить качество модели. В БД ничего не пишется.
+              </span>
+            </span>
+          </button>
+        </div>
+      )}
     </div>
   );
 };
