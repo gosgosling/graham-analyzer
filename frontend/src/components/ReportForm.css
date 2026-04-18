@@ -331,6 +331,65 @@
     font-style: italic;
 }
 
+.price-badge.warning {
+    color: #92400e;
+    background: #fef3c7;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+.price-badge.shares-mismatch {
+    display: block;
+    padding: 8px 10px;
+    line-height: 1.5;
+}
+
+.shares-mismatch-body {
+    margin: 4px 0 6px;
+    color: #7f1d1d;
+    font-weight: 500;
+}
+
+.shares-mismatch-hint {
+    margin-top: 4px;
+    padding: 4px 6px;
+    background: #ffedd5;
+    color: #9a3412;
+    border-left: 3px solid #f97316;
+    font-style: italic;
+    font-weight: 500;
+}
+
+.btn-inline-apply {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 3px 10px;
+    font-size: 0.76rem;
+    font-weight: 600;
+    color: #ffffff;
+    background: #2563eb;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+
+.btn-inline-apply:hover {
+    background: #1d4ed8;
+}
+
+.price-badge.shares-mismatch .btn-inline-apply {
+    margin-top: 4px;
+    margin-left: 0;
+    background: #dc2626;
+}
+
+.price-badge.shares-mismatch .btn-inline-apply:hover {
+    background: #b91c1c;
+}
+
 /* Строка автозагрузки дивидендов */
 .dividends-fetch-row {
     display: flex;

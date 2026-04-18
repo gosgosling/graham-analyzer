@@ -187,7 +187,7 @@ interface SharesFetchState {
     loading: boolean;
     result: MoexSharesResult | null;
     error: string | null;
-    /** true — поле уже было заполнено вручную, авто-значение применено как подсказка */
+    /** true — значение из MOEX применено к полю; false — поле содержит другое значение (AI, ручной ввод) */
     applied: boolean;
 }
 
@@ -197,8 +197,49 @@ interface DividendsFetchState {
     error: string | null;
 }
 
-/** Показывает статус загрузки количества акций */
-const SharesFetchBadge: React.FC<{ state: SharesFetchState }> = ({ state }) => {
+/**
+ * Вердикт по сравнению значения в поле с данными MOEX.
+ * Используется для подсветки расхождений (в т.ч. типичная ошибка AI —
+ * «потерял 1000» в количестве акций).
+ */
+type SharesCompareVerdict =
+    | { kind: 'empty' }       // поле пустое — MOEX ещё не применён
+    | { kind: 'applied' }     // в поле ровно то же значение, что в MOEX
+    | { kind: 'match' }       // разница < 0.5% — считаем совпадением
+    | { kind: 'close'; pct: number }    // < 5% — скорее всего округление
+    | { kind: 'mismatch'; pct: number; suspectScale: 1000 | null };
+
+function compareSharesWithMoex(
+    fieldValue: number | null | undefined,
+    moexValue: number,
+): SharesCompareVerdict {
+    if (fieldValue === null || fieldValue === undefined) return { kind: 'empty' };
+    if (fieldValue === moexValue) return { kind: 'applied' };
+
+    const base = Math.max(Math.abs(moexValue), 1);
+    const pct = ((fieldValue - moexValue) / base) * 100;
+    const absPct = Math.abs(pct);
+    if (absPct < 0.5) return { kind: 'match' };
+    if (absPct < 5) return { kind: 'close', pct };
+
+    // Подозрение на «потерянные тысячи» (классическая ошибка AI-парсера,
+    // когда в отчёте '(тыс. штук)', но модель оставила число в штуках).
+    const ratio = moexValue / fieldValue;
+    const suspectScale = ratio > 500 && ratio < 2000 ? 1000 : null;
+    return { kind: 'mismatch', pct, suspectScale };
+}
+
+/**
+ * Показывает статус MOEX vs текущее значение поля «количество акций».
+ * При расхождении — даёт явную кнопку «Заменить на MOEX».
+ */
+interface SharesFetchBadgeProps {
+    state: SharesFetchState;
+    fieldValue: number | null | undefined;
+    onApplyMoex: () => void;
+}
+
+const SharesFetchBadge: React.FC<SharesFetchBadgeProps> = ({ state, fieldValue, onApplyMoex }) => {
     if (state.loading) {
         return <span className="price-badge loading">⟳ Загрузка из реестра Мосбиржи...</span>;
     }
@@ -209,15 +250,73 @@ const SharesFetchBadge: React.FC<{ state: SharesFetchState }> = ({ state }) => {
             </span>
         );
     }
-    if (state.result && state.applied) {
+    if (!state.result) return null;
+
+    const moex = state.result.issuesize;
+    const verdict = compareSharesWithMoex(fieldValue, moex);
+    const moexFmt = moex.toLocaleString('ru-RU');
+
+    if (verdict.kind === 'empty') {
         return (
-            <span className="price-badge ok">
-                ✓ {state.result.secname} · {state.result.issuesize.toLocaleString('ru-RU')} акций
-                <span className="badge-note"> · актуальное значение из реестра MOEX, уточните по отчёту</span>
+            <span className="price-badge loading">
+                ℹ MOEX: {state.result.secname} · {moexFmt} акций — нажмите «↺ MOEX» чтобы подставить
             </span>
         );
     }
-    return null;
+
+    if (verdict.kind === 'applied' || verdict.kind === 'match') {
+        return (
+            <span className="price-badge ok">
+                ✓ {state.result.secname} · {moexFmt} акций
+                <span className="badge-note"> · совпадает с MOEX (актуальный реестр)</span>
+            </span>
+        );
+    }
+
+    if (verdict.kind === 'close') {
+        return (
+            <span className="price-badge warning">
+                ≈ MOEX: {moexFmt} акций · текущее значение отличается на {verdict.pct >= 0 ? '+' : ''}
+                {verdict.pct.toFixed(2)}%. Вероятно, изменение реестра.
+                <button
+                    type="button"
+                    className="btn-inline-apply"
+                    onClick={onApplyMoex}
+                    title="Заменить на актуальное значение из MOEX"
+                >
+                    Использовать MOEX
+                </button>
+            </span>
+        );
+    }
+
+    // mismatch
+    const inField = (fieldValue ?? 0).toLocaleString('ru-RU');
+    return (
+        <span className="price-badge error shares-mismatch">
+            <strong>⚠ Расхождение с MOEX!</strong>
+            <div className="shares-mismatch-body">
+                <div>
+                    В поле: <b>{inField}</b> шт.<br />
+                    В реестре MOEX: <b>{moexFmt}</b> шт. ({state.result.secname})
+                </div>
+                {verdict.suspectScale === 1000 && (
+                    <div className="shares-mismatch-hint">
+                        Соотношение ≈ ×1000 → вероятно, AI-модель не учла пометку
+                        «(тыс. штук)» в отчёте. Значение из MOEX выглядит надёжнее.
+                    </div>
+                )}
+            </div>
+            <button
+                type="button"
+                className="btn-inline-apply"
+                onClick={onApplyMoex}
+                title="Заменить на актуальное значение из MOEX"
+            >
+                Заменить на MOEX ({moexFmt})
+            </button>
+        </span>
+    );
 };
 
 /**
@@ -385,28 +484,46 @@ const ReportForm: React.FC<ReportFormProps> = ({ companyId, companyName, ticker,
         initialValues ? { ...defaultValues, ...initialValues, company_id: companyId } : defaultValues,
     );
 
-    /** Загружает количество акций с Мосбиржи */
-    const fetchShares = useCallback(async () => {
+    /**
+     * Загружает количество акций с Мосбиржи.
+     * @param forceOverwrite — если true, заменяем значение в форме на MOEX даже если
+     *   поле уже заполнено (например, AI-черновиком). Используется при клике на
+     *   кнопку «↺ MOEX» и в кнопке «Заменить на MOEX» в бейдже конфликта.
+     *   При автозагрузке (false) — подставляем только если поле пустое, чтобы
+     *   не затереть уже введённое пользователем или модель значение.
+     */
+    const fetchShares = useCallback(async (forceOverwrite: boolean = false) => {
         if (!ticker) return;
-        setSharesState({ loading: true, result: null, error: null, applied: false });
+        setSharesState(prev => ({ ...prev, loading: true, error: null }));
         try {
             const result = await getMoexShares(ticker);
-            setSharesState({ loading: false, result, error: null, applied: true });
-            // Подставляем только если поле пустое
-            setFormData(prev => ({
-                ...prev,
-                shares_outstanding: prev.shares_outstanding ?? result.issuesize,
-            }));
+            setFormData(prev => {
+                const shouldApply = forceOverwrite || prev.shares_outstanding === null || prev.shares_outstanding === undefined;
+                const nextValue = shouldApply ? result.issuesize : prev.shares_outstanding;
+                // applied — именно применили ли значение сейчас (а не просто имеем совпадение).
+                setSharesState({
+                    loading: false,
+                    result,
+                    error: null,
+                    applied: shouldApply,
+                });
+                return { ...prev, shares_outstanding: nextValue };
+            });
         } catch (err: any) {
             const msg = formatApiErrorMessage(err, 'Не удалось получить данные из Мосбиржи');
             setSharesState({ loading: false, result: null, error: msg, applied: false });
         }
     }, [ticker]);
 
-    // Авто-загрузка акций при открытии формы
+    /** Принудительно заменить значение в поле на актуальное из MOEX. */
+    const applyMoexShares = useCallback(() => {
+        fetchShares(true);
+    }, [fetchShares]);
+
+    // Авто-загрузка акций при открытии формы — без перезаписи существующего значения.
     useEffect(() => {
         if (ticker) {
-            fetchShares();
+            fetchShares(false);
         }
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [ticker]);
@@ -841,7 +958,8 @@ const ReportForm: React.FC<ReportFormProps> = ({ companyId, companyName, ticker,
                                             type="button"
                                             className="btn-fetch-price"
                                             disabled={sharesState.loading}
-                                            onClick={fetchShares}
+                                            onClick={applyMoexShares}
+                                            title="Принудительно заменить значение на актуальное из реестра MOEX"
                                         >
                                             {sharesState.loading ? '⟳' : '↺ MOEX'}
                                         </button>
@@ -855,7 +973,11 @@ const ReportForm: React.FC<ReportFormProps> = ({ companyId, companyName, ticker,
                                     placeholder={sharesState.loading ? 'Загрузка...' : 'напр. 15 000 000 000'}
                                     className={`form-input form-input-thousands ${sharesState.loading ? 'input-loading' : ''}`}
                                 />
-                                <SharesFetchBadge state={sharesState} />
+                                <SharesFetchBadge
+                                    state={sharesState}
+                                    fieldValue={formData.shares_outstanding}
+                                    onApplyMoex={applyMoexShares}
+                                />
                             </div>
                         </div>
                     </div>
