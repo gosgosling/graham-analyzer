@@ -118,8 +118,21 @@ class ExtractedReport(BaseModel):
     shares_outstanding: Optional[int] = Field(
         None,
         description=(
-            "Количество обыкновенных акций в обращении, в штуках (weighted average "
-            "или на конец периода — смотри что указано, предпочтение средневзвешенному)."
+            "Количество обыкновенных акций — ПРЕДПОЧТИТЕЛЬНО 'Средневзвешенное "
+            "количество обыкновенных акций' (weighted average) из раздела про EPS. "
+            "Если средневзвешенного нет — бери на конец периода. "
+            "ВАЖНО: пиши ЧИСЛО КАК В ОТЧЁТЕ, без самостоятельного умножения на 1000. "
+            "Единицы (штуки/тысячи) укажи в shares_units_scale."
+        ),
+    )
+    shares_units_scale: Literal["units", "thousands"] = Field(
+        "units",
+        description=(
+            "В каких единицах записано shares_outstanding. Определяй по ПОДПИСИ "
+            "рядом со строкой или в шапке таблицы: "
+            "'Средневзвешенное количество обыкновенных акций (ТЫС. ШТУК)' → thousands; "
+            "'В обращении 692 865 762 акции' → units. "
+            "Если не уверен — thousands (чаще встречается в российских МСФО)."
         ),
     )
 
@@ -179,24 +192,43 @@ _MONETARY_FIELDS_IN_MILLIONS: tuple[str, ...] = (
 )
 
 
+_SHARES_SCALE_TO_UNITS: dict[str, int] = {
+    "units": 1,
+    "thousands": 1_000,
+}
+
+
 def rescale_to_millions(report: ExtractedReport) -> ExtractedReport:
     """
-    Привести монетарные поля к миллионам валюты в соответствии с `units_scale`.
+    Привести извлечённые данные к каноническому виду:
+      * монетарные поля — в миллионы валюты (согласно `units_scale`);
+      * shares_outstanding — в штуки (согласно `shares_units_scale`).
 
-    После вызова `units_scale` установлено в `millions`, а числа в соответствующих
-    полях уже выражены в млн.
+    После вызова:
+      * `units_scale == "millions"`,
+      * `shares_units_scale == "units"`,
+    а соответствующие значения уже пересчитаны.
 
-    Поля, которые всегда в полных единицах (dividends_per_share, shares_outstanding),
+    Поля, которые всегда в полных единицах валюты (dividends_per_share),
     НЕ трогаем.
     """
-    factor = _SCALE_TO_MILLIONS.get(report.units_scale, 1.0)
-    if factor == 1.0:
+    money_factor = _SCALE_TO_MILLIONS.get(report.units_scale, 1.0)
+    shares_factor = _SHARES_SCALE_TO_UNITS.get(report.shares_units_scale, 1)
+
+    if money_factor == 1.0 and shares_factor == 1:
         return report
 
     data = report.model_dump()
-    for field in _MONETARY_FIELDS_IN_MILLIONS:
-        value = data.get(field)
-        if value is not None:
-            data[field] = float(value) * factor
-    data["units_scale"] = "millions"
+
+    if money_factor != 1.0:
+        for field in _MONETARY_FIELDS_IN_MILLIONS:
+            value = data.get(field)
+            if value is not None:
+                data[field] = float(value) * money_factor
+        data["units_scale"] = "millions"
+
+    if shares_factor != 1 and data.get("shares_outstanding") is not None:
+        data["shares_outstanding"] = int(data["shares_outstanding"]) * shares_factor
+        data["shares_units_scale"] = "units"
+
     return ExtractedReport.model_validate(data)
