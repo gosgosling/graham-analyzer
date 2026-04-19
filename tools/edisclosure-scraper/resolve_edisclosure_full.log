@@ -1,0 +1,552 @@
+2026-04-19 14:09:35  INFO      [1/179] MOEX: ABIO …
+2026-04-19 14:10:22  INFO      [ABIO] e-disclosure id=7814 inn=7702508905
+2026-04-19 14:10:26  INFO      [2/179] MOEX: ABRD …
+2026-04-19 14:10:37  INFO      [ABRD] e-disclosure id=26517 inn=7727620673
+2026-04-19 14:10:41  INFO      [3/179] AFKS — уже в company_ids.json, пропуск.
+2026-04-19 14:10:41  INFO      [4/179] AFLT — уже в company_ids.json, пропуск.
+2026-04-19 14:10:41  INFO      [5/179] AKRN — уже в company_ids.json, пропуск.
+2026-04-19 14:10:41  INFO      [6/179] ALRS — уже в company_ids.json, пропуск.
+2026-04-19 14:10:41  INFO      [7/179] MOEX: APTK …
+2026-04-19 14:10:50  INFO      [APTK] e-disclosure id=1216 inn=7722266450
+2026-04-19 14:10:54  INFO      [8/179] MOEX: AQUA …
+2026-04-19 14:11:03  INFO      [AQUA] e-disclosure id=17531 inn=7816430057
+2026-04-19 14:11:06  INFO      [9/179] MOEX: ASTR …
+2026-04-19 14:11:14  INFO      [ASTR] e-disclosure id=38906 inn=7726476459
+2026-04-19 14:11:17  INFO      [10/179] BANE — уже в company_ids.json, пропуск.
+2026-04-19 14:11:17  INFO      [11/179] BANEP — уже в company_ids.json, пропуск.
+2026-04-19 14:11:17  INFO      [12/179] MOEX: BAZA …
+2026-04-19 14:11:27  INFO      [BAZA] e-disclosure id=39611 inn=9722103241
+2026-04-19 14:11:31  INFO      [13/179] BELU — уже в company_ids.json, пропуск.
+2026-04-19 14:11:31  INFO      [14/179] MOEX: BLNG …
+2026-04-19 14:12:06  INFO      [BLNG] e-disclosure id=332 inn=5410102823
+2026-04-19 14:12:10  INFO      [15/179] BSPB — уже в company_ids.json, пропуск.
+2026-04-19 14:12:10  INFO      [16/179] MOEX: CARM …
+2026-04-19 14:12:20  INFO      [CARM] e-disclosure id=38808 inn=9704168849
+2026-04-19 14:12:22  INFO      [17/179] MOEX: CBOM …
+2026-04-19 14:12:32  INFO      [CBOM] e-disclosure id=202 inn=7734202860
+2026-04-19 14:12:37  INFO      [18/179] CHMF — уже в company_ids.json, пропуск.
+2026-04-19 14:12:37  INFO      [19/179] MOEX: CHMK …
+2026-04-19 14:12:46  INFO      [CHMK] e-disclosure id=2116 inn=7450001007
+2026-04-19 14:12:49  INFO      [20/179] MOEX: CIAN@US …
+2026-04-19 14:12:49  INFO      [21/179] MOEX: CNRU …
+2026-04-19 14:13:01  INFO      [CNRU] e-disclosure id=39286 inn=3900031141
+2026-04-19 14:13:04  INFO      [22/179] MOEX: CNTL …
+2026-04-19 14:13:05  INFO      [23/179] MOEX: CNTLP …
+2026-04-19 14:13:18  INFO      [CNTLP] e-disclosure id=369 inn=7710146208
+2026-04-19 14:13:20  INFO      [24/179] MOEX: DATA …
+2026-04-19 14:13:31  INFO      [DATA] e-disclosure id=39154 inn=9717163245
+2026-04-19 14:13:33  INFO      [25/179] MOEX: DELI …
+2026-04-19 14:13:44  INFO      [DELI] e-disclosure id=38653 inn=9718236471
+2026-04-19 14:13:48  INFO      [26/179] MOEX: DIAS …
+2026-04-19 14:13:59  INFO      [DIAS] e-disclosure id=38975 inn=9715302870
+2026-04-19 14:14:02  INFO      [27/179] MOEX: DOMRF …
+2026-04-19 14:14:03  INFO      [28/179] MOEX: DVEC …
+2026-04-19 14:14:12  INFO      [DVEC] e-disclosure id=11385 inn=2723088770
+2026-04-19 14:14:14  INFO      [29/179] MOEX: ELFV …
+2026-04-19 14:14:22  INFO      [ELFV] e-disclosure id=5732 inn=6671156423
+2026-04-19 14:14:26  INFO      [30/179] MOEX: ELMT …
+2026-04-19 14:15:13  INFO      [ELMT] e-disclosure id=38265 inn=9703014282
+2026-04-19 14:15:16  INFO      [31/179] MOEX: ENPG …
+2026-04-19 14:15:28  INFO      [ENPG] e-disclosure id=37955 inn=3906382033
+2026-04-19 14:15:33  INFO      [32/179] MOEX: ETLN …
+2026-04-19 14:15:44  INFO      [ETLN] e-disclosure id=39517 inn=3900042827
+2026-04-19 14:15:49  INFO      [33/179] MOEX: EUTR …
+2026-04-19 14:15:59  INFO      [EUTR] e-disclosure id=38758 inn=5029169023
+2026-04-19 14:16:03  INFO      [34/179] FEES — уже в company_ids.json, пропуск.
+2026-04-19 14:16:03  INFO      [35/179] FESH — уже в company_ids.json, пропуск.
+2026-04-19 14:16:03  INFO      [36/179] MOEX: FIVE@GS …
+2026-04-19 14:16:03  INFO      [37/179] MOEX: FIXR …
+2026-04-19 14:16:04  INFO      [38/179] FLOT — уже в company_ids.json, пропуск.
+2026-04-19 14:16:04  INFO      [39/179] MOEX: FRHC …
+2026-04-19 14:16:05  INFO      [40/179] GAZP — уже в company_ids.json, пропуск.
+2026-04-19 14:16:05  INFO      [41/179] GCHE — уже в company_ids.json, пропуск.
+2026-04-19 14:16:05  INFO      [42/179] MOEX: GECO …
+2026-04-19 14:16:52  INFO      [GECO] e-disclosure id=38201 inn=9731078633
+2026-04-19 14:16:54  INFO      [43/179] MOEX: GEMC …
+2026-04-19 14:17:03  INFO      [GEMC] e-disclosure id=39022 inn=3900020125
+2026-04-19 14:17:05  INFO      [44/179] MOEX: GLRX …
+2026-04-19 14:17:15  INFO      [GLRX] e-disclosure id=38535 inn=9729387137
+2026-04-19 14:17:19  INFO      [45/179] MOEX: GLTR@GS …
+2026-04-19 14:17:20  INFO      [46/179] GMKN — уже в company_ids.json, пропуск.
+2026-04-19 14:17:20  INFO      [47/179] MOEX: GRNT …
+2026-04-19 14:17:35  INFO      [GRNT] e-disclosure id=32725 inn=7804493447
+2026-04-19 14:17:38  INFO      [48/179] MOEX: GTRK …
+2026-04-19 14:17:46  INFO      [GTRK] e-disclosure id=37114 inn=9701082537
+2026-04-19 14:17:49  INFO      [49/179] MOEX: HEAD …
+2026-04-19 14:18:05  INFO      [HEAD] e-disclosure id=39017 inn=3900016369
+2026-04-19 14:18:07  INFO      [50/179] MOEX: HHRU …
+2026-04-19 14:18:15  INFO      [HHRU] e-disclosure id=38250 inn=0010038250
+2026-04-19 14:18:20  INFO      [51/179] MOEX: HNFG …
+2026-04-19 14:18:31  INFO      [HNFG] e-disclosure id=38967 inn=5047265516
+2026-04-19 14:18:36  INFO      [52/179] HYDR — уже в company_ids.json, пропуск.
+2026-04-19 14:18:36  INFO      [53/179] IRAO — уже в company_ids.json, пропуск.
+2026-04-19 14:18:36  INFO      [54/179] MOEX: IRKT …
+2026-04-19 14:18:49  INFO      [IRKT] e-disclosure id=76 inn=3807002509
+2026-04-19 14:18:53  INFO      [55/179] MOEX: IVAT …
+2026-04-19 14:19:03  INFO      [IVAT] e-disclosure id=39102 inn=1683020450
+2026-04-19 14:19:08  INFO      [56/179] MOEX: JETL …
+2026-04-19 14:19:08  INFO      [57/179] MOEX: KAZT …
+2026-04-19 14:19:19  INFO      [KAZT] e-disclosure id=703 inn=6320005915
+2026-04-19 14:19:23  INFO      [58/179] MOEX: KAZTP …
+2026-04-19 14:19:35  INFO      [KAZTP] e-disclosure id=703 inn=6320005915
+2026-04-19 14:19:39  INFO      [59/179] MOEX: KLSB …
+2026-04-19 14:21:42  ERROR     e-disclosure: KLSB: Page.goto: Timeout 120000ms exceeded.
+Call log:
+  - navigating to "https://www.e-disclosure.ru/poisk-po-kompaniyam", waiting until "networkidle"
+Traceback (most recent call last):
+  File "/home/devops/projects/git_clone/graham-analyzer/tools/edisclosure-scraper/resolve_edisclosure_ids.py", line 129, in main
+    ed_id = search_company_id_playwright(str(inn), moex_title=title)
+  File "/home/devops/projects/git_clone/graham-analyzer/tools/edisclosure-scraper/edisclosure_search.py", line 107, in search_company_id_playwright
+    page.goto(SEARCH_URL, wait_until="networkidle", timeout=120_000)
+    ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/devops/projects/git_clone/graham-analyzer/backend/venv/lib/python3.13/site-packages/playwright/sync_api/_generated.py", line 9054, in goto
+    self._sync(
+    ~~~~~~~~~~^
+        self._impl_obj.goto(
+        ^^^^^^^^^^^^^^^^^^^^
+            url=url, timeout=timeout, waitUntil=wait_until, referer=referer
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        )
+        ^
+    )
+    ^
+  File "/home/devops/projects/git_clone/graham-analyzer/backend/venv/lib/python3.13/site-packages/playwright/_impl/_sync_base.py", line 115, in _sync
+    return task.result()
+           ~~~~~~~~~~~^^
+  File "/home/devops/projects/git_clone/graham-analyzer/backend/venv/lib/python3.13/site-packages/playwright/_impl/_page.py", line 552, in goto
+    return await self._main_frame.goto(**locals_to_params(locals()))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/devops/projects/git_clone/graham-analyzer/backend/venv/lib/python3.13/site-packages/playwright/_impl/_frame.py", line 153, in goto
+    await self._channel.send(
+        "goto", self._navigation_timeout, locals_to_params(locals())
+    )
+  File "/home/devops/projects/git_clone/graham-analyzer/backend/venv/lib/python3.13/site-packages/playwright/_impl/_connection.py", line 69, in send
+    return await self._connection.wrap_api_call(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<3 lines>...
+    )
+    ^
+  File "/home/devops/projects/git_clone/graham-analyzer/backend/venv/lib/python3.13/site-packages/playwright/_impl/_connection.py", line 559, in wrap_api_call
+    raise rewrite_error(error, f"{parsed_st['apiName']}: {error}") from None
+playwright._impl._errors.TimeoutError: Page.goto: Timeout 120000ms exceeded.
+Call log:
+  - navigating to "https://www.e-disclosure.ru/poisk-po-kompaniyam", waiting until "networkidle"
+
+2026-04-19 14:21:44  INFO      [60/179] MOEX: KLVZ …
+2026-04-19 14:21:54  INFO      [KLVZ] e-disclosure id=39009 inn=9731121416
+2026-04-19 14:21:58  INFO      [61/179] MOEX: KMAZ …
+2026-04-19 14:22:07  INFO      [KMAZ] e-disclosure id=33 inn=1650032058
+2026-04-19 14:22:10  INFO      [62/179] MOEX: KRKNP …
+2026-04-19 14:22:20  INFO      [KRKNP] e-disclosure id=3707 inn=6451114900
+2026-04-19 14:22:24  INFO      [63/179] MOEX: KROT …
+2026-04-19 14:23:11  INFO      [KROT] e-disclosure id=468 inn=7706043263
+2026-04-19 14:23:14  INFO      [64/179] MOEX: KZIZ …
+2026-04-19 14:23:25  INFO      [KZIZ] e-disclosure id=7544 inn=5024022965
+2026-04-19 14:23:30  INFO      [65/179] MOEX: KZIZP …
+2026-04-19 14:23:39  INFO      [KZIZP] e-disclosure id=7544 inn=5024022965
+2026-04-19 14:23:43  INFO      [66/179] MOEX: KZOS …
+2026-04-19 14:23:51  INFO      [KZOS] e-disclosure id=938 inn=1658008723
+2026-04-19 14:23:54  INFO      [67/179] MOEX: KZOSP …
+2026-04-19 14:24:05  INFO      [KZOSP] e-disclosure id=938 inn=1658008723
+2026-04-19 14:24:09  INFO      [68/179] MOEX: LEAS …
+2026-04-19 14:24:22  INFO      [LEAS] e-disclosure id=37082 inn=9705101614
+2026-04-19 14:24:25  INFO      [69/179] MOEX: LENT …
+2026-04-19 14:24:34  INFO      [LENT] e-disclosure id=38380 inn=3906399157
+2026-04-19 14:24:38  INFO      [70/179] MOEX: LIFE …
+2026-04-19 14:24:51  INFO      [LIFE] e-disclosure id=4378 inn=7801075160
+2026-04-19 14:24:54  INFO      [71/179] LKOH — уже в company_ids.json, пропуск.
+2026-04-19 14:24:54  INFO      [72/179] MOEX: LNZL …
+2026-04-19 14:25:04  INFO      [LNZL] e-disclosure id=1991 inn=3802000096
+2026-04-19 14:25:08  INFO      [73/179] MOEX: LNZLP …
+2026-04-19 14:25:19  INFO      [LNZLP] e-disclosure id=1991 inn=3802000096
+2026-04-19 14:25:23  INFO      [74/179] MOEX: LSNG …
+2026-04-19 14:25:36  INFO      [LSNG] e-disclosure id=65 inn=7803002209
+2026-04-19 14:25:39  INFO      [75/179] MOEX: LSNGP …
+2026-04-19 14:25:51  INFO      [LSNGP] e-disclosure id=65 inn=7803002209
+2026-04-19 14:25:56  INFO      [76/179] MOEX: LSRG …
+2026-04-19 14:26:09  INFO      [LSRG] e-disclosure id=4834 inn=7838360491
+2026-04-19 14:26:14  INFO      [77/179] MAGN — уже в company_ids.json, пропуск.
+2026-04-19 14:26:14  INFO      [78/179] MOEX: MBNK …
+2026-04-19 14:26:23  INFO      [MBNK] e-disclosure id=1285 inn=7702045051
+2026-04-19 14:26:28  INFO      [79/179] MOEX: MDMG …
+2026-04-19 14:27:14  INFO      [MDMG] e-disclosure id=39129 inn=3900026494
+2026-04-19 14:27:16  INFO      [80/179] MOEX: MGKL …
+2026-04-19 14:27:25  INFO      [MGKL] e-disclosure id=11244 inn=7707600245
+2026-04-19 14:27:29  INFO      [81/179] MGNT — уже в company_ids.json, пропуск.
+2026-04-19 14:27:29  INFO      [82/179] MOEX: MGTSP …
+2026-04-19 14:27:38  INFO      [MGTSP] e-disclosure id=1017 inn=7710016640
+2026-04-19 14:27:42  INFO      [83/179] MOEX: MOEX …
+2026-04-19 14:27:55  INFO      [MOEX] e-disclosure id=43 inn=7702077840
+2026-04-19 14:27:59  INFO      [84/179] MOEX: MRKC …
+2026-04-19 14:28:10  INFO      [MRKC] e-disclosure id=7985 inn=6901067107
+2026-04-19 14:28:12  INFO      [85/179] MOEX: MRKP …
+2026-04-19 14:28:22  INFO      [MRKP] e-disclosure id=12093 inn=5260200603
+2026-04-19 14:28:27  INFO      [86/179] MOEX: MRKS …
+2026-04-19 14:28:38  INFO      [MRKS] e-disclosure id=12072 inn=2460069527
+2026-04-19 14:28:42  INFO      [87/179] MOEX: MRKU …
+2026-04-19 14:30:47  ERROR     e-disclosure: MRKU: Page.goto: Timeout 120000ms exceeded.
+Call log:
+  - navigating to "https://www.e-disclosure.ru/poisk-po-kompaniyam", waiting until "networkidle"
+Traceback (most recent call last):
+  File "/home/devops/projects/git_clone/graham-analyzer/tools/edisclosure-scraper/resolve_edisclosure_ids.py", line 129, in main
+    ed_id = search_company_id_playwright(str(inn), moex_title=title)
+  File "/home/devops/projects/git_clone/graham-analyzer/tools/edisclosure-scraper/edisclosure_search.py", line 107, in search_company_id_playwright
+    page.goto(SEARCH_URL, wait_until="networkidle", timeout=120_000)
+    ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/devops/projects/git_clone/graham-analyzer/backend/venv/lib/python3.13/site-packages/playwright/sync_api/_generated.py", line 9054, in goto
+    self._sync(
+    ~~~~~~~~~~^
+        self._impl_obj.goto(
+        ^^^^^^^^^^^^^^^^^^^^
+            url=url, timeout=timeout, waitUntil=wait_until, referer=referer
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        )
+        ^
+    )
+    ^
+  File "/home/devops/projects/git_clone/graham-analyzer/backend/venv/lib/python3.13/site-packages/playwright/_impl/_sync_base.py", line 115, in _sync
+    return task.result()
+           ~~~~~~~~~~~^^
+  File "/home/devops/projects/git_clone/graham-analyzer/backend/venv/lib/python3.13/site-packages/playwright/_impl/_page.py", line 552, in goto
+    return await self._main_frame.goto(**locals_to_params(locals()))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/devops/projects/git_clone/graham-analyzer/backend/venv/lib/python3.13/site-packages/playwright/_impl/_frame.py", line 153, in goto
+    await self._channel.send(
+        "goto", self._navigation_timeout, locals_to_params(locals())
+    )
+  File "/home/devops/projects/git_clone/graham-analyzer/backend/venv/lib/python3.13/site-packages/playwright/_impl/_connection.py", line 69, in send
+    return await self._connection.wrap_api_call(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<3 lines>...
+    )
+    ^
+  File "/home/devops/projects/git_clone/graham-analyzer/backend/venv/lib/python3.13/site-packages/playwright/_impl/_connection.py", line 559, in wrap_api_call
+    raise rewrite_error(error, f"{parsed_st['apiName']}: {error}") from None
+playwright._impl._errors.TimeoutError: Page.goto: Timeout 120000ms exceeded.
+Call log:
+  - navigating to "https://www.e-disclosure.ru/poisk-po-kompaniyam", waiting until "networkidle"
+
+2026-04-19 14:30:49  INFO      [88/179] MOEX: MRKV …
+2026-04-19 14:31:02  INFO      [MRKV] e-disclosure id=12131 inn=6450925977
+2026-04-19 14:31:06  INFO      [89/179] MOEX: MRKY …
+2026-04-19 14:31:16  INFO      [MRKY] e-disclosure id=11999 inn=6164266561
+2026-04-19 14:31:20  INFO      [90/179] MOEX: MRKZ …
+2026-04-19 14:31:31  INFO      [MRKZ] e-disclosure id=12761 inn=7802312751
+2026-04-19 14:31:34  INFO      [91/179] MOEX: MSNG …
+2026-04-19 14:31:42  INFO      [MSNG] e-disclosure id=936 inn=7705035012
+2026-04-19 14:31:46  INFO      [92/179] MOEX: MSRS …
+2026-04-19 14:31:55  INFO      [MSRS] e-disclosure id=5563 inn=5036065113
+2026-04-19 14:32:00  INFO      [93/179] MOEX: MSTT …
+2026-04-19 14:32:09  INFO      [MSTT] e-disclosure id=1220 inn=7701045732
+2026-04-19 14:32:13  INFO      [94/179] MOEX: MTLR …
+2026-04-19 14:32:24  INFO      [MTLR] e-disclosure id=1942 inn=7703370008
+2026-04-19 14:32:27  INFO      [95/179] MOEX: MTLRP …
+2026-04-19 14:32:35  INFO      [MTLRP] e-disclosure id=1942 inn=7703370008
+2026-04-19 14:32:38  INFO      [96/179] MTSS — уже в company_ids.json, пропуск.
+2026-04-19 14:32:38  INFO      [97/179] MOEX: MVID …
+2026-04-19 14:32:47  INFO      [MVID] e-disclosure id=11014 inn=7707602010
+2026-04-19 14:32:52  INFO      [98/179] MOEX: NKHP …
+2026-04-19 14:33:37  INFO      [NKHP] e-disclosure id=10198 inn=2315014748
+2026-04-19 14:33:40  INFO      [99/179] MOEX: NKNC …
+2026-04-19 14:33:54  INFO      [NKNC] e-disclosure id=197 inn=1651000010
+2026-04-19 14:33:58  INFO      [100/179] MOEX: NKNCP …
+2026-04-19 14:34:42  INFO      [NKNCP] e-disclosure id=197 inn=1651000010
+2026-04-19 14:34:45  INFO      [101/179] NLMK — уже в company_ids.json, пропуск.
+2026-04-19 14:34:45  INFO      [102/179] MOEX: NMTP …
+2026-04-19 14:34:59  INFO      [NMTP] e-disclosure id=3900 inn=2315004404
+2026-04-19 14:35:01  INFO      [103/179] MOEX: NOMP …
+2026-04-19 14:35:12  INFO      [NOMP] e-disclosure id=4384 inn=2315012204
+2026-04-19 14:35:16  INFO      [104/179] MOEX: NOMPP …
+2026-04-19 14:35:49  ERROR     e-disclosure: NOMPP: Page.goto: net::ERR_TIMED_OUT at https://www.e-disclosure.ru/poisk-po-kompaniyam
+Call log:
+  - navigating to "https://www.e-disclosure.ru/poisk-po-kompaniyam", waiting until "networkidle"
+Traceback (most recent call last):
+  File "/home/devops/projects/git_clone/graham-analyzer/tools/edisclosure-scraper/resolve_edisclosure_ids.py", line 129, in main
+    ed_id = search_company_id_playwright(str(inn), moex_title=title)
+  File "/home/devops/projects/git_clone/graham-analyzer/tools/edisclosure-scraper/edisclosure_search.py", line 107, in search_company_id_playwright
+    page.goto(SEARCH_URL, wait_until="networkidle", timeout=120_000)
+    ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/devops/projects/git_clone/graham-analyzer/backend/venv/lib/python3.13/site-packages/playwright/sync_api/_generated.py", line 9054, in goto
+    self._sync(
+    ~~~~~~~~~~^
+        self._impl_obj.goto(
+        ^^^^^^^^^^^^^^^^^^^^
+            url=url, timeout=timeout, waitUntil=wait_until, referer=referer
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        )
+        ^
+    )
+    ^
+  File "/home/devops/projects/git_clone/graham-analyzer/backend/venv/lib/python3.13/site-packages/playwright/_impl/_sync_base.py", line 115, in _sync
+    return task.result()
+           ~~~~~~~~~~~^^
+  File "/home/devops/projects/git_clone/graham-analyzer/backend/venv/lib/python3.13/site-packages/playwright/_impl/_page.py", line 552, in goto
+    return await self._main_frame.goto(**locals_to_params(locals()))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/devops/projects/git_clone/graham-analyzer/backend/venv/lib/python3.13/site-packages/playwright/_impl/_frame.py", line 153, in goto
+    await self._channel.send(
+        "goto", self._navigation_timeout, locals_to_params(locals())
+    )
+  File "/home/devops/projects/git_clone/graham-analyzer/backend/venv/lib/python3.13/site-packages/playwright/_impl/_connection.py", line 69, in send
+    return await self._connection.wrap_api_call(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<3 lines>...
+    )
+    ^
+  File "/home/devops/projects/git_clone/graham-analyzer/backend/venv/lib/python3.13/site-packages/playwright/_impl/_connection.py", line 559, in wrap_api_call
+    raise rewrite_error(error, f"{parsed_st['apiName']}: {error}") from None
+playwright._impl._errors.Error: Page.goto: net::ERR_TIMED_OUT at https://www.e-disclosure.ru/poisk-po-kompaniyam
+Call log:
+  - navigating to "https://www.e-disclosure.ru/poisk-po-kompaniyam", waiting until "networkidle"
+
+2026-04-19 14:35:53  INFO      [105/179] MOEX: NSVZ …
+2026-04-19 14:36:03  INFO      [NSVZ] e-disclosure id=20639 inn=7714716995
+2026-04-19 14:36:06  INFO      [106/179] MOEX: NTZL …
+2026-04-19 14:36:50  INFO      [NTZL] e-disclosure id=10696 inn=5261001745
+2026-04-19 14:36:53  INFO      [107/179] NVTK — уже в company_ids.json, пропуск.
+2026-04-19 14:36:53  INFO      [108/179] MOEX: OBNE …
+2026-04-19 14:37:13  INFO      [109/179] MOEX: OBNEP …
+2026-04-19 14:37:22  INFO      [OBNEP] e-disclosure id=3838 inn=8602016394
+2026-04-19 14:37:26  INFO      [110/179] MOEX: OGKB …
+2026-04-19 14:37:42  INFO      [OGKB] e-disclosure id=7234 inn=2607018122
+2026-04-19 14:37:45  INFO      [111/179] MOEX: OKEY …
+2026-04-19 14:37:54  INFO      [OKEY] e-disclosure id=38332 inn=0010038332
+2026-04-19 14:37:58  INFO      [112/179] OZON — уже в company_ids.json, пропуск.
+2026-04-19 14:37:58  INFO      [113/179] MOEX: OZPH …
+2026-04-19 14:38:07  INFO      [OZPH] e-disclosure id=39126 inn=6320080729
+2026-04-19 14:38:11  INFO      [114/179] PHOR — уже в company_ids.json, пропуск.
+2026-04-19 14:38:11  INFO      [115/179] PIKK — уже в company_ids.json, пропуск.
+2026-04-19 14:38:11  INFO      [116/179] PLZL — уже в company_ids.json, пропуск.
+2026-04-19 14:38:11  INFO      [117/179] MOEX: PMSB …
+2026-04-19 14:38:21  INFO      [PMSB] e-disclosure id=7344 inn=5904123809
+2026-04-19 14:38:24  INFO      [118/179] MOEX: PMSBP …
+2026-04-19 14:38:35  INFO      [PMSBP] e-disclosure id=7344 inn=5904123809
+2026-04-19 14:38:39  INFO      [119/179] MOEX: POSI …
+2026-04-19 14:38:48  INFO      [POSI] e-disclosure id=38538 inn=9718077239
+2026-04-19 14:38:52  INFO      [120/179] MOEX: PRFN …
+2026-04-19 14:39:01  INFO      [PRFN] e-disclosure id=4744 inn=7447014976
+2026-04-19 14:39:04  INFO      [121/179] MOEX: PRMD …
+2026-04-19 14:39:15  INFO      [PRMD] e-disclosure id=38533 inn=9702034818
+2026-04-19 14:39:19  INFO      [122/179] MOEX: RAGR …
+2026-04-19 14:39:28  INFO      [RAGR] e-disclosure id=25660 inn=5003077160
+2026-04-19 14:39:30  INFO      [123/179] MOEX: RASP …
+2026-04-19 14:39:40  INFO      [RASP] e-disclosure id=942 inn=4214002316
+2026-04-19 14:39:43  INFO      [124/179] MOEX: RBCM …
+2026-04-19 14:39:54  INFO      [RBCM] e-disclosure id=24832 inn=7728547955
+2026-04-19 14:39:56  INFO      [125/179] MOEX: RENI …
+2026-04-19 14:40:05  INFO      [RENI] e-disclosure id=37468 inn=7725497022
+2026-04-19 14:40:09  INFO      [126/179] MOEX: RKKE …
+2026-04-19 14:40:17  INFO      [RKKE] e-disclosure id=1615 inn=5018033937
+2026-04-19 14:40:19  INFO      [127/179] MOEX: RNFT …
+2026-04-19 14:40:33  INFO      [RNFT] e-disclosure id=534 inn=7717133960
+2026-04-19 14:40:36  INFO      [128/179] MOEX: ROLO …
+2026-04-19 14:41:19  INFO      [ROLO] e-disclosure id=31422 inn=7706774915
+2026-04-19 14:41:22  INFO      [129/179] ROSN — уже в company_ids.json, пропуск.
+2026-04-19 14:41:22  INFO      [130/179] RTKM — уже в company_ids.json, пропуск.
+2026-04-19 14:41:22  INFO      [131/179] RTKMP — уже в company_ids.json, пропуск.
+2026-04-19 14:41:22  INFO      [132/179] MOEX: RUAL …
+2026-04-19 14:41:30  INFO      [RUAL] e-disclosure id=38288 inn=3906394938
+2026-04-19 14:41:33  INFO      [133/179] SBER — уже в company_ids.json, пропуск.
+2026-04-19 14:41:33  INFO      [134/179] SBERP — уже в company_ids.json, пропуск.
+2026-04-19 14:41:33  INFO      [135/179] MOEX: SELG …
+2026-04-19 14:41:42  INFO      [SELG] e-disclosure id=12557 inn=1402047184
+2026-04-19 14:41:45  INFO      [136/179] MOEX: SFIN …
+2026-04-19 14:41:53  INFO      [SFIN] e-disclosure id=11328 inn=6164077483
+2026-04-19 14:41:57  INFO      [137/179] MOEX: SFTL …
+2026-04-19 14:43:59  ERROR     e-disclosure: SFTL: Page.goto: Timeout 120000ms exceeded.
+Call log:
+  - navigating to "https://www.e-disclosure.ru/poisk-po-kompaniyam", waiting until "networkidle"
+Traceback (most recent call last):
+  File "/home/devops/projects/git_clone/graham-analyzer/tools/edisclosure-scraper/resolve_edisclosure_ids.py", line 129, in main
+    ed_id = search_company_id_playwright(str(inn), moex_title=title)
+  File "/home/devops/projects/git_clone/graham-analyzer/tools/edisclosure-scraper/edisclosure_search.py", line 107, in search_company_id_playwright
+    page.goto(SEARCH_URL, wait_until="networkidle", timeout=120_000)
+    ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/devops/projects/git_clone/graham-analyzer/backend/venv/lib/python3.13/site-packages/playwright/sync_api/_generated.py", line 9054, in goto
+    self._sync(
+    ~~~~~~~~~~^
+        self._impl_obj.goto(
+        ^^^^^^^^^^^^^^^^^^^^
+            url=url, timeout=timeout, waitUntil=wait_until, referer=referer
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        )
+        ^
+    )
+    ^
+  File "/home/devops/projects/git_clone/graham-analyzer/backend/venv/lib/python3.13/site-packages/playwright/_impl/_sync_base.py", line 115, in _sync
+    return task.result()
+           ~~~~~~~~~~~^^
+  File "/home/devops/projects/git_clone/graham-analyzer/backend/venv/lib/python3.13/site-packages/playwright/_impl/_page.py", line 552, in goto
+    return await self._main_frame.goto(**locals_to_params(locals()))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/devops/projects/git_clone/graham-analyzer/backend/venv/lib/python3.13/site-packages/playwright/_impl/_frame.py", line 153, in goto
+    await self._channel.send(
+        "goto", self._navigation_timeout, locals_to_params(locals())
+    )
+  File "/home/devops/projects/git_clone/graham-analyzer/backend/venv/lib/python3.13/site-packages/playwright/_impl/_connection.py", line 69, in send
+    return await self._connection.wrap_api_call(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<3 lines>...
+    )
+    ^
+  File "/home/devops/projects/git_clone/graham-analyzer/backend/venv/lib/python3.13/site-packages/playwright/_impl/_connection.py", line 559, in wrap_api_call
+    raise rewrite_error(error, f"{parsed_st['apiName']}: {error}") from None
+playwright._impl._errors.TimeoutError: Page.goto: Timeout 120000ms exceeded.
+Call log:
+  - navigating to "https://www.e-disclosure.ru/poisk-po-kompaniyam", waiting until "networkidle"
+
+2026-04-19 14:44:02  INFO      [138/179] MOEX: SGZH …
+2026-04-19 14:44:13  INFO      [SGZH] e-disclosure id=38038 inn=9703024202
+2026-04-19 14:44:15  INFO      [139/179] SIBN — уже в company_ids.json, пропуск.
+2026-04-19 14:44:15  INFO      [140/179] MOEX: SLAV …
+2026-04-19 14:45:01  INFO      [SLAV] e-disclosure id=560 inn=7707017509
+2026-04-19 14:45:06  INFO      [141/179] MOEX: SMLT …
+2026-04-19 14:45:21  INFO      [SMLT] e-disclosure id=36419 inn=9731004688
+2026-04-19 14:45:25  INFO      [142/179] SNGS — уже в company_ids.json, пропуск.
+2026-04-19 14:45:25  INFO      [143/179] SNGSP — уже в company_ids.json, пропуск.
+2026-04-19 14:45:25  INFO      [144/179] MOEX: SOFL …
+2026-04-19 14:46:09  INFO      [SOFL] e-disclosure id=37065 inn=7736227885
+2026-04-19 14:46:13  INFO      [145/179] MOEX: SPBE …
+2026-04-19 14:46:23  INFO      [SPBE] e-disclosure id=4566 inn=7801268965
+2026-04-19 14:46:27  INFO      [146/179] MOEX: SVAV …
+2026-04-19 14:47:13  INFO      [SVAV] e-disclosure id=1324 inn=3528079131
+2026-04-19 14:47:17  INFO      [147/179] MOEX: SVCB …
+2026-04-19 14:49:19  ERROR     e-disclosure: SVCB: Page.goto: Timeout 120000ms exceeded.
+Call log:
+  - navigating to "https://www.e-disclosure.ru/poisk-po-kompaniyam", waiting until "networkidle"
+Traceback (most recent call last):
+  File "/home/devops/projects/git_clone/graham-analyzer/tools/edisclosure-scraper/resolve_edisclosure_ids.py", line 129, in main
+    ed_id = search_company_id_playwright(str(inn), moex_title=title)
+  File "/home/devops/projects/git_clone/graham-analyzer/tools/edisclosure-scraper/edisclosure_search.py", line 107, in search_company_id_playwright
+    page.goto(SEARCH_URL, wait_until="networkidle", timeout=120_000)
+    ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/devops/projects/git_clone/graham-analyzer/backend/venv/lib/python3.13/site-packages/playwright/sync_api/_generated.py", line 9054, in goto
+    self._sync(
+    ~~~~~~~~~~^
+        self._impl_obj.goto(
+        ^^^^^^^^^^^^^^^^^^^^
+            url=url, timeout=timeout, waitUntil=wait_until, referer=referer
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        )
+        ^
+    )
+    ^
+  File "/home/devops/projects/git_clone/graham-analyzer/backend/venv/lib/python3.13/site-packages/playwright/_impl/_sync_base.py", line 115, in _sync
+    return task.result()
+           ~~~~~~~~~~~^^
+  File "/home/devops/projects/git_clone/graham-analyzer/backend/venv/lib/python3.13/site-packages/playwright/_impl/_page.py", line 552, in goto
+    return await self._main_frame.goto(**locals_to_params(locals()))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/devops/projects/git_clone/graham-analyzer/backend/venv/lib/python3.13/site-packages/playwright/_impl/_frame.py", line 153, in goto
+    await self._channel.send(
+        "goto", self._navigation_timeout, locals_to_params(locals())
+    )
+  File "/home/devops/projects/git_clone/graham-analyzer/backend/venv/lib/python3.13/site-packages/playwright/_impl/_connection.py", line 69, in send
+    return await self._connection.wrap_api_call(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<3 lines>...
+    )
+    ^
+  File "/home/devops/projects/git_clone/graham-analyzer/backend/venv/lib/python3.13/site-packages/playwright/_impl/_connection.py", line 559, in wrap_api_call
+    raise rewrite_error(error, f"{parsed_st['apiName']}: {error}") from None
+playwright._impl._errors.TimeoutError: Page.goto: Timeout 120000ms exceeded.
+Call log:
+  - navigating to "https://www.e-disclosure.ru/poisk-po-kompaniyam", waiting until "networkidle"
+
+2026-04-19 14:49:24  INFO      [148/179] MOEX: T …
+2026-04-19 14:49:33  INFO      [T] e-disclosure id=39055 inn=2540283195
+2026-04-19 14:49:37  INFO      [149/179] TATN — уже в company_ids.json, пропуск.
+2026-04-19 14:49:37  INFO      [150/179] TATNP — уже в company_ids.json, пропуск.
+2026-04-19 14:49:37  INFO      [151/179] MOEX: TGKA …
+2026-04-19 14:49:51  INFO      [TGKA] e-disclosure id=7263 inn=7841312071
+2026-04-19 14:49:56  INFO      [152/179] MOEX: TGKB …
+2026-04-19 14:50:05  INFO      [TGKB] e-disclosure id=7968 inn=7606053324
+2026-04-19 14:50:09  INFO      [153/179] MOEX: TGKBP …
+2026-04-19 14:50:18  INFO      [TGKBP] e-disclosure id=7968 inn=7606053324
+2026-04-19 14:50:20  INFO      [154/179] MOEX: TGKJ …
+2026-04-19 14:50:30  INFO      [TGKJ] e-disclosure id=8657 inn=7203162698
+2026-04-19 14:50:34  INFO      [155/179] MOEX: TGKN …
+2026-04-19 14:50:43  INFO      [TGKN] e-disclosure id=9396 inn=7534018889
+2026-04-19 14:50:46  INFO      [156/179] MOEX: TRMK …
+2026-04-19 14:50:46  INFO      [157/179] TRNFP — уже в company_ids.json, пропуск.
+2026-04-19 14:50:46  INFO      [158/179] MOEX: TTLK …
+2026-04-19 14:50:55  INFO      [TTLK] e-disclosure id=814 inn=1681000024
+2026-04-19 14:50:58  INFO      [159/179] MOEX: UDMN …
+2026-04-19 14:51:43  INFO      [UDMN] e-disclosure id=1370 inn=1831034040
+2026-04-19 14:51:47  INFO      [160/179] MOEX: UFOSP …
+2026-04-19 14:51:56  INFO      [UFOSP] e-disclosure id=2017 inn=0277014204
+2026-04-19 14:52:00  INFO      [161/179] MOEX: UGLD …
+2026-04-19 14:52:12  INFO      [UGLD] e-disclosure id=11794 inn=7424024375
+2026-04-19 14:52:15  INFO      [162/179] MOEX: UNAC …
+2026-04-19 14:52:23  INFO      [UNAC] e-disclosure id=11433 inn=7708619320
+2026-04-19 14:52:26  INFO      [163/179] MOEX: UNKL …
+2026-04-19 14:53:01  INFO      [UNKL] e-disclosure id=3987 inn=5613000143
+2026-04-19 14:53:04  INFO      [164/179] MOEX: UPRO …
+2026-04-19 14:53:12  INFO      [UPRO] e-disclosure id=7878 inn=8602067092
+2026-04-19 14:53:16  INFO      [165/179] MOEX: UWGN …
+2026-04-19 14:53:24  INFO      [UWGN] e-disclosure id=35102 inn=7705522866
+2026-04-19 14:53:29  INFO      [166/179] MOEX: VEON …
+2026-04-19 14:53:30  INFO      [167/179] MOEX: VEON-RX …
+2026-04-19 14:55:13  INFO      [VEON-RX] e-disclosure id=None inn=None
+2026-04-19 14:55:17  INFO      [168/179] VKCO — уже в company_ids.json, пропуск.
+2026-04-19 14:55:17  INFO      [169/179] MOEX: VRSB …
+2026-04-19 14:55:26  INFO      [VRSB] e-disclosure id=4717 inn=3663050467
+2026-04-19 14:55:28  INFO      [170/179] MOEX: VSEH …
+2026-04-19 14:55:36  INFO      [VSEH] e-disclosure id=39131 inn=3300010559
+2026-04-19 14:55:39  INFO      [171/179] MOEX: VSMO …
+2026-04-19 14:57:42  ERROR     e-disclosure: VSMO: Page.goto: Timeout 120000ms exceeded.
+Call log:
+  - navigating to "https://www.e-disclosure.ru/poisk-po-kompaniyam", waiting until "networkidle"
+Traceback (most recent call last):
+  File "/home/devops/projects/git_clone/graham-analyzer/tools/edisclosure-scraper/resolve_edisclosure_ids.py", line 129, in main
+    ed_id = search_company_id_playwright(str(inn), moex_title=title)
+  File "/home/devops/projects/git_clone/graham-analyzer/tools/edisclosure-scraper/edisclosure_search.py", line 107, in search_company_id_playwright
+    page.goto(SEARCH_URL, wait_until="networkidle", timeout=120_000)
+    ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/devops/projects/git_clone/graham-analyzer/backend/venv/lib/python3.13/site-packages/playwright/sync_api/_generated.py", line 9054, in goto
+    self._sync(
+    ~~~~~~~~~~^
+        self._impl_obj.goto(
+        ^^^^^^^^^^^^^^^^^^^^
+            url=url, timeout=timeout, waitUntil=wait_until, referer=referer
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        )
+        ^
+    )
+    ^
+  File "/home/devops/projects/git_clone/graham-analyzer/backend/venv/lib/python3.13/site-packages/playwright/_impl/_sync_base.py", line 115, in _sync
+    return task.result()
+           ~~~~~~~~~~~^^
+  File "/home/devops/projects/git_clone/graham-analyzer/backend/venv/lib/python3.13/site-packages/playwright/_impl/_page.py", line 552, in goto
+    return await self._main_frame.goto(**locals_to_params(locals()))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/devops/projects/git_clone/graham-analyzer/backend/venv/lib/python3.13/site-packages/playwright/_impl/_frame.py", line 153, in goto
+    await self._channel.send(
+        "goto", self._navigation_timeout, locals_to_params(locals())
+    )
+  File "/home/devops/projects/git_clone/graham-analyzer/backend/venv/lib/python3.13/site-packages/playwright/_impl/_connection.py", line 69, in send
+    return await self._connection.wrap_api_call(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<3 lines>...
+    )
+    ^
+  File "/home/devops/projects/git_clone/graham-analyzer/backend/venv/lib/python3.13/site-packages/playwright/_impl/_connection.py", line 559, in wrap_api_call
+    raise rewrite_error(error, f"{parsed_st['apiName']}: {error}") from None
+playwright._impl._errors.TimeoutError: Page.goto: Timeout 120000ms exceeded.
+Call log:
+  - navigating to "https://www.e-disclosure.ru/poisk-po-kompaniyam", waiting until "networkidle"
+
+2026-04-19 14:57:46  INFO      [172/179] VTBR — уже в company_ids.json, пропуск.
+2026-04-19 14:57:46  INFO      [173/179] MOEX: WUSH …
+2026-04-19 14:57:57  INFO      [WUSH] e-disclosure id=38772 inn=9703103060
+2026-04-19 14:58:01  INFO      [174/179] MOEX: X5 …
+2026-04-19 14:58:10  INFO      [X5] e-disclosure id=39008 inn=9722079341
+2026-04-19 14:58:14  INFO      [175/179] MOEX: YAKG …
+2026-04-19 14:58:27  INFO      [YAKG] e-disclosure id=4994 inn=1435032049
+2026-04-19 14:58:32  INFO      [176/179] YDEX — уже в company_ids.json, пропуск.
+2026-04-19 14:58:32  INFO      [177/179] MOEX: YNDX@US …
+2026-04-19 14:58:33  INFO      [178/179] MOEX: ZAYM …
+2026-04-19 14:58:43  INFO      [ZAYM] e-disclosure id=38344 inn=5406836941
+2026-04-19 14:58:46  INFO      [179/179] MOEX: ZILLP …
+2026-04-19 14:58:55  INFO      [ZILLP] e-disclosure id=3649 inn=7725043886
+2026-04-19 14:58:59  INFO      Записано 138 записей в edisclosure_ids_generated.json

@@ -29,6 +29,7 @@ from pathlib import Path
 from config import COMPANY_DELAY_MIN, COMPANY_DELAY_MAX, REPORTS_BASE_DIR
 from db_client import get_companies_from_db
 from downloader import download_reports
+from pdf_extract import process_orphan_zips_in_ticker_dir
 from scraper import fetch_annual_reports
 
 # ── Logging ────────────────────────────────────────────────────────────────────
@@ -91,6 +92,11 @@ def parse_args() -> argparse.Namespace:
         choices=["DEBUG", "INFO", "WARNING", "ERROR"],
         help="Уровень логирования (по умолчанию: INFO)",
     )
+    parser.add_argument(
+        "--extract-only",
+        action="store_true",
+        help="Только распаковать ZIP из папок Reports в TICKER_YEAR.pdf (без скачивания)",
+    )
     return parser.parse_args()
 
 
@@ -105,6 +111,15 @@ def main() -> None:
         print("Тикеры с известными e-disclosure ID:")
         for ticker, cid in sorted(mapping.items()):
             print(f"  {ticker:<10} id={cid}")
+        return
+
+    if args.extract_only:
+        REPORTS_BASE_DIR.mkdir(parents=True, exist_ok=True)
+        n = 0
+        for sub in sorted(REPORTS_BASE_DIR.iterdir()):
+            if sub.is_dir() and sub.name.isascii():
+                n += process_orphan_zips_in_ticker_dir(sub.name.upper(), sub)
+        logger.info("Распаковка завершена, обработано архивов: %d.", n)
         return
 
     logger.info("=" * 60)
@@ -162,8 +177,8 @@ def main() -> None:
             if reports:
                 print(f"\n{ticker} ({company_name})  [id={company_id}]:")
                 for r in sorted(reports, key=lambda x: x.year, reverse=True):
-                    dest = REPORTS_BASE_DIR / ticker / f"{r.year}_annual_consolidated.zip"
-                    status = "✓ уже есть" if dest.exists() else "→ будет скачан"
+                    pdf_p = REPORTS_BASE_DIR / ticker / f"{ticker}_{r.year}.pdf"
+                    status = "✓ PDF есть" if pdf_p.exists() else "→ будет скачан"
                     print(f"  {r.year}  {status}  {r.file_label}  {r.file_url}")
             else:
                 print(f"\n{ticker}: отчёты не найдены.")

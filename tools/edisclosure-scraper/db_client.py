@@ -16,6 +16,12 @@ class CompanyRecord(NamedTuple):
     name: str
 
 
+class CompanyRecordFull(NamedTuple):
+    ticker: str
+    name: str
+    isin: str | None
+
+
 def get_companies_from_db() -> list[CompanyRecord]:
     """Возвращает список компаний из таблицы companies."""
     try:
@@ -55,6 +61,62 @@ def get_companies_from_db() -> list[CompanyRecord]:
     except Exception as exc:
         logger.warning("Не удалось подключиться к PostgreSQL (%s) — используется mock-список.", exc)
         return _get_mock_companies()
+
+
+def get_companies_full_from_db() -> list[CompanyRecordFull]:
+    """Тикер, название и ISIN — для сопоставления с MOEX/e-disclosure."""
+    try:
+        import psycopg2
+    except ImportError:
+        logger.warning("psycopg2 не установлен — mock без ISIN.")
+        return [
+            CompanyRecordFull(c.ticker, c.name, None)
+            for c in _get_mock_companies()
+        ]
+
+    from config import (
+        POSTGRES_DB, POSTGRES_HOST, POSTGRES_PASSWORD,
+        POSTGRES_PORT, POSTGRES_USER,
+    )
+
+    try:
+        conn = psycopg2.connect(
+            dbname=POSTGRES_DB,
+            user=POSTGRES_USER,
+            password=POSTGRES_PASSWORD,
+            host=POSTGRES_HOST,
+            port=POSTGRES_PORT,
+            connect_timeout=5,
+        )
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT ticker, name, isin FROM companies ORDER BY ticker"
+                )
+                rows = cur.fetchall()
+        conn.close()
+
+        if not rows:
+            return [
+                CompanyRecordFull(c.ticker, c.name, None)
+                for c in _get_mock_companies()
+            ]
+
+        return [
+            CompanyRecordFull(
+                ticker=r[0],
+                name=r[1],
+                isin=r[2],
+            )
+            for r in rows
+        ]
+
+    except Exception as exc:
+        logger.warning("PostgreSQL недоступен (%s) — mock без ISIN.", exc)
+        return [
+            CompanyRecordFull(c.ticker, c.name, None)
+            for c in _get_mock_companies()
+        ]
 
 
 def _get_mock_companies() -> list[CompanyRecord]:

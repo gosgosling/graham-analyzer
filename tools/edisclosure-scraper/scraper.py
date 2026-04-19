@@ -65,14 +65,18 @@ def fetch_annual_reports(company_id: int, ticker: str) -> list[ReportEntry]:
 
     try:
         with sync_playwright() as pw:
-            browser = pw.chromium.launch(
-                headless=True,
-                args=[
+            launch_kw = {
+                "headless": True,
+                "args": [
                     "--no-sandbox",
                     "--disable-setuid-sandbox",
                     "--disable-dev-shm-usage",
                 ],
-            )
+            }
+            ep = pw.chromium.executable_path
+            if ep:
+                launch_kw["executable_path"] = ep
+            browser = pw.chromium.launch(**launch_kw)
             context = browser.new_context(
                 user_agent=USER_AGENT,
                 locale="ru-RU",
@@ -82,7 +86,7 @@ def fetch_annual_reports(company_id: int, ticker: str) -> list[ReportEntry]:
             page = context.new_page()
 
             logger.debug("[%s] Открываем %s", ticker, url)
-            page.goto(url, wait_until="networkidle", timeout=60_000)
+            page.goto(url, wait_until="domcontentloaded", timeout=90_000)
 
             # Ждём, пока ServicePipe-challenge пройдёт:
             # страница должна содержать таблицу или текст «Консолидированная»
