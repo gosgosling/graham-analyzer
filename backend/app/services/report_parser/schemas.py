@@ -63,15 +63,43 @@ class ExtractedReport(BaseModel):
 
     # ─── Балансовые показатели (в ИСХОДНЫХ единицах отчёта!) ─────────────────
     # После получения от LLM мы сами приведём их в миллионы согласно units_scale.
-    total_assets: Optional[float] = Field(None, description="Итого активы")
-    total_liabilities: Optional[float] = Field(None, description="Итого обязательства")
+    total_assets: Optional[float] = Field(
+        None,
+        description=(
+            "Итого активы. Синонимы в отчётах: 'Итого активов', 'Всего активов', "
+            "'Активы — всего', 'Total assets', 'Баланс' (в конце раздела активы)."
+        ),
+    )
+    total_liabilities: Optional[float] = Field(
+        None,
+        description=(
+            "Итого обязательства (ВСЕ, долгосрочные + краткосрочные). "
+            "Синонимы в отчётах: 'Итого обязательств', 'Всего обязательств', "
+            "'Обязательства — всего', 'Total liabilities'. "
+            "Может располагаться ПЕРЕД строкой 'Итого капитал и обязательства' / "
+            "'Баланс'. Если прямой строки нет — сложи все подитоги обязательств "
+            "(долгосрочные + краткосрочные) и укажи это в extraction_notes."
+        ),
+    )
     current_assets: Optional[float] = Field(
         None,
-        description="Итого оборотные активы (не заполнять для банков — оставить null)",
+        description=(
+            "Итого оборотные активы. СИНОНИМЫ (в российских МСФО встречаются все): "
+            "'Оборотные активы', 'Текущие активы', 'Краткосрочные активы', "
+            "'Итого оборотных активов', 'Итого краткосрочных активов', "
+            "'Current assets', 'Total current assets'. "
+            "НЕ заполнять для банков — оставить null."
+        ),
     )
     current_liabilities: Optional[float] = Field(
         None,
-        description="Итого краткосрочные обязательства (не заполнять для банков)",
+        description=(
+            "Итого краткосрочные обязательства. СИНОНИМЫ: "
+            "'Краткосрочные обязательства', 'Текущие обязательства', "
+            "'Итого краткосрочных обязательств', 'Итого текущих обязательств', "
+            "'Current liabilities', 'Total current liabilities'. "
+            "НЕ заполнять для банков — оставить null."
+        ),
     )
     equity: Optional[float] = Field(
         None,
@@ -125,13 +153,16 @@ class ExtractedReport(BaseModel):
             "Единицы (штуки/тысячи) укажи в shares_units_scale."
         ),
     )
-    shares_units_scale: Literal["units", "thousands"] = Field(
+    shares_units_scale: Literal["units", "thousands", "millions"] = Field(
         "units",
         description=(
             "В каких единицах записано shares_outstanding. Определяй по ПОДПИСИ "
             "рядом со строкой или в шапке таблицы: "
             "'Средневзвешенное количество обыкновенных акций (ТЫС. ШТУК)' → thousands; "
-            "'В обращении 692 865 762 акции' → units. "
+            "'Средневзвешенное количество обыкновенных акций (МЛН. ШТУК)' → millions "
+            "(встречается у Татнефти, Лукойла и др. — число обычно 2-3 значное, "
+            "реальное количество измеряется миллиардами); "
+            "'В обращении 692 865 762 акции' / 'штук' → units. "
             "Если не уверен — thousands (чаще встречается в российских МСФО)."
         ),
     )
@@ -195,6 +226,7 @@ _MONETARY_FIELDS_IN_MILLIONS: tuple[str, ...] = (
 _SHARES_SCALE_TO_UNITS: dict[str, int] = {
     "units": 1,
     "thousands": 1_000,
+    "millions": 1_000_000,
 }
 
 

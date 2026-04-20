@@ -226,33 +226,96 @@ def _auto_fix_money_units(extracted: ExtractedReport) -> tuple[ExtractedReport, 
 
 def _auto_fix_shares_units(extracted: ExtractedReport) -> tuple[ExtractedReport, Optional[str]]:
     """
-    Эвристика: если модель вернула shares_outstanding < 10 млн
-    и shares_units_scale='units', почти наверняка она не распознала '(тыс. штук)'.
-    В таком случае форсируем shares_units_scale='thousands' — дальнейший
-    rescale_to_millions умножит на 1000.
+    Эвристика: модель часто не распознаёт подпись единиц у акций
+    ('(тыс. штук)' / '(млн. штук)') и возвращает голое число со
+    shares_units_scale='units'. Правим по порядку величины и по упоминаниям
+    единиц в extraction_notes.
+
+    Логика (ДО rescale_to_millions, числа сырые):
+      * scale='units', shares < 10 000              → почти наверняка 'millions'
+        (напр. Татнефть '2 103' — в млн. штук = 2.1 млрд)
+      * scale='units', 10 000 ≤ shares < 10 000 000 → 'thousands'
+        (напр. Русгидро '444 793 377' тыс. = 444 млрд)
+      * scale='thousands', shares < 10 000          → 'millions'
+        (модель увидела 'млн', но положила в ближайший известный ей 'thousands')
+      * extraction_notes содержит 'млн. штук' / 'миллионов акций' → 'millions'
+
+    Плюс подсказки из текста заметок модели (upgrade scale).
 
     Возвращает (возможно обновлённый report, сообщение для notes или None).
     """
     shares = extracted.shares_outstanding
-    if shares is None:
-        return extracted, None
-    if shares <= 0:
-        return extracted, None
-    if extracted.shares_units_scale != "units":
-        # Модель уже указала thousands — rescale справится сам.
-        return extracted, None
-    if shares >= _SUSPICIOUS_SHARES_THRESHOLD:
+    if shares is None or shares <= 0:
         return extracted, None
 
-    fixed = extracted.model_copy(update={"shares_units_scale": "thousands"})
-    msg = (
-        f"AUTO-FIX: shares_outstanding={shares:,} < 10 млн. "
-        f"Модель указала 'units', но это почти наверняка '(тыс. штук)'. "
-        f"Принудительно принято shares_units_scale='thousands', итоговое число "
-        f"× 1000 = {shares * 1000:,}. Проверь в отчёте!"
+    notes_lc = (extracted.extraction_notes or "").lower()
+    mentions_mln_shares = any(
+        kw in notes_lc
+        for kw in ("млн. штук", "млн штук", "миллион", "млн. акций", "млн акций", "million shares")
     )
-    logger.warning(msg)
-    return fixed, msg
+    mentions_thousand_shares = any(
+        kw in notes_lc
+        for kw in ("тыс. штук", "тыс штук", "тысяч акций", "тысяч штук", "thousand shares")
+    )
+
+    # 1) Модель в заметках явно упомянула 'млн. штук' → принудительно millions.
+    if mentions_mln_shares and extracted.shares_units_scale != "millions":
+        fixed = extracted.model_copy(update={"shares_units_scale": "millions"})
+        msg = (
+            f"AUTO-FIX: в заметках модели упомянуты 'млн. штук', но "
+            f"shares_units_scale='{extracted.shares_units_scale}'. Принудительно "
+            f"установлено 'millions'. Итоговое число × 1 000 000 = {shares * 1_000_000:,}."
+        )
+        logger.warning(msg)
+        return fixed, msg
+
+    # 2) Модель в заметках явно упомянула 'тыс. штук' → принудительно thousands.
+    if (
+        mentions_thousand_shares
+        and extracted.shares_units_scale == "units"
+        and shares < _SUSPICIOUS_SHARES_THRESHOLD * 100  # ограничение на всякий случай
+    ):
+        fixed = extracted.model_copy(update={"shares_units_scale": "thousands"})
+        msg = (
+            f"AUTO-FIX: в заметках модели упомянуты 'тыс. штук', но "
+            f"shares_units_scale='units'. Принудительно установлено 'thousands'. "
+            f"Итоговое число × 1000 = {shares * 1_000:,}."
+        )
+        logger.warning(msg)
+        return fixed, msg
+
+    # Ниже — эвристики по порядку числа (без подсказок в заметках).
+
+    # 3) Очень маленькое число (<10 000) при scale='units' или 'thousands'
+    #    → почти наверняка 'millions'.
+    if shares < 10_000 and extracted.shares_units_scale in ("units", "thousands"):
+        fixed = extracted.model_copy(update={"shares_units_scale": "millions"})
+        msg = (
+            f"AUTO-FIX: shares_outstanding={shares:,} < 10 000 при "
+            f"scale='{extracted.shares_units_scale}'. Это почти наверняка "
+            f"подпись '(млн. штук)' в отчёте. Принудительно принято "
+            f"shares_units_scale='millions', итоговое число × 1 000 000 = "
+            f"{shares * 1_000_000:,}. Проверь в отчёте!"
+        )
+        logger.warning(msg)
+        return fixed, msg
+
+    # 4) Число средней величины (10k..10M) при scale='units' → 'thousands'.
+    if (
+        extracted.shares_units_scale == "units"
+        and 10_000 <= shares < _SUSPICIOUS_SHARES_THRESHOLD
+    ):
+        fixed = extracted.model_copy(update={"shares_units_scale": "thousands"})
+        msg = (
+            f"AUTO-FIX: shares_outstanding={shares:,} < 10 млн при scale='units'. "
+            f"Это почти наверняка '(тыс. штук)'. Принудительно принято "
+            f"shares_units_scale='thousands', итоговое число × 1000 = "
+            f"{shares * 1_000:,}. Проверь в отчёте!"
+        )
+        logger.warning(msg)
+        return fixed, msg
+
+    return extracted, None
 
 
 def _collect_sanity_warnings(extracted: ExtractedReport) -> list[str]:
