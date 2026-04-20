@@ -4248,3 +4248,21 @@ Call log:
 2026-04-19 22:12:51  INFO      [MVID] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1824704 → 2023_annual_consolidated.zip
 2026-04-19 22:12:56  INFO      [MVID] ✓ Сохранён временный файл 2023_annual_consolidated.zip (2187 КБ)
 2026-04-19 22:12:56  INFO      [MVID 2023] ✓ PDF из архива → MVID_2023.pdf (из 1 файлов, источник: è«¡ß«½¿ñ¿α«óá¡¡á∩ Σ¿¡á¡ß«óá∩ «Γτ±Γ¡«ßΓ∞ ß»Ñµ¿á½∞¡«ú« ¡áº¡áτÑ¡¿∩ ÅÇÄ 2023.pdf)
+2026-04-19 22:13:09  INFO      [MVID] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1791058 → 2022_annual_consolidated.zip
+2026-04-19 22:13:12  INFO      [MVID] ✓ Сохранён временный файл 2022_annual_consolidated.zip (2009 КБ)
+2026-04-19 22:13:12  INFO      [MVID 2022] ✓ PDF из архива → MVID_2022.pdf (из 1 файлов, источник: M video IFRS Cons FS 22-r.pdf)
+2026-04-19 22:13:25  INFO      [MVID] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1737363 → 2021_annual_consolidated.zip
+2026-04-19 22:13:28  INFO      [MVID] ✓ Сохранён временный файл 2021_annual_consolidated.zip (1999 КБ)
+2026-04-19 22:13:28  INFO      [MVID 2021] ✓ PDF из архива → MVID_2021.pdf (из 1 файлов, источник: M video IFRS Cons FS 21-r_.pdf)
+2026-04-19 22:13:39  INFO      [MVID] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1682897 → 2020_annual_consolidated.zip
+2026-04-19 22:13:46  INFO      [MVID] ✓ Сохранён временный файл 2020_annual_consolidated.zip (1890 КБ)
+2026-04-19 22:13:46  INFO      [MVID 2020] ✓ PDF из архива → MVID_2020.pdf (из 1 файлов, источник: M video IFRS Cons FS 20-r.pdf)
+2026-04-19 22:14:03  INFO      [MVID] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1619572 → 2019_annual_consolidated.zip
+2026-04-19 22:14:13  INFO      [MVID] ✓ Сохранён временный файл 2019_annual_consolidated.zip (3875 КБ)
+2026-04-19 22:14:13  INFO      [MVID 2019] ✓ PDF из архива → MVID_2019.pdf (из 1 файлов, источник: îé¿ñÑ«_îæöÄ_2019.pdf)
+2026-04-19 22:14:27  INFO      [MVID] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1495515 → 2018_annual_consolidated.zip
+2026-04-19 22:14:28  INFO      [MVID] ✓ Сохранён временный файл 2018_annual_consolidated.zip (1080 КБ)
+2026-04-19 22:14:28  INFO      [MVID 2018] ✓ PDF из архива → MVID_2018.pdf (из 1 файлов, источник: M video IFRS Cons FS 18-r_final.pdf)
+2026-04-19 22:14:40  INFO      [MVID] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1404490 → 2017_annual_consolidated.zip
+2026-04-19 22:14:42  INFO      [MVID] ✓ Сохранён временный файл 2017_annual_consolidated.zip (928 КБ)
+2026-04-19 22:14:42  INFO      [MVID 2017] ✓ PDF из архива → MVID_2017.pdf (из 1 файлов, источник: M video IFRS Cons FS 17-r.pdf)
