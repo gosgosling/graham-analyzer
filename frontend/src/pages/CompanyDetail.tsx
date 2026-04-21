@@ -6,6 +6,7 @@ import {
   getCompanyReports,
   createFinancialReport,
   updateFinancialReport,
+  deleteFinancialReport,
   refreshCompanyMultipliers,
   verifyReport,
 } from '../services';
@@ -86,6 +87,29 @@ const CompanyDetail: React.FC = () => {
     onError: (err: any) => {
       const d = err?.response?.data?.detail;
       alert(typeof d === 'string' ? d : 'Не удалось подтвердить отчёт');
+    },
+  });
+
+  // Удаление отчёта: инвалидируем кэш и триггерим пересчёт current-мультипликаторов
+  // (чтобы панель LTM-показателей не показывала данные удалённого отчёта).
+  const deleteReportMutation = useMutation({
+    mutationFn: (reportId: number) => deleteFinancialReport(reportId),
+    onSuccess: async () => {
+      queryClient.invalidateQueries({ queryKey: ['reports', companyId] });
+      queryClient.invalidateQueries({ queryKey: ['multipliers', companyId] });
+      queryClient.invalidateQueries({ queryKey: ['reports-unverified-counts'] });
+      try {
+        await refreshCompanyMultipliers(Number(companyId), true);
+      } catch {
+        // не критично — кеш уже инвалидирован, при следующем переходе пересчитается
+      }
+      queryClient.invalidateQueries({ queryKey: ['multipliers', companyId] });
+      setSelectedReport(null);
+      setEditingReport(null);
+    },
+    onError: (err: any) => {
+      const d = err?.response?.data?.detail;
+      alert(typeof d === 'string' ? d : 'Не удалось удалить отчёт');
     },
   });
 
@@ -646,6 +670,21 @@ const CompanyDetail: React.FC = () => {
           }}
           onVerify={(reportId) => verifyReportMutation.mutate(reportId)}
           verifyPending={verifyReportMutation.isPending}
+          onDelete={(reportId) => {
+            const r = selectedReport;
+            const label = r ? `${r.fiscal_year} ${r.period_type}` : `#${reportId}`;
+            const confirmMsg =
+              `Удалить отчёт "${label}"?\n\n` +
+              'Это действие необратимо. Вместе с отчётом будут удалены все ' +
+              'привязанные к нему записи из истории мультипликаторов ' +
+              '(type=report_based).\n\n' +
+              'Текущие LTM-мультипликаторы (type=current) автоматически ' +
+              'пересчитаются по оставшимся отчётам.';
+            if (window.confirm(confirmMsg)) {
+              deleteReportMutation.mutate(reportId);
+            }
+          }}
+          deletePending={deleteReportMutation.isPending}
         />
       )}
 
@@ -704,6 +743,8 @@ interface ReportDetailModalProps {
   onEdit?: (report: FinancialReport) => void;
   onVerify?: (reportId: number) => void;
   verifyPending?: boolean;
+  onDelete?: (reportId: number) => void;
+  deletePending?: boolean;
 }
 
 const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
@@ -712,6 +753,8 @@ const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
   onEdit,
   onVerify,
   verifyPending,
+  onDelete,
+  deletePending,
 }) => {
   const cur = report.currency;
   const isUsd = cur === 'USD';
@@ -981,6 +1024,21 @@ const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
             {onEdit && (
               <button onClick={() => onEdit(report)} className="btn-edit-report">
                 ✏️ Редактировать
+              </button>
+            )}
+            {onDelete && (
+              <button
+                onClick={() => onDelete(report.id)}
+                className="btn-edit-report"
+                disabled={deletePending}
+                style={{
+                  background: '#ff4d4f',
+                  color: 'white',
+                  border: 'none',
+                }}
+                title="Удалить отчёт и связанные записи в истории мультипликаторов"
+              >
+                {deletePending ? 'Удаляем…' : '🗑️ Удалить'}
               </button>
             )}
             <button onClick={onClose} className="btn-close-detail">Закрыть</button>

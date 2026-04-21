@@ -83,3 +83,34 @@ export const getMoexPrice = async (
     });
     return response.data;
 };
+
+export interface FxRateResult {
+    currency: string;
+    requested_date: string;
+    actual_date: string;
+    rate: number;
+    /** Источник курса: "MOEX" (биржевой) или "CBR" (официальный курс ЦБ РФ) */
+    source: 'MOEX' | 'CBR';
+    /** true — если на requested_date биржа/ЦБ не работали, вернулся курс предыдущего рабочего дня */
+    is_adjusted: boolean;
+}
+
+/**
+ * Получает курс иностранной валюты к рублю на указанную дату.
+ *
+ * Источник MOEX (биржевой, WAPRICE) → CBR (официальный ЦБ) в качестве fallback.
+ * Работает для USD, EUR, CNY, GBP, JPY, CHF. После июня 2024 для USD/EUR
+ * автоматически переключается на ЦБ (MOEX прекратил торги).
+ *
+ * @param currency  Код валюты (USD, EUR, CNY …)
+ * @param date      Дата в формате YYYY-MM-DD (обычно дата окончания отчётного периода)
+ */
+export const getFxRate = async (
+    currency: string,
+    date: string,
+): Promise<FxRateResult> => {
+    const response = await api.get<FxRateResult>('/market/fx/rate', {
+        params: { currency, date },
+    });
+    return response.data;
+};

@@ -293,6 +293,73 @@ def save_current_multiplier(
     return existing
 
 
+def _delete_stale_report_based(
+    db: Session,
+    report_id: int,
+    keep_date: Optional[date] = None,
+    keep_id: Optional[int] = None,
+) -> int:
+    """
+    Удаляет «протухшие» report_based-мультипликаторы, ссылающиеся на данный
+    `report_id`, кроме тех, чья `date` совпадает с `keep_date` (или id совпадает
+    с `keep_id`). Возвращает число удалённых строк.
+
+    Применяется:
+    * при UPDATE отчёта с изменением `report_date` — чтобы старая запись не
+      висела с устаревшими shares/market_cap;
+    * при DELETE отчёта — чтобы мультипликаторы не оставались «осиротевшими»
+      с `report_id=NULL` (ON DELETE SET NULL без этой логики оставлял мусор).
+    """
+    q = db.query(Multiplier).filter(
+        Multiplier.report_id == report_id,
+        Multiplier.type == "report_based",
+    )
+    if keep_id is not None:
+        q = q.filter(Multiplier.id != keep_id)
+    if keep_date is not None:
+        q = q.filter(Multiplier.date != keep_date)
+
+    stale: List[Multiplier] = q.all()
+    for row in stale:
+        db.delete(row)
+    if stale:
+        logger.info(
+            "Удалены %d устаревших report_based мультипликаторов для report_id=%d",
+            len(stale),
+            report_id,
+        )
+    return len(stale)
+
+
+def delete_multipliers_for_report(db: Session, report_id: int) -> int:
+    """
+    Удаляет ВСЕ report_based мультипликаторы, привязанные к отчёту (любые даты).
+    Вызывается перед удалением самого отчёта (`delete_report`), чтобы
+    не оставлять «осиротевших» записей с `report_id=NULL`.
+
+    `type='current'` записи не трогаем — они относятся к «сегодня» и
+    после удаления отчёта будут пересчитаны на следующем запросе
+    актуальных мультипликаторов (см. refresh endpoint).
+    """
+    rows = (
+        db.query(Multiplier)
+        .filter(
+            Multiplier.report_id == report_id,
+            Multiplier.type == "report_based",
+        )
+        .all()
+    )
+    for r in rows:
+        db.delete(r)
+    if rows:
+        logger.info(
+            "Удалены %d report_based мультипликаторов перед удалением отчёта id=%d",
+            len(rows),
+            report_id,
+        )
+    return len(rows)
+
+
 def save_report_based_multiplier(
     db: Session,
     report: FinancialReport,
@@ -301,21 +368,47 @@ def save_report_based_multiplier(
     Вычисляет и сохраняет мультипликаторы на дату отчёта (type="report_based").
     Использует price_per_share из самого отчёта.
     Вызывается при создании/обновлении отчёта.
+
+    Ключ идемпотентности — `report_id` (один отчёт = одна report_based-запись).
+    Раньше ключом была пара (company_id, date), но при UPDATE отчёта с
+    изменением report_date это приводило к «сиротам»: старая запись оставалась
+    привязанной к тому же report_id, но с устаревшей датой и устаревшими
+    shares_used/market_cap. В «Истории мультипликаторов» появлялись дубли.
+    Теперь мы чистим все прошлые report_based-записи этого report_id и
+    пересоздаём/обновляем одну запись на актуальную report_date.
     """
     if report.price_per_share is None and report.shares_outstanding is None:
+        # Мы не можем посчитать мультипликаторы — но «протухшие» записи
+        # от предыдущих версий отчёта всё равно нужно вычистить.
+        _delete_stale_report_based(db, report.id, keep_date=None)
+        db.commit()
         return None
 
     mults = calculate_multipliers(report)
 
+    # 1) Основная запись: ищем ранее созданную для ЭТОГО report_id.
     existing: Optional[Multiplier] = (
         db.query(Multiplier)
         .filter(
-            Multiplier.company_id == report.company_id,
-            Multiplier.date == report.report_date,
+            Multiplier.report_id == report.id,
             Multiplier.type == "report_based",
         )
+        .order_by(Multiplier.updated_at.desc().nullslast(), Multiplier.id.desc())
         .first()
     )
+
+    if existing is None:
+        # Fallback: вдруг существующая запись имеет report_id=NULL (осталась
+        # после старого ON DELETE SET NULL) — найдём её по дате.
+        existing = (
+            db.query(Multiplier)
+            .filter(
+                Multiplier.company_id == report.company_id,
+                Multiplier.date == report.report_date,
+                Multiplier.type == "report_based",
+            )
+            .first()
+        )
 
     if existing is None:
         existing = Multiplier(
@@ -324,6 +417,24 @@ def save_report_based_multiplier(
             type="report_based",
         )
         db.add(existing)
+        # Нам нужен existing.id ниже (чтобы не удалить самих себя), поэтому
+        # прогоняем flush — ID выдаётся сиквенсом и становится доступным.
+        db.flush()
+    else:
+        # Сдвигаем дату на актуальную report_date (могла измениться при UPDATE).
+        existing.date = report.report_date  # type: ignore
+        # Гарантируем, что report_id проставлен (мог быть NULL после старой
+        # логики ON DELETE SET NULL).
+        existing.report_id = report.id  # type: ignore
+
+    # 2) Чистим все прочие «протухшие» report_based для того же report_id —
+    # это как раз источник дублей в UI (несколько записей на один отчёт).
+    _delete_stale_report_based(
+        db,
+        report_id=report.id,
+        keep_date=report.report_date,
+        keep_id=existing.id,
+    )
 
     existing.report_id = report.id  # type: ignore
     existing.price_used = mults.get("price_used")  # type: ignore

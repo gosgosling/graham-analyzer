@@ -266,7 +266,7 @@ const AiParsePdfModal: React.FC<AiParsePdfModalProps> = ({
                   value={fiscalYear}
                   onChange={(e) => setFiscalYear(Number(e.target.value))}
                   min={1990}
-                  max={currentYear + 1}
+                  max={currentYear}
                   disabled={parseMutation.isPending}
                   required
                 />
@@ -647,7 +647,7 @@ function extractYearFromFileName(name: string): number | null {
   let match: RegExpExecArray | null;
   while ((match = re.exec(name)) !== null) {
     const y = parseInt(match[0], 10);
-    if (y >= 1990 && y <= CURRENT_YEAR + 1) return y;
+    if (y >= 1990 && y <= CURRENT_YEAR) return y;
   }
   return null;
 }
@@ -1124,7 +1124,7 @@ const BatchRow: React.FC<BatchRowProps> = ({ item, disabled, onYearChange, onRem
           className="ai-batch-year-input"
           value={item.fiscalYear ?? ''}
           min={1990}
-          max={CURRENT_YEAR + 1}
+          max={CURRENT_YEAR}
           onChange={(e) => {
             const raw = e.target.value.trim();
             if (raw === '') {

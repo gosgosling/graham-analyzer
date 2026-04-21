@@ -167,9 +167,14 @@ class FinancialReportCreate(BaseModel):
     @model_validator(mode='after')
     def validate_report(self):
         """Валидация полей отчёта"""
-        # Проверка курса валюты
-        if self.currency == "USD" and not self.exchange_rate:
-            raise ValueError("Курс доллара обязателен для USD отчетов")
+        # Проверка курса валюты для любой иностранной валюты (не только USD).
+        # Если курс не задан — конвертация в рубли невозможна, а мультипликаторы
+        # (P/E, P/B) для сравнения с MOEX-ценой будут некорректными.
+        if self.currency and self.currency.upper() != "RUB" and not self.exchange_rate:
+            raise ValueError(
+                f"Курс {self.currency}/RUB обязателен для отчётов в {self.currency}. "
+                f"Укажите его вручную или используйте автозагрузку с MOEX/ЦБ РФ."
+            )
         
         # Проверка квартала для квартальных отчётов
         if self.period_type == PeriodType.QUARTERLY:
