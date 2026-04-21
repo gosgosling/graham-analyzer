@@ -259,19 +259,33 @@ def update_report(
 
 def delete_report(db: Session, report_id: int) -> bool:
     """
-    Удаляет финансовый отчет.
-    
+    Удаляет финансовый отчет и все связанные с ним report_based-мультипликаторы.
+
+    На уровне схемы FK `multipliers.report_id` имеет ON DELETE SET NULL.
+    Без дополнительной очистки это означало бы, что после удаления отчёта
+    все его `report_based` мультипликаторы остаются в БД с `report_id=NULL`
+    и превращаются в «сирот» — захламляют «Историю мультипликаторов» в UI.
+    Поэтому удаляем их явно перед удалением самого отчёта.
+
+    Записи `type='current'` НЕ удаляются — они относятся к сегодняшним
+    котировкам и будут пересчитаны на следующем запросе актуальных
+    мультипликаторов.
+
     Args:
         db: Сессия базы данных
         report_id: ID отчета для удаления
-        
+
     Returns:
         True если удален успешно, False если не найден
     """
     db_report = get_report_by_id(db, report_id)
     if not db_report:
         return False
-    
+
+    # 1) Сначала чистим связанные мультипликаторы (type='report_based').
+    multiplier_service.delete_multipliers_for_report(db, report_id=report_id)
+
+    # 2) Удаляем сам отчёт.
     db.delete(db_report)
     db.commit()
     return True

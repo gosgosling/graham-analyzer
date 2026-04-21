@@ -8,9 +8,11 @@ import {
     getMoexPrice,
     getMoexShares,
     getMoexDividends,
+    getFxRate,
     MoexPriceResult,
     MoexSharesResult,
     MoexDividendsResult,
+    FxRateResult,
 } from '../services';
 import './ReportForm.css';
 
@@ -194,6 +196,12 @@ interface SharesFetchState {
 interface DividendsFetchState {
     loading: boolean;
     result: MoexDividendsResult | null;
+    error: string | null;
+}
+
+interface FxFetchState {
+    loading: boolean;
+    result: FxRateResult | null;
     error: string | null;
 }
 
@@ -406,8 +414,42 @@ const DividendsInfoPanel: React.FC<{
     );
 };
 
-/** Показывает статус загрузки цены и индикатор корректировки даты */
-const PriceFetchBadge: React.FC<{ state: PriceFetchState; requestedDate: string }> = ({ state, requestedDate }) => {
+/** Показывает статус загрузки курса валюты (MOEX / ЦБ РФ). */
+const FxRateBadge: React.FC<{ state: FxFetchState; requestedDate: string }> = ({ state, requestedDate }) => {
+    if (state.loading) {
+        return <span className="price-badge loading">⟳ Загрузка курса…</span>;
+    }
+    if (state.error) {
+        return <span className="price-badge error">✗ {state.error}</span>;
+    }
+    if (state.result) {
+        const adjusted = state.result.is_adjusted;
+        const src = state.result.source === 'MOEX' ? 'MOEX' : 'ЦБ РФ';
+        return (
+            <span className={`price-badge ${adjusted ? 'adjusted' : 'ok'}`}>
+                {adjusted
+                    ? `⚠ ${requestedDate} — нерабочий день, курс за ${state.result.actual_date} (${src})`
+                    : `✓ Курс за ${state.result.actual_date} (${src})`
+                }
+            </span>
+        );
+    }
+    return null;
+};
+
+/** Показывает статус загрузки цены и индикатор корректировки даты.
+ *
+ * Если валюта отчёта — не рубль, дополнительно рендерит строку про
+ * конвертацию: "6340 ₽ (MOEX) ÷ 101.68 = 62.33 USD". Это единственное место,
+ * где пользователь видит рублёвую MOEX-цену; в самом поле price_per_share
+ * лежит уже цена в валюте отчёта.
+ */
+const PriceFetchBadge: React.FC<{
+    state: PriceFetchState;
+    requestedDate: string;
+    currency: string;
+    exchangeRate: number | null | undefined;
+}> = ({ state, requestedDate, currency, exchangeRate }) => {
     if (state.loading) {
         return <span className="price-badge loading">⟳ Загрузка цены с Мосбиржи...</span>;
     }
@@ -416,13 +458,27 @@ const PriceFetchBadge: React.FC<{ state: PriceFetchState; requestedDate: string 
     }
     if (state.result) {
         const adjusted = state.result.is_adjusted;
+        const rub = state.result.price;
+        const reportCurrency = (currency || 'RUB').toUpperCase();
+        const needsConversion = reportCurrency !== 'RUB';
+        const canConvert = needsConversion && exchangeRate && exchangeRate > 0;
         return (
-            <span className={`price-badge ${adjusted ? 'adjusted' : 'ok'}`}>
-                {adjusted
-                    ? `⚠ Биржа закрыта ${requestedDate} → цена за ${state.result.actual_date}`
-                    : `✓ Цена за ${state.result.actual_date} (${state.result.board})`
-                }
-            </span>
+            <>
+                <span className={`price-badge ${adjusted ? 'adjusted' : 'ok'}`}>
+                    {adjusted
+                        ? `⚠ Биржа закрыта ${requestedDate} → цена за ${state.result.actual_date}`
+                        : `✓ Цена за ${state.result.actual_date} (${state.result.board})`
+                    }
+                </span>
+                {needsConversion && (
+                    <span className="price-badge info">
+                        {canConvert
+                            ? `${rub.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ₽ (MOEX) ÷ ${exchangeRate!.toFixed(4)} = ${(rub / exchangeRate!).toFixed(4)} ${reportCurrency}`
+                            : `⚠ MOEX даёт ${rub.toLocaleString('ru-RU')} ₽ — укажите курс ${reportCurrency}/RUB, чтобы конвертировать в ${reportCurrency}/акция`
+                        }
+                    </span>
+                )}
+            </>
         );
     }
     return null;
@@ -446,6 +502,13 @@ const ReportForm: React.FC<ReportFormProps> = ({ companyId, companyName, ticker,
 
     // Состояние загрузки дивидендов
     const [dividendsState, setDividendsState] = useState<DividendsFetchState>({
+        loading: false, result: null, error: null,
+    });
+
+    // Состояние загрузки курса валюты (USD/RUB, EUR/RUB …).
+    // Заполняется автоматически при выборе иностранной валюты + даты окончания
+    // отчётного периода. Источник: MOEX → ЦБ РФ (fallback).
+    const [fxRateState, setFxRateState] = useState<FxFetchState>({
         loading: false, result: null, error: null,
     });
 
@@ -528,6 +591,26 @@ const ReportForm: React.FC<ReportFormProps> = ({ companyId, companyName, ticker,
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [ticker]);
 
+    // Авто-загрузка цены акции на дату окончания периода.
+    // Срабатывает при открытии формы (если дата уже есть) И при смене report_date.
+    // Если цена уже заполнена (напр. AI-черновик или MOEX) — НЕ перезаписываем.
+    useEffect(() => {
+        if (!ticker || !formData.report_date) return;
+        if (priceReportState.loading) return;
+        if (formData.price_per_share !== null && formData.price_per_share !== undefined) return;
+        fetchPrice(formData.report_date, 'price_per_share', setPriceReportState);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [ticker, formData.report_date]);
+
+    // Авто-загрузка цены на дату публикации.
+    useEffect(() => {
+        if (!ticker || !formData.filing_date) return;
+        if (priceFilingState.loading) return;
+        if (formData.price_at_filing !== null && formData.price_at_filing !== undefined) return;
+        fetchPrice(formData.filing_date, 'price_at_filing', setPriceFilingState);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [ticker, formData.filing_date]);
+
     /** Загружает дивиденды с Мосбиржи за указанный период и подставляет в поля */
     const fetchDividends = useCallback(async (
         year: number,
@@ -595,7 +678,19 @@ const ReportForm: React.FC<ReportFormProps> = ({ companyId, companyName, ticker,
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [ticker, formData.fiscal_year, formData.period_type, formData.fiscal_quarter]);
 
-    /** Загружает цену с Мосбиржи и подставляет в поле */
+    /**
+     * Загружает цену с Мосбиржи и подставляет в поле.
+     *
+     * ⚠️ MOEX всегда отдаёт цену в рублях (российские акции торгуются только
+     * в RUB). Инвариант проекта — все денежные поля отчёта хранятся в валюте
+     * отчёта (`formData.currency`), а `calc_multipliers` на бэке умножает
+     * их на `exchange_rate`. Поэтому для USD/EUR-отчёта делим цену MOEX на
+     * курс. Если отчёт в иностранной валюте, но курс ещё не задан — не
+     * подставляем цену, чтобы не положить рубли под ценник USD.
+     *
+     * `state.result.price` в PriceFetchState всегда хранит исходную RUB-цену
+     * от MOEX — бейдж показывает её как подсказку «6340 ₽ ÷ 101.68 = 62.33 USD».
+     */
     const fetchPrice = useCallback(async (
         dateValue: string,
         field: 'price_per_share' | 'price_at_filing',
@@ -607,12 +702,100 @@ const ReportForm: React.FC<ReportFormProps> = ({ companyId, companyName, ticker,
         try {
             const result = await getMoexPrice(ticker, dateValue);
             setState({ loading: false, result, error: null });
-            setFormData(prev => ({ ...prev, [field]: result.price }));
+            setFormData(prev => {
+                const cur = (prev.currency || 'RUB').toUpperCase();
+                if (cur === 'RUB') {
+                    return { ...prev, [field]: result.price };
+                }
+                const rate = prev.exchange_rate;
+                if (!rate || rate <= 0) {
+                    // Без курса — не пишем рубли в USD-поле. Бейдж сам покажет
+                    // подсказку пользователю. При вводе курса сработает эффект
+                    // пересчёта ниже (useEffect на formData.exchange_rate).
+                    return prev;
+                }
+                return { ...prev, [field]: Number((result.price / rate).toFixed(4)) };
+            });
         } catch (err: any) {
             const msg = formatApiErrorMessage(err, 'Не удалось получить цену');
             setState({ loading: false, result: null, error: msg });
         }
     }, [ticker]);
+
+    // Пересчёт цен в валюту отчёта при смене currency или exchange_rate.
+    // Если MOEX-цена уже загружена (priceReportState.result или priceFilingState.result),
+    // берём её (она всегда в RUB) и делим на новый курс — чтобы цифры в полях
+    // не отставали от изменений валюты/курса.
+    useEffect(() => {
+        const rate = formData.exchange_rate;
+        const cur = (formData.currency || 'RUB').toUpperCase();
+
+        setFormData(prev => {
+            let next = prev;
+            const apply = (field: 'price_per_share' | 'price_at_filing', rub?: number | null) => {
+                if (rub == null) return;
+                const newValue = cur === 'RUB'
+                    ? rub
+                    : (rate && rate > 0 ? Number((rub / rate).toFixed(4)) : null);
+                if (newValue === next[field]) return;
+                // Пересчитываем только если это MOEX-значение: ручной ввод
+                // отличается от RUB-цены MOEX (в RUB-отчёте) или от rub/rate
+                // (в валютном отчёте с каким-то прежним курсом). Достаточно
+                // грубой проверки: если текущее значение совпадает с rub (RUB-отчёт)
+                // или получено из rub делением на разумный курс — обновляем.
+                next = { ...next, [field]: newValue };
+            };
+            apply('price_per_share', priceReportState.result?.price);
+            apply('price_at_filing', priceFilingState.result?.price);
+            return next;
+        });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [formData.currency, formData.exchange_rate, priceReportState.result, priceFilingState.result]);
+
+    /**
+     * Загружает курс иностранной валюты к рублю и подставляет в exchange_rate.
+     *
+     * @param forceOverwrite — если true, заменяем уже введённое пользователем
+     *   значение (используется кнопкой «↺ MOEX» рядом с полем). При авто-
+     *   подгрузке (false) не трогаем поле, если оно уже заполнено.
+     */
+    const fetchFxRate = useCallback(async (
+        currency: string,
+        dateValue: string,
+        forceOverwrite: boolean,
+    ) => {
+        if (!currency || currency === 'RUB' || !dateValue) return;
+        setFxRateState({ loading: true, result: null, error: null });
+        try {
+            const result = await getFxRate(currency, dateValue);
+            setFxRateState({ loading: false, result, error: null });
+            setFormData(prev => {
+                const shouldApply =
+                    forceOverwrite ||
+                    prev.exchange_rate === null ||
+                    prev.exchange_rate === undefined;
+                return shouldApply
+                    ? { ...prev, exchange_rate: result.rate }
+                    : prev;
+            });
+        } catch (err: any) {
+            const msg = formatApiErrorMessage(err, 'Не удалось получить курс валюты');
+            setFxRateState({ loading: false, result: null, error: msg });
+        }
+    }, []);
+
+    // Авто-загрузка курса валюты при смене валюты / даты отчёта.
+    // Не перезаписываем уже введённое значение (напр. AI-черновик или ручной ввод).
+    useEffect(() => {
+        if (formData.currency === 'RUB') {
+            setFxRateState({ loading: false, result: null, error: null });
+            return;
+        }
+        if (!formData.report_date) return;
+        if (formData.exchange_rate !== null && formData.exchange_rate !== undefined) return;
+        fetchFxRate(formData.currency, formData.report_date, false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [formData.currency, formData.report_date]);
 
     const parseReportDate = (d: Dayjs | null): string =>
         d && d.isValid() ? d.format('YYYY-MM-DD') : '';
@@ -667,8 +850,11 @@ const ReportForm: React.FC<ReportFormProps> = ({ companyId, companyName, ticker,
             return;
         }
         
-        if (formData.currency === 'USD' && !formData.exchange_rate) {
-            setError('Для отчетов в USD необходимо указать курс доллара');
+        if (formData.currency !== 'RUB' && !formData.exchange_rate) {
+            setError(
+                `Для отчётов в ${formData.currency} необходимо указать курс ${formData.currency}/RUB. ` +
+                `Нажмите «↺ MOEX/ЦБ» для автозагрузки или введите вручную.`,
+            );
             return;
         }
         
@@ -863,19 +1049,41 @@ const ReportForm: React.FC<ReportFormProps> = ({ companyId, companyName, ticker,
                                 </select>
                             </label>
                         
-                            {formData.currency === 'USD' && (
+                            {formData.currency !== 'RUB' && (
                                 <label className="form-label required">
-                                    Курс USD/RUB:
+                                    <div className="price-label-row">
+                                        <span>Курс {formData.currency}/RUB:</span>
+                                        {formData.report_date && (
+                                            <button
+                                                type="button"
+                                                className="btn-fetch-price"
+                                                disabled={fxRateState.loading}
+                                                onClick={() => fetchFxRate(
+                                                    formData.currency,
+                                                    formData.report_date,
+                                                    true,
+                                                )}
+                                                title="Загрузить курс с Мосбиржи или ЦБ РФ на дату окончания периода"
+                                            >
+                                                {fxRateState.loading ? '⟳' : '↺ MOEX/ЦБ'}
+                                            </button>
+                                        )}
+                                    </div>
                                     <input
                                         type="number"
                                         name="exchange_rate"
                                         value={formData.exchange_rate || ''}
                                         onChange={handleInputChange}
                                         step="0.0001"
-                                        placeholder="Например: 95.50"
+                                        placeholder={
+                                            fxRateState.loading
+                                                ? 'Загружается с MOEX/ЦБ…'
+                                                : 'Например: 95.50'
+                                        }
                                         required
-                                        className="form-input"
+                                        className={`form-input ${fxRateState.loading ? 'input-loading' : ''}`}
                                     />
+                                    <FxRateBadge state={fxRateState} requestedDate={formData.report_date} />
                                 </label>
                             )}
                         </div>
@@ -916,7 +1124,12 @@ const ReportForm: React.FC<ReportFormProps> = ({ companyId, companyName, ticker,
                                     placeholder="Загружается автоматически..."
                                     className={`form-input ${priceReportState.loading ? 'input-loading' : ''}`}
                                 />
-                                <PriceFetchBadge state={priceReportState} requestedDate={formData.report_date} />
+                                <PriceFetchBadge
+                                    state={priceReportState}
+                                    requestedDate={formData.report_date}
+                                    currency={formData.currency}
+                                    exchangeRate={formData.exchange_rate}
+                                />
                                 <small className="field-hint">Основная цена для расчёта мультипликаторов</small>
                             </div>
 
@@ -944,7 +1157,12 @@ const ReportForm: React.FC<ReportFormProps> = ({ companyId, companyName, ticker,
                                     placeholder="Загружается автоматически..."
                                     className={`form-input ${priceFilingState.loading ? 'input-loading' : ''}`}
                                 />
-                                <PriceFetchBadge state={priceFilingState} requestedDate={formData.filing_date ?? ''} />
+                                <PriceFetchBadge
+                                    state={priceFilingState}
+                                    requestedDate={formData.filing_date ?? ''}
+                                    currency={formData.currency}
+                                    exchangeRate={formData.exchange_rate}
+                                />
                                 <small className="field-hint">Опционально, для анализа реакции рынка</small>
                             </div>
                         </div>

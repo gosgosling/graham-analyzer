@@ -325,6 +325,12 @@
     background: #fee2e2;
 }
 
+.price-badge.info {
+    color: #1e40af;
+    background: #dbeafe;
+    margin-left: 4px;
+}
+
 .badge-note {
     opacity: 0.7;
     font-weight: 400;

@@ -21,6 +21,7 @@ from app.services.report_parser.extractor_service import (
 from app.services.report_parser.llm_client import (
     LLMNotConfiguredError,
     LLMParseError,
+    LLMRateLimitError,
     LLMTransientError,
 )
 
@@ -304,6 +305,16 @@ async def parse_pdf_endpoint(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=f"LLM вернул некорректный JSON: {exc}",
         ) from exc
+    except LLMRateLimitError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=(
+                f"Превышен лимит запросов к LLM (TPM/RPM). "
+                f"Подожди ~{int(exc.retry_after)} сек и повтори попытку. "
+                f"Оригинал: {exc}"
+            ),
+            headers={"Retry-After": str(int(exc.retry_after))},
+        ) from exc
     except LLMTransientError as exc:
         raise HTTPException(
             status_code=status.HTTP_504_GATEWAY_TIMEOUT,
@@ -313,6 +324,12 @@ async def parse_pdf_endpoint(
         # extract_financial_pages бросает RuntimeError если в PDF ничего не нашлось
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        ) from exc
+    except ValueError as exc:
+        # валидация аргументов пайплайна (например, fiscal_year в будущем)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(exc),
         ) from exc
     except Exception as exc:
@@ -476,6 +493,16 @@ async def compare_pdf_endpoint(
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=f"LLM вернул некорректный JSON: {exc}",
+        ) from exc
+    except LLMRateLimitError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=(
+                f"Превышен лимит запросов к LLM (TPM/RPM). "
+                f"Подожди ~{int(exc.retry_after)} сек и повтори попытку. "
+                f"Оригинал: {exc}"
+            ),
+            headers={"Retry-After": str(int(exc.retry_after))},
         ) from exc
     except LLMTransientError as exc:
         raise HTTPException(
