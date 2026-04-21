@@ -22,6 +22,7 @@ from app.utils.moex_client import (
     get_closing_price_on_or_before,
     get_shares_outstanding,
     get_dividends_for_period,
+    get_fx_rate_on_or_before,
 )
 
 router = APIRouter(prefix="/market", tags=["market"])
@@ -229,6 +230,70 @@ def get_moex_price(
         actual_date=result["date"],
         price=result["price"],
         board=result["board"],
+        is_adjusted=result["date"] != date,
+    )
+
+
+# ─── Курс валют (MOEX + ЦБ РФ fallback) ──────────────────────────────────────
+
+class FxRateResponse(BaseModel):
+    currency: str
+    requested_date: str
+    actual_date: str
+    rate: float
+    source: str         # "MOEX" | "CBR"
+    is_adjusted: bool   # True если actual_date != requested_date
+
+
+@router.get(
+    "/fx/rate",
+    response_model=FxRateResponse,
+    summary="Курс иностранной валюты к рублю на дату",
+    description=(
+        "Возвращает курс валюты (USD/EUR/CNY/…) к рублю на указанную дату.\n\n"
+        "Источники в порядке приоритета: "
+        "**MOEX** (биржевой курс, WAPRICE) → **ЦБ РФ** (официальный курс).\n\n"
+        "Если запрошенная дата — нерабочий день или MOEX прекратил торги "
+        "этой валютой (например, USD/EUR после июня 2024), возвращается курс "
+        "последнего доступного дня."
+    ),
+)
+def get_fx_rate(
+    currency: str = Query(..., description="Код валюты: USD, EUR, CNY, GBP, JPY, CHF"),
+    date: str = Query(..., description="Дата в формате YYYY-MM-DD"),
+    lookback_days: int = Query(
+        10, ge=1, le=30,
+        description="Сколько дней искать назад при отсутствии данных на запрошенную дату",
+    ),
+):
+    try:
+        target = date_type.fromisoformat(date)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Неверный формат даты: '{date}'. Используйте YYYY-MM-DD.",
+        )
+
+    result = get_fx_rate_on_or_before(
+        currency=currency.upper(),
+        target_date=target,
+        lookback_days=lookback_days,
+    )
+    if result is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=(
+                f"Курс {currency.upper()}/RUB на {date} не найден. "
+                f"Проверьте код валюты или увеличьте lookback_days."
+            ),
+        )
+
+    return FxRateResponse(
+        currency=result["currency"],
+        requested_date=date,
+        actual_date=result["date"],
+        rate=result["rate"],
+        source=result["source"],
         is_adjusted=result["date"] != date,
     )
 

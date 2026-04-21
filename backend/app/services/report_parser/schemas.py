@@ -12,7 +12,49 @@ from __future__ import annotations
 
 from typing import Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+
+# Маппинг подписей, которые LLM иногда возвращает из PDF (вместо ISO-кода),
+# в канонический код валюты. Например: подпись таблицы "в млн руб." модель
+# иногда цепляет в currency как "руб." — из-за чего потом Pydantic в
+# FinancialReportCreate требует exchange_rate для "не-RUB" валюты и падает.
+_CURRENCY_ALIASES = {
+    # Русский
+    "руб": "RUB", "руб.": "RUB", "рубли": "RUB", "рубль": "RUB", "рублей": "RUB",
+    "ру́б.": "RUB", "₽": "RUB",
+    # Английский
+    "rub": "RUB", "rur": "RUB", "rubles": "RUB", "ruble": "RUB",
+    "usd": "USD", "us$": "USD", "$": "USD", "dollar": "USD", "dollars": "USD",
+    "eur": "EUR", "euro": "EUR", "€": "EUR",
+    "cny": "CNY", "rmb": "CNY", "yuan": "CNY", "¥": "CNY",
+    "gbp": "GBP", "£": "GBP",
+    "jpy": "JPY",
+    "chf": "CHF",
+}
+
+
+def _normalize_currency(raw: Optional[str]) -> str:
+    """Приводит валюту, возвращённую LLM из PDF, к ISO-4217 коду.
+
+    Без этой нормализации бывают случаи: LLM находит в шапке таблицы подпись
+    вроде «в млн руб.» и кладёт в currency строку «руб.». Далее Pydantic-
+    валидатор `FinancialReportCreate` воспринимает «руб.» ≠ «RUB» и требует
+    exchange_rate — отчёт зависает на ошибке. Нормализуем один раз на входе.
+    """
+    if not raw:
+        return "RUB"
+    key = str(raw).strip().lower().rstrip(".").strip()
+    if not key:
+        return "RUB"
+    # Сначала смотрим в alias-таблицу (там покрыты "руб", "usd", "€" и т.п.).
+    if key in _CURRENCY_ALIASES:
+        return _CURRENCY_ALIASES[key]
+    # Затем — ASCII ISO-4217 (USD, EUR, CNY). Важно именно ASCII, чтобы "руб"
+    # (3 кириллических) не провалился как ISO-код "РУБ".
+    if len(key) == 3 and key.isalpha() and key.isascii():
+        return key.upper()
+    return str(raw).upper()
 
 
 ReportTypeLiteral = Literal["general", "bank"]
@@ -51,6 +93,11 @@ class ExtractedReport(BaseModel):
 
     # ─── Валюта и единицы ────────────────────────────────────────────────────
     currency: str = Field("RUB", description="Валюта отчёта: RUB / USD / EUR ...")
+
+    @field_validator("currency", mode="before")
+    @classmethod
+    def _normalize_currency_code(cls, v):
+        return _normalize_currency(v)
     units_scale: Literal["units", "thousands", "millions", "billions"] = Field(
         "millions",
         description=(

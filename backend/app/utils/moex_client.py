@@ -369,6 +369,226 @@ def get_closing_price_on_or_before(
     return None
 
 
+# ─── Курсы валют (USD/RUB, EUR/RUB …) ────────────────────────────────────────
+#
+# Биржевой курс берём с рынка selt (Система электронных торгов валютой) по
+# инструменту USD000UTSTOM (USD_RUB__TOM, расчёты «завтра» — самый ликвидный).
+# Это официальный биржевой курс, который Минфин/ЦБ используют как референс.
+# Запросы идут через history-эндпоинт с режимом CETS (Central Electronic Trading
+# System). Для исторических данных с 2012+ этот источник работает стабильно.
+
+# Инструменты на MOEX для разных валют
+_FX_SECIDS = {
+    "USD": "USD000UTSTOM",
+    "EUR": "EUR_RUB__TOM",
+    "CNY": "CNYRUB_TOM",
+}
+
+_FX_HISTORY_URL = (
+    "https://iss.moex.com/iss/history/engines/currency/markets/selt"
+    "/boards/CETS/securities/{secid}.json"
+)
+
+
+def _fetch_fx_history(secid: str, from_date: date, till_date: date) -> List[Dict]:
+    """
+    Запрашивает историю курса валюты (WAPRICE / CLOSE) в режиме CETS за диапазон.
+    Возвращает список {"date": "YYYY-MM-DD", "rate": float}.
+    """
+    url = _FX_HISTORY_URL.format(secid=secid)
+    params = {
+        "from": from_date.isoformat(),
+        "till": till_date.isoformat(),
+        # WAPRICE (средневзвешенная) — устойчивый показатель биржевого курса;
+        # CLOSE может отсутствовать на ранних датах, поэтому берём оба и потом
+        # выбираем доступное.
+        "columns": "TRADEDATE,WAPRICE,CLOSE,NUMTRADES",
+        "limit": 20,
+        "iss.meta": "off",
+    }
+    try:
+        resp = requests.get(url, params=params, timeout=10)
+        resp.raise_for_status()
+        data = resp.json()
+    except requests.exceptions.RequestException:
+        return []
+
+    history = data.get("history", {})
+    columns = history.get("columns", [])
+    rows = history.get("data", [])
+    if not columns or not rows:
+        return []
+
+    date_idx = columns.index("TRADEDATE") if "TRADEDATE" in columns else None
+    wap_idx = columns.index("WAPRICE") if "WAPRICE" in columns else None
+    close_idx = columns.index("CLOSE") if "CLOSE" in columns else None
+
+    if date_idx is None:
+        return []
+
+    out: List[Dict] = []
+    for row in rows:
+        # Берём WAPRICE, если нет — CLOSE. Это самое надёжное значение курса.
+        raw_rate = None
+        if wap_idx is not None and row[wap_idx] is not None:
+            raw_rate = row[wap_idx]
+        elif close_idx is not None and row[close_idx] is not None:
+            raw_rate = row[close_idx]
+        if raw_rate is None:
+            continue
+        try:
+            out.append({"date": row[date_idx], "rate": float(raw_rate)})
+        except (TypeError, ValueError):
+            continue
+    return out
+
+
+# ЦБ РФ: официальный курс (публикуется каждый рабочий день). Используется как
+# fallback для MOEX, который с июня 2024 прекратил торги USD/EUR.
+# XML-формат, document: https://www.cbr.ru/development/SXML/
+_CBR_DAILY_URL = "https://www.cbr.ru/scripts/XML_daily.asp"
+
+# Числовые коды валют по ISO 4217, которые ЦБ РФ публикует в XML_daily.
+_CBR_ISO_CODES = {
+    "USD": "R01235",
+    "EUR": "R01239",
+    "CNY": "R01375",
+    "GBP": "R01035",
+    "JPY": "R01820",
+    "CHF": "R01775",
+}
+
+
+def _fetch_cbr_rate(currency: str, target_date: date) -> Optional[Dict]:
+    """
+    Возвращает официальный курс ЦБ РФ на `target_date` или предыдущий рабочий
+    день (ЦБ по выходным и праздникам курс не устанавливает — возвращает данные
+    последнего рабочего дня).
+
+    Возвращает `{"rate": float, "date": "YYYY-MM-DD", "source": "CBR"}`
+    или None, если валюта не поддерживается или сеть не ответила.
+    """
+    currency_upper = currency.upper()
+    cbr_id = _CBR_ISO_CODES.get(currency_upper)
+    if not cbr_id:
+        return None
+
+    # ЦБ принимает дату в формате DD/MM/YYYY.
+    params = {"date_req": target_date.strftime("%d/%m/%Y")}
+    try:
+        resp = requests.get(_CBR_DAILY_URL, params=params, timeout=10)
+        resp.raise_for_status()
+    except requests.exceptions.RequestException:
+        return None
+
+    # Парсим XML. ЦБ возвращает в кодировке windows-1251; requests по content-type
+    # корректно декодирует в str (response.text). Избегаем lxml — достаточно
+    # stdlib ElementTree. Формат:
+    #   <ValCurs Date="31.12.2024" name="Foreign Currency Market">
+    #     <Valute ID="R01235"><NumCode>840</NumCode><CharCode>USD</CharCode>
+    #       <Nominal>1</Nominal><Value>101,6797</Value><VunitRate>101,6797</VunitRate>
+    #     </Valute>
+    #     ...
+    #   </ValCurs>
+    import xml.etree.ElementTree as ET
+
+    try:
+        root = ET.fromstring(resp.text)
+    except ET.ParseError:
+        return None
+
+    actual_date = root.attrib.get("Date", target_date.strftime("%d.%m.%Y"))
+
+    for node in root.findall("Valute"):
+        if node.attrib.get("ID") != cbr_id:
+            continue
+        value_raw = (node.findtext("VunitRate") or node.findtext("Value") or "").strip()
+        nominal_raw = (node.findtext("Nominal") or "1").strip()
+        if not value_raw:
+            return None
+        try:
+            # В XML разделитель дробной части — запятая.
+            value = float(value_raw.replace(",", "."))
+            nominal = float(nominal_raw.replace(",", ".")) or 1.0
+            # VunitRate уже нормализован на 1 единицу, но если мы взяли Value —
+            # поделим на номинал (для JPY/KRW там 100, для USD — 1).
+            rate = value if node.findtext("VunitRate") else (value / nominal)
+        except ValueError:
+            return None
+        # Преобразуем DD.MM.YYYY → YYYY-MM-DD для единообразия.
+        try:
+            d_parts = actual_date.split(".")
+            iso_date = f"{d_parts[2]}-{d_parts[1]}-{d_parts[0]}"
+        except (IndexError, ValueError):
+            iso_date = actual_date
+        return {"rate": rate, "date": iso_date, "source": "CBR"}
+
+    return None
+
+
+def get_fx_rate_on_or_before(
+    currency: str,
+    target_date: date,
+    lookback_days: int = 10,
+) -> Optional[Dict]:
+    """
+    Возвращает курс иностранной валюты к рублю на `target_date`
+    или ближайший предыдущий рабочий день.
+
+    Источники (в порядке приоритета):
+    1. **MOEX** (рынок selt / CETS) — биржевой курс по инструменту USD000UTSTOM.
+       Работает для исторических дат 2012..июнь-2024.
+    2. **ЦБ РФ** (XML_daily) — официальный курс, публикуемый ежедневно.
+       Используется как fallback, если MOEX не вернул данные (актуально после
+       июня 2024, когда MOEX прекратил торги USD/EUR).
+
+    Args:
+        currency:     "USD" | "EUR" | "CNY" | "GBP" | "JPY" | "CHF"
+        target_date:  Целевая дата (обычно report_date / filing_date отчёта)
+        lookback_days: Сколько дней назад искать, если в target_date биржа
+                      и ЦБ не работали (длинные праздники).
+
+    Returns:
+        {"rate": float, "date": str, "currency": str,
+         "source": "MOEX" | "CBR", "secid": str (для MOEX)}
+        или None, если курс не найден ни в одном источнике.
+    """
+    currency_upper = currency.upper()
+
+    # 1) MOEX
+    secid = _FX_SECIDS.get(currency_upper)
+    if secid:
+        from_date = target_date - timedelta(days=lookback_days)
+        records = _fetch_fx_history(secid, from_date, target_date)
+        if records:
+            last = records[-1]
+            if last.get("rate") and last["rate"] > 0:
+                return {
+                    "rate": last["rate"],
+                    "date": last["date"],
+                    "currency": currency_upper,
+                    "source": "MOEX",
+                    "secid": secid,
+                }
+
+    # 2) Fallback: ЦБ РФ. Идём от target_date вниз, пока не найдём рабочий день.
+    for offset in range(lookback_days + 1):
+        probe = target_date - timedelta(days=offset)
+        cbr = _fetch_cbr_rate(currency_upper, probe)
+        if cbr is None:
+            continue
+        # ЦБ в выходные возвращает данные последней рабочей сессии — поэтому
+        # уже первая успешная попытка даст нам корректный курс.
+        return {
+            "rate": cbr["rate"],
+            "date": cbr["date"],
+            "currency": currency_upper,
+            "source": "CBR",
+        }
+
+    return None
+
+
 # ─── Массовая загрузка дневных цен (свечи MOEX) ───────────────────────────────
 
 def get_price_history(

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
+from datetime import date
 from pathlib import Path
 from typing import Any, Optional, Union
 
@@ -33,6 +34,10 @@ from app.services.report_parser.pdf_extractor import (
 )
 from app.services.report_parser.prompts import build_system_prompt, build_user_prompt
 from app.services.report_parser.schemas import ExtractedReport, rescale_to_millions
+from app.utils.moex_client import (
+    get_closing_price_on_or_before,
+    get_fx_rate_on_or_before,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -170,6 +175,122 @@ def _resolve_report_date(extracted: ExtractedReport) -> str:
     return f"{extracted.fiscal_year}-12-31"
 
 
+def _parse_iso_date(raw: Optional[str]) -> Optional[date]:
+    """Попытка распарсить YYYY-MM-DD. Возвращает None если формат неожиданный."""
+    if not raw:
+        return None
+    try:
+        return date.fromisoformat(str(raw)[:10])
+    except (ValueError, TypeError):
+        return None
+
+
+def _fetch_moex_price_for_report(
+    ticker: Optional[str], target: Optional[date],
+) -> Optional[float]:
+    """Тихо запросить у MOEX цену закрытия на дату (или ближайший торговый день).
+
+    Используется при AI-парсинге, чтобы сразу заполнить price_per_share /
+    price_at_filing и сразу посчитать мультипликаторы без ручных кликов.
+    """
+    if not ticker or target is None:
+        return None
+    try:
+        info = get_closing_price_on_or_before(ticker, target)
+    except Exception as exc:  # noqa: BLE001 — внешний HTTP, падать не имеем права
+        logger.warning(
+            "MOEX price lookup failed for %s @ %s: %s", ticker, target, exc,
+        )
+        return None
+    if not info or info.get("price") is None:
+        return None
+    try:
+        return float(info["price"])
+    except (TypeError, ValueError):
+        return None
+
+
+def _enrich_with_moex_prices(
+    extracted: ExtractedReport,
+    *,
+    ticker: Optional[str],
+    exchange_rate: Optional[float] = None,
+) -> tuple[Optional[float], Optional[float]]:
+    """Вернуть (price_per_share, price_at_filing) из MOEX для данного отчёта.
+
+    * price_per_share — цена на report_date (конец отчётного периода);
+    * price_at_filing — цена на filing_date (день публикации отчёта).
+
+    ⚠️ MOEX всегда возвращает цену в рублях (акции на MOEX торгуются только
+    в RUB). Но инвариант проекта — все денежные поля отчёта хранятся в
+    `report.currency` и потом единообразно умножаются на `exchange_rate` в
+    `calc_multipliers.to_rub_full(...)`. Поэтому если отчёт в иностранной
+    валюте и `exchange_rate` известен, делим цену MOEX на курс, чтобы положить
+    её в поле в валюте отчёта. Без этой конвертации P/E и P/B уйдут в космос
+    (price × exchange_rate × shares вместо price × shares).
+
+    Оба значения — best-effort: если MOEX недоступен, даты неизвестны или
+    `exchange_rate` отсутствует для non-RUB отчёта — возвращаем None. Тогда
+    пользователь сможет ввести цену вручную через форму.
+    """
+    report_iso = _resolve_report_date(extracted)
+    report_d = _parse_iso_date(report_iso)
+    filing_d = _parse_iso_date(extracted.filing_date)
+
+    price_on_report_rub = _fetch_moex_price_for_report(ticker, report_d)
+    price_on_filing_rub = _fetch_moex_price_for_report(ticker, filing_d)
+
+    # Для RUB-отчёта возвращаем цены как есть.
+    currency = (extracted.currency or "RUB").upper()
+    if currency == "RUB":
+        return price_on_report_rub, price_on_filing_rub
+
+    # Для non-RUB отчёта без курса не можем безопасно конвертировать — лучше
+    # оставить поля пустыми, чтобы не записать рубли под ценник валюты.
+    if not exchange_rate or exchange_rate <= 0:
+        if price_on_report_rub is not None or price_on_filing_rub is not None:
+            logger.warning(
+                "MOEX вернул цену в RUB для отчёта %s, но exchange_rate неизвестен — "
+                "цена не будет подставлена автоматически.", currency,
+            )
+        return None, None
+
+    def _to_report_currency(price_rub: Optional[float]) -> Optional[float]:
+        if price_rub is None:
+            return None
+        return round(price_rub / exchange_rate, 4)
+
+    return _to_report_currency(price_on_report_rub), _to_report_currency(price_on_filing_rub)
+
+
+def _fetch_fx_rate_for_report(
+    currency: Optional[str], target: Optional[date],
+) -> Optional[float]:
+    """Best-effort подтяжка курса иностранной валюты к рублю на дату отчёта.
+
+    Источник — `get_fx_rate_on_or_before` (MOEX → CBR fallback). Возвращает
+    только число курса; при отсутствии данных или любой сетевой ошибке
+    возвращает None (в этом случае отчёт всё равно будет сохранён и пользователь
+    сможет ввести курс вручную в форме).
+    """
+    if not currency or currency.upper() == "RUB" or target is None:
+        return None
+    try:
+        info = get_fx_rate_on_or_before(currency.upper(), target)
+    except Exception as exc:  # noqa: BLE001 — внешний HTTP, падать не имеем права
+        logger.warning(
+            "FX rate lookup failed for %s @ %s: %s", currency, target, exc,
+        )
+        return None
+    if not info or info.get("rate") is None:
+        return None
+    try:
+        rate = float(info["rate"])
+    except (TypeError, ValueError):
+        return None
+    return rate if rate > 0 else None
+
+
 # Порог, ниже которого shares_outstanding считается подозрительно малым для
 # крупного публичного эмитента MOEX. Практически все крупные российские эмитенты
 # имеют > 10 млн акций; значения < 10 млн обычно означают, что модель не учла
@@ -258,10 +379,38 @@ def _auto_fix_shares_units(extracted: ExtractedReport) -> tuple[ExtractedReport,
         for kw in ("тыс. штук", "тыс штук", "тысяч акций", "тысяч штук", "thousand shares")
     )
 
-    # 1) Модель в заметках явно упомянула 'млн. штук' → принудительно millions.
-    if mentions_mln_shares and extracted.shares_units_scale != "millions":
+    # 0) САНИТИ: если модель САМА выставила scale='millions', но число слишком
+    #    велико для миллионов — это ошибка (она прочитала число в штуках / тыс.).
+    #    Реальный диапазон для 'millions': 1..100 000 (Сбер ~22 586 млн штук = 22.6 млрд).
+    #    Значение 7_212_635_830 в 'millions' дало бы 7.2×10¹⁵ акций — абсурд.
+    if extracted.shares_units_scale == "millions" and shares >= 1_000_000:
+        # Откатываем в 'units': если число уже в штуках — после rescale ничего
+        # не изменится; если реально было в тыс. — ниже сработает step (4) и
+        # переведёт в 'thousands'.
+        fixed = extracted.model_copy(update={"shares_units_scale": "units"})
+        msg = (
+            f"AUTO-FIX: модель указала scale='millions' при shares={shares:,} "
+            f"(×10⁶ дало бы {shares * 1_000_000:,} — абсурд для акций). "
+            f"Принудительно откат в 'units'. Скорее всего число уже в штуках."
+        )
+        logger.warning(msg)
+        # продолжаем с обновлённым объектом — ниже может сработать ещё одна эвристика
+        extracted = fixed
+        shares_fix_msg_prefix = msg + " "
+    else:
+        shares_fix_msg_prefix = ""
+
+    # 1) Модель в заметках явно упомянула 'млн. штук' → принудительно millions,
+    #    но ТОЛЬКО если число достаточно маленькое (до 100 000) — иначе это
+    #    ошибка модели (она неверно интерпретировала подпись в отчёте).
+    if (
+        mentions_mln_shares
+        and extracted.shares_units_scale != "millions"
+        and shares < 1_000_000
+    ):
         fixed = extracted.model_copy(update={"shares_units_scale": "millions"})
         msg = (
+            f"{shares_fix_msg_prefix}"
             f"AUTO-FIX: в заметках модели упомянуты 'млн. штук', но "
             f"shares_units_scale='{extracted.shares_units_scale}'. Принудительно "
             f"установлено 'millions'. Итоговое число × 1 000 000 = {shares * 1_000_000:,}."
@@ -277,6 +426,7 @@ def _auto_fix_shares_units(extracted: ExtractedReport) -> tuple[ExtractedReport,
     ):
         fixed = extracted.model_copy(update={"shares_units_scale": "thousands"})
         msg = (
+            f"{shares_fix_msg_prefix}"
             f"AUTO-FIX: в заметках модели упомянуты 'тыс. штук', но "
             f"shares_units_scale='units'. Принудительно установлено 'thousands'. "
             f"Итоговое число × 1000 = {shares * 1_000:,}."
@@ -291,6 +441,7 @@ def _auto_fix_shares_units(extracted: ExtractedReport) -> tuple[ExtractedReport,
     if shares < 10_000 and extracted.shares_units_scale in ("units", "thousands"):
         fixed = extracted.model_copy(update={"shares_units_scale": "millions"})
         msg = (
+            f"{shares_fix_msg_prefix}"
             f"AUTO-FIX: shares_outstanding={shares:,} < 10 000 при "
             f"scale='{extracted.shares_units_scale}'. Это почти наверняка "
             f"подпись '(млн. штук)' в отчёте. Принудительно принято "
@@ -307,6 +458,7 @@ def _auto_fix_shares_units(extracted: ExtractedReport) -> tuple[ExtractedReport,
     ):
         fixed = extracted.model_copy(update={"shares_units_scale": "thousands"})
         msg = (
+            f"{shares_fix_msg_prefix}"
             f"AUTO-FIX: shares_outstanding={shares:,} < 10 млн при scale='units'. "
             f"Это почти наверняка '(тыс. штук)'. Принудительно принято "
             f"shares_units_scale='thousands', итоговое число × 1000 = "
@@ -315,6 +467,8 @@ def _auto_fix_shares_units(extracted: ExtractedReport) -> tuple[ExtractedReport,
         logger.warning(msg)
         return fixed, msg
 
+    if shares_fix_msg_prefix:
+        return extracted, shares_fix_msg_prefix.strip()
     return extracted, None
 
 
@@ -541,7 +695,21 @@ def parse_pdf_to_report(
         LLMNotConfiguredError: если не настроен LLM.
         LLMParseError: если LLM вернул невалидные данные.
         RuntimeError: если PDF не содержит финансовых таблиц.
+        ValueError: если fiscal_year находится в будущем.
     """
+    # Guard: защита от случайно введённого «будущего» года.
+    # Публичная компания не может выпустить годовой отчёт за ещё не
+    # завершившийся год. Допускаем только текущий календарный (может быть
+    # preliminary-отчёт) и всё, что раньше.
+    current_year = date.today().year
+    if fiscal_year > current_year:
+        raise ValueError(
+            f"fiscal_year={fiscal_year} находится в будущем "
+            f"(текущий год — {current_year}). Годовой отчёт не может быть "
+            f"опубликован за ещё не завершившийся год. Проверь поле "
+            f"«Отчётный год» в форме загрузки."
+        )
+
     resolved_report_type = sector_to_report_type(company.sector)
 
     if isinstance(pdf_source, Path):
@@ -587,14 +755,23 @@ def parse_pdf_to_report(
         company_name=company.name,  # type: ignore[arg-type]
         sector=company.sector,  # type: ignore[arg-type]
         pdf_text=extraction.text,
+        is_scanned=extraction.is_scanned,
     )
 
     # 4) Вызов LLM (исключения LLMNotConfiguredError/LLMParseError/LLMTransientError
     #    поднимутся наружу — их ловит вызывающий код).
+    #    Для скан-PDF передаём страницы как PNG — vision-модель прочитает их
+    #    напрямую (tesseract не нужен).
     extracted = extract_report_via_llm(
         system_prompt=system_prompt,
         user_prompt=user_prompt,
+        images=extraction.page_images if extraction.is_scanned else None,
     )
+    if extraction.is_scanned:
+        logger.info(
+            "[%s %s] PDF обработан в vision-режиме: отправлено %d страниц-PNG.",
+            company.ticker, fiscal_year, len(extraction.page_images),
+        )
 
     # 5) Auto-fix units ДО rescale (пока числа ещё «сырые»).
     # Сначала деньги (млрд ↔ млн), затем акции — порядок важен, т.к. акции
@@ -631,6 +808,54 @@ def parse_pdf_to_report(
         ca = None
         cl = None
 
+    # 7.1) Для отчётов в иностранной валюте подтягиваем курс к рублю на дату
+    # окончания отчётного периода. Делается ДО подтяжки цен, т.к. при USD/EUR
+    # отчёте цену MOEX (в рублях) нужно будет разделить на курс, чтобы сохранить
+    # инвариант «все денежные поля в валюте отчёта».
+    #
+    # Источники: MOEX (биржевой, 2012..июнь-2024) → CBR (официальный, fallback).
+    auto_exchange_rate: Optional[float] = None
+    if extracted.currency and extracted.currency.upper() != "RUB":
+        report_iso = _resolve_report_date(extracted)
+        report_d = _parse_iso_date(report_iso)
+        auto_exchange_rate = _fetch_fx_rate_for_report(extracted.currency, report_d)
+        if auto_exchange_rate is not None:
+            logger.info(
+                "[%s %s] Курс %s/RUB автоматически подтянут на %s: %.4f.",
+                company.ticker, fiscal_year,
+                extracted.currency, report_d, auto_exchange_rate,
+            )
+        else:
+            # Pydantic-валидатор FinancialReportCreate всё равно упал бы при
+            # попытке сохранить отчёт в иностранной валюте без exchange_rate.
+            # Бросаем ValueError — роутер маппит его в HTTP 400 с понятным
+            # сообщением, UI покажет его корректно (а не под маской 502 «LLM
+            # вернул некорректный JSON», что вводило бы в заблуждение).
+            raise ValueError(
+                f"Отчёт извлечён в валюте {extracted.currency}, но курс "
+                f"{extracted.currency}/RUB на дату {report_d or 'не определена'} "
+                f"не удалось получить ни с MOEX, ни с ЦБ РФ. "
+                f"Проверьте report_date или внесите отчёт вручную, указав "
+                f"exchange_rate в форме."
+            )
+
+    # 7.2) Подтягиваем рыночные цены с MOEX (best-effort). Для non-RUB отчётов
+    # цена конвертируется в валюту отчёта (делением на auto_exchange_rate),
+    # чтобы сохранить инвариант проекта: все денежные поля — в `currency`,
+    # а `calc_multipliers` умножает на exchange_rate при расчёте P/E и P/B.
+    moex_price_on_report, moex_price_on_filing = _enrich_with_moex_prices(
+        extracted,
+        ticker=company.ticker,  # type: ignore[arg-type]
+        exchange_rate=auto_exchange_rate,
+    )
+    if moex_price_on_report is not None or moex_price_on_filing is not None:
+        logger.info(
+            "[%s %s] MOEX prices подтянуты автоматически (валюта отчёта %s): "
+            "на report_date=%s, на filing_date=%s.",
+            company.ticker, fiscal_year, extracted.currency,
+            moex_price_on_report, moex_price_on_filing,
+        )
+
     payload = FinancialReportCreate(
         company_id=company.id,  # type: ignore[arg-type]
         period_type=period_type,  # type: ignore[arg-type]
@@ -641,8 +866,8 @@ def parse_pdf_to_report(
         source="company_website",  # type: ignore[arg-type]
         report_date=_resolve_report_date(extracted),
         filing_date=extracted.filing_date,
-        price_per_share=None,
-        price_at_filing=None,
+        price_per_share=moex_price_on_report,
+        price_at_filing=moex_price_on_filing,
         shares_outstanding=extracted.shares_outstanding,
         revenue=extracted.revenue,
         net_income=extracted.net_income,
@@ -659,7 +884,7 @@ def parse_pdf_to_report(
         operating_expenses=extracted.operating_expenses,
         provisions=extracted.provisions,
         currency=extracted.currency,
-        exchange_rate=None,
+        exchange_rate=auto_exchange_rate,
         auto_extracted=True,
         verified_by_analyst=False,
         extraction_notes=notes,
@@ -678,20 +903,44 @@ def parse_pdf_to_report(
         )
         return outcome
 
-    # 8) Запись в БД (при force удаляем старую версию)
+    # 8) Запись в БД.
+    #
+    # При force=True мы НЕ удаляем существующую запись и не создаём новую —
+    # это бы поменяло id отчёта и оборвало ссылки из `multipliers`
+    # (FK с ON DELETE SET NULL обнулит `report_id` у всех исторических
+    # мультипликаторов). Вместо этого делаем UPDATE по месту: id сохраняется,
+    # мультипликаторы (upsert по (company_id, date, type)) плавно
+    # переcчитываются, URL/закладки продолжают работать.
     if existing and force:
         logger.warning(
-            "[%s %s] Пересоздаём отчёт (id=%d, force=True).",
+            "[%s %s] Обновляем существующий отчёт (id=%d, force=True).",
             company.ticker, fiscal_year, existing.id,
         )
-        db.delete(existing)
-        db.commit()
+        created = report_service.update_report(
+            db=db, report_id=existing.id, report_data=payload,  # type: ignore[arg-type]
+        )
+        if created is None:
+            # Существующий внезапно исчез между find_existing и update — крайне
+            # редкий случай (параллельное удаление). Фолбэком создаём заново.
+            created = report_service.create_report(db=db, report_data=payload)
+        else:
+            # update_report не трогает технические AI-поля (они заданы как
+            # write-once и меняются только через явный апдейт здесь).
+            created.auto_extracted = True  # type: ignore[assignment]
+            created.extraction_model = settings.extraction_model_label  # type: ignore[assignment]
+            if source_pdf_path is not None:
+                created.source_pdf_path = source_pdf_path  # type: ignore[assignment]
+            db.commit()
+            db.refresh(created)
+    else:
+        created = report_service.create_report(db=db, report_data=payload)
 
-    created = report_service.create_report(db=db, report_data=payload)
     outcome.created_report_id = created.id  # type: ignore[assignment]
     logger.info(
-        "[%s %s] Создан черновик отчёта id=%s (auto_extracted=True, verified=False).",
-        company.ticker, fiscal_year, created.id,
+        "[%s %s] %s отчёт id=%s (auto_extracted=True, verified=False).",
+        company.ticker, fiscal_year,
+        "Обновлён" if (existing and force) else "Создан",
+        created.id,
     )
     return outcome
 
@@ -921,12 +1170,19 @@ def compare_pdf_with_existing(
         company_name=company.name,  # type: ignore[arg-type]
         sector=company.sector,  # type: ignore[arg-type]
         pdf_text=extraction.text,
+        is_scanned=extraction.is_scanned,
     )
 
     extracted = extract_report_via_llm(
         system_prompt=system_prompt,
         user_prompt=user_prompt,
+        images=extraction.page_images if extraction.is_scanned else None,
     )
+    if extraction.is_scanned:
+        logger.info(
+            "[COMPARE %s %s] PDF в vision-режиме: %d страниц-PNG.",
+            company.ticker, fiscal_year, len(extraction.page_images),
+        )
     extracted, money_autofix_msg = _auto_fix_money_units(extracted)
     extracted, shares_autofix_msg = _auto_fix_shares_units(extracted)
     extracted = rescale_to_millions(extracted)
