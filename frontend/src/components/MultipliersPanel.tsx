@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -11,6 +11,7 @@ import {
   refreshCompanyMultipliers,
 } from '../services';
 import { MultiplierRecord, CurrentMultipliers, Company } from '../types';
+import { useChartColors, ChartColors } from '../contexts/ThemeContext';
 import './MultipliersPanel.css';
 
 // ─── Критерии Грэма для цветовой кодировки ───────────────────────────────────
@@ -479,61 +480,68 @@ interface ChartConfig {
   domain?: [number | 'auto', number | 'auto'];
 }
 
-const CHARTS: ChartConfig[] = [
-  {
-    key: 'pe_ratio',
-    label: 'P/E',
-    color: '#6366f1',
-    referenceLines: [
-      { value: 15, label: 'Грэм 15', color: '#22c55e' },
-      { value: 25, label: 'Грэм 25', color: '#ef4444' },
-    ],
-  },
-  {
-    key: 'pb_ratio',
-    label: 'P/B',
-    color: '#8b5cf6',
-    referenceLines: [
-      { value: 1.5, label: '1.5×', color: '#22c55e' },
-      { value: 3, label: '3×', color: '#ef4444' },
-    ],
-  },
-  {
-    key: 'roe',
-    label: 'ROE, %',
-    color: '#10b981',
-    suffix: '%',
-    referenceLines: [
-      { value: 15, label: '15%', color: '#22c55e' },
-    ],
-  },
-  {
-    key: 'debt_to_equity',
-    label: 'Долг/Капитал',
-    color: '#f59e0b',
-    referenceLines: [
-      { value: 0.5, label: '0.5', color: '#22c55e' },
-      { value: 1, label: '1.0', color: '#ef4444' },
-    ],
-  },
-  {
-    key: 'current_ratio',
-    label: 'Current Ratio',
-    color: '#06b6d4',
-    referenceLines: [
-      { value: 2, label: '2.0', color: '#22c55e' },
-    ],
-  },
-  {
-    key: 'dividend_yield',
-    label: 'Дивиденд. доходность, %',
-    color: '#ec4899',
-    suffix: '%',
-    referenceLines: [
-      { value: 3, label: '3%', color: '#22c55e' },
-    ],
-  },
-];
+/**
+ * Конфиги графиков строим из текущей темы — цвета берутся из CSS-токенов
+ * (см. tokens.css → --color-chart-*), что обеспечивает консистентный
+ * вид светлой и тёмной палитры.
+ */
+function buildCharts(c: ChartColors): ChartConfig[] {
+  return [
+    {
+      key: 'pe_ratio',
+      label: 'P/E',
+      color: c.line1,
+      referenceLines: [
+        { value: 15, label: 'Грэм 15', color: c.refGood },
+        { value: 25, label: 'Грэм 25', color: c.refBad },
+      ],
+    },
+    {
+      key: 'pb_ratio',
+      label: 'P/B',
+      color: c.line2,
+      referenceLines: [
+        { value: 1.5, label: '1.5×', color: c.refGood },
+        { value: 3, label: '3×', color: c.refBad },
+      ],
+    },
+    {
+      key: 'roe',
+      label: 'ROE, %',
+      color: c.line3,
+      suffix: '%',
+      referenceLines: [
+        { value: 15, label: '15%', color: c.refGood },
+      ],
+    },
+    {
+      key: 'debt_to_equity',
+      label: 'Долг/Капитал',
+      color: c.line4,
+      referenceLines: [
+        { value: 0.5, label: '0.5', color: c.refGood },
+        { value: 1, label: '1.0', color: c.refBad },
+      ],
+    },
+    {
+      key: 'current_ratio',
+      label: 'Current Ratio',
+      color: c.line5,
+      referenceLines: [
+        { value: 2, label: '2.0', color: c.refGood },
+      ],
+    },
+    {
+      key: 'dividend_yield',
+      label: 'Дивиденд. доходность, %',
+      color: c.line6,
+      suffix: '%',
+      referenceLines: [
+        { value: 3, label: '3%', color: c.refGood },
+      ],
+    },
+  ];
+}
 
 interface MultipliersChartsProps {
   rows: MultiplierRecord[];
@@ -543,7 +551,8 @@ interface MultipliersChartsProps {
 // Компонент графиков (пока не подключён к панели)
 // eslint-disable-next-line @typescript-eslint/no-unused-vars -- зарезервировано для встраивания графиков
 const MultipliersCharts: React.FC<MultipliersChartsProps> = ({ rows, currentRow }) => {
-  // Разворачиваем хронологически + добавляем LTM точку
+  const chartColors = useChartColors();
+  const charts = buildCharts(chartColors);
   const historical = [...rows].reverse();
 
   const chartData = [
@@ -581,24 +590,30 @@ const MultipliersCharts: React.FC<MultipliersChartsProps> = ({ rows, currentRow 
 
   return (
     <div className="charts-grid">
-      {CHARTS.map(({ key, label, color, referenceLines, suffix }) => (
+      {charts.map(({ key, label, color, referenceLines, suffix }) => (
         <div key={String(key)} className="chart-card">
           <div className="chart-card-title">{label}</div>
           <ResponsiveContainer width="100%" height={200}>
             <LineChart data={chartData} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+              <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} />
               <XAxis
                 dataKey="year"
-                tick={{ fontSize: 11, fill: '#64748b' }}
+                tick={{ fontSize: 11, fill: chartColors.axis }}
               />
               <YAxis
-                tick={{ fontSize: 11, fill: '#64748b' }}
+                tick={{ fontSize: 11, fill: chartColors.axis }}
                 tickFormatter={(v) => `${v}${suffix ?? ''}`}
                 width={45}
               />
               <Tooltip
                 formatter={(value: any) => [`${fmt(typeof value === 'number' ? value : null)}${suffix ?? ''}`, label]}
-                labelStyle={{ color: '#1e293b', fontWeight: 600 }}
+                labelStyle={{ color: chartColors.textPrimary, fontWeight: 600 }}
+                contentStyle={{
+                  backgroundColor: chartColors.tooltipBg,
+                  border: `1px solid ${chartColors.tooltipBorder}`,
+                  borderRadius: 8,
+                  color: chartColors.textPrimary,
+                }}
               />
               {referenceLines?.map((rl) => (
                 <ReferenceLine
@@ -617,7 +632,7 @@ const MultipliersCharts: React.FC<MultipliersChartsProps> = ({ rows, currentRow 
                 dot={(props: any) => {
                   const { cx, cy, payload } = props;
                   return payload.isLtm
-                    ? <circle key="ltm" cx={cx} cy={cy} r={5} fill={color} stroke="#fff" strokeWidth={2} />
+                    ? <circle key="ltm" cx={cx} cy={cy} r={5} fill={color} stroke={chartColors.dotStroke} strokeWidth={2} />
                     : <circle key={payload.year} cx={cx} cy={cy} r={3} fill={color} />;
                 }}
                 connectNulls
@@ -641,8 +656,10 @@ const CHART_PAGE_SIZE = 2;
 
 const ChartsPager: React.FC<ChartsPairProps> = ({ rows, currentRow }) => {
   const [page, setPage] = useState(0);
-  const totalPages = Math.ceil(CHARTS.length / CHART_PAGE_SIZE);
-  const visibleCharts = CHARTS.slice(page * CHART_PAGE_SIZE, (page + 1) * CHART_PAGE_SIZE);
+  const chartColors = useChartColors();
+  const charts = buildCharts(chartColors);
+  const totalPages = Math.ceil(charts.length / CHART_PAGE_SIZE);
+  const visibleCharts = charts.slice(page * CHART_PAGE_SIZE, (page + 1) * CHART_PAGE_SIZE);
 
   const historical = [...rows].reverse();
   const chartData = [
@@ -676,7 +693,7 @@ const ChartsPager: React.FC<ChartsPairProps> = ({ rows, currentRow }) => {
     <div className="charts-pager">
       <div className="charts-pager-nav">
         <span className="charts-pager-label">
-          {page * CHART_PAGE_SIZE + 1}–{Math.min((page + 1) * CHART_PAGE_SIZE, CHARTS.length)} из {CHARTS.length}
+          {page * CHART_PAGE_SIZE + 1}–{Math.min((page + 1) * CHART_PAGE_SIZE, charts.length)} из {charts.length}
         </span>
         <button
           className="charts-nav-btn"
@@ -695,10 +712,10 @@ const ChartsPager: React.FC<ChartsPairProps> = ({ rows, currentRow }) => {
           <div className="chart-card-title">{label}</div>
           <ResponsiveContainer width="100%" height={200}>
             <LineChart data={chartData} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-              <XAxis dataKey="year" tick={{ fontSize: 11, fill: '#64748b' }} />
+              <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} />
+              <XAxis dataKey="year" tick={{ fontSize: 11, fill: chartColors.axis }} />
               <YAxis
-                tick={{ fontSize: 11, fill: '#64748b' }}
+                tick={{ fontSize: 11, fill: chartColors.axis }}
                 tickFormatter={(v) => `${v}${suffix ?? ''}`}
                 width={45}
               />
@@ -706,7 +723,13 @@ const ChartsPager: React.FC<ChartsPairProps> = ({ rows, currentRow }) => {
                 formatter={(value: any) => [
                   `${fmt(typeof value === 'number' ? value : null)}${suffix ?? ''}`, label,
                 ]}
-                labelStyle={{ color: '#1e293b', fontWeight: 600 }}
+                labelStyle={{ color: chartColors.textPrimary, fontWeight: 600 }}
+                contentStyle={{
+                  backgroundColor: chartColors.tooltipBg,
+                  border: `1px solid ${chartColors.tooltipBorder}`,
+                  borderRadius: 8,
+                  color: chartColors.textPrimary,
+                }}
               />
               {referenceLines?.map((rl) => (
                 <ReferenceLine
@@ -725,7 +748,7 @@ const ChartsPager: React.FC<ChartsPairProps> = ({ rows, currentRow }) => {
                 dot={(props: any) => {
                   const { cx, cy, payload } = props;
                   return payload.isLtm
-                    ? <circle key="ltm" cx={cx} cy={cy} r={5} fill={color} stroke="#fff" strokeWidth={2} />
+                    ? <circle key="ltm" cx={cx} cy={cy} r={5} fill={color} stroke={chartColors.dotStroke} strokeWidth={2} />
                     : <circle key={payload.year} cx={cx} cy={cy} r={3} fill={color} />;
                 }}
                 connectNulls
@@ -746,6 +769,7 @@ interface MultipliersPanelProps {
 
 const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company }) => {
   const [refreshMsg, setRefreshMsg] = useState<string | null>(null);
+  const [autoRefreshing, setAutoRefreshing] = useState(false);
   const queryClient = useQueryClient();
 
   const companyId = company.id!;
@@ -762,6 +786,7 @@ const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company }) => {
     retry: false,
   });
 
+  // Ручное обновление по кнопке — с тостом успеха/ошибки.
   const refreshMutation = useMutation({
     mutationFn: () => refreshCompanyMultipliers(companyId),
     onSuccess: (res) => {
@@ -780,6 +805,59 @@ const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company }) => {
     },
   });
 
+  // Авто-обновление цены при первом заходе на страницу компании.
+  //
+  // Делаем это ОТДЕЛЬНО от ручной мутации, чтобы:
+  //  1) не блокировать кнопку «Обновить цену» (она остаётся доступной для ручного клика);
+  //  2) при «зависании» бэкенда (T-Invest API долго отвечает) — мягко прерывать
+  //     запрос по таймауту и снимать индикатор, а не оставлять «Обновляем…» вечно.
+  const autoRefreshedFor = useRef<number | null>(null);
+  useEffect(() => {
+    if (!companyId) return;
+    if (autoRefreshedFor.current === companyId) return;
+    autoRefreshedFor.current = companyId;
+
+    const controller = new AbortController();
+    // Если за 12 секунд цена не пришла — прекращаем ждать; пользователь
+    // всё равно увидит ранее закэшированные мультипликаторы.
+    const timeoutId = window.setTimeout(() => controller.abort(), 12_000);
+
+    setAutoRefreshing(true);
+
+    refreshCompanyMultipliers(companyId, true, controller.signal)
+      .then((res) => {
+        queryClient.invalidateQueries({ queryKey: ['multipliers-current', companyId] });
+        queryClient.invalidateQueries({ queryKey: ['multipliers-history', companyId] });
+        if (res.success && res.price !== null) {
+          setRefreshMsg(`✓ Цена актуальна: ${fmt(res.price)} ₽`);
+        } else {
+          setRefreshMsg('⚠ Не удалось получить актуальную цену');
+        }
+        setTimeout(() => setRefreshMsg(null), 3500);
+      })
+      .catch((err) => {
+        // Тихо игнорируем abort и сетевые ошибки — пользователь увидит
+        // последние закэшированные значения. Логируем для отладки.
+        const isAbort =
+          err?.name === 'CanceledError' ||
+          err?.code === 'ERR_CANCELED' ||
+          err?.message === 'canceled';
+        if (!isAbort) {
+          // eslint-disable-next-line no-console
+          console.warn('Авто-обновление цены не удалось:', err);
+        }
+      })
+      .finally(() => {
+        window.clearTimeout(timeoutId);
+        setAutoRefreshing(false);
+      });
+
+    return () => {
+      window.clearTimeout(timeoutId);
+      controller.abort();
+    };
+  }, [companyId, queryClient]);
+
   const rows = histData ?? [];
 
   return (
@@ -788,6 +866,12 @@ const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company }) => {
       <div className="mult-panel-header">
         <h2 className="mult-panel-title">Мультипликаторы</h2>
         <div className="mult-panel-controls">
+          {autoRefreshing && !refreshMutation.isPending && (
+            <span className="refresh-auto-indicator" title="Подтягиваем актуальную цену из T-Invest API">
+              <span className="refresh-auto-spinner" aria-hidden />
+              обновляем цену…
+            </span>
+          )}
           {refreshMsg && <span className="refresh-msg">{refreshMsg}</span>}
           <button
             className="btn-refresh"

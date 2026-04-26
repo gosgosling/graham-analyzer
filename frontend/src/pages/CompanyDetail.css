@@ -4,8 +4,8 @@
   max-width: 1400px;
   margin: 0 auto;
   padding: 20px;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+  font-family: var(--font-sans);
+  color: var(--color-text-primary);
 }
 
 /* Header */
@@ -14,30 +14,51 @@
 }
 
 .btn-back {
-  background-color: #95a5a6;
-  color: white;
-  border: none;
+  background-color: var(--color-bg-hover);
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-border-default);
   padding: 10px 20px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all var(--transition-fast);
 }
 
 .btn-back:hover {
-  background-color: #7f8c8d;
+  background-color: var(--color-bg-active);
+  border-color: var(--color-border-strong);
   transform: translateX(-3px);
+}
+
+.btn-back:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus-ring);
 }
 
 /* Hero Section */
 .company-hero {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
+  background: var(--gradient-hero);
+  color: var(--color-text-on-accent);
   padding: 40px;
-  border-radius: 12px;
+  border-radius: var(--radius-xl);
   margin-bottom: 30px;
-  box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
+  box-shadow: var(--shadow-3);
+  position: relative;
+  overflow: hidden;
+}
+
+.company-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--hero-overlay);
+  pointer-events: none;
+}
+
+.company-hero > * {
+  position: relative;
+  z-index: 1;
 }
 
 /* Логотип + заголовок в одну линию */
@@ -54,11 +75,12 @@
   width: auto;
   max-width: 200px;
   object-fit: contain;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.14);
+  border-radius: var(--radius-xl);
+  background: rgba(255, 255, 255, 0.92);
   padding: 10px 14px;
   box-sizing: content-box;
   flex-shrink: 0;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.1);
 }
 
 /* Чуть лучше читаемость текста на произвольном фирменном цвете (тёмный фон) */
@@ -142,7 +164,7 @@
 .company-currency {
   background-color: rgba(255, 255, 255, 0.2);
   padding: 6px 12px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   font-size: 14px;
   font-weight: 500;
 }
@@ -156,7 +178,7 @@
 .quick-stat {
   background-color: rgba(255, 255, 255, 0.15);
   padding: 20px;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   backdrop-filter: blur(10px);
 }
 
@@ -213,24 +235,28 @@
 
 /* Info Cards */
 .info-card {
-  background-color: white;
-  border-radius: 12px;
+  background-color: var(--color-bg-surface);
+  border-radius: var(--radius-xl);
   padding: 25px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  border: 1px solid var(--color-border-subtle);
+  box-shadow: var(--shadow-1);
+  transition: transform var(--transition-fast),
+              box-shadow var(--transition-fast),
+              background-color var(--transition-base),
+              border-color var(--transition-base);
 }
 
 .info-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  box-shadow: var(--shadow-2);
 }
 
 .card-title {
   margin: 0 0 20px 0;
   font-size: 20px;
   font-weight: 600;
-  color: #2c3e50;
-  border-bottom: 2px solid #667eea;
+  color: var(--color-text-primary);
+  border-bottom: 2px solid var(--color-accent-indigo);
   padding-bottom: 10px;
 }
 
@@ -249,7 +275,7 @@
 
 .info-label {
   font-size: 12px;
-  color: #7f8c8d;
+  color: var(--color-text-tertiary);
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -257,45 +283,45 @@
 
 .info-value {
   font-size: 16px;
-  color: #2c3e50;
+  color: var(--color-text-primary);
   font-weight: 600;
 }
 
 .info-badge {
   display: inline-block;
   padding: 4px 10px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   font-size: 13px;
   font-weight: 500;
 }
 
 .info-badge.active {
-  background-color: #d4edda;
-  color: #155724;
+  background-color: var(--color-success-soft);
+  color: var(--color-success-text);
 }
 
 .info-badge.inactive {
-  background-color: #f8d7da;
-  color: #721c24;
+  background-color: var(--color-error-soft);
+  color: var(--color-error-text);
 }
 
 /* Placeholder Content */
 .placeholder-content {
   padding: 20px;
-  background-color: #f8f9fa;
-  border: 2px dashed #cbd5e0;
-  border-radius: 8px;
+  background-color: var(--color-bg-subtle);
+  border: 2px dashed var(--color-border-strong);
+  border-radius: var(--radius-md);
   text-align: center;
 }
 
 .placeholder-content p {
   margin: 0 0 10px 0;
-  color: #2c3e50;
+  color: var(--color-text-primary);
 }
 
 .placeholder-hint {
   font-size: 13px;
-  color: #7f8c8d;
+  color: var(--color-text-tertiary);
   font-style: italic;
 }
 
@@ -304,12 +330,14 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-  border-radius: 8px;
+  background: var(--gradient-cool);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
 }
 
 .chart-placeholder {
   text-align: center;
+  color: var(--color-text-secondary);
 }
 
 .placeholder-icon {
@@ -327,11 +355,11 @@
 }
 
 .multiplier-item {
-  background-color: #f8f9fa;
+  background-color: var(--color-bg-subtle);
   padding: 15px;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   text-align: center;
-  border: 2px solid #e1e8ed;
+  border: 2px solid var(--color-border-default);
 }
 
 .multiplier-item.placeholder {
@@ -341,7 +369,7 @@
 .multiplier-name {
   display: block;
   font-size: 12px;
-  color: #7f8c8d;
+  color: var(--color-text-tertiary);
   margin-bottom: 8px;
   font-weight: 500;
   text-transform: uppercase;
@@ -351,7 +379,7 @@
   display: block;
   font-size: 24px;
   font-weight: 700;
-  color: #2c3e50;
+  color: var(--color-text-primary);
 }
 
 /* Reports Card Header: название сворачивает блок; справа — кнопка как в списке компаний + стрелка */
@@ -371,9 +399,9 @@
 }
 
 .reports-card-header-title:focus-visible {
-  outline: 2px solid #9b59b6;
-  outline-offset: 2px;
-  border-radius: 4px;
+  outline: none;
+  box-shadow: var(--shadow-focus-ring-purple);
+  border-radius: var(--radius-xs);
 }
 
 .reports-card-header-actions {
@@ -385,22 +413,22 @@
 
 /* Те же стили, что .btn-add-report-inline в CompaniesList.css */
 .btn-add-report-inline {
-  background-color: #3498db;
-  color: white;
+  background-color: var(--color-primary);
+  color: var(--color-text-on-primary);
   border: none;
   padding: 8px 16px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   font-size: 14px;
   font-weight: 500;
-  transition: all 0.2s ease;
+  transition: all var(--transition-fast);
   white-space: nowrap;
 }
 
 .btn-add-report-inline:hover:not(:disabled) {
-  background-color: #2980b9;
+  background-color: var(--color-primary-hover);
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(52, 152, 219, 0.3);
+  box-shadow: var(--shadow-2);
 }
 
 .btn-add-report-inline:disabled {
@@ -411,8 +439,8 @@
 }
 
 .btn-add-report-inline:focus-visible {
-  outline: 2px solid #3498db;
-  outline-offset: 2px;
+  outline: none;
+  box-shadow: var(--shadow-focus-ring);
 }
 
 /* ─── Выпадающее меню «+ Добавить отчёт» ─────────────────────────────────── */
@@ -426,23 +454,25 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  background-color: #3498db;
-  color: #ffffff;
+  background-color: var(--color-primary);
+  color: var(--color-text-on-primary);
   border: none;
   padding: 8px 14px 8px 16px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   font-size: 14px;
   font-weight: 500;
   line-height: 1;
-  transition: background-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+  transition: background-color var(--transition-fast),
+              transform var(--transition-fast),
+              box-shadow var(--transition-fast);
   white-space: nowrap;
 }
 
 .add-report-menu-trigger:hover:not(:disabled) {
-  background-color: #2980b9;
+  background-color: var(--color-primary-hover);
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(52, 152, 219, 0.3);
+  box-shadow: var(--shadow-2);
 }
 
 .add-report-menu-trigger:disabled {
@@ -453,8 +483,8 @@
 }
 
 .add-report-menu-trigger:focus-visible {
-  outline: 2px solid #2980b9;
-  outline-offset: 2px;
+  outline: none;
+  box-shadow: var(--shadow-focus-ring);
 }
 
 .add-report-menu-label {
@@ -465,7 +495,7 @@
   font-size: 12px;
   line-height: 1;
   opacity: 0.85;
-  transition: transform 0.2s ease;
+  transition: transform var(--transition-fast);
 }
 
 .add-report-menu-caret.is-open {
@@ -479,12 +509,10 @@
   z-index: 30;
   min-width: 320px;
   padding: 6px;
-  background: #ffffff;
-  border: 1px solid #e4e7ec;
-  border-radius: 10px;
-  box-shadow:
-    0 10px 30px rgba(15, 23, 42, 0.12),
-    0 2px 8px rgba(15, 23, 42, 0.06);
+  background: var(--color-bg-overlay);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-3);
   animation: addReportMenuFadeIn 0.14s ease-out;
 }
 
@@ -505,7 +533,7 @@
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: #95a5a6;
+  color: var(--color-text-quaternary);
 }
 
 .add-report-menu-item {
@@ -516,17 +544,17 @@
   padding: 8px 10px;
   background: transparent;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   text-align: left;
   font: inherit;
-  color: #2c3e50;
+  color: var(--color-text-primary);
   transition: background-color 0.12s ease;
 }
 
 .add-report-menu-item:hover,
 .add-report-menu-item:focus-visible {
-  background: #f1f7fd;
+  background: var(--color-primary-soft);
   outline: none;
 }
 
@@ -548,19 +576,19 @@
 .add-report-menu-item-title {
   font-size: 14px;
   font-weight: 500;
-  color: #2c3e50;
+  color: var(--color-text-primary);
 }
 
 .add-report-menu-item-sub {
   font-size: 12px;
-  color: #7f8c8d;
+  color: var(--color-text-tertiary);
   line-height: 1.35;
 }
 
 .add-report-menu-divider {
   height: 1px;
   margin: 4px 6px;
-  background: #edf0f3;
+  background: var(--color-separator);
 }
 
 @media (max-width: 520px) {
@@ -575,36 +603,38 @@
   width: 34px;
   height: 34px;
   padding: 0;
-  border: 1px solid #e1e8ed;
-  border-radius: 6px;
-  background: #f8f9fa;
-  color: #7f8c8d;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-subtle);
+  color: var(--color-text-tertiary);
   font-size: 13px;
   line-height: 1;
   cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  transition: background var(--transition-fast),
+              border-color var(--transition-fast),
+              color var(--transition-fast);
 }
 
 .reports-toggle-arrow-btn:hover {
-  background: #eef1f4;
-  border-color: #cfd8dc;
-  color: #2c3e50;
+  background: var(--color-bg-hover);
+  border-color: var(--color-border-strong);
+  color: var(--color-text-primary);
 }
 
 .reports-toggle-arrow-btn:focus-visible {
-  outline: 2px solid #9b59b6;
-  outline-offset: 2px;
+  outline: none;
+  box-shadow: var(--shadow-focus-ring-purple);
 }
 
 .reports-count-badge {
   display: inline-block;
   margin-left: 8px;
-  background: #e8eaf6;
-  color: #3949ab;
+  background: var(--color-accent-indigo-soft);
+  color: var(--color-accent-indigo);
   font-size: 12px;
   font-weight: 600;
   padding: 1px 7px;
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   vertical-align: middle;
 }
 
@@ -612,21 +642,21 @@
   text-align: center;
   padding: 24px 16px;
   margin-top: 8px;
-  background-color: #f8f9fa;
-  border: 2px dashed #cbd5e0;
-  border-radius: 8px;
+  background-color: var(--color-bg-subtle);
+  border: 2px dashed var(--color-border-strong);
+  border-radius: var(--radius-md);
 }
 
 .reports-empty-title {
   margin: 0 0 8px;
-  color: #2c3e50;
+  color: var(--color-text-primary);
   font-size: 16px;
   font-weight: 600;
 }
 
 .reports-empty-hint {
   margin: 0 0 16px;
-  color: #7f8c8d;
+  color: var(--color-text-tertiary);
   font-size: 14px;
   line-height: 1.45;
 }
@@ -649,29 +679,29 @@
 
 .reports-filter-pill {
   padding: 3px 11px;
-  border-radius: 20px;
-  border: 1.5px solid #e1e8ed;
-  background: #f8f9fa;
-  color: #7f8c8d;
+  border-radius: var(--radius-pill);
+  border: 1.5px solid var(--color-border-default);
+  background: var(--color-bg-subtle);
+  color: var(--color-text-tertiary);
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: all var(--transition-fast);
   white-space: nowrap;
 }
 .reports-filter-pill:hover {
-  border-color: #9b59b6;
-  color: #9b59b6;
+  border-color: var(--color-accent-purple);
+  color: var(--color-accent-purple);
 }
 .reports-filter-pill.active {
-  background: #9b59b6;
-  border-color: #9b59b6;
-  color: #fff;
+  background: var(--color-accent-purple);
+  border-color: var(--color-accent-purple);
+  color: var(--color-text-on-primary);
   font-weight: 600;
 }
 
 .reports-filter-sep {
-  color: #e1e8ed;
+  color: var(--color-border-default);
   font-size: 14px;
   padding: 0 2px;
 }
@@ -682,17 +712,17 @@
   margin-top: 8px;
   padding: 7px;
   background: none;
-  border: 1.5px dashed #dcdde1;
-  border-radius: 6px;
-  color: #9b59b6;
+  border: 1.5px dashed var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  color: var(--color-accent-purple);
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: all var(--transition-fast);
 }
 .reports-show-more:hover {
-  background: #f5eef8;
-  border-color: #9b59b6;
+  background: var(--color-accent-purple-soft);
+  border-color: var(--color-accent-purple);
 }
 
 /* Reports Compact List */
@@ -707,15 +737,15 @@
   justify-content: space-between;
   align-items: center;
   padding: 12px 15px;
-  background-color: #f8f9fa;
-  border: 1px solid #e1e8ed;
-  border-radius: 6px;
-  transition: all 0.2s ease;
+  background-color: var(--color-bg-subtle);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-sm);
+  transition: all var(--transition-fast);
 }
 
 .report-compact-item:hover {
-  background-color: #e9ecef;
-  border-color: #667eea;
+  background-color: var(--color-bg-hover);
+  border-color: var(--color-accent-indigo);
   transform: translateX(3px);
 }
 
@@ -727,7 +757,7 @@
 
 .report-compact-date {
   font-weight: 600;
-  color: #2c3e50;
+  color: var(--color-text-primary);
   font-size: 14px;
 }
 
@@ -738,36 +768,36 @@
 
 .report-compact-currency {
   font-size: 12px;
-  color: #27ae60;
-  background-color: #d5f4e6;
+  color: var(--color-success-text);
+  background-color: var(--color-success-soft);
   padding: 2px 8px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
 }
 
 .report-compact-dividend {
   font-size: 12px;
-  color: #e67e22;
-  background-color: #fdebd0;
+  color: var(--color-warning-text);
+  background-color: var(--color-warning-soft);
   padding: 2px 8px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
 }
 
 .btn-compact-view {
-  background-color: #9b59b6;
-  color: white;
+  background-color: var(--color-accent-purple);
+  color: var(--color-text-on-primary);
   border: none;
   padding: 6px 14px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all var(--transition-fast);
 }
 
 .btn-compact-view:hover {
-  background-color: #8e44ad;
+  background-color: var(--color-accent-violet);
   transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(155, 89, 182, 0.3);
+  box-shadow: var(--shadow-2);
 }
 
 /* Financial Metrics */
@@ -779,11 +809,27 @@
 }
 
 .metric-item {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
+  background: var(--gradient-purple);
+  color: var(--color-text-on-accent);
   padding: 15px;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   text-align: center;
+  box-shadow: var(--shadow-2);
+  position: relative;
+  overflow: hidden;
+}
+
+.metric-item::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--hero-overlay);
+  pointer-events: none;
+}
+
+.metric-item > * {
+  position: relative;
+  z-index: 1;
 }
 
 .metric-label {
@@ -813,7 +859,7 @@
 .report-date-info {
   text-align: center;
   font-size: 13px;
-  color: #7f8c8d;
+  color: var(--color-text-tertiary);
   margin: 10px 0 0 0;
   font-style: italic;
 }
@@ -827,17 +873,17 @@
 }
 
 .loading {
-  color: #3498db;
+  color: var(--color-primary);
 }
 
 .error {
-  color: #e74c3c;
+  color: var(--color-error);
 }
 
 .loading-small {
   text-align: center;
   padding: 20px;
-  color: #3498db;
+  color: var(--color-primary);
   font-size: 14px;
 }
 
@@ -848,23 +894,24 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: rgba(0, 0, 0, 0.7);
+  background-color: var(--color-bg-modal-scrim);
   display: flex;
   justify-content: center;
   align-items: center;
   z-index: 1000;
   overflow-y: auto;
   padding: 20px;
+  backdrop-filter: blur(4px);
 }
 
 .report-detail-container {
-  background: white;
-  border-radius: 12px;
+  background: var(--color-bg-overlay);
+  border-radius: var(--radius-xl);
   max-width: 900px;
   width: 100%;
   max-height: 90vh;
   overflow-y: auto;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--shadow-4);
 }
 
 .report-detail-header {
@@ -872,10 +919,25 @@
   justify-content: space-between;
   align-items: center;
   padding: 25px 30px;
-  border-bottom: 2px solid #e0e0e0;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  border-radius: 12px 12px 0 0;
+  border-bottom: 1px solid var(--color-border-subtle);
+  background: var(--gradient-hero);
+  color: var(--color-text-on-accent);
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.report-detail-header::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--hero-overlay);
+  pointer-events: none;
+}
+
+.report-detail-header > * {
+  position: relative;
+  z-index: 1;
 }
 
 .report-detail-header h2 {
@@ -889,13 +951,13 @@
 .btn-close {
   background: rgba(255, 255, 255, 0.2);
   border: none;
-  color: white;
+  color: var(--color-text-on-accent);
   font-size: 24px;
   width: 36px;
   height: 36px;
   border-radius: 50%;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all var(--transition-fast);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -911,22 +973,22 @@
   display: flex;
   flex-direction: column;
   gap: 25px;
-  background: #fff;
+  background: var(--color-bg-overlay);
 }
 
 .detail-section {
-  background-color: #fafbfc;
+  background-color: var(--color-bg-overlay-strong);
   padding: 20px;
-  border-radius: 10px;
-  border: 1px solid #e8ecf0;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border-subtle);
+  box-shadow: var(--shadow-1);
 }
 
 .detail-section h3 {
   margin: 0 0 15px 0;
-  color: #444;
+  color: var(--color-text-primary);
   font-size: 18px;
-  border-bottom: 2px solid #667eea;
+  border-bottom: 2px solid var(--color-accent-indigo);
   padding-bottom: 10px;
 }
 
@@ -944,7 +1006,7 @@
 
 .detail-label {
   font-size: 13px;
-  color: #7f8c8d;
+  color: var(--color-text-tertiary);
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -952,13 +1014,13 @@
 
 .detail-value {
   font-size: 16px;
-  color: #2c3e50;
+  color: var(--color-text-primary);
   font-weight: 600;
 }
 
 .detail-hint {
   font-size: 12px;
-  color: #7f8c8d;
+  color: var(--color-text-tertiary);
   font-style: italic;
   margin-left: 4px;
   font-weight: 400;
@@ -975,29 +1037,29 @@
 
 .report-compact-year {
   font-weight: 700;
-  color: #2c3e50;
+  color: var(--color-text-primary);
   font-size: 15px;
   min-width: 36px;
 }
 
 .report-compact-period {
   font-size: 12px;
-  color: #fff;
-  background: #667eea;
+  color: var(--color-text-on-primary);
+  background: var(--color-accent-indigo);
   padding: 2px 8px;
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   font-weight: 500;
 }
 
 .report-compact-standard {
   font-size: 11px;
-  color: #7f8c8d;
-  background: #ecf0f1;
+  color: var(--color-text-tertiary);
+  background: var(--color-bg-hover);
   padding: 2px 6px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
 }
 
-/* Подзаголовок только в шапке модалки: светлый текст на градиенте (не серый из общих стилей) */
+/* Подзаголовок только в шапке модалки: светлый текст на градиенте */
 .report-detail-header .report-detail-subtitle {
   font-size: 14px;
   color: rgba(255, 255, 255, 0.95);
@@ -1011,30 +1073,31 @@
 .section-units {
   font-size: 12px;
   font-weight: 400;
-  color: #7f8c8d;
+  color: var(--color-text-tertiary);
   margin-left: 6px;
 }
 
 /* Положительное значение (дивиденды выплачивались) */
 .detail-yes {
-  color: #27ae60;
+  color: var(--color-success);
 }
 
 /* Футер модального окна */
 .report-detail-footer {
   padding: 18px 30px;
-  border-top: 2px solid #e8ecf0;
+  border-top: 1px solid var(--color-border-subtle);
   display: flex;
   justify-content: space-between;
   align-items: center;
   flex-wrap: wrap;
   gap: 12px;
-  background: #fafbfc;
+  background: var(--color-bg-overlay-strong);
+  border-radius: 0 0 var(--radius-xl) var(--radius-xl);
 }
 
 .report-detail-meta {
   font-size: 12px;
-  color: #95a5a6;
+  color: var(--color-text-quaternary);
 }
 
 .report-detail-footer-actions {
@@ -1044,50 +1107,54 @@
 }
 
 .btn-edit-report {
-  background: linear-gradient(180deg, #3b82f6 0%, #2563eb 100%);
-  color: #fff;
+  background: var(--gradient-cta);
+  color: var(--color-text-on-accent);
   border: none;
   padding: 10px 20px;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
-  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.35);
-  transition: background 0.2s, box-shadow 0.2s, transform 0.15s;
+  box-shadow: var(--shadow-2);
+  transition: background var(--transition-fast),
+              box-shadow var(--transition-fast),
+              transform var(--transition-fast);
 }
 
 .btn-edit-report:hover {
-  background: linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%);
-  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.45);
+  filter: brightness(1.06);
+  box-shadow: var(--shadow-3);
   transform: translateY(-1px);
 }
 
 .btn-edit-report:active {
   transform: translateY(0);
-  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.35);
+  box-shadow: var(--shadow-1);
 }
 
 .report-edit-hint {
   font-size: 11px;
-  color: #95a5a6;
+  color: var(--color-text-quaternary);
   margin: 2px 0 0;
 }
 
 .btn-close-detail {
-  background-color: #ecf0f1;
-  color: #2c3e50;
-  border: 1px solid #d5dbdb;
+  background-color: var(--color-bg-hover);
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-border-default);
   padding: 10px 24px;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   font-size: 15px;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.2s, border-color 0.2s, transform 0.15s;
+  transition: background var(--transition-fast),
+              border-color var(--transition-fast),
+              transform var(--transition-fast);
 }
 
 .btn-close-detail:hover {
-  background-color: #dfe6e9;
-  border-color: #b2bec3;
+  background-color: var(--color-bg-active);
+  border-color: var(--color-border-strong);
   transform: translateY(-1px);
 }
 
@@ -1112,11 +1179,11 @@
   .company-content-grid {
     grid-template-columns: 1fr;
   }
-  
+
   .company-title {
     font-size: 28px;
   }
-  
+
   .stat-value {
     font-size: 24px;
   }
@@ -1126,29 +1193,105 @@
   .company-detail-container {
     padding: 10px;
   }
-  
+
   .company-hero {
     padding: 25px;
   }
-  
+
   .company-title {
     font-size: 24px;
   }
-  
+
   .company-quick-stats {
     grid-template-columns: 1fr;
   }
-  
+
   .info-grid,
   .detail-grid {
     grid-template-columns: 1fr;
   }
-  
+
   .multipliers-placeholder {
     grid-template-columns: repeat(2, 1fr);
   }
-  
+
   .financial-metrics {
     grid-template-columns: 1fr;
+  }
+}
+
+/* ─── Анимации сворачивания блоков отчётов ──────────────────────────────── */
+
+/*
+ * Используем grid + grid-template-rows: 0fr/1fr — современный способ
+ * плавно анимировать высоту контейнера динамической высоты без JS-измерений.
+ * Поддержка: Chrome 117+, Firefox 110+, Safari 16+ (т.е. ~95% браузеров).
+ */
+.reports-collapsible,
+.reports-extra-collapsible {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows var(--transition-slow),
+              opacity var(--transition-base),
+              margin-top var(--transition-slow);
+  opacity: 1;
+}
+
+.reports-collapsible.is-closed,
+.reports-extra-collapsible.is-closed {
+  grid-template-rows: 0fr;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.reports-collapsible-inner,
+.reports-extra-collapsible-inner {
+  overflow: hidden;
+  min-height: 0;
+}
+
+/* Чтобы между 5-м и 6-м отчётом сохранялся равный отступ при разворачивании */
+.reports-extra-collapsible.is-open .reports-extra-collapsible-inner {
+  padding-top: 10px;
+}
+
+/* Иконка-стрелка кнопки сворачивания всего модуля */
+.reports-toggle-arrow-icon {
+  display: inline-block;
+  font-size: 13px;
+  line-height: 1;
+  transition: transform var(--transition-base);
+}
+
+.reports-toggle-arrow-icon.is-open {
+  transform: rotate(180deg);
+}
+
+/* Кнопка «Показать все / Свернуть» — flex для иконки */
+.reports-show-more {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.reports-show-more-icon {
+  display: inline-block;
+  font-size: 11px;
+  line-height: 1;
+  transition: transform var(--transition-base);
+}
+
+.reports-show-more-icon.is-open {
+  transform: rotate(180deg);
+}
+
+/* Уважаем настройки пользователя — без анимаций при reduce-motion */
+@media (prefers-reduced-motion: reduce) {
+  .reports-collapsible,
+  .reports-extra-collapsible,
+  .reports-toggle-arrow-icon,
+  .reports-show-more-icon {
+    transition: none;
   }
 }

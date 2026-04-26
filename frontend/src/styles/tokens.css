@@ -1,0 +1,493 @@
+/* ============================================================
+ * Design Tokens — Graham Analyzer
+ *
+ * Light theme: оригинальная палитра проекта (нейтрально-серый
+ * фон, синий акцент, фиолетово-сиреневый hero).
+ * Dark theme: «ночной торговый терминал» — глубокие холодные
+ * тёмно-серые поверхности с лёгким сине-фиолетовым подтоном
+ * и приглушёнными светлыми акцентами.
+ *
+ * Переключение через атрибут `data-theme="light|dark"` на <html>;
+ * fallback по `prefers-color-scheme`. См. `contexts/ThemeContext.tsx`.
+ * ============================================================ */
+
+:root {
+  /* ── Радиусы ──────────────────────────────────────────────── */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --radius-xl: 12px;
+  --radius-pill: 9999px;
+
+  /* ── Отступы ──────────────────────────────────────────────── */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+
+  /* ── Типографика ──────────────────────────────────────────── */
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen,
+    Ubuntu, Cantarell, 'Helvetica Neue', sans-serif;
+  --font-mono: 'Source Code Pro', Menlo, Monaco, Consolas, 'Courier New', monospace;
+  --font-ticker: 'Courier New', monospace;
+
+  /* ── Длительности ─────────────────────────────────────────── */
+  --transition-fast: 0.15s ease;
+  --transition-base: 0.25s ease;
+  --transition-slow: 0.32s ease;
+}
+
+/* ─────────────────────────────────────────────────────────────
+ * LIGHT THEME — текущая палитра проекта
+ * ───────────────────────────────────────────────────────────── */
+:root,
+[data-theme='light'] {
+  color-scheme: light;
+
+  /* Фоны */
+  --color-bg-base:        #f5f7fa;
+  --color-bg-canvas:      #ffffff;
+  --color-bg-surface:     #ffffff;
+  --color-bg-elevated:    #fafbfc;
+  --color-bg-overlay:     #ffffff;
+  --color-bg-overlay-strong: #ffffff;
+  --color-bg-subtle:      #f8f9fa;
+  --color-bg-hover:       #f1f5f9;
+  --color-bg-active:      #e2e8f0;
+  --color-bg-selected:    rgba(155, 89, 182, 0.10);
+  --color-bg-modal-scrim: rgba(15, 23, 42, 0.45);
+  --color-bg-input:       #ffffff;
+  --color-bg-disabled:    #f1f5f9;
+
+  /* Тексты */
+  --color-text-primary:     #2c3e50;
+  --color-text-secondary:   #34495e;
+  --color-text-tertiary:    #7f8c8d;
+  --color-text-quaternary:  #94a3b8;
+  --color-text-placeholder: #94a3b8;
+  --color-text-disabled:    #cbd5e1;
+  --color-text-on-primary:  #ffffff;
+  --color-text-on-accent:   #ffffff;
+  --color-text-link:        #3498db;
+
+  /* Акценты */
+  --color-primary:        #3498db;
+  --color-primary-hover:  #2980b9;
+  --color-primary-active: #1f6391;
+  --color-primary-soft:   rgba(52, 152, 219, 0.10);
+  --color-primary-soft-hover: rgba(52, 152, 219, 0.18);
+
+  --color-accent-indigo:        #6366f1;
+  --color-accent-indigo-soft:   rgba(99, 102, 241, 0.12);
+  --color-accent-violet:        #8b5cf6;
+  --color-accent-violet-soft:   rgba(139, 92, 246, 0.12);
+  --color-accent-purple:        #9b59b6;
+  --color-accent-purple-soft:   rgba(155, 89, 182, 0.10);
+
+  /* Семантика */
+  --color-success:        #27ae60;
+  --color-success-strong: #16a34a;
+  --color-success-soft:   #d5f4e6;
+  --color-success-text:   #166534;
+  --color-success-border: #86efac;
+
+  --color-warning:        #e67e22;
+  --color-warning-strong: #d97706;
+  --color-warning-soft:   #fff7e6;
+  --color-warning-text:   #92400e;
+  --color-warning-border: #ffd591;
+
+  --color-error:          #b91c1c;
+  --color-error-strong:   #991b1b;
+  --color-error-soft:     #fef2f2;
+  --color-error-text:     #991b1b;
+  --color-error-border:   #fecaca;
+
+  --color-loss:           #b91c1c;
+  --color-loss-soft:      #fef2f2;
+  --color-loss-text:      #991b1b;
+
+  --color-info:           #3498db;
+  --color-info-soft:      rgba(52, 152, 219, 0.08);
+  --color-info-text:      #1e40af;
+
+  --color-neutral:        #7f8c8d;
+  --color-neutral-soft:   #f1f5f9;
+  --color-neutral-text:   #475569;
+
+  /* Обводки и разделители */
+  --color-border-subtle:  #eef2f6;
+  --color-border-default: #e1e8ed;
+  --color-border-strong:  #cbd5e1;
+  --color-border-accent:  #3498db;
+  --color-separator:      #edf0f3;
+
+  /* Тени и elevation */
+  --shadow-1: 0 1px 2px rgba(15, 23, 42, 0.06);
+  --shadow-2: 0 2px 8px rgba(15, 23, 42, 0.08);
+  --shadow-3: 0 10px 30px rgba(15, 23, 42, 0.12),
+              0 2px 8px rgba(15, 23, 42, 0.06);
+  --shadow-4: 0 24px 56px rgba(15, 23, 42, 0.16),
+              0 8px 16px rgba(15, 23, 42, 0.08);
+  --shadow-focus-ring: 0 0 0 3px rgba(52, 152, 219, 0.25);
+  --shadow-focus-ring-purple: 0 0 0 3px rgba(155, 89, 182, 0.25);
+
+  /* Градиенты */
+  --gradient-hero: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  --gradient-cta:  linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  --gradient-purple: linear-gradient(135deg, #5a67d8 0%, #6b4f9a 100%);
+  --gradient-cool:   linear-gradient(135deg, #f8fafc 0%, #eff6ff 100%);
+
+  /* Hero overlay (полупрозрачный «свет сверху») */
+  --hero-overlay: radial-gradient(
+    circle at 30% 20%,
+    rgba(255, 255, 255, 0.18) 0%,
+    transparent 55%
+  );
+
+  /* Scrollbar */
+  --color-scrollbar-thumb:       #cbd5e1;
+  --color-scrollbar-thumb-hover: #94a3b8;
+  --color-scrollbar-track:       transparent;
+
+  /* Графики (recharts) */
+  --color-chart-grid:        #e2e8f0;
+  --color-chart-axis:        #64748b;
+  --color-chart-line-1:      #6366f1;
+  --color-chart-line-2:      #8b5cf6;
+  --color-chart-line-3:      #10b981;
+  --color-chart-line-4:      #f59e0b;
+  --color-chart-line-5:      #06b6d4;
+  --color-chart-line-6:      #ec4899;
+  --color-chart-ref-good:    #22c55e;
+  --color-chart-ref-bad:     #ef4444;
+  --color-chart-tooltip-bg:  #ffffff;
+  --color-chart-tooltip-border: #e2e8f0;
+  --color-chart-dot-stroke:  #ffffff;
+
+  /* Таблицы */
+  --color-table-header-bg:    #f8f9fa;
+  --color-table-header-text:  #6b7280;
+  --color-table-row-hover:    #f1f5f9;
+  --color-table-border:       #e1e8ed;
+}
+
+/* ─────────────────────────────────────────────────────────────
+ * DARK THEME — «ночной торговый терминал»
+ * ───────────────────────────────────────────────────────────── */
+[data-theme='dark'] {
+  color-scheme: dark;
+
+  /* Фоны */
+  --color-bg-base:        #0e1217;
+  --color-bg-canvas:      #11161d;
+  --color-bg-surface:     #171c25;
+  --color-bg-elevated:    #1c222c;
+  --color-bg-overlay:     #222937;
+  --color-bg-overlay-strong: #2a3142;
+  --color-bg-subtle:      rgba(255, 255, 255, 0.025);
+  --color-bg-hover:       rgba(255, 255, 255, 0.05);
+  --color-bg-active:      rgba(255, 255, 255, 0.10);
+  --color-bg-selected:    rgba(129, 140, 248, 0.12);
+  --color-bg-modal-scrim: rgba(5, 8, 12, 0.72);
+  --color-bg-input:       #11161d;
+  --color-bg-disabled:    rgba(255, 255, 255, 0.03);
+
+  /* Тексты */
+  --color-text-primary:     #e6e9ef;
+  --color-text-secondary:   #a8b1c2;
+  --color-text-tertiary:    #7a8499;
+  --color-text-quaternary:  #5b6377;
+  --color-text-placeholder: #5b6377;
+  --color-text-disabled:    #454c5d;
+  --color-text-on-primary:  #0a0d12;
+  --color-text-on-accent:   #f1f3f9;
+  --color-text-link:        #93c5fd;
+
+  /* Акценты */
+  --color-primary:        #60a5fa;
+  --color-primary-hover:  #93c5fd;
+  --color-primary-active: #3b82f6;
+  --color-primary-soft:   rgba(96, 165, 250, 0.14);
+  --color-primary-soft-hover: rgba(96, 165, 250, 0.22);
+
+  --color-accent-indigo:        #818cf8;
+  --color-accent-indigo-soft:   rgba(129, 140, 248, 0.16);
+  --color-accent-violet:        #a78bfa;
+  --color-accent-violet-soft:   rgba(167, 139, 250, 0.16);
+  --color-accent-purple:        #a78bfa;
+  --color-accent-purple-soft:   rgba(167, 139, 250, 0.14);
+
+  /* Семантика */
+  --color-success:        #34d399;
+  --color-success-strong: #10b981;
+  --color-success-soft:   rgba(52, 211, 153, 0.14);
+  --color-success-text:   #6ee7b7;
+  --color-success-border: rgba(52, 211, 153, 0.32);
+
+  --color-warning:        #fbbf24;
+  --color-warning-strong: #f59e0b;
+  --color-warning-soft:   rgba(251, 191, 36, 0.14);
+  --color-warning-text:   #fcd34d;
+  --color-warning-border: rgba(251, 191, 36, 0.32);
+
+  --color-error:          #f87171;
+  --color-error-strong:   #ef4444;
+  --color-error-soft:     rgba(248, 113, 113, 0.14);
+  --color-error-text:     #fca5a5;
+  --color-error-border:   rgba(248, 113, 113, 0.32);
+
+  --color-loss:           #fb7185;
+  --color-loss-soft:      rgba(251, 113, 133, 0.14);
+  --color-loss-text:      #fda4af;
+
+  --color-info:           #22d3ee;
+  --color-info-soft:      rgba(34, 211, 238, 0.12);
+  --color-info-text:      #67e8f9;
+
+  --color-neutral:        #7a8499;
+  --color-neutral-soft:   rgba(122, 132, 153, 0.12);
+  --color-neutral-text:   #a8b1c2;
+
+  /* Обводки и разделители */
+  --color-border-subtle:  rgba(255, 255, 255, 0.06);
+  --color-border-default: rgba(255, 255, 255, 0.10);
+  --color-border-strong:  rgba(255, 255, 255, 0.16);
+  --color-border-accent:  #60a5fa;
+  --color-separator:      rgba(255, 255, 255, 0.08);
+
+  /* Тени с обводкой светом + глубиной */
+  --shadow-1: 0 0 0 1px rgba(255, 255, 255, 0.05),
+              0 1px 2px rgba(0, 0, 0, 0.5);
+  --shadow-2: 0 0 0 1px rgba(255, 255, 255, 0.07),
+              0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-3: 0 0 0 1px rgba(255, 255, 255, 0.08),
+              0 12px 28px rgba(0, 0, 0, 0.55),
+              0 2px 6px rgba(0, 0, 0, 0.4);
+  --shadow-4: 0 0 0 1px rgba(255, 255, 255, 0.08),
+              0 24px 56px rgba(0, 0, 0, 0.65),
+              0 8px 16px rgba(0, 0, 0, 0.45);
+  --shadow-focus-ring: 0 0 0 3px rgba(96, 165, 250, 0.35);
+  --shadow-focus-ring-purple: 0 0 0 3px rgba(167, 139, 250, 0.35);
+
+  /* Градиенты — насыщеннее в середине, мягче по краям */
+  --gradient-hero: linear-gradient(135deg, #4f46e5 0%, #7c3aed 55%, #5b21b6 100%);
+  --gradient-cta:  linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+  --gradient-purple: linear-gradient(135deg, #5b4ad6 0%, #7c5fa9 100%);
+  --gradient-cool:   linear-gradient(135deg, #1c222c 0%, #1a2233 100%);
+
+  /* Hero overlay для тёмного градиента — мягкая верхняя подсветка */
+  --hero-overlay: radial-gradient(
+    circle at 30% 20%,
+    rgba(255, 255, 255, 0.10) 0%,
+    transparent 55%
+  );
+
+  /* Scrollbar */
+  --color-scrollbar-thumb:       #2a3142;
+  --color-scrollbar-thumb-hover: #3a4258;
+  --color-scrollbar-track:       transparent;
+
+  /* Графики (recharts) — лёгкая десатурация для тёмного фона */
+  --color-chart-grid:        rgba(255, 255, 255, 0.06);
+  --color-chart-axis:        #7a8499;
+  --color-chart-line-1:      #818cf8;
+  --color-chart-line-2:      #a78bfa;
+  --color-chart-line-3:      #34d399;
+  --color-chart-line-4:      #fbbf24;
+  --color-chart-line-5:      #22d3ee;
+  --color-chart-line-6:      #f472b6;
+  --color-chart-ref-good:    #34d399;
+  --color-chart-ref-bad:     #f87171;
+  --color-chart-tooltip-bg:  #222937;
+  --color-chart-tooltip-border: rgba(255, 255, 255, 0.10);
+  --color-chart-dot-stroke:  #222937;
+
+  /* Таблицы */
+  --color-table-header-bg:    #11161d;
+  --color-table-header-text:  #7a8499;
+  --color-table-row-hover:    rgba(96, 165, 250, 0.05);
+  --color-table-border:       rgba(255, 255, 255, 0.06);
+}
+
+/* ─────────────────────────────────────────────────────────────
+ * АВТО-РЕЖИМ: если пользователь не задал тему вручную, идём
+ * за системой. Дублируем dark-блок при `prefers-color-scheme: dark`
+ * только если на <html> НЕТ data-theme.
+ * ───────────────────────────────────────────────────────────── */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    color-scheme: dark;
+
+    --color-bg-base:        #0e1217;
+    --color-bg-canvas:      #11161d;
+    --color-bg-surface:     #171c25;
+    --color-bg-elevated:    #1c222c;
+    --color-bg-overlay:     #222937;
+    --color-bg-overlay-strong: #2a3142;
+    --color-bg-subtle:      rgba(255, 255, 255, 0.025);
+    --color-bg-hover:       rgba(255, 255, 255, 0.05);
+    --color-bg-active:      rgba(255, 255, 255, 0.10);
+    --color-bg-selected:    rgba(129, 140, 248, 0.12);
+    --color-bg-modal-scrim: rgba(5, 8, 12, 0.72);
+    --color-bg-input:       #11161d;
+    --color-bg-disabled:    rgba(255, 255, 255, 0.03);
+
+    --color-text-primary:     #e6e9ef;
+    --color-text-secondary:   #a8b1c2;
+    --color-text-tertiary:    #7a8499;
+    --color-text-quaternary:  #5b6377;
+    --color-text-placeholder: #5b6377;
+    --color-text-disabled:    #454c5d;
+    --color-text-on-primary:  #0a0d12;
+    --color-text-on-accent:   #f1f3f9;
+    --color-text-link:        #93c5fd;
+
+    --color-primary:        #60a5fa;
+    --color-primary-hover:  #93c5fd;
+    --color-primary-active: #3b82f6;
+    --color-primary-soft:   rgba(96, 165, 250, 0.14);
+    --color-primary-soft-hover: rgba(96, 165, 250, 0.22);
+
+    --color-accent-indigo:        #818cf8;
+    --color-accent-indigo-soft:   rgba(129, 140, 248, 0.16);
+    --color-accent-violet:        #a78bfa;
+    --color-accent-violet-soft:   rgba(167, 139, 250, 0.16);
+    --color-accent-purple:        #a78bfa;
+    --color-accent-purple-soft:   rgba(167, 139, 250, 0.14);
+
+    --color-success:        #34d399;
+    --color-success-strong: #10b981;
+    --color-success-soft:   rgba(52, 211, 153, 0.14);
+    --color-success-text:   #6ee7b7;
+    --color-success-border: rgba(52, 211, 153, 0.32);
+
+    --color-warning:        #fbbf24;
+    --color-warning-strong: #f59e0b;
+    --color-warning-soft:   rgba(251, 191, 36, 0.14);
+    --color-warning-text:   #fcd34d;
+    --color-warning-border: rgba(251, 191, 36, 0.32);
+
+    --color-error:          #f87171;
+    --color-error-strong:   #ef4444;
+    --color-error-soft:     rgba(248, 113, 113, 0.14);
+    --color-error-text:     #fca5a5;
+    --color-error-border:   rgba(248, 113, 113, 0.32);
+
+    --color-loss:           #fb7185;
+    --color-loss-soft:      rgba(251, 113, 133, 0.14);
+    --color-loss-text:      #fda4af;
+
+    --color-info:           #22d3ee;
+    --color-info-soft:      rgba(34, 211, 238, 0.12);
+    --color-info-text:      #67e8f9;
+
+    --color-neutral:        #7a8499;
+    --color-neutral-soft:   rgba(122, 132, 153, 0.12);
+    --color-neutral-text:   #a8b1c2;
+
+    --color-border-subtle:  rgba(255, 255, 255, 0.06);
+    --color-border-default: rgba(255, 255, 255, 0.10);
+    --color-border-strong:  rgba(255, 255, 255, 0.16);
+    --color-border-accent:  #60a5fa;
+    --color-separator:      rgba(255, 255, 255, 0.08);
+
+    --shadow-1: 0 0 0 1px rgba(255, 255, 255, 0.05),
+                0 1px 2px rgba(0, 0, 0, 0.5);
+    --shadow-2: 0 0 0 1px rgba(255, 255, 255, 0.07),
+                0 4px 12px rgba(0, 0, 0, 0.4);
+    --shadow-3: 0 0 0 1px rgba(255, 255, 255, 0.08),
+                0 12px 28px rgba(0, 0, 0, 0.55),
+                0 2px 6px rgba(0, 0, 0, 0.4);
+    --shadow-4: 0 0 0 1px rgba(255, 255, 255, 0.08),
+                0 24px 56px rgba(0, 0, 0, 0.65),
+                0 8px 16px rgba(0, 0, 0, 0.45);
+    --shadow-focus-ring: 0 0 0 3px rgba(96, 165, 250, 0.35);
+    --shadow-focus-ring-purple: 0 0 0 3px rgba(167, 139, 250, 0.35);
+
+    --gradient-hero: linear-gradient(135deg, #4f46e5 0%, #7c3aed 55%, #5b21b6 100%);
+    --gradient-cta:  linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+    --gradient-purple: linear-gradient(135deg, #5b4ad6 0%, #7c5fa9 100%);
+    --gradient-cool:   linear-gradient(135deg, #1c222c 0%, #1a2233 100%);
+
+    --hero-overlay: radial-gradient(
+      circle at 30% 20%,
+      rgba(255, 255, 255, 0.10) 0%,
+      transparent 55%
+    );
+
+    --color-scrollbar-thumb:       #2a3142;
+    --color-scrollbar-thumb-hover: #3a4258;
+    --color-scrollbar-track:       transparent;
+
+    --color-chart-grid:        rgba(255, 255, 255, 0.06);
+    --color-chart-axis:        #7a8499;
+    --color-chart-line-1:      #818cf8;
+    --color-chart-line-2:      #a78bfa;
+    --color-chart-line-3:      #34d399;
+    --color-chart-line-4:      #fbbf24;
+    --color-chart-line-5:      #22d3ee;
+    --color-chart-line-6:      #f472b6;
+    --color-chart-ref-good:    #34d399;
+    --color-chart-ref-bad:     #f87171;
+    --color-chart-tooltip-bg:  #222937;
+    --color-chart-tooltip-border: rgba(255, 255, 255, 0.10);
+    --color-chart-dot-stroke:  #222937;
+
+    --color-table-header-bg:    #11161d;
+    --color-table-header-text:  #7a8499;
+    --color-table-row-hover:    rgba(96, 165, 250, 0.05);
+    --color-table-border:       rgba(255, 255, 255, 0.06);
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────
+ * Глобальные применения
+ * ───────────────────────────────────────────────────────────── */
+
+html,
+body {
+  background-color: var(--color-bg-base);
+  color: var(--color-text-primary);
+  transition:
+    background-color var(--transition-base),
+    color var(--transition-base);
+}
+
+/* Кастомный скроллбар (WebKit) */
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-track {
+  background: var(--color-scrollbar-track);
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--color-scrollbar-thumb);
+  border-radius: 6px;
+  border: 2px solid var(--color-bg-canvas);
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--color-scrollbar-thumb-hover);
+}
+/* Firefox */
+* {
+  scrollbar-color: var(--color-scrollbar-thumb) var(--color-scrollbar-track);
+}
+
+/* Reduce motion — для пользователей с системной настройкой */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

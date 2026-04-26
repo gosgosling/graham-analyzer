@@ -1,40 +1,96 @@
 .App {
   text-align: left;
-  background-color: #f5f7fa;
+  background-color: var(--color-bg-base);
+  color: var(--color-text-primary);
   min-height: 100vh;
+  transition:
+    background-color var(--transition-base),
+    color var(--transition-base);
 }
 
-.App-logo {
-  height: 40vmin;
-  pointer-events: none;
+/* ─── Навигация ──────────────────────────────────────────────── */
+
+.app-nav {
+  padding: 16px 20px;
+  background-color: var(--color-bg-canvas);
+  border-bottom: 1px solid var(--color-border-default);
+  transition:
+    background-color var(--transition-base),
+    border-color var(--transition-base);
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  .App-logo {
-    animation: App-logo-spin infinite 20s linear;
-  }
-}
-
-.App-header {
-  background-color: #282c34;
-  min-height: 100vh;
+.app-nav-inner {
+  max-width: 1400px;
+  margin: 0 auto;
   display: flex;
-  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  font-size: calc(10px + 2vmin);
-  color: white;
+  justify-content: space-between;
+  gap: 16px;
 }
 
-.App-link {
-  color: #61dafb;
+.app-nav-tabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
-@keyframes App-logo-spin {
-  from {
-    transform: rotate(0deg);
+.app-nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.app-nav-link {
+  text-decoration: none;
+}
+
+.app-nav-btn {
+  padding: 9px 18px;
+  background-color: var(--color-bg-subtle);
+  color: var(--color-text-primary);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.2;
+  cursor: pointer;
+  transition:
+    background-color var(--transition-fast),
+    color var(--transition-fast),
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast);
+}
+
+.app-nav-btn:hover:not(.is-active) {
+  background-color: var(--color-bg-hover);
+  border-color: var(--color-border-default);
+}
+
+.app-nav-btn.is-active {
+  background-color: var(--color-primary);
+  color: var(--color-text-on-primary);
+  font-weight: 600;
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow-1);
+}
+
+.app-nav-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus-ring);
+}
+
+@media (max-width: 720px) {
+  .app-nav-inner {
+    flex-direction: column;
+    align-items: stretch;
   }
-  to {
-    transform: rotate(360deg);
+  .app-nav-actions {
+    justify-content: flex-end;
+  }
+  .app-nav-btn {
+    padding: 8px 12px;
+    font-size: 13px;
   }
 }
