@@ -1,10 +1,13 @@
 /* ── Панель мультипликаторов ──────────────────────────────────────────────── */
 
 .mult-panel {
-  background: #fff;
-  border-radius: 12px;
-  border: 1px solid #e2e8f0;
+  background: var(--color-bg-surface);
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--color-border-subtle);
+  box-shadow: var(--shadow-1);
   overflow: hidden;
+  transition: background-color var(--transition-base),
+              border-color var(--transition-base);
 }
 
 .mult-panel-header {
@@ -19,7 +22,7 @@
 .mult-panel-title {
   font-size: 1.15rem;
   font-weight: 700;
-  color: #1e293b;
+  color: var(--color-text-primary);
   margin: 0;
 }
 
@@ -31,19 +34,22 @@
 
 .btn-refresh {
   padding: 6px 14px;
-  background: #f1f5f9;
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
+  background: var(--color-bg-subtle);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
   font-size: 0.82rem;
-  color: #475569;
+  color: var(--color-text-secondary);
   cursor: pointer;
-  transition: background 0.15s;
+  transition: background var(--transition-fast),
+              color var(--transition-fast),
+              border-color var(--transition-fast);
   white-space: nowrap;
 }
 
 .btn-refresh:hover:not(:disabled) {
-  background: #e2e8f0;
-  color: #1e293b;
+  background: var(--color-bg-hover);
+  color: var(--color-text-primary);
+  border-color: var(--color-border-strong);
 }
 
 .btn-refresh:disabled {
@@ -51,10 +57,46 @@
   cursor: not-allowed;
 }
 
+.btn-refresh:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus-ring);
+}
+
 .refresh-msg {
   font-size: 0.82rem;
-  color: #475569;
+  color: var(--color-text-secondary);
   animation: fadeIn 0.3s ease;
+}
+
+.refresh-auto-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  color: var(--color-text-tertiary);
+  font-style: italic;
+  animation: fadeIn 0.3s ease;
+}
+
+.refresh-auto-spinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--color-border-default);
+  border-top-color: var(--color-accent-indigo);
+  border-radius: 50%;
+  animation: refreshSpin 0.9s linear infinite;
+}
+
+@keyframes refreshSpin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .refresh-auto-spinner {
+    animation: none;
+    border-top-color: var(--color-border-default);
+  }
 }
 
 @keyframes fadeIn {
@@ -76,11 +118,11 @@
   font-weight: 500;
 }
 
-.legend-item.good   { color: #15803d; }
-.legend-item.warn   { color: #b45309; }
-.legend-item.bad    { color: #b91c1c; }
-.legend-item.loss   { color: #9a3412; }
-.legend-item.neutral { color: #94a3b8; }
+.legend-item.good   { color: var(--color-success); }
+.legend-item.warn   { color: var(--color-warning); }
+.legend-item.bad    { color: var(--color-error); }
+.legend-item.loss   { color: var(--color-loss); }
+.legend-item.neutral { color: var(--color-neutral); }
 
 /* ── Табы ─────────────────────────────────────────────────────────────────── */
 
@@ -88,7 +130,7 @@
   display: flex;
   gap: 0;
   padding: 14px 24px 0;
-  border-bottom: 2px solid #e2e8f0;
+  border-bottom: 2px solid var(--color-border-subtle);
 }
 
 .mult-tab {
@@ -99,18 +141,19 @@
   margin-bottom: -2px;
   font-size: 0.88rem;
   font-weight: 500;
-  color: #64748b;
+  color: var(--color-text-tertiary);
   cursor: pointer;
-  transition: color 0.15s, border-color 0.15s;
+  transition: color var(--transition-fast),
+              border-color var(--transition-fast);
 }
 
 .mult-tab:hover {
-  color: #1e293b;
+  color: var(--color-text-primary);
 }
 
 .mult-tab.active {
-  color: #6366f1;
-  border-bottom-color: #6366f1;
+  color: var(--color-accent-indigo);
+  border-bottom-color: var(--color-accent-indigo);
   font-weight: 600;
 }
 
@@ -123,16 +166,16 @@
 .mult-loading {
   text-align: center;
   padding: 40px 0;
-  color: #94a3b8;
+  color: var(--color-text-quaternary);
   font-size: 0.9rem;
 }
 
 .mult-error {
-  background: #fef2f2;
-  border: 1px solid #fecaca;
-  border-radius: 8px;
+  background: var(--color-error-soft);
+  border: 1px solid var(--color-error-border);
+  border-radius: var(--radius-md);
   padding: 16px;
-  color: #991b1b;
+  color: var(--color-error-text);
   font-size: 0.88rem;
   text-align: center;
 }
@@ -143,9 +186,9 @@
   display: flex;
   flex-wrap: wrap;
   gap: 20px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 10px;
+  background: var(--color-bg-subtle);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
   padding: 12px 20px;
   margin-bottom: 20px;
 }
@@ -160,11 +203,11 @@
 .ltm-meta-icon { font-size: 1rem; }
 
 .ltm-meta-label {
-  color: #64748b;
+  color: var(--color-text-tertiary);
 }
 
 .ltm-meta-value {
-  color: #1e293b;
+  color: var(--color-text-primary);
   font-weight: 600;
 }
 
@@ -178,39 +221,41 @@
 }
 
 .current-card {
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   padding: 14px 16px;
   border: 1px solid transparent;
-  transition: box-shadow 0.15s;
+  transition: box-shadow var(--transition-fast),
+              transform var(--transition-fast);
 }
 
 .current-card:hover {
-  box-shadow: 0 4px 16px rgba(0,0,0,0.07);
+  box-shadow: var(--shadow-2);
+  transform: translateY(-1px);
 }
 
 .current-card.level-good {
-  background: #f0fdf4;
-  border-color: #bbf7d0;
+  background: var(--color-success-soft);
+  border-color: var(--color-success-border);
 }
 
 .current-card.level-warn {
-  background: #fffbeb;
-  border-color: #fde68a;
+  background: var(--color-warning-soft);
+  border-color: var(--color-warning-border);
 }
 
 .current-card.level-bad {
-  background: #fef2f2;
-  border-color: #fecaca;
+  background: var(--color-error-soft);
+  border-color: var(--color-error-border);
 }
 
 .current-card.level-loss {
-  background: #fff7ed;
-  border-color: #fed7aa;
+  background: var(--color-loss-soft);
+  border-color: var(--color-error-border);
 }
 
 .current-card.level-neutral {
-  background: #f8fafc;
-  border-color: #e2e8f0;
+  background: var(--color-bg-subtle);
+  border-color: var(--color-border-subtle);
 }
 
 .current-card-label {
@@ -218,26 +263,26 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: #64748b;
+  color: var(--color-text-tertiary);
   margin-bottom: 4px;
 }
 
 .current-card-value {
   font-size: 1.6rem;
   font-weight: 700;
-  color: #1e293b;
+  color: var(--color-text-primary);
   line-height: 1.1;
   margin-bottom: 6px;
 }
 
-.current-card.level-good  .current-card-value { color: #166534; }
-.current-card.level-warn  .current-card-value { color: #92400e; }
-.current-card.level-bad   .current-card-value { color: #991b1b; }
-.current-card.level-loss  .current-card-value { color: #9a3412; font-size: 1.25rem; }
+.current-card.level-good  .current-card-value { color: var(--color-success-text); }
+.current-card.level-warn  .current-card-value { color: var(--color-warning-text); }
+.current-card.level-bad   .current-card-value { color: var(--color-error-text); }
+.current-card.level-loss  .current-card-value { color: var(--color-loss-text); font-size: 1.25rem; }
 
 .current-card-hint {
   font-size: 0.72rem;
-  color: #94a3b8;
+  color: var(--color-text-quaternary);
   margin-bottom: 2px;
 }
 
@@ -246,24 +291,25 @@
   font-weight: 500;
 }
 
-.current-card-threshold.level-good   { color: #15803d; }
-.current-card-threshold.level-warn   { color: #b45309; }
-.current-card-threshold.level-bad    { color: #b91c1c; }
-.current-card-threshold.level-loss   { color: #9a3412; }
-.current-card-threshold.level-neutral { color: #94a3b8; }
+.current-card-threshold.level-good   { color: var(--color-success); }
+.current-card-threshold.level-warn   { color: var(--color-warning); }
+.current-card-threshold.level-bad    { color: var(--color-error); }
+.current-card-threshold.level-loss   { color: var(--color-loss); }
+.current-card-threshold.level-neutral { color: var(--color-text-quaternary); }
 
 /* ── LTM Финансовые показатели ───────────────────────────────────────────── */
 
 .ltm-financials {
-  background: #f8fafc;
-  border-radius: 10px;
+  background: var(--color-bg-subtle);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
   padding: 16px 20px;
 }
 
 .ltm-fin-title {
   font-size: 0.85rem;
   font-weight: 600;
-  color: #475569;
+  color: var(--color-text-secondary);
   margin: 0 0 12px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -283,21 +329,21 @@
 
 .ltm-fin-label {
   font-size: 0.76rem;
-  color: #94a3b8;
+  color: var(--color-text-quaternary);
 }
 
 .ltm-fin-value {
   font-size: 0.92rem;
   font-weight: 600;
-  color: #1e293b;
+  color: var(--color-text-primary);
 }
 
 /* ── Историческая таблица ────────────────────────────────────────────────── */
 
 .hist-table-wrapper {
   overflow-x: auto;
-  border-radius: 10px;
-  border: 1px solid #e2e8f0;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border-subtle);
 }
 
 .hist-table {
@@ -308,19 +354,19 @@
 }
 
 .hist-table thead tr {
-  background: #f8fafc;
+  background: var(--color-table-header-bg);
 }
 
 .hist-table th {
   padding: 10px 12px;
   text-align: right;
   font-weight: 600;
-  color: #475569;
+  color: var(--color-table-header-text);
   font-size: 0.78rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   white-space: nowrap;
-  border-bottom: 2px solid #e2e8f0;
+  border-bottom: 1px solid var(--color-border-default);
 }
 
 .hist-table th.col-year {
@@ -330,15 +376,15 @@
 .hist-table td {
   padding: 9px 12px;
   text-align: right;
-  color: #334155;
-  border-bottom: 1px solid #f1f5f9;
+  color: var(--color-text-secondary);
+  border-bottom: 1px solid var(--color-table-border);
   white-space: nowrap;
 }
 
 .hist-table td.col-year {
   text-align: left;
   font-weight: 600;
-  color: #1e293b;
+  color: var(--color-text-primary);
 }
 
 .hist-table td.col-price-cell {
@@ -347,7 +393,7 @@
 
 .mult-price-with-tip {
   cursor: help;
-  border-bottom: 1px dashed #cbd5e1;
+  border-bottom: 1px dashed var(--color-border-strong);
   padding-bottom: 1px;
 }
 
@@ -357,15 +403,13 @@
   min-width: 188px;
   max-width: 280px;
   padding: 10px 12px;
-  background: #fff;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  box-shadow:
-    0 10px 28px rgba(15, 23, 42, 0.12),
-    0 2px 8px rgba(15, 23, 42, 0.06);
+  background: var(--color-bg-overlay);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-3);
   font-size: 0.8rem;
   line-height: 1.35;
-  color: #334155;
+  color: var(--color-text-secondary);
   pointer-events: none;
 }
 
@@ -374,58 +418,59 @@
   font-size: 0.7rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: #64748b;
+  color: var(--color-text-tertiary);
   margin-bottom: 6px;
 }
 
 .mult-price-tip-line {
   font-size: 0.78rem;
-  color: #475569;
+  color: var(--color-text-secondary);
 }
 
 .mult-price-tip-value {
   margin-top: 4px;
   font-weight: 600;
   font-size: 0.88rem;
-  color: #1e293b;
+  color: var(--color-text-primary);
   font-variant-numeric: tabular-nums;
 }
 
 .mult-price-tip-muted {
   margin-top: 4px;
   font-size: 0.76rem;
-  color: #94a3b8;
+  color: var(--color-text-quaternary);
 }
 
 .hist-table tbody tr:hover {
-  background: #f8fafc;
+  background: var(--color-table-row-hover);
 }
 
 /* LTM строка */
 .row-ltm td {
-  background: #eef2ff;
+  background: var(--color-accent-indigo-soft);
   font-weight: 600;
-  border-bottom: 2px solid #c7d2fe;
+  border-bottom: 2px solid var(--color-accent-indigo);
 }
 
 .row-ltm:hover td {
-  background: #e0e7ff;
+  background: var(--color-accent-indigo-soft);
+  filter: brightness(1.06);
 }
 
 .badge-ltm {
   display: inline-block;
-  background: #6366f1;
-  color: #fff;
+  background: var(--color-accent-indigo);
+  color: var(--color-text-on-primary);
   font-size: 0.7rem;
   font-weight: 700;
   padding: 2px 7px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   letter-spacing: 0.05em;
 }
 
 .table-empty {
   text-align: center !important;
-  color: #94a3b8;
+  color: var(--color-text-quaternary);
   padding: 32px !important;
 }
 
@@ -434,16 +479,16 @@
 .mult-cell {
   display: inline-block;
   padding: 2px 8px;
-  border-radius: 5px;
+  border-radius: var(--radius-xs);
   font-weight: 600;
   font-size: 0.83rem;
 }
 
-.mult-cell.good    { background: #dcfce7; color: #166534; }
-.mult-cell.warn    { background: #fef9c3; color: #854d0e; }
-.mult-cell.bad     { background: #fee2e2; color: #991b1b; }
-.mult-cell.neutral { color: #94a3b8; font-weight: 400; }
-.mult-cell.loss    { background: #fff7ed; color: #9a3412; border: 1px solid #fed7aa; }
+.mult-cell.good    { background: var(--color-success-soft); color: var(--color-success-text); }
+.mult-cell.warn    { background: var(--color-warning-soft); color: var(--color-warning-text); }
+.mult-cell.bad     { background: var(--color-error-soft);   color: var(--color-error-text); }
+.mult-cell.neutral { color: var(--color-text-quaternary); font-weight: 400; }
+.mult-cell.loss    { background: var(--color-loss-soft);    color: var(--color-loss-text); border: 1px solid var(--color-error-border); }
 
 /* Подсказка при null-значении: пунктирное подчёркивание и курсор-помощь */
 .mult-cell.null-hint {
@@ -454,20 +499,20 @@
 
 /* Ячейка убытка в таблице истории */
 .cell-loss {
-  color: #9a3412;
+  color: var(--color-loss-text);
   font-weight: 600;
 }
 
 /* Значение убытка в LTM-финансах */
 .value-loss {
-  color: #9a3412 !important;
+  color: var(--color-loss-text) !important;
   font-weight: 700;
 }
 
 /* LTM блок — выделяем строку убытка */
 .ltm-fin-item--loss {
-  background: #fff7ed;
-  border-radius: 6px;
+  background: var(--color-loss-soft);
+  border-radius: var(--radius-sm);
   padding: 4px 8px;
   margin: -4px -8px;
 }
@@ -481,16 +526,16 @@
 }
 
 .chart-card {
-  background: #f8fafc;
-  border-radius: 10px;
-  border: 1px solid #e2e8f0;
+  background: var(--color-bg-subtle);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border-subtle);
   padding: 16px 12px 12px;
 }
 
 .chart-card-title {
   font-size: 0.83rem;
   font-weight: 700;
-  color: #475569;
+  color: var(--color-text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   margin-bottom: 10px;
@@ -500,7 +545,7 @@
 .charts-empty {
   text-align: center;
   padding: 48px 0;
-  color: #94a3b8;
+  color: var(--color-text-quaternary);
   font-size: 0.9rem;
 }
 
@@ -511,14 +556,6 @@
   grid-template-columns: 1fr 1fr;
   gap: 24px;
   align-items: start;
-}
-
-.mult-current-col {
-  /* занимает левую половину, никаких доп. стилей — всё уже есть */
-}
-
-.mult-charts-col {
-  /* занимает правую половину */
 }
 
 /* ── Пагинатор графиков ──────────────────────────────────────────────────── */
@@ -538,26 +575,30 @@
 
 .charts-pager-label {
   font-size: 0.76rem;
-  color: #94a3b8;
+  color: var(--color-text-quaternary);
   margin-right: 4px;
 }
 
 .charts-nav-btn {
-  background: #f1f5f9;
-  border: 1px solid #e2e8f0;
-  border-radius: 6px;
+  background: var(--color-bg-subtle);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-sm);
   width: 28px;
   height: 28px;
   font-size: 1rem;
-  color: #475569;
+  color: var(--color-text-secondary);
   cursor: pointer;
   line-height: 1;
-  transition: background 0.15s;
+  transition: background var(--transition-fast),
+              border-color var(--transition-fast);
   display: flex;
   align-items: center;
   justify-content: center;
 }
-.charts-nav-btn:hover:not(:disabled) { background: #e2e8f0; }
+.charts-nav-btn:hover:not(:disabled) {
+  background: var(--color-bg-hover);
+  border-color: var(--color-border-strong);
+}
 .charts-nav-btn:disabled { opacity: 0.35; cursor: default; }
 
 /* ── Нижняя строка: история ──────────────────────────────────────────────── */
@@ -565,7 +606,7 @@
 .mult-history-row {
   margin-top: 24px;
   padding-top: 20px;
-  border-top: 1px solid #e2e8f0;
+  border-top: 1px solid var(--color-border-subtle);
 }
 
 .mult-history-label {
@@ -573,7 +614,7 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: #94a3b8;
+  color: var(--color-text-quaternary);
   margin-bottom: 12px;
 }
 

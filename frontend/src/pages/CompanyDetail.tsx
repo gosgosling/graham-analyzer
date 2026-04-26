@@ -147,7 +147,55 @@ const CompanyDetail: React.FC = () => {
     });
   }, [reports, reportPeriodFilter, reportStandardFilter]);
 
-  const visibleReports = showAllReports ? filteredReports : filteredReports.slice(0, 5);
+  const firstReports = filteredReports.slice(0, 5);
+  const extraReports = filteredReports.slice(5);
+
+  const renderReportRow = (report: FinancialReport) => {
+    const pt = report.period_type.toLowerCase();
+    const periodLabel = pt === 'annual'
+      ? 'Годовой'
+      : pt === 'semi_annual'
+      ? 'Полугодовой'
+      : `Q${report.fiscal_quarter}`;
+    const needsVerification = report.verified_by_analyst === false;
+    return (
+      <div
+        key={report.id}
+        className="report-compact-item"
+        style={
+          needsVerification
+            ? {
+                background: '#fffbe6',
+                borderLeft: '3px solid #ffa940',
+              }
+            : undefined
+        }
+      >
+        <div className="report-compact-info">
+          <span className="report-compact-year">{report.fiscal_year}</span>
+          <span className="report-compact-period">{periodLabel}</span>
+          <span className="report-compact-date">{report.report_date}</span>
+          <div className="report-compact-meta">
+            <span className="report-compact-standard">{report.accounting_standard}</span>
+            <span className="report-compact-currency">{report.currency}</span>
+            {report.dividends_paid && (
+              <span className="report-compact-dividend">💵</span>
+            )}
+            <VerificationBadge
+              autoExtracted={report.auto_extracted}
+              verifiedByAnalyst={report.verified_by_analyst}
+            />
+          </div>
+        </div>
+        <button
+          onClick={() => setSelectedReport(report)}
+          className="btn-compact-view"
+        >
+          Просмотр
+        </button>
+      </div>
+    );
+  };
 
   /** Ч/б/серый бренд — оставляем стандартный фиолетовый градиент шапки */
   const useBrandInHero = useMemo(
@@ -430,13 +478,21 @@ const CompanyDetail: React.FC = () => {
                     setReportsExpanded((v) => !v);
                   }}
                 >
-                  {reportsExpanded ? '▲' : '▼'}
+                  <span
+                    className={`reports-toggle-arrow-icon${reportsExpanded ? ' is-open' : ''}`}
+                    aria-hidden
+                  >
+                    ▼
+                  </span>
                 </button>
               </div>
             </div>
 
-            {reportsExpanded && (
-              <>
+            <div
+              className={`reports-collapsible${reportsExpanded ? ' is-open' : ' is-closed'}`}
+              aria-hidden={!reportsExpanded}
+            >
+              <div className="reports-collapsible-inner">
                 {reportsLoading ? (
                   <div className="loading-small">Загрузка отчетов...</div>
                 ) : reports && reports.length > 0 ? (
@@ -494,62 +550,35 @@ const CompanyDetail: React.FC = () => {
                     ) : (
                       <>
                         <div className="reports-compact-list">
-                          {visibleReports.map((report) => {
-                            const pt = report.period_type.toLowerCase();
-                            const periodLabel = pt === 'annual'
-                              ? 'Годовой'
-                              : pt === 'semi_annual'
-                              ? 'Полугодовой'
-                              : `Q${report.fiscal_quarter}`;
-                            const needsVerification = report.verified_by_analyst === false;
-                            return (
-                              <div
-                                key={report.id}
-                                className="report-compact-item"
-                                style={
-                                  needsVerification
-                                    ? {
-                                        background: '#fffbe6',
-                                        borderLeft: '3px solid #ffa940',
-                                      }
-                                    : undefined
-                                }
-                              >
-                                <div className="report-compact-info">
-                                  <span className="report-compact-year">{report.fiscal_year}</span>
-                                  <span className="report-compact-period">{periodLabel}</span>
-                                  <span className="report-compact-date">{report.report_date}</span>
-                                  <div className="report-compact-meta">
-                                    <span className="report-compact-standard">{report.accounting_standard}</span>
-                                    <span className="report-compact-currency">{report.currency}</span>
-                                    {report.dividends_paid && (
-                                      <span className="report-compact-dividend">💵</span>
-                                    )}
-                                    <VerificationBadge
-                                      autoExtracted={report.auto_extracted}
-                                      verifiedByAnalyst={report.verified_by_analyst}
-                                    />
-                                  </div>
-                                </div>
-                                <button
-                                  onClick={() => setSelectedReport(report)}
-                                  className="btn-compact-view"
-                                >
-                                  Просмотр
-                                </button>
-                              </div>
-                            );
-                          })}
+                          {firstReports.map(renderReportRow)}
                         </div>
+
+                        {extraReports.length > 0 && (
+                          <div
+                            className={`reports-extra-collapsible${showAllReports ? ' is-open' : ' is-closed'}`}
+                            aria-hidden={!showAllReports}
+                          >
+                            <div className="reports-extra-collapsible-inner reports-compact-list">
+                              {extraReports.map(renderReportRow)}
+                            </div>
+                          </div>
+                        )}
 
                         {filteredReports.length > 5 && (
                           <button
                             className="reports-show-more"
                             onClick={(e) => { e.stopPropagation(); setShowAllReports((v) => !v); }}
+                            aria-expanded={showAllReports}
                           >
+                            <span
+                              className={`reports-show-more-icon${showAllReports ? ' is-open' : ''}`}
+                              aria-hidden
+                            >
+                              ▼
+                            </span>
                             {showAllReports
-                              ? '▲ Свернуть'
-                              : `▼ Показать все (${filteredReports.length})`}
+                              ? 'Свернуть'
+                              : `Показать все (${filteredReports.length})`}
                           </button>
                         )}
                       </>
@@ -575,8 +604,8 @@ const CompanyDetail: React.FC = () => {
                     </button>
                   </div>
                 )}
-              </>
-            )}
+              </div>
+            </div>
           </section>
 
           {/* Последние финансовые показатели */}
