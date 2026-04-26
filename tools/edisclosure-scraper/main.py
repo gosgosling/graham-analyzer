@@ -6,6 +6,7 @@
   python main.py --tickers SBER ROSN    # только указанные тикеры
   python main.py --dry-run              # показать что будет скачано, без скачивания
   python main.py --list-mapped          # показать тикеры с известными ID и выйти
+  python main.py --start-from MVID     # продолжить: пропустить тикеры до MVID (включительно с MVID)
 
 Политика robots.txt (https://www.e-disclosure.ru/robots.txt):
   Запрещено: /api/*, /Event/Certificate?*, /Company/Certificate/*,
@@ -97,6 +98,15 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Только распаковать ZIP из папок Reports в TICKER_YEAR.pdf (без скачивания)",
     )
+    parser.add_argument(
+        "--start-from",
+        metavar="TICKER",
+        default="",
+        help=(
+            "Продолжение прогона: пропустить все тикеры до указанного (порядок как в БД с "
+            "фильтром company_ids) и обработать начиная с него. Пример: --start-from MVID"
+        ),
+    )
     return parser.parse_args()
 
 
@@ -158,6 +168,28 @@ def main() -> None:
     if not companies_to_process:
         logger.error("Нет компаний для обработки. Проверьте company_ids.json.")
         sys.exit(1)
+
+    if args.start_from:
+        start_ticker = args.start_from.strip().upper()
+        found_at: int | None = None
+        for i, (t, _cid, _name) in enumerate(companies_to_process):
+            if t == start_ticker:
+                found_at = i
+                break
+        if found_at is None:
+            logger.error(
+                "Тикер %s не найден в списке к обработке. Проверьте написание и company_ids.json.",
+                start_ticker,
+            )
+            sys.exit(1)
+        skipped = found_at
+        companies_to_process = companies_to_process[found_at:]
+        logger.info(
+            "Режим --start-from %s: пропущено тикеров: %d, к обработке: %d.",
+            start_ticker,
+            skipped,
+            len(companies_to_process),
+        )
 
     logger.info("К обработке: %d компаний.", len(companies_to_process))
 

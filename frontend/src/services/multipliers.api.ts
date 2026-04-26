@@ -30,11 +30,12 @@ export const getCompanyMultipliersHistory = async (
 export const refreshCompanyMultipliers = async (
     companyId: number,
     saveToCache = true,
+    signal?: AbortSignal,
 ): Promise<{ company_id: number; ticker: string; price: number | null; success: boolean }> => {
     const response = await api.post(
         `/companies/${companyId}/multipliers/refresh`,
         null,
-        { params: { save_to_cache: saveToCache } },
+        { params: { save_to_cache: saveToCache }, signal },
     );
     return response.data;
 };
