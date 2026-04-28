@@ -161,15 +161,7 @@ const CompanyDetail: React.FC = () => {
     return (
       <div
         key={report.id}
-        className="report-compact-item"
-        style={
-          needsVerification
-            ? {
-                background: '#fffbe6',
-                borderLeft: '3px solid #ffa940',
-              }
-            : undefined
-        }
+        className={`report-compact-item${needsVerification ? ' report-compact-item--needs-review' : ''}`}
       >
         <div className="report-compact-info">
           <span className="report-compact-year">{report.fiscal_year}</span>
@@ -430,16 +422,8 @@ const CompanyDetail: React.FC = () => {
                   )}
                   {unverifiedCount > 0 && (
                     <span
+                      className="reports-unverified-pill"
                       title={`${unverifiedCount} отчётов требуют проверки аналитиком`}
-                      style={{
-                        background: '#fff7e6',
-                        border: '1px solid #ffd591',
-                        color: '#ad6800',
-                        fontSize: 11,
-                        fontWeight: 600,
-                        padding: '2px 8px',
-                        borderRadius: 12,
-                      }}
                     >
                       🤖 {unverifiedCount} не проверено
                     </span>
@@ -810,7 +794,7 @@ const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
       <div className="report-detail-container" onClick={(e) => e.stopPropagation()}>
         <div className="report-detail-header">
           <div>
-            <h2 style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <h2 className="report-detail-modal-title-row">
               📊 Финансовый отчет
               <VerificationBadge
                 autoExtracted={report.auto_extracted}
@@ -828,19 +812,11 @@ const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
         <div className="report-detail-content">
           {/* AI-блок: предупреждение и заметки модели */}
           {report.verified_by_analyst === false && (
-            <div
-              className="detail-section"
-              style={{
-                background: '#fff7e6',
-                border: '1px solid #ffd591',
-                borderRadius: 8,
-                padding: 14,
-              }}
-            >
-              <h3 style={{ color: '#ad6800', marginTop: 0 }}>
+            <div className="detail-section detail-section--verification-banner">
+              <h3>
                 {report.auto_extracted ? '🤖 Черновик AI-парсера' : '⚠ Требует проверки'}
               </h3>
-              <p style={{ margin: '4px 0', color: '#874d00', fontSize: 13 }}>
+              <p>
                 Отчёт ещё не подтверждён аналитиком.
                 {report.extraction_model && (
                   <>
@@ -851,25 +827,11 @@ const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
                 (или отредактируйте через «Редактировать» — сохранение формы тоже помечает отчёт как проверенный).
               </p>
               {report.extraction_notes && (
-                <details style={{ marginTop: 8 }}>
-                  <summary style={{ cursor: 'pointer', fontSize: 13, fontWeight: 500, color: '#874d00' }}>
+                <details className="report-detail-verification-details">
+                  <summary>
                     Заметки модели
                   </summary>
-                  <pre
-                    style={{
-                      margin: '8px 0 0',
-                      padding: 10,
-                      background: 'white',
-                      border: '1px solid #ffd591',
-                      borderRadius: 4,
-                      fontSize: 12,
-                      color: '#2c3e50',
-                      whiteSpace: 'pre-wrap',
-                      wordBreak: 'break-word',
-                      maxHeight: 220,
-                      overflowY: 'auto',
-                    }}
-                  >
+                  <pre className="report-detail-verification-pre">
                     {report.extraction_notes}
                   </pre>
                 </details>

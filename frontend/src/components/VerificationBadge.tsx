@@ -1,4 +1,5 @@
 import React from 'react';
+import './VerificationBadge.css';
 
 interface VerificationBadgeProps {
   autoExtracted?: boolean;
@@ -29,50 +30,19 @@ const VerificationBadge: React.FC<VerificationBadgeProps> = ({
     ? 'Отчёт извлечён ИИ-парсером из PDF и ожидает проверки аналитиком'
     : 'Отчёт помечен как требующий повторной проверки аналитиком';
   const icon = isAi ? '🤖' : '⚠️';
-  const bg = isAi ? '#fff7e6' : '#fff1f0';
-  const border = isAi ? '#ffd591' : '#ffa39e';
-  const color = isAi ? '#ad6800' : '#a8071a';
+  const variant = isAi ? 'verification-badge--ai' : 'verification-badge--manual';
+  const compactClass = compact ? ' verification-badge--compact' : '';
 
   if (compact) {
     return (
-      <span
-        title={title}
-        style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          width: 20,
-          height: 20,
-          borderRadius: '50%',
-          background: bg,
-          border: `1px solid ${border}`,
-          color,
-          fontSize: 11,
-          lineHeight: 1,
-        }}
-      >
+      <span className={`verification-badge${compactClass} ${variant}`} title={title}>
         {isAi ? '🤖' : '⚠'}
       </span>
     );
   }
 
   return (
-    <span
-      title={title}
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: 4,
-        padding: '2px 8px',
-        borderRadius: 12,
-        background: bg,
-        border: `1px solid ${border}`,
-        color,
-        fontSize: 12,
-        fontWeight: 500,
-        whiteSpace: 'nowrap',
-      }}
-    >
+    <span className={`verification-badge ${variant}`} title={title}>
       <span aria-hidden>{icon}</span>
       {label}
     </span>
