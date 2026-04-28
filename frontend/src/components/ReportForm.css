@@ -4,56 +4,59 @@
     left: 0;
     right: 0;
     bottom: 0;
-    background-color: rgba(0, 0, 0, 0.7);
+    background-color: var(--color-bg-modal-scrim);
     display: flex;
     justify-content: center;
     align-items: center;
     z-index: 1000;
     overflow-y: auto;
     padding: 20px;
+    backdrop-filter: blur(4px);
 }
 
 .report-form-container {
-    background: white;
-    border-radius: 12px;
+    background: var(--color-bg-overlay);
+    color: var(--color-text-primary);
+    border: 1px solid var(--color-border-subtle);
+    border-radius: var(--radius-xl);
     padding: 30px;
     max-width: 800px;
     width: 100%;
     max-height: 90vh;
     overflow-y: auto;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    box-shadow: var(--shadow-4);
 }
 
 .report-form-header {
     margin-bottom: 25px;
-    border-bottom: 2px solid #e0e0e0;
+    border-bottom: 1px solid var(--color-border-default);
     padding-bottom: 15px;
 }
 
 .report-form-header h2 {
     margin: 0 0 10px 0;
-    color: #333;
+    color: var(--color-text-primary);
     font-size: 24px;
 }
 
 .company-name {
     margin: 0;
-    color: #666;
+    color: var(--color-text-secondary);
     font-size: 16px;
 }
 
 .report-edit-hint {
     margin: 6px 0 0;
     font-size: 12px;
-    color: #7f8c8d;
+    color: var(--color-text-tertiary);
 }
 
 .error-message {
-    background-color: #fee;
-    border: 1px solid #f88;
-    color: #c33;
+    background-color: var(--color-error-soft);
+    border: 1px solid var(--color-error-border);
+    color: var(--color-error-text);
     padding: 12px;
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     margin-bottom: 20px;
 }
 
@@ -64,17 +67,17 @@
 }
 
 .form-section {
-    background-color: #f9f9f9;
+    background-color: var(--color-bg-elevated);
     padding: 20px;
-    border-radius: 8px;
-    border: 1px solid #e0e0e0;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--color-border-subtle);
 }
 
 .form-section h3 {
     margin: 0 0 15px 0;
-    color: #444;
+    color: var(--color-text-primary);
     font-size: 18px;
-    border-bottom: 1px solid #ddd;
+    border-bottom: 1px solid var(--color-border-default);
     padding-bottom: 10px;
 }
 
@@ -94,7 +97,7 @@
     flex-direction: column;
     gap: 6px;
     font-weight: 500;
-    color: #555;
+    color: var(--color-text-secondary);
     font-size: 14px;
 }
 
@@ -104,15 +107,17 @@
 
 .form-label.required::after {
     content: ' *';
-    color: #e74c3c;
+    color: var(--color-error);
 }
 
 .form-input {
     padding: 10px 12px;
-    border: 1px solid #ccc;
-    border-radius: 6px;
+    border: 1px solid var(--color-border-default);
+    border-radius: var(--radius-sm);
     font-size: 14px;
     transition: border-color 0.2s;
+    background: var(--color-bg-input);
+    color: var(--color-text-primary);
 }
 
 /* Крупные суммы с пробелами между тысячами — ровные цифры */
@@ -122,8 +127,8 @@
 
 .form-input:focus {
     outline: none;
-    border-color: #3498db;
-    box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+    border-color: var(--color-primary);
+    box-shadow: var(--shadow-focus-ring);
 }
 
 /* Ant Design DatePicker — ширина как у полей формы, выпадающий календарь с выбором дня */
@@ -136,8 +141,31 @@
     font-size: 14px;
 }
 
+/* Нативные select/option в тёмной теме */
+.report-form .form-input option {
+    background: var(--color-bg-overlay);
+    color: var(--color-text-primary);
+}
+
+/* Ant DatePicker внутри формы — согласовать с токенами (ConfigProvider не всегда покрывает вложенный модал) */
+.report-form .ant-picker {
+    background: var(--color-bg-input) !important;
+    border-color: var(--color-border-default) !important;
+    color: var(--color-text-primary) !important;
+}
+
+.report-form .ant-picker-input > input {
+    color: var(--color-text-primary) !important;
+}
+
+.report-form .ant-picker .ant-picker-suffix,
+.report-form .ant-picker .ant-picker-clear {
+    color: var(--color-text-tertiary) !important;
+}
+
 .form-input:disabled {
-    background-color: #f0f0f0;
+    background-color: var(--color-bg-disabled);
+    color: var(--color-text-disabled);
     cursor: not-allowed;
 }
 
@@ -159,7 +187,7 @@
     justify-content: flex-end;
     gap: 15px;
     padding-top: 20px;
-    border-top: 2px solid #e0e0e0;
+    border-top: 1px solid var(--color-border-default);
 }
 
 .btn {
@@ -178,23 +206,25 @@
 }
 
 .btn-cancel {
-    background-color: #e0e0e0;
-    color: #555;
+    background-color: var(--color-bg-hover);
+    color: var(--color-text-primary);
+    border: 1px solid var(--color-border-default);
 }
 
 .btn-cancel:hover:not(:disabled) {
-    background-color: #d0d0d0;
+    background-color: var(--color-bg-active);
+    border-color: var(--color-border-strong);
 }
 
 .btn-submit {
-    background-color: #3498db;
-    color: white;
+    background-color: var(--color-primary);
+    color: var(--color-text-on-primary);
 }
 
 .btn-submit:hover:not(:disabled) {
-    background-color: #2980b9;
+    background-color: var(--color-primary-hover);
     transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(52, 152, 219, 0.3);
+    box-shadow: var(--shadow-2);
 }
 
 /* Адаптивность для мобильных */
@@ -221,7 +251,7 @@
 .form-label small.field-hint {
     display: block;
     font-size: 11px;
-    color: #7f8c8d;
+    color: var(--color-text-tertiary);
     font-style: italic;
     margin-top: 4px;
     font-weight: normal;
@@ -231,9 +261,9 @@
     display: inline-block;
     margin-left: 10px;
     padding: 2px 8px;
-    background: #eef2ff;
-    color: #6366f1;
-    border-radius: 4px;
+    background: var(--color-accent-indigo-soft);
+    color: var(--color-accent-indigo);
+    border-radius: var(--radius-xs);
     font-size: 0.72rem;
     font-weight: 600;
     text-transform: uppercase;
@@ -244,12 +274,12 @@
 /* ── Авто-загрузка цены с Мосбиржи ──────────────────────────────────────── */
 
 .price-fetch-notice {
-    background: #fefce8;
-    border: 1px solid #fde68a;
-    border-radius: 6px;
+    background: var(--color-warning-soft);
+    border: 1px solid var(--color-warning-border);
+    border-radius: var(--radius-sm);
     padding: 8px 12px;
     font-size: 0.82rem;
-    color: #92400e;
+    color: var(--color-warning-text);
     margin-bottom: 12px;
 }
 
@@ -264,17 +294,17 @@
 .price-label-row span {
     font-weight: 500;
     font-size: 0.9rem;
-    color: #374151;
+    color: var(--color-text-secondary);
 }
 
 .btn-fetch-price {
     padding: 3px 10px;
-    background: #eff6ff;
-    border: 1px solid #bfdbfe;
-    border-radius: 5px;
+    background: var(--color-primary-soft);
+    border: 1px solid var(--color-border-default);
+    border-radius: var(--radius-xs);
     font-size: 0.75rem;
     font-weight: 600;
-    color: #1d4ed8;
+    color: var(--color-primary);
     cursor: pointer;
     white-space: nowrap;
     transition: background 0.15s;
@@ -282,7 +312,7 @@
 }
 
 .btn-fetch-price:hover:not(:disabled) {
-    background: #dbeafe;
+    background: var(--color-primary-soft-hover);
 }
 
 .btn-fetch-price:disabled {
@@ -291,8 +321,8 @@
 }
 
 .input-loading {
-    background: #f0f9ff !important;
-    color: #64748b;
+    background: var(--color-info-soft) !important;
+    color: var(--color-text-tertiary);
 }
 
 .price-badge {
@@ -301,33 +331,33 @@
     font-weight: 500;
     margin-top: 3px;
     padding: 3px 8px;
-    border-radius: 4px;
+    border-radius: var(--radius-xs);
     line-height: 1.4;
 }
 
 .price-badge.loading {
-    color: #6366f1;
-    background: #eef2ff;
+    color: var(--color-accent-indigo);
+    background: var(--color-accent-indigo-soft);
 }
 
 .price-badge.ok {
-    color: #166534;
-    background: #dcfce7;
+    color: var(--color-success-text);
+    background: var(--color-success-soft);
 }
 
 .price-badge.adjusted {
-    color: #92400e;
-    background: #fef3c7;
+    color: var(--color-warning-text);
+    background: var(--color-warning-soft);
 }
 
 .price-badge.error {
-    color: #991b1b;
-    background: #fee2e2;
+    color: var(--color-error-text);
+    background: var(--color-error-soft);
 }
 
 .price-badge.info {
-    color: #1e40af;
-    background: #dbeafe;
+    color: var(--color-info-text);
+    background: var(--color-info-soft);
     margin-left: 4px;
 }
 
@@ -338,8 +368,8 @@
 }
 
 .price-badge.warning {
-    color: #92400e;
-    background: #fef3c7;
+    color: var(--color-warning-text);
+    background: var(--color-warning-soft);
     display: flex;
     flex-wrap: wrap;
     align-items: center;
@@ -354,16 +384,16 @@
 
 .shares-mismatch-body {
     margin: 4px 0 6px;
-    color: #7f1d1d;
+    color: var(--color-error-text);
     font-weight: 500;
 }
 
 .shares-mismatch-hint {
     margin-top: 4px;
     padding: 4px 6px;
-    background: #ffedd5;
-    color: #9a3412;
-    border-left: 3px solid #f97316;
+    background: var(--color-warning-soft);
+    color: var(--color-warning-text);
+    border-left: 3px solid var(--color-warning);
     font-style: italic;
     font-weight: 500;
 }
@@ -374,26 +404,26 @@
     padding: 3px 10px;
     font-size: 0.76rem;
     font-weight: 600;
-    color: #ffffff;
-    background: #2563eb;
+    color: var(--color-text-on-accent);
+    background: var(--color-primary-active);
     border: none;
-    border-radius: 4px;
+    border-radius: var(--radius-xs);
     cursor: pointer;
     transition: background 0.15s ease;
 }
 
 .btn-inline-apply:hover {
-    background: #1d4ed8;
+    background: var(--color-primary-hover);
 }
 
 .price-badge.shares-mismatch .btn-inline-apply {
     margin-top: 4px;
     margin-left: 0;
-    background: #dc2626;
+    background: var(--color-error-strong);
 }
 
 .price-badge.shares-mismatch .btn-inline-apply:hover {
-    background: #b91c1c;
+    background: var(--color-error);
 }
 
 /* Строка автозагрузки дивидендов */
@@ -415,27 +445,27 @@
 }
 
 .dividends-info-panel.loading {
-    background: #f0f9ff;
-    border-color: #bae6fd;
-    color: #0369a1;
+    background: var(--color-info-soft);
+    border-color: var(--color-border-default);
+    color: var(--color-info-text);
 }
 
 .dividends-info-panel.found {
-    background: #f0fdf4;
-    border-color: #86efac;
-    color: #166534;
+    background: var(--color-success-soft);
+    border-color: var(--color-success-border);
+    color: var(--color-success-text);
 }
 
 .dividends-info-panel.not-found {
-    background: #fffbeb;
-    border-color: #fcd34d;
-    color: #92400e;
+    background: var(--color-warning-soft);
+    border-color: var(--color-warning-border);
+    color: var(--color-warning-text);
 }
 
 .dividends-info-panel.warning {
-    background: #fef2f2;
-    border-color: #fca5a5;
-    color: #991b1b;
+    background: var(--color-error-soft);
+    border-color: var(--color-error-border);
+    color: var(--color-error-text);
 }
 
 .div-panel-header {
@@ -460,7 +490,7 @@
 .div-panel-table td {
     padding: 3px 8px;
     text-align: left;
-    border-bottom: 1px solid rgba(0,0,0,0.06);
+    border-bottom: 1px solid var(--color-border-subtle);
     font-size: 12px;
 }
 
@@ -470,7 +500,7 @@
 }
 
 .div-panel-total-row td {
-    border-top: 2px solid rgba(0,0,0,0.12);
+    border-top: 1px solid var(--color-border-default);
     padding-top: 5px;
 }
 
@@ -497,10 +527,10 @@
 }
 
 .btn-apply-dividends {
-    background: #16a34a;
-    color: white;
+    background: var(--color-success-strong);
+    color: var(--color-text-on-primary);
     border: none;
-    border-radius: 4px;
+    border-radius: var(--radius-xs);
     padding: 4px 10px;
     font-size: 12px;
     cursor: pointer;
@@ -508,19 +538,19 @@
 }
 
 .btn-apply-dividends:hover {
-    background: #15803d;
+    background: var(--color-success);
 }
 
 /* ─── Банковский режим ──────────────────────────────────────────────────── */
 
 .bank-info-banner {
-    background: #eff6ff;
-    border: 1px solid #bfdbfe;
-    border-left: 4px solid #3b82f6;
-    border-radius: 6px;
+    background: var(--color-info-soft);
+    border: 1px solid var(--color-border-default);
+    border-left: 4px solid var(--color-primary);
+    border-radius: var(--radius-sm);
     padding: 10px 14px;
     font-size: 13px;
-    color: #1e40af;
+    color: var(--color-info-text);
     margin-bottom: 14px;
     line-height: 1.5;
 }
@@ -530,16 +560,16 @@
 }
 
 .form-section-bank {
-    border-left: 3px solid #3b82f6;
+    border-left: 3px solid var(--color-primary);
 }
 
 .form-section-bank h3 {
-    color: #1d4ed8;
+    color: var(--color-primary);
 }
 
 .section-description {
     font-size: 12px;
-    color: #6b7280;
+    color: var(--color-text-tertiary);
     margin: -8px 0 12px;
     font-style: italic;
     line-height: 1.4;
@@ -558,13 +588,13 @@
 }
 
 .sector-type-badge--bank {
-    background: #dbeafe;
-    color: #1d4ed8;
-    border: 1px solid #93c5fd;
+    background: var(--color-primary-soft);
+    color: var(--color-primary);
+    border: 1px solid var(--color-border-default);
 }
 
 .sector-type-badge--general {
-    background: #f3f4f6;
-    color: #374151;
-    border: 1px solid #d1d5db;
+    background: var(--color-bg-subtle);
+    color: var(--color-text-secondary);
+    border: 1px solid var(--color-border-default);
 }
