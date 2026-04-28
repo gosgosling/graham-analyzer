@@ -176,6 +176,26 @@
   --color-table-header-text:  #6b7280;
   --color-table-row-hover:    #f1f5f9;
   --color-table-border:       #e1e8ed;
+
+  /* Отчёты: непроверенный / AI (светлый фон + тёмный текст) */
+  --color-report-review-row-bg:        #fffbeb;
+  --color-report-review-row-hover-bg:  #fef3c7;
+  --color-report-review-row-border:    #f59e0b;
+  --color-report-unverified-pill-bg:   #fff7e6;
+  --color-report-unverified-pill-border: #ffd591;
+  --color-report-unverified-pill-text: #92400e;
+  --color-report-verification-banner-bg:     #fff7e6;
+  --color-report-verification-banner-border:   #ffd591;
+  --color-report-verification-banner-title:    #92400e;
+  --color-report-verification-banner-text:     #78350f;
+  --color-report-verification-summary-color:   #78350f;
+  --color-report-verification-pre-bg:          #ffffff;
+  --color-report-verification-pre-border:      #ffd591;
+  --color-report-verification-pre-text:        #1e293b;
+  --color-report-verification-code-bg:         rgba(254, 243, 199, 0.9);
+  --color-verification-ai-bg:    #fff7e6;
+  --color-verification-ai-border: #ffd591;
+  --color-verification-ai-text:  #92400e;
 }
 
 /* ─────────────────────────────────────────────────────────────
@@ -314,6 +334,26 @@
   --color-table-header-text:  #7a8499;
   --color-table-row-hover:    rgba(96, 165, 250, 0.05);
   --color-table-border:       rgba(255, 255, 255, 0.06);
+
+  /* Отчёты: непроверенный / AI (тёплый тёмный фон + светлый текст — без «мыльного» контраста) */
+  --color-report-review-row-bg:        #2a2318;
+  --color-report-review-row-hover-bg:  #352c20;
+  --color-report-review-row-border:    #f59e0b;
+  --color-report-unverified-pill-bg:   rgba(245, 158, 11, 0.14);
+  --color-report-unverified-pill-border: rgba(251, 191, 36, 0.42);
+  --color-report-unverified-pill-text: #fde68a;
+  --color-report-verification-banner-bg:     #2a2318;
+  --color-report-verification-banner-border: rgba(251, 191, 36, 0.35);
+  --color-report-verification-banner-title:    #fcd34d;
+  --color-report-verification-banner-text:     #fde68a;
+  --color-report-verification-summary-color:   #fde68a;
+  --color-report-verification-pre-bg:          #1a1510;
+  --color-report-verification-pre-border:      rgba(251, 191, 36, 0.28);
+  --color-report-verification-pre-text:        #e6e9ef;
+  --color-report-verification-code-bg:         rgba(0, 0, 0, 0.28);
+  --color-verification-ai-bg:    rgba(245, 158, 11, 0.14);
+  --color-verification-ai-border: rgba(251, 191, 36, 0.45);
+  --color-verification-ai-text:  #fde68a;
 }
 
 /* ─────────────────────────────────────────────────────────────
@@ -444,6 +484,25 @@
     --color-table-header-text:  #7a8499;
     --color-table-row-hover:    rgba(96, 165, 250, 0.05);
     --color-table-border:       rgba(255, 255, 255, 0.06);
+
+    --color-report-review-row-bg:        #2a2318;
+    --color-report-review-row-hover-bg:  #352c20;
+    --color-report-review-row-border:    #f59e0b;
+    --color-report-unverified-pill-bg:   rgba(245, 158, 11, 0.14);
+    --color-report-unverified-pill-border: rgba(251, 191, 36, 0.42);
+    --color-report-unverified-pill-text: #fde68a;
+    --color-report-verification-banner-bg:     #2a2318;
+    --color-report-verification-banner-border: rgba(251, 191, 36, 0.35);
+    --color-report-verification-banner-title:    #fcd34d;
+    --color-report-verification-banner-text:     #fde68a;
+    --color-report-verification-summary-color:   #fde68a;
+    --color-report-verification-pre-bg:          #1a1510;
+    --color-report-verification-pre-border:      rgba(251, 191, 36, 0.28);
+    --color-report-verification-pre-text:        #e6e9ef;
+    --color-report-verification-code-bg:         rgba(0, 0, 0, 0.28);
+    --color-verification-ai-bg:    rgba(245, 158, 11, 0.14);
+    --color-verification-ai-border: rgba(251, 191, 36, 0.45);
+    --color-verification-ai-text:  #fde68a;
   }
 }
 
