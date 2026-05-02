@@ -598,3 +598,9 @@
     color: var(--color-text-secondary);
     border: 1px solid var(--color-border-default);
 }
+
+.sector-type-badge--it {
+    background: rgba(139, 92, 246, 0.12);
+    color: #a78bfa;
+    border: 1px solid rgba(139, 92, 246, 0.35);
+}
