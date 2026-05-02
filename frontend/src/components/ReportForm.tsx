@@ -150,17 +150,41 @@ const FormattedInput: React.FC<FormattedInputProps> = ({
     );
 };
 
+/** Только для UI-бейджа «тип отрасли» — не путать с report_type в БД (bank/general). */
+type SectorDisplayKind = 'bank' | 'it' | 'general';
+
 /**
- * Определяет тип отрасли по строке сектора (зеркалит логику бэкенда sector_to_report_type).
- * Используется только для отображения бейджа — реальный report_type всегда берётся из БД.
+ * Группа для подписи по строке sector из T-Invest и др.
+ * Банки — первыми (чтобы не пересечься с «fintech» как IT и т.п.).
+ * IT: у многих эмитентов сектор ровно «it»; плюс типичные ключевые слова.
  */
-function detectReportTypeFromSector(sector?: string | null): 'bank' | 'general' {
+function detectSectorDisplayKind(sector?: string | null): SectorDisplayKind {
     if (!sector) return 'general';
-    const s = sector.trim().toLowerCase();
-    const bankKeywords = ['banks', 'bank', 'banking', 'financials', 'financial', 'financial_services', 'финансы', 'банки', 'банк'];
-    for (const kw of bankKeywords) {
-        if (s === kw || s.includes(kw)) return 'bank';
+    const raw = sector.trim();
+    const s = raw.toLowerCase();
+
+    const bankKeywords = [
+        'banks', 'bank', 'banking', 'financials', 'financial_services',
+        'финансы', 'банки', 'банк', 'insurance', 'страхов',
+    ];
+    // «financial» отдельно — чтобы не цеплять «non-financial»
+    if (
+        bankKeywords.some((kw) => s === kw || s.includes(kw))
+        || (s.includes('financial') && !s.includes('non-financial') && !s.includes('nonfinancial'))
+    ) {
+        return 'bank';
     }
+
+    if (s === 'it') return 'it';
+
+    const itKeywords = [
+        'technology', 'technologies', 'software', 'internet', 'digital',
+        'telecom', 'telecommunication', 'electronics', 'hardware',
+        'semiconductor', 'cyber', 'cloud', 'saas', 'informatics',
+        'информационн', 'программ', 'цифров', 'телеком', 'it_services',
+    ];
+    if (itKeywords.some((kw) => s.includes(kw))) return 'it';
+
     return 'general';
 }
 
@@ -485,8 +509,8 @@ const PriceFetchBadge: React.FC<{
 };
 
 const ReportForm: React.FC<ReportFormProps> = ({ companyId, companyName, ticker, sector, initialValues, reportId, onSubmit, onCancel }) => {
-    const detectedReportType = detectReportTypeFromSector(sector);
-    const isBank = detectedReportType === 'bank';
+    const sectorKind = detectSectorDisplayKind(sector);
+    const isBank = sectorKind === 'bank';
     const isEditMode = !!reportId;
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -973,10 +997,12 @@ const ReportForm: React.FC<ReportFormProps> = ({ companyId, companyName, ticker,
 
                             <div className="form-label">
                                 Тип отрасли:
-                                <div className={`sector-type-badge sector-type-badge--${detectedReportType}`}>
-                                    {detectedReportType === 'bank'
+                                <div className={`sector-type-badge sector-type-badge--${sectorKind}`}>
+                                    {sectorKind === 'bank'
                                         ? '🏦 Банк / финансовый институт'
-                                        : '🏭 Промышленная / нефтегаз / ритейл'}
+                                        : sectorKind === 'it'
+                                        ? '💻 IT / технологии / телеком'
+                                        : '🏭 Промышленность, нефтегаз, ритейл и др.'}
                                 </div>
                                 <small className="field-hint">
                                     Определяется автоматически по сектору компании

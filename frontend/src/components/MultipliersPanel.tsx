@@ -72,12 +72,221 @@ function deLevel(v: number | null): Level {
   if (v <= 1) return 'warn';
   return 'bad';
 }
-function crLevel(v: number | null): Level {
+
+// ─── Отраслевые профили Current Ratio ────────────────────────────────────────
+//
+// CR — «градусник»: норма сильно зависит от бизнес-модели.
+// Для сырьевых/коммунальных компаний мощный денежный поток перекрывает
+// краткосрочные обязательства, даже когда CR < 1.
+// Для ритейла и дистрибуции — нет стабильного потока, запасы критичны,
+// и норма Грэма ≥ 2 абсолютно уместна.
+
+export interface CrProfile {
+  /** Название группы для тултипа */
+  industryLabel: string;
+  /** CR выше этого уровня → 'good' */
+  good: number;
+  /** CR выше этого уровня → 'warn' (ниже — 'bad') */
+  warn: number;
+  /** Одна строка-объяснение для карточки */
+  thresholdHint: string;
+  /** Многострочное пояснение для тултипа в заголовке таблицы */
+  tooltipLines: string[];
+  /**
+   * Нужно ли вместо числовой оценки показать нейтральную пометку
+   * (напр. для банков — у них нестандартная структура баланса).
+   */
+  notApplicable?: boolean;
+}
+
+/**
+ * Определяет отраслевой профиль CR по строке sector компании.
+ * Ключевые слова — без регистра, частичное совпадение.
+ */
+export function getCrProfile(sector?: string | null): CrProfile {
+  const s = (sector ?? '').toLowerCase();
+
+  const hasAny = (...words: string[]) => words.some((w) => s.includes(w));
+
+  // ── Банки и финансовые организации ──
+  // Структура баланса принципиально иная: краткосрочные обязательства ≈ вклады,
+  // классический CR не применим. Не даём оценку — только информируем.
+  if (hasAny('bank', 'банк', 'financial', 'финанс', 'insurance', 'страхов',
+             'leasing', 'лизинг', 'finance')) {
+    return {
+      industryLabel: 'Банки / финансы',
+      good: Infinity,
+      warn: Infinity,
+      thresholdHint: 'CR для банков не применим',
+      tooltipLines: [
+        'Для банков и финансовых организаций CR не используется:',
+        'их «краткосрочные обязательства» — это депозиты клиентов,',
+        'а не коммерческие долги. Ликвидность оценивается по',
+        'нормативам ЦБ (Н1, Н2, Н3), а не по балансовому соотношению.',
+      ],
+      notApplicable: true,
+    };
+  }
+
+  // ── Нефть и газ, горнодобыча, металлургия ──
+  // Огромный операционный поток покрывает краткосрочные обязательства;
+  // значительная часть «краткосрочного» долга — это кредитные линии,
+  // которые постоянно рефинансируются. Норма 0.7–1.2.
+  if (hasAny('oil', 'gas', 'нефт', 'газ', 'энерго', 'energy',
+             'mining', 'металл', 'coal', 'уголь', 'petro', 'горнодобыв',
+             'золото', 'silver', 'copper', 'alumin')) {
+    return {
+      industryLabel: 'Нефтегаз / горнодобыча / металлургия',
+      good: 1.0,
+      warn: 0.7,
+      thresholdHint: '≥ 1.0 — норма для нефтегаза',
+      tooltipLines: [
+        'Нефтегаз, металлургия: мощный операционный поток',
+        'покрывает краткосрочный долг даже при CR < 1.',
+        '≥ 1.0  —  хорошо',
+        '0.7–1.0  —  допустимо, смотри D/E и cash flow',
+        '< 0.7  —  агрессивная долговая политика, копай глубже',
+        '',
+        'Пример: Лукойл ~0.9 — норма; Роснефть ~0.5 — красный флаг',
+        'даже для нефтянки (огромный краткосрочный долг).',
+      ],
+    };
+  }
+
+  // ── Коммунальные услуги, электроэнергетика, тепло, вода ──
+  // Регулируемый тариф = стабильный поток; высокий capex финансируется
+  // долгосрочным долгом. CR < 1 — обычная ситуация.
+  if (hasAny('util', 'electric', 'энергетик', 'электро', 'тепло',
+             'water', 'вода', 'коммунал', 'generation', 'генерац')) {
+    return {
+      industryLabel: 'Коммунальные / электроэнергетика',
+      good: 1.0,
+      warn: 0.7,
+      thresholdHint: '≥ 1.0 — норма для коммунальных',
+      tooltipLines: [
+        'Коммунальные, электроэнергетика: регулируемый тариф',
+        'обеспечивает предсказуемый поток. CR < 1 — ок.',
+        '≥ 1.0  —  хорошо',
+        '0.7–1.0  —  норма, смотри долг и инвестиции',
+        '< 0.7  —  требует пояснения (разовые капвложения?)',
+      ],
+    };
+  }
+
+  // ── Телекоммуникации ──
+  // Абонентская база = устойчивая ежемесячная выручка; капитальные затраты
+  // финансируются долгосрочным долгом. CR ~ 0.8–1.0 — норма.
+  if (hasAny('telecom', 'телеком', 'связь', 'cellular', 'mobile',
+             'мобильн', 'интернет', 'internet', 'media', 'медиа')) {
+    return {
+      industryLabel: 'Телекоммуникации / медиа',
+      good: 1.0,
+      warn: 0.7,
+      thresholdHint: '≥ 1.0 — норма для телекома',
+      tooltipLines: [
+        'Телеком: стабильная подписная выручка снижает потребность',
+        'в буфере ликвидности. CR ~ 0.8–1.0 — стандарт отрасли.',
+        '≥ 1.0  —  хорошо',
+        '0.7–1.0  —  норма для телекома',
+        '< 0.7  —  агрессивное краткосрочное финансирование',
+      ],
+    };
+  }
+
+  // ── Ритейл и дистрибуция ──
+  // Нет мощного сырьевого потока. Бизнес живёт от оборачиваемости запасов
+  // и дебиторки. CR < 1 — почти всегда симптом беды. Норма Грэма ≥ 2.
+  if (hasAny('retail', 'ритейл', 'торговл', 'supermarket', 'маркет',
+             'consumer', 'потребител', 'distribution', 'дистрибуц',
+             'food', 'продукт', 'фарм', 'pharma', 'drugstore')) {
+    return {
+      industryLabel: 'Ритейл / дистрибуция / FMCG',
+      good: 2.0,
+      warn: 1.2,
+      thresholdHint: '≥ 2.0 — норма по Грэму для ритейла',
+      tooltipLines: [
+        'Ритейл, дистрибуция: нет стабильного сырьевого потока.',
+        'Бизнес живёт за счёт оборачиваемости товарных запасов.',
+        'CR < 1 здесь — почти всегда симптом предбанкротного',
+        'состояния. Применяется классическая норма Грэма.',
+        '≥ 2.0  —  хорошо (норма Грэма)',
+        '1.2–2.0  —  приемлемо, следить за оборачиваемостью',
+        '< 1.2  —  красный флаг для ритейла',
+      ],
+    };
+  }
+
+  // ── IT и технологии ──
+  // Как правило, asset-light, высокая маржа. Запасы минимальны.
+  // Норма — ≥ 1.5, но в целом компании часто держат большой кеш.
+  if (hasAny('tech', 'it ', 'software', 'програм', 'informati', 'информац',
+             'digital', 'цифров', 'cloud', 'облак')) {
+    return {
+      industryLabel: 'IT / технологии',
+      good: 1.5,
+      warn: 1.0,
+      thresholdHint: '≥ 1.5 — хорошо для IT',
+      tooltipLines: [
+        'IT, технологии: asset-light бизнес, часто большой кеш.',
+        'Запасы минимальны, долг меньше, чем у промышленников.',
+        '≥ 1.5  —  хорошо',
+        '1.0–1.5  —  приемлемо',
+        '< 1.0  —  нетипично для IT, требует объяснения',
+      ],
+    };
+  }
+
+  // ── Строительство и девелопмент ──
+  // Большие авансы от покупателей входят в «краткосрочные обязательства»,
+  // что искусственно занижает CR. Смотри в динамике, сравнивай с аналогами.
+  if (hasAny('construct', 'строит', 'develo', 'девелоп', 'real estate',
+             'недвижим', 'realty')) {
+    return {
+      industryLabel: 'Строительство / девелопмент',
+      good: 1.2,
+      warn: 0.8,
+      thresholdHint: '≥ 1.2 — норма для строителей',
+      tooltipLines: [
+        'Строительство: авансы покупателей квартир — краткосрочные',
+        'обязательства, что занижает CR. Важнее смотреть динамику',
+        'и эскроу-счета (в РФ — обязательно с 2019 г.).',
+        '≥ 1.2  —  хорошо',
+        '0.8–1.2  —  обычная ситуация для девелопера',
+        '< 0.8  —  изучить структуру обязательств',
+      ],
+    };
+  }
+
+  // ── Промышленность и производство (General / default) ──
+  // Умеренная ликвидность, запасы важны, но есть производственный поток.
+  // Ориентир — ≥ 1.5; классическая норма Грэма ≥ 2 здесь уже уместна.
+  return {
+    industryLabel: 'Промышленность / прочее',
+    good: 2.0,
+    warn: 1.5,
+    thresholdHint: '≥ 2.0 — норма по Грэму',
+    tooltipLines: [
+      'Производство, промышленность: запасы и дебиторка критичны.',
+      'Применяется классическая норма Грэма.',
+      '≥ 2.0  —  хорошо (норма Грэма)',
+      '1.5–2.0  —  приемлемо, следить за запасами',
+      '< 1.5  —  внимание; < 1.0  —  красный флаг',
+    ],
+  };
+}
+
+/**
+ * Уровень CR с учётом отраслевого профиля.
+ * Для секторов, где CR не применим (банки), всегда возвращает 'neutral'.
+ */
+function crLevel(v: number | null, profile: CrProfile): Level {
   if (v === null) return 'neutral';
-  if (v >= 2) return 'good';
-  if (v >= 1.5) return 'warn';
+  if (profile.notApplicable) return 'neutral';
+  if (v >= profile.good) return 'good';
+  if (v >= profile.warn) return 'warn';
   return 'bad';
 }
+
 function dyLevel(v: number | null): Level {
   if (v === null) return 'neutral';
   if (v >= 3) return 'good';
@@ -150,9 +359,10 @@ function fmtDateFull(iso: string): string {
 
 interface CurrentCardsProps {
   data: CurrentMultipliers;
+  crProfile: CrProfile;
 }
 
-const CurrentCards: React.FC<CurrentCardsProps> = ({ data }) => {
+const CurrentCards: React.FC<CurrentCardsProps> = ({ data, crProfile }) => {
   const income = data.ltm_net_income;
   const isLoss = income !== null && income < 0;
 
@@ -191,9 +401,9 @@ const CurrentCards: React.FC<CurrentCardsProps> = ({ data }) => {
     {
       label: 'Current Ratio',
       value: data.current_ratio,
-      level: crLevel(data.current_ratio),
-      hint: 'Текущая ликвидность',
-      threshold: '≥ 2 — хорошо',
+      level: crLevel(data.current_ratio, crProfile),
+      hint: crProfile.notApplicable ? 'CR не применим для данного типа компании' : 'Текущая ликвидность',
+      threshold: crProfile.thresholdHint,
     },
     {
       label: 'Div. Yield',
@@ -262,9 +472,65 @@ const LtmMeta: React.FC<{ data: CurrentMultipliers }> = ({ data }) => {
 
 // ─── Историческая таблица ─────────────────────────────────────────────────────
 
+// ─── Тултип для заголовка CR с отраслевыми порогами ──────────────────────────
+
+interface CrTooltipProps {
+  profile: CrProfile;
+  anchorRef: React.RefObject<HTMLTableCellElement | null>;
+}
+
+/**
+ * Rich-тултип: объясняет, какой отраслевой профиль применяется для CR
+ * и каковы конкретные пороги «хорошо / внимание / плохо».
+ * Рендерится в portal (#root), чтобы не зажиматься overflow:hidden таблицы.
+ */
+const CrTooltip: React.FC<CrTooltipProps> = ({ profile, anchorRef }) => {
+  const [pos, setPos] = React.useState<{ top: number; left: number } | null>(null);
+
+  React.useLayoutEffect(() => {
+    const el = anchorRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    setPos({
+      top: r.bottom + window.scrollY + 6,
+      left: r.left + window.scrollX + r.width / 2,
+    });
+  }, [anchorRef]);
+
+  if (!pos) return null;
+
+  return createPortal(
+    <div
+      className="cr-tooltip"
+      style={{ top: pos.top, left: pos.left }}
+      role="tooltip"
+    >
+      <div className="cr-tooltip-industry">{profile.industryLabel}</div>
+      {profile.notApplicable ? (
+        <p className="cr-tooltip-na">{profile.tooltipLines[0]}</p>
+      ) : (
+        <>
+          <div className="cr-tooltip-thresholds">
+            <span className="cr-tt-good">● хорошо: ≥ {profile.good.toFixed(1)}</span>
+            <span className="cr-tt-warn">● внимание: ≥ {profile.warn.toFixed(1)}</span>
+            <span className="cr-tt-bad">● тревога: &lt; {profile.warn.toFixed(1)}</span>
+          </div>
+          <div className="cr-tooltip-body">
+            {profile.tooltipLines.map((line, i) =>
+              line === '' ? <br key={i} /> : <div key={i} className="cr-tooltip-line">{line}</div>,
+            )}
+          </div>
+        </>
+      )}
+    </div>,
+    document.body,
+  );
+};
+
 interface HistTableProps {
   rows: MultiplierRecord[];
   currentRow?: CurrentMultipliers;
+  crProfile: CrProfile;
 }
 
 /** Всплывающая подсказка: цена в ячейке — на конец периода; рядом — на дату публикации отчёта. */
@@ -340,7 +606,10 @@ const HistPriceCell: React.FC<{ row: MultiplierRecord }> = ({ row }) => {
   );
 };
 
-const HistTable: React.FC<HistTableProps> = ({ rows, currentRow }) => {
+const HistTable: React.FC<HistTableProps> = ({ rows, currentRow, crProfile }) => {
+  const [crTooltipVisible, setCrTooltipVisible] = React.useState(false);
+  const crThRef = React.useRef<HTMLTableCellElement | null>(null);
+
   return (
     <div className="hist-table-wrapper">
       <table className="hist-table">
@@ -358,7 +627,18 @@ const HistTable: React.FC<HistTableProps> = ({ rows, currentRow }) => {
             <th className="col-mult">P/B</th>
             <th className="col-mult">ROE, %</th>
             <th className="col-mult">D/E</th>
-            <th className="col-mult">CR</th>
+            <th
+              ref={crThRef}
+              className="col-mult col-cr-header"
+              onMouseEnter={() => setCrTooltipVisible(true)}
+              onMouseLeave={() => setCrTooltipVisible(false)}
+            >
+              CR
+              <span className="cr-header-hint-icon" aria-hidden>ⓘ</span>
+              {crTooltipVisible && (
+                <CrTooltip profile={crProfile} anchorRef={crThRef} />
+              )}
+            </th>
             <th className="col-mult">Div, %</th>
             <th className="col-rev">Выручка LTM</th>
             <th className="col-ni">Прибыль LTM</th>
@@ -385,7 +665,8 @@ const HistTable: React.FC<HistTableProps> = ({ rows, currentRow }) => {
                   level={deLevel(currentRow.debt_to_equity)}
                   nullHint={currentRow.debt_to_equity !== null && currentRow.debt_to_equity < 0 ? 'Отрицательный капитал' : undefined}
                 /></td>
-                <td><MetricBadge value={currentRow.current_ratio} level={crLevel(currentRow.current_ratio)} /></td>
+                <td><MetricBadge value={currentRow.current_ratio} level={crLevel(currentRow.current_ratio, crProfile)}
+                  nullHint={crProfile.notApplicable ? 'CR не применим для данного типа компании' : undefined} /></td>
                 <td><MetricBadge value={currentRow.dividend_yield} level={dyLevel(currentRow.dividend_yield)} suffix="%" /></td>
                 <td>{fmtMln(currentRow.ltm_revenue)}</td>
                 <td className={ltmIsLoss ? 'cell-loss' : ''}>{fmtMln(currentRow.ltm_net_income)}</td>
@@ -446,8 +727,8 @@ const HistTable: React.FC<HistTableProps> = ({ rows, currentRow }) => {
                 /></td>
                 <td><MetricBadge value={r.roe} level={roeLevel(r.roe)} suffix="%" nullHint={roeHint} /></td>
                 <td><MetricBadge value={r.debt_to_equity} level={deLevel(r.debt_to_equity)} nullHint={deHint} /></td>
-                <td><MetricBadge value={r.current_ratio} level={crLevel(r.current_ratio)}
-                  nullHint={noCurr ? 'Нет оборотных активов или краткосрочных обязательств' : undefined} /></td>
+                <td><MetricBadge value={r.current_ratio} level={crLevel(r.current_ratio, crProfile)}
+                  nullHint={noCurr ? 'Нет оборотных активов или краткосрочных обязательств' : crProfile.notApplicable ? 'CR не применим для данного типа компании' : undefined} /></td>
                 <td><MetricBadge value={r.dividend_yield} level={dyLevel(r.dividend_yield)} suffix="%"
                   nullHint={noDivs ? 'Дивиденды не указаны' : noPrice ? 'Нет цены акции' : undefined} /></td>
                 <td>{fmtMln(r.ltm_revenue)}</td>
@@ -485,7 +766,16 @@ interface ChartConfig {
  * (см. tokens.css → --color-chart-*), что обеспечивает консистентный
  * вид светлой и тёмной палитры.
  */
-function buildCharts(c: ChartColors): ChartConfig[] {
+function buildCharts(c: ChartColors, crProfile?: CrProfile): ChartConfig[] {
+  const crRefs: ChartConfig['referenceLines'] = crProfile && !crProfile.notApplicable
+    ? [
+        { value: crProfile.good, label: `${crProfile.good.toFixed(1)} хорошо`, color: c.refGood },
+        ...(crProfile.warn !== crProfile.good
+          ? [{ value: crProfile.warn, label: `${crProfile.warn.toFixed(1)} внимание`, color: c.refBad }]
+          : []),
+      ]
+    : [{ value: 2, label: '2.0', color: c.refGood }];
+
   return [
     {
       key: 'pe_ratio',
@@ -527,9 +817,7 @@ function buildCharts(c: ChartColors): ChartConfig[] {
       key: 'current_ratio',
       label: 'Current Ratio',
       color: c.line5,
-      referenceLines: [
-        { value: 2, label: '2.0', color: c.refGood },
-      ],
+      referenceLines: crRefs,
     },
     {
       key: 'dividend_yield',
@@ -650,14 +938,15 @@ const MultipliersCharts: React.FC<MultipliersChartsProps> = ({ rows, currentRow 
 interface ChartsPairProps {
   rows: MultiplierRecord[];
   currentRow?: CurrentMultipliers;
+  crProfile: CrProfile;
 }
 
 const CHART_PAGE_SIZE = 2;
 
-const ChartsPager: React.FC<ChartsPairProps> = ({ rows, currentRow }) => {
+const ChartsPager: React.FC<ChartsPairProps> = ({ rows, currentRow, crProfile }) => {
   const [page, setPage] = useState(0);
   const chartColors = useChartColors();
-  const charts = buildCharts(chartColors);
+  const charts = buildCharts(chartColors, crProfile);
   const totalPages = Math.ceil(charts.length / CHART_PAGE_SIZE);
   const visibleCharts = charts.slice(page * CHART_PAGE_SIZE, (page + 1) * CHART_PAGE_SIZE);
 
@@ -771,6 +1060,7 @@ const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company }) => {
   const [refreshMsg, setRefreshMsg] = useState<string | null>(null);
   const [autoRefreshing, setAutoRefreshing] = useState(false);
   const queryClient = useQueryClient();
+  const crProfile = getCrProfile(company.sector);
 
   const companyId = company.id!;
 
@@ -912,7 +1202,7 @@ const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company }) => {
                 {currentData && (
                   <>
                     <LtmMeta data={currentData} />
-                    <CurrentCards data={currentData} />
+                    <CurrentCards data={currentData} crProfile={crProfile} />
                     <div className="ltm-financials">
                       <h3 className="ltm-fin-title">Финансовые показатели LTM</h3>
                       <div className="ltm-fin-grid">
@@ -954,7 +1244,7 @@ const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company }) => {
 
               {/* Правая часть — 2 графика с пагинацией */}
               <div className="mult-charts-col">
-                <ChartsPager rows={rows} currentRow={currentData ?? undefined} />
+                <ChartsPager rows={rows} currentRow={currentData ?? undefined} crProfile={crProfile} />
               </div>
             </div>
 
@@ -962,7 +1252,7 @@ const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company }) => {
             {(rows.length > 0 || currentData) && (
               <div className="mult-history-row">
                 <div className="mult-history-label">История мультипликаторов</div>
-                <HistTable rows={rows} currentRow={currentData ?? undefined} />
+                <HistTable rows={rows} currentRow={currentData ?? undefined} crProfile={crProfile} />
               </div>
             )}
           </>
