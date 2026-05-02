@@ -638,3 +638,131 @@
     grid-template-columns: repeat(2, 1fr);
   }
 }
+
+/* ─── Заголовок CR с иконкой-подсказкой ─────────────────────────────────── */
+
+.col-cr-header {
+  position: relative;
+  cursor: default;
+  user-select: none;
+}
+
+.col-cr-header:hover {
+  background: var(--color-table-header-hover, rgba(52, 152, 219, 0.08));
+}
+
+.cr-header-hint-icon {
+  display: inline-block;
+  margin-left: 4px;
+  font-size: 10px;
+  opacity: 0.55;
+  vertical-align: middle;
+  line-height: 1;
+  transition: opacity 0.15s ease;
+}
+
+.col-cr-header:hover .cr-header-hint-icon {
+  opacity: 1;
+}
+
+/* ─── CR Tooltip ─────────────────────────────────────────────────────────── */
+
+.cr-tooltip {
+  position: absolute;
+  z-index: 9999;
+  transform: translateX(-50%);
+  min-width: 280px;
+  max-width: 360px;
+  padding: 12px 14px;
+  background: var(--color-surface-overlay, #1e2433);
+  color: var(--color-text-on-dark, #e8edf5);
+  border-radius: 10px;
+  box-shadow:
+    0 12px 32px rgba(0, 0, 0, 0.28),
+    0 2px 8px rgba(0, 0, 0, 0.16);
+  font-size: 12.5px;
+  line-height: 1.5;
+  pointer-events: none;
+}
+
+/* Стрелка-хвостик вверх */
+.cr-tooltip::before {
+  content: '';
+  position: absolute;
+  top: -6px;
+  left: 50%;
+  transform: translateX(-50%);
+  border-width: 0 7px 6px 7px;
+  border-style: solid;
+  border-color: transparent transparent var(--color-surface-overlay, #1e2433) transparent;
+}
+
+.cr-tooltip-industry {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--color-text-quaternary, #8899aa);
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.cr-tooltip-thresholds {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-bottom: 10px;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.cr-tt-good  { color: #6fe07a; }
+.cr-tt-warn  { color: #f5c842; }
+.cr-tt-bad   { color: #ff7070; }
+
+.cr-tooltip-body {
+  font-size: 12px;
+  color: rgba(232, 237, 245, 0.75);
+  line-height: 1.6;
+}
+
+.cr-tooltip-line {
+  /* каждая строка на отдельной строке */
+}
+
+.cr-tooltip-na {
+  margin: 0;
+  font-size: 12px;
+  color: rgba(232, 237, 245, 0.75);
+}
+
+/* Светлая тема */
+[data-theme='light'] .cr-tooltip,
+.theme-light .cr-tooltip {
+  background: #ffffff;
+  color: #1e2433;
+  border: 1px solid #e4e7ec;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12), 0 2px 6px rgba(0, 0, 0, 0.08);
+}
+
+[data-theme='light'] .cr-tooltip::before,
+.theme-light .cr-tooltip::before {
+  border-bottom-color: #ffffff;
+}
+
+[data-theme='light'] .cr-tooltip-industry,
+.theme-light .cr-tooltip-industry {
+  color: #7f8c8d;
+  border-bottom-color: #e4e7ec;
+}
+
+[data-theme='light'] .cr-tooltip-body,
+.theme-light .cr-tooltip-body {
+  color: #555f6e;
+}
+
+[data-theme='light'] .cr-tooltip-na,
+.theme-light .cr-tooltip-na {
+  color: #555f6e;
+}
