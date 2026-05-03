@@ -2,7 +2,7 @@ from app.models.financial_report import FinancialReport
 from app.utils.currency_converter import convert_to_rub
 from typing import Dict, Optional
 
-# ⚠️ Финансовые показатели (P&L и баланс) хранятся в МИЛЛИОНАХ валюты.
+# ⚠️ Финансовые показатели (P&L, баланс, ОДДС) хранятся в МИЛЛИОНАХ валюты.
 # Цена акции и дивиденды на акцию — в полных единицах (₽ или $ за акцию).
 # Количество акций — в штуках.
 #
@@ -10,8 +10,9 @@ from typing import Dict, Optional
 #   market_cap = price_per_share × shares_outstanding  → полные рубли
 #   net_income, equity и т.д. → млн ₽ × MILLION = полные рубли
 #
-# ROE, D/E, Current Ratio — безразмерные отношения, миллионы сокращаются.
+# ROE, D/E, Current Ratio, FCF/NI — безразмерные отношения, миллионы сокращаются.
 # Dividend Yield — оба значения в полных рублях на акцию.
+# P/FCF = market_cap_full / (fcf_mln × MILLION) — аналогично P/E.
 
 MILLION = 1_000_000
 
@@ -23,14 +24,17 @@ def calculate_multipliers(
     ltm_net_income: Optional[float] = None,
     ltm_revenue: Optional[float] = None,
     ltm_dividends_per_share: Optional[float] = None,
+    ltm_operating_cash_flow: Optional[float] = None,
+    ltm_capex: Optional[float] = None,
 ) -> Dict[str, Optional[float]]:
     """
     Рассчитывает финансовые мультипликаторы.
 
     Поведение зависит от report.report_type:
-    - "general": стандартный набор (P/E, P/B, ROE, D/E, Current Ratio, Dividend Yield)
+    - "general": стандартный набор (P/E, P/B, ROE, D/E, Current Ratio, Dividend Yield,
+                                    P/FCF, FCF/Net Income)
     - "bank": банковский набор (P/E, P/B, ROE, Dividend Yield, Cost-to-Income)
-              D/E и Current Ratio не рассчитываются — для банков не применимы.
+              D/E, Current Ratio и FCF-показатели не рассчитываются — для банков не применимы.
 
     Args:
         report: Финансовый отчёт (источник балансовых данных и валюты)
@@ -39,6 +43,8 @@ def calculate_multipliers(
         ltm_net_income: LTM чистая прибыль в млн валюты отчёта (None → из отчёта)
         ltm_revenue: LTM выручка / Total Operating Income в млн (None → из отчёта)
         ltm_dividends_per_share: LTM дивиденды на акцию в ₽/$ (None → из отчёта)
+        ltm_operating_cash_flow: LTM операционный поток в млн валюты отчёта (None → из отчёта)
+        ltm_capex: LTM CAPEX (положит. число) в млн валюты отчёта (None → из отчёта)
 
     Returns:
         Словарь с мультипликаторами. market_cap — в МИЛЛИОНАХ рублей.
@@ -108,6 +114,10 @@ def calculate_multipliers(
     debt_to_equity: Optional[float] = None
     current_ratio: Optional[float] = None
     cost_to_income: Optional[float] = None
+    ltm_fcf_mln: Optional[float] = None
+    ltm_ocf_mln: Optional[float] = None
+    price_to_fcf: Optional[float] = None
+    fcf_to_net_income: Optional[float] = None
 
     if is_bank:
         # Для банков D/E и Current Ratio не применяются:
@@ -123,6 +133,7 @@ def calculate_multipliers(
         opex_mln = to_rub_mln(report.operating_expenses)
         if opex_mln and revenue_for_cir and revenue_for_cir > 0:
             cost_to_income = round(opex_mln / revenue_for_cir * 100, 2)
+        # FCF/CAPEX для банков концептуально неприменим — оставляем None.
     else:
         # Стандартные показатели для промышленных компаний
         if total_liabilities_mln and equity_mln and equity_mln != 0:
@@ -130,6 +141,26 @@ def calculate_multipliers(
 
         if current_assets_mln and current_liabilities_mln and current_liabilities_mln != 0:
             current_ratio = round(current_assets_mln / current_liabilities_mln, 2)
+
+        # ─── FCF-показатели (только non-bank) ────────────────────────────────
+        # LTM операционный поток и CAPEX: сначала берём LTM-агрегат, затем fallback на отчёт
+        ocf_raw = ltm_operating_cash_flow if ltm_operating_cash_flow is not None else getattr(report, 'operating_cash_flow', None)
+        cap_raw = ltm_capex if ltm_capex is not None else getattr(report, 'capex', None)
+
+        ltm_ocf_mln = to_rub_mln(ocf_raw)
+        cap_mln = to_rub_mln(cap_raw)
+
+        if ltm_ocf_mln is not None and cap_mln is not None:
+            ltm_fcf_mln = round(ltm_ocf_mln - cap_mln, 3)
+
+        # P/FCF = Market Cap / LTM FCF  (только если FCF > 0)
+        if market_cap_full and ltm_fcf_mln is not None and ltm_fcf_mln > 0:
+            price_to_fcf = round(market_cap_full / (ltm_fcf_mln * MILLION), 2)
+
+        # FCF / Net Income × 100% — детектор качества прибыли
+        # Считаем при любом FCF (в т.ч. отрицательном) если net_income != 0
+        if ltm_fcf_mln is not None and net_income_mln and net_income_mln != 0:
+            fcf_to_net_income = round(ltm_fcf_mln / net_income_mln * 100, 2)
 
     return {
         "pe_ratio": pe_ratio,
@@ -139,7 +170,12 @@ def calculate_multipliers(
         "current_ratio": current_ratio,
         "dividend_yield": dividend_yield,
         "cost_to_income": cost_to_income,
-        "market_cap": market_cap_mln,          # млн рублей
+        "market_cap": market_cap_mln,           # млн рублей
         "price_used": round(price_rub, 4) if price_rub else None,  # ₽ за акцию
         "shares_used": shares,
+        # FCF (None для банков)
+        "ltm_fcf": ltm_fcf_mln,
+        "ltm_operating_cash_flow": ltm_ocf_mln,
+        "price_to_fcf": price_to_fcf,
+        "fcf_to_net_income": fcf_to_net_income,
     }

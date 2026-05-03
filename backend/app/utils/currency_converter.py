@@ -47,6 +47,11 @@ def get_report_values_in_rub(report: FinancialReport) -> Dict[str, Optional[floa
         "current_liabilities_rub": convert(report.current_liabilities),
         "equity_rub": convert(report.equity),
         "dividends_per_share_rub": convert(report.dividends_per_share),
+        "operating_cash_flow_rub": convert(getattr(report, "operating_cash_flow", None)),
+        "capex_rub": convert(getattr(report, "capex", None)),
+        "depreciation_amortization_rub": convert(
+            getattr(report, "depreciation_amortization", None)
+        ),
     }
 
 

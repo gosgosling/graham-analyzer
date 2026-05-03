@@ -73,6 +73,35 @@ function deLevel(v: number | null): Level {
   return 'bad';
 }
 
+/**
+ * P/FCF — аналог P/E: те же пороги, но по денежному потоку.
+ * < 0 (отрицательный FCF) → loss.
+ */
+function pfcfLevel(v: number | null, fcf: number | null): Level {
+  if (v !== null) {
+    if (v <= 15) return 'good';
+    if (v <= 25) return 'warn';
+    return 'bad';
+  }
+  if (fcf !== null && fcf < 0) return 'loss';
+  return 'neutral';
+}
+
+/**
+ * FCF/Net Income (конверсия) — детектор качества прибыли.
+ *  ≥ 100%: FCF превышает прибыль → high-quality earnings ('good')
+ *  70–99%: норма ('warn')
+ *  0–69%: сомнительное качество ('bad')
+ *  < 0:    отрицательный FCF при положительной прибыли → красный флаг ('loss')
+ */
+function fcfNiLevel(v: number | null): Level {
+  if (v === null) return 'neutral';
+  if (v >= 100) return 'good';
+  if (v >= 70) return 'warn';
+  if (v >= 0) return 'bad';
+  return 'loss';  // FCF отрицательный — красный флаг
+}
+
 // ─── Отраслевые профили Current Ratio ────────────────────────────────────────
 //
 // CR — «градусник»: норма сильно зависит от бизнес-модели.
@@ -173,22 +202,44 @@ export function getCrProfile(sector?: string | null): CrProfile {
     };
   }
 
-  // ── Телекоммуникации ──
-  // Абонентская база = устойчивая ежемесячная выручка; капитальные затраты
-  // финансируются долгосрочным долгом. CR ~ 0.8–1.0 — норма.
-  if (hasAny('telecom', 'телеком', 'связь', 'cellular', 'mobile',
-             'мобильн', 'интернет', 'internet', 'media', 'медиа')) {
+  // ── IT / телеком / цифровые сервисы ──
+  //
+  // Важно: GICS «communication_services» (Яндекс, VK, Meta и др.) НЕ содержит
+  // слова telecom/internet — без явного учёта уходит в «промышленность».
+  // Сектор T-Invest ровно «it» тоже должен ловиться (не путать с подстрокой «it»
+  // внутри случайных слов — только границы слова / точное совпадение).
+  const wordIt = /\b(it|ict)\b/.test(s);
+  const gicsIt = hasAny(
+    'communication_services',
+    'communication services',
+    'information_technology',
+    'information technology',
+    'it_services',
+    'it services',
+    'internet_software',
+    'internet software',
+  );
+  const itTelecomMedia = hasAny(
+    'software', 'hardware', 'internet', 'computer', 'semiconductor', 'cyber',
+    'cloud', 'saas', 'digital', 'platform', 'technology', 'technologies',
+    'informatics', 'telecom', 'телеком', 'связь', 'cellular', 'mobile',
+    'мобильн', 'медиа', 'media', 'gaming', 'програм', 'информац', 'цифров', 'облак',
+  );
+  if (s === 'it' || gicsIt || wordIt || itTelecomMedia) {
     return {
-      industryLabel: 'Телекоммуникации / медиа',
-      good: 1.0,
-      warn: 0.7,
-      thresholdHint: '≥ 1.0 — норма для телекома',
+      industryLabel: 'IT / телеком / цифровые сервисы',
+      good: 1.5,
+      warn: 1.0,
+      thresholdHint: '≥ 1.5 — хорошо для IT / цифровых сервисов',
       tooltipLines: [
-        'Телеком: стабильная подписная выручка снижает потребность',
-        'в буфере ликвидности. CR ~ 0.8–1.0 — стандарт отрасли.',
-        '≥ 1.0  —  хорошо',
-        '0.7–1.0  —  норма для телекома',
-        '< 0.7  —  агрессивное краткосрочное финансирование',
+        'IT, телеком, платформы: обычно asset-light, мало запасов,',
+        'высокая маржа или подписная выручка. Классический CR ≥ 2 для',
+        '«магазина с полки» здесь часто завышен; ориентиры мягче.',
+        '≥ 1.5  —  хорошо',
+        '1.0–1.5  —  приемлемо',
+        '< 1.0  —  нетипично, смотри структуру обязательств и cash flow',
+        '',
+        'Секторы вроде communication_services (GICS) относятся сюда же.',
       ],
     };
   }
@@ -196,9 +247,24 @@ export function getCrProfile(sector?: string | null): CrProfile {
   // ── Ритейл и дистрибуция ──
   // Нет мощного сырьевого потока. Бизнес живёт от оборачиваемости запасов
   // и дебиторки. CR < 1 — почти всегда симптом беды. Норма Грэма ≥ 2.
-  if (hasAny('retail', 'ритейл', 'торговл', 'supermarket', 'маркет',
-             'consumer', 'потребител', 'distribution', 'дистрибуц',
-             'food', 'продукт', 'фарм', 'pharma', 'drugstore')) {
+  // «consumer» одно слово слишком широкое — используем типичные хвосты GICS.
+  const retailCore = hasAny(
+    'retail', 'ритейл', 'торговл', 'supermarket', 'маркет', 'hypermarket',
+    'distribution', 'дистрибуц', 'food', 'grocery', 'продукт', 'фарм', 'pharma',
+    'drugstore', 'shopping', 'потребител',
+  );
+  const gicsRetailConsumer =
+    hasAny(
+      'consumer_staples',
+      'consumer_discretionary',
+      'consumer_defensive',
+      'consumer cyclical',
+      'consumer_cyclical',
+      'consumer staples',
+      'consumer discretionary',
+      'consumer defensive',
+    ) || /\bconsumer\s+(staples|discretionary|defensive|cyclical)\b/.test(s);
+  if (retailCore || gicsRetailConsumer) {
     return {
       industryLabel: 'Ритейл / дистрибуция / FMCG',
       good: 2.0,
@@ -212,26 +278,6 @@ export function getCrProfile(sector?: string | null): CrProfile {
         '≥ 2.0  —  хорошо (норма Грэма)',
         '1.2–2.0  —  приемлемо, следить за оборачиваемостью',
         '< 1.2  —  красный флаг для ритейла',
-      ],
-    };
-  }
-
-  // ── IT и технологии ──
-  // Как правило, asset-light, высокая маржа. Запасы минимальны.
-  // Норма — ≥ 1.5, но в целом компании часто держат большой кеш.
-  if (hasAny('tech', 'it ', 'software', 'програм', 'informati', 'информац',
-             'digital', 'цифров', 'cloud', 'облак')) {
-    return {
-      industryLabel: 'IT / технологии',
-      good: 1.5,
-      warn: 1.0,
-      thresholdHint: '≥ 1.5 — хорошо для IT',
-      tooltipLines: [
-        'IT, технологии: asset-light бизнес, часто большой кеш.',
-        'Запасы минимальны, долг меньше, чем у промышленников.',
-        '≥ 1.5  —  хорошо',
-        '1.0–1.5  —  приемлемо',
-        '< 1.0  —  нетипично для IT, требует объяснения',
       ],
     };
   }
@@ -365,8 +411,14 @@ interface CurrentCardsProps {
 const CurrentCards: React.FC<CurrentCardsProps> = ({ data, crProfile }) => {
   const income = data.ltm_net_income;
   const isLoss = income !== null && income < 0;
+  const isBank = data.cost_to_income !== null || (
+    data.debt_to_equity === null && data.current_ratio === null
+  );
+  const ltmFcf = (data as any).ltm_fcf as number | null | undefined;
+  const pfcf = (data as any).price_to_fcf as number | null | undefined;
+  const fcfNi = (data as any).fcf_to_net_income as number | null | undefined;
 
-  const cards = [
+  const baseCards = [
     {
       label: 'P/E',
       value: data.pe_ratio,
@@ -415,6 +467,34 @@ const CurrentCards: React.FC<CurrentCardsProps> = ({ data, crProfile }) => {
     },
   ];
 
+  // FCF-карточки только для non-bank и только если есть данные ОДДС
+  const hasFcfData = ltmFcf !== undefined && ltmFcf !== null;
+  const fcfCards = (!isBank && hasFcfData) ? [
+    {
+      label: 'P/FCF',
+      value: pfcf ?? null,
+      level: pfcfLevel(pfcf ?? null, ltmFcf ?? null),
+      hint: 'Цена / Свободный денежный поток',
+      threshold: (ltmFcf ?? 0) < 0 ? 'FCF отрицателен' : '≤ 15 — хорошо',
+    },
+    {
+      label: 'FCF/NI',
+      value: fcfNi ?? null,
+      level: fcfNiLevel(fcfNi ?? null),
+      hint: 'Качество прибыли (FCF / Net Income)',
+      threshold: (fcfNi ?? 0) < 0
+        ? '⚠ Красный флаг: FCF < 0'
+        : (fcfNi ?? 0) >= 100
+          ? 'FCF > прибыли — отлично'
+          : (fcfNi ?? 0) >= 70
+            ? '70–100% — норма'
+            : '< 70% — сомнительно',
+      suffix: '%',
+    },
+  ] : [];
+
+  const cards = [...baseCards, ...fcfCards];
+
   return (
     <div className="current-cards-grid">
       {cards.map(({ label, value, level, hint, threshold, suffix = '' }) => (
@@ -423,7 +503,7 @@ const CurrentCards: React.FC<CurrentCardsProps> = ({ data, crProfile }) => {
           <div className="current-card-value">
             {value !== null
               ? `${fmt(value)}${suffix}`
-              : level === 'loss' ? 'Убыток' : '—'}
+              : level === 'loss' ? (label === 'FCF/NI' ? 'Отриц. FCF' : 'Убыток') : '—'}
           </div>
           <div className="current-card-hint">{hint}</div>
           <div className={`current-card-threshold level-${level}`}>{threshold}</div>
@@ -640,6 +720,9 @@ const HistTable: React.FC<HistTableProps> = ({ rows, currentRow, crProfile }) =>
               )}
             </th>
             <th className="col-mult">Div, %</th>
+            <th className="col-mult" title="Price / Free Cash Flow (только для non-bank)">P/FCF</th>
+            <th className="col-mult" title="FCF / Net Income × 100% — качество прибыли">FCF/NI, %</th>
+            <th className="col-rev" title="FCF = Операционный поток − CAPEX, LTM">FCF LTM</th>
             <th className="col-rev">Выручка LTM</th>
             <th className="col-ni">Прибыль LTM</th>
           </tr>
@@ -668,6 +751,9 @@ const HistTable: React.FC<HistTableProps> = ({ rows, currentRow, crProfile }) =>
                 <td><MetricBadge value={currentRow.current_ratio} level={crLevel(currentRow.current_ratio, crProfile)}
                   nullHint={crProfile.notApplicable ? 'CR не применим для данного типа компании' : undefined} /></td>
                 <td><MetricBadge value={currentRow.dividend_yield} level={dyLevel(currentRow.dividend_yield)} suffix="%" /></td>
+                <td><MetricBadge value={(currentRow as any).price_to_fcf ?? null} level={pfcfLevel((currentRow as any).price_to_fcf ?? null, (currentRow as any).ltm_fcf ?? null)} /></td>
+                <td><MetricBadge value={(currentRow as any).fcf_to_net_income ?? null} level={fcfNiLevel((currentRow as any).fcf_to_net_income ?? null)} suffix="%" /></td>
+                <td className={(currentRow as any).ltm_fcf !== null && (currentRow as any).ltm_fcf !== undefined && (currentRow as any).ltm_fcf < 0 ? 'cell-loss' : ''}>{fmtMln((currentRow as any).ltm_fcf ?? null)}</td>
                 <td>{fmtMln(currentRow.ltm_revenue)}</td>
                 <td className={ltmIsLoss ? 'cell-loss' : ''}>{fmtMln(currentRow.ltm_net_income)}</td>
               </tr>
@@ -731,6 +817,9 @@ const HistTable: React.FC<HistTableProps> = ({ rows, currentRow, crProfile }) =>
                   nullHint={noCurr ? 'Нет оборотных активов или краткосрочных обязательств' : crProfile.notApplicable ? 'CR не применим для данного типа компании' : undefined} /></td>
                 <td><MetricBadge value={r.dividend_yield} level={dyLevel(r.dividend_yield)} suffix="%"
                   nullHint={noDivs ? 'Дивиденды не указаны' : noPrice ? 'Нет цены акции' : undefined} /></td>
+                <td><MetricBadge value={r.price_to_fcf} level={pfcfLevel(r.price_to_fcf, r.ltm_fcf)} /></td>
+                <td><MetricBadge value={r.fcf_to_net_income} level={fcfNiLevel(r.fcf_to_net_income)} suffix="%" /></td>
+                <td className={r.ltm_fcf !== null && r.ltm_fcf < 0 ? 'cell-loss' : ''}>{fmtMln(r.ltm_fcf)}</td>
                 <td>{fmtMln(r.ltm_revenue)}</td>
                 <td className={isLoss ? 'cell-loss' : ''}>{fmtMln(r.ltm_net_income)}</td>
               </tr>
@@ -739,7 +828,7 @@ const HistTable: React.FC<HistTableProps> = ({ rows, currentRow, crProfile }) =>
 
           {rows.length === 0 && !currentRow && (
             <tr>
-              <td colSpan={11} className="table-empty">
+              <td colSpan={14} className="table-empty">
                 Нет данных. Добавьте годовые отчёты и нажмите «Обновить цену».
               </td>
             </tr>

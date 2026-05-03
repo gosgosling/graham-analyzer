@@ -567,6 +567,72 @@
     color: var(--color-primary);
 }
 
+.form-section-cashflow {
+    border-left: 3px solid var(--color-success);
+}
+
+.form-section-cashflow h3 {
+    color: var(--color-success-strong);
+}
+
+.cashflow-fcf-preview {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 10px;
+    padding: 6px 14px;
+    border-radius: var(--radius-md);
+    background: var(--color-success-soft);
+    border: 1px solid var(--color-success-border);
+    font-size: 13px;
+}
+
+.cashflow-fcf-label {
+    font-weight: 600;
+    color: var(--color-success-text);
+}
+
+.cashflow-fcf-value {
+    font-weight: 700;
+    color: var(--color-success-strong);
+    font-family: var(--font-mono);
+}
+
+.cashflow-fcf-value.negative {
+  color: var(--color-error);
+}
+
+.cashflow-da-preview {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px 14px;
+  margin-top: 10px;
+  padding: 8px 14px;
+  border-radius: var(--radius-md);
+  background: var(--color-bg-subtle);
+  border: 1px solid var(--color-border-default);
+  font-size: 13px;
+}
+
+.cashflow-da-label {
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+
+.cashflow-da-value {
+  font-weight: 700;
+  font-family: var(--font-mono);
+  color: var(--color-text-primary);
+}
+
+.cashflow-da-hint {
+  flex-basis: 100%;
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  font-style: italic;
+}
+
 .section-description {
     font-size: 12px;
     color: var(--color-text-tertiary);

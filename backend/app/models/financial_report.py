@@ -117,6 +117,22 @@ class FinancialReport(Base):
         Numeric(15, 3), nullable=True
     )  # Резервы под обесценение кредитов, млн
 
+    # ─── Денежные потоки (ОДДС) ──────────────────────────────────────────────
+    # Все значения в МИЛЛИОНАХ валюты отчёта (как и остальные P&L-показатели).
+    # capex хранится как положительное число (абсолютная величина оттока).
+    # FCF = operating_cash_flow - capex  (вычисляется, не хранится).
+    operating_cash_flow: Mapped[Optional[float]] = mapped_column(
+        Numeric(15, 3), nullable=True
+    )  # Операционный денежный поток, млн
+    capex: Mapped[Optional[float]] = mapped_column(
+        Numeric(15, 3), nullable=True
+    )  # Капитальные затраты (CAPEX), положит. число, млн
+    # Амортизация и износ (из ОПУ или корректировка к ОДДС), млн — для диагностики CAPEX vs D&A;
+    # в расчёт мультипликаторов не входит (будущий модуль справедливой стоимости).
+    depreciation_amortization: Mapped[Optional[float]] = mapped_column(
+        Numeric(15, 3), nullable=True
+    )
+
     # Валюта
     currency: Mapped[str] = mapped_column(String, default="RUB")  # Валюта отчета
     exchange_rate: Mapped[Optional[float]] = mapped_column(Numeric(10, 4), nullable=True)  # Курс на дату отчета
