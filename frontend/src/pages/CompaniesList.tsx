@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -8,6 +8,7 @@ import {
   updateFinancialReport,
   refreshCompanyMultipliers,
   getUnverifiedCountsByCompany,
+  getReportCountsByCompany,
   verifyReport,
 } from '../services';
 import { Company, FinancialReportCreate, FinancialReport } from '../types';
@@ -27,11 +28,20 @@ const CompaniesList: React.FC = () => {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
+  const [search, setSearch] = useState('');
+  const [sectorFilter, setSectorFilter] = useState('');
+  const [reportsFilter, setReportsFilter] = useState<'all' | 'with' | 'without'>('all');
+  const [sortMode, setSortMode] = useState<
+    'ticker' | 'name' | 'sector' | 'reports_desc' | 'reports_asc'
+  >('ticker');
+
   const updateReportMutation = useMutation({
     mutationFn: ({ id, data }: { id: number; data: FinancialReportCreate }) =>
       updateFinancialReport(id, data),
     onSuccess: async (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['reports'] });
+      queryClient.invalidateQueries({ queryKey: ['reports-counts-by-company'] });
+      queryClient.invalidateQueries({ queryKey: ['reports-unverified-counts'] });
       // Пересчёт мультипликаторов
       if (editingCompany?.id) {
         await refreshCompanyMultipliers(editingCompany.id, true).catch(() => {});
@@ -58,10 +68,17 @@ const CompaniesList: React.FC = () => {
     staleTime: 30_000,
   });
 
+  const { data: reportCounts } = useQuery({
+    queryKey: ['reports-counts-by-company'],
+    queryFn: getReportCountsByCompany,
+    staleTime: 30_000,
+  });
+
   const verifyReportMutation = useMutation({
     mutationFn: (reportId: number) => verifyReport(reportId),
     onSuccess: (updated) => {
       queryClient.invalidateQueries({ queryKey: ['reports'] });
+      queryClient.invalidateQueries({ queryKey: ['reports-counts-by-company'] });
       queryClient.invalidateQueries({ queryKey: ['reports-unverified-counts'] });
       setSelectedReport(updated);
     },
@@ -75,6 +92,8 @@ const CompaniesList: React.FC = () => {
     mutationFn: createFinancialReport,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['reports'] });
+      queryClient.invalidateQueries({ queryKey: ['reports-counts-by-company'] });
+      queryClient.invalidateQueries({ queryKey: ['reports-unverified-counts'] });
       setShowForm(false);
       setSelectedCompany(null);
       alert('Отчет успешно добавлен!');
@@ -124,6 +143,52 @@ const CompaniesList: React.FC = () => {
     }
   };
 
+  const sectorOptions = useMemo(() => {
+    const set = new Set<string>();
+    (companies ?? []).forEach((c) => {
+      const sec = c.sector?.trim();
+      if (sec) set.add(sec);
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'ru'));
+  }, [companies]);
+
+  const visibleCompanies = useMemo(() => {
+    if (!companies) return [];
+    const q = search.trim().toLowerCase();
+    const rows = companies.filter((c) => {
+      if (q) {
+        const hay = [c.name, c.ticker, c.isin, c.sector]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      if (sectorFilter && (c.sector?.trim() || '') !== sectorFilter) return false;
+      const n = c.id && reportCounts ? reportCounts[c.id] ?? 0 : 0;
+      if (reportsFilter === 'with' && n === 0) return false;
+      if (reportsFilter === 'without' && n > 0) return false;
+      return true;
+    });
+    const sorted = [...rows];
+    sorted.sort((a, b) => {
+      const na = a.id && reportCounts ? reportCounts[a.id] ?? 0 : 0;
+      const nb = b.id && reportCounts ? reportCounts[b.id] ?? 0 : 0;
+      switch (sortMode) {
+        case 'name':
+          return (a.name || '').localeCompare(b.name || '', 'ru');
+        case 'sector':
+          return (a.sector || '').localeCompare(b.sector || '', 'ru');
+        case 'reports_desc':
+          return nb - na;
+        case 'reports_asc':
+          return na - nb;
+        default:
+          return (a.ticker || '').localeCompare(b.ticker || '', 'ru');
+      }
+    });
+    return sorted;
+  }, [companies, search, sectorFilter, reportsFilter, sortMode, reportCounts]);
+
   if (isLoading) {
     return (
       <div className="securities-container">
@@ -144,6 +209,73 @@ const CompaniesList: React.FC = () => {
     <div className="securities-container">
       <h1 className="securities-title">Российские компании и компании Мосбиржи (T Invest API)</h1>
       <TInvestSyncBar />
+      <div className="companies-toolbar">
+        <input
+          type="search"
+          className="companies-search"
+          placeholder="Поиск по названию, тикеру, ISIN или сектору…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          aria-label="Поиск компаний"
+        />
+        <div className="companies-toolbar-row">
+          <div className="companies-filter-group">
+            <span className="companies-filter-label">Отчёты:</span>
+            <div className="companies-pills">
+              {([
+                ['all', 'Все'],
+                ['with', 'С отчётами'],
+                ['without', 'Без отчётов'],
+              ] as const).map(([key, label]) => (
+                <button
+                  key={key}
+                  type="button"
+                  className={`companies-pill${reportsFilter === key ? ' active' : ''}`}
+                  onClick={() => setReportsFilter(key)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="companies-filter-group companies-filter-selects">
+            <label className="companies-select-wrap">
+              <span>Сектор</span>
+              <select
+                value={sectorFilter}
+                onChange={(e) => setSectorFilter(e.target.value)}
+              >
+                <option value="">Все сектора</option>
+                {sectorOptions.map((sec) => (
+                  <option key={sec} value={sec}>
+                    {sec}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="companies-select-wrap">
+              <span>Сортировка</span>
+              <select
+                value={sortMode}
+                onChange={(e) =>
+                  setSortMode(e.target.value as typeof sortMode)
+                }
+              >
+                <option value="ticker">Тикер (А→Я)</option>
+                <option value="name">Название</option>
+                <option value="sector">Сектор</option>
+                <option value="reports_desc">Число отчётов (сначала больше)</option>
+                <option value="reports_asc">Число отчётов (сначала меньше)</option>
+              </select>
+            </label>
+          </div>
+        </div>
+        <p className="companies-toolbar-meta">
+          Показано{' '}
+          <strong>{visibleCompanies.length}</strong>
+          {' '}из {companies?.length ?? 0} компаний
+        </p>
+      </div>
       <div className="table-wrapper">
         <table className="securities-table companies-expandable-table">
           <thead>
@@ -160,10 +292,19 @@ const CompaniesList: React.FC = () => {
           </thead>
           <tbody>
             {companies && companies.length > 0 ? (
-              companies.map((company: Company) => (
+              visibleCompanies.length === 0 ? (
+                <tr>
+                  <td colSpan={8} style={{ textAlign: 'center', padding: '20px' }}>
+                    По заданным фильтрам компаний не найдено. Измените поиск или фильтры.
+                  </td>
+                </tr>
+              ) : (
+                visibleCompanies.map((company: Company) => {
+                  const rc = company.id ? reportCounts?.[company.id] ?? 0 : 0;
+                  return (
                 <React.Fragment key={company.figi}>
                   <tr 
-                    className="company-row"
+                    className={`company-row${company.id && rc === 0 ? ' company-row--no-reports' : ''}`}
                     onClick={(e) => handleCompanyClick(company, e)}
                     style={{ cursor: company.id ? 'pointer' : 'default' }}
                   >
@@ -182,8 +323,16 @@ const CompaniesList: React.FC = () => {
                     </td>
                     <td className="ticker-cell">{company.ticker}</td>
                     <td className="name-cell">
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                         {company.name}
+                        {company.id && rc === 0 && (
+                          <span
+                            className="reports-none-pill"
+                            title="В базе нет ни одного финансового отчёта"
+                          >
+                            📭 Нет отчётов
+                          </span>
+                        )}
                         {company.id && unverifiedCounts && unverifiedCounts[company.id] > 0 && (
                           <span
                             className="reports-unverified-pill"
@@ -217,7 +366,9 @@ const CompaniesList: React.FC = () => {
                     </tr>
                   )}
                 </React.Fragment>
-              ))
+                  );
+                })
+              )
             ) : (
               <tr>
                 <td colSpan={8} style={{ textAlign: 'center', padding: '20px' }}>
@@ -548,6 +699,41 @@ const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
                 )}
                 {report.equity != null && (
                   <div className="detail-item"><span className="detail-label">Собственный капитал:</span><span className="detail-value">{fmtMln(report.equity)}</span></div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Денежные потоки (ОДДС) */}
+          {(report.operating_cash_flow != null || report.capex != null || report.depreciation_amortization != null) && (
+            <div className="detail-section">
+              <h3>Денежные потоки (ОДДС) <span className="section-units">(млн {cur})</span></h3>
+              <div className="detail-grid">
+                {report.operating_cash_flow != null && (
+                  <div className="detail-item">
+                    <span className="detail-label">Операционный поток (CFO):</span>
+                    <span className="detail-value">{fmtMln(report.operating_cash_flow)}</span>
+                  </div>
+                )}
+                {report.capex != null && (
+                  <div className="detail-item">
+                    <span className="detail-label">CAPEX:</span>
+                    <span className="detail-value">{fmtMln(report.capex)}</span>
+                  </div>
+                )}
+                {report.depreciation_amortization != null && (
+                  <div className="detail-item">
+                    <span className="detail-label">Амортизация и износ (D&amp;A):</span>
+                    <span className="detail-value">{fmtMln(report.depreciation_amortization)}</span>
+                  </div>
+                )}
+                {report.fcf != null && (
+                  <div className="detail-item">
+                    <span className="detail-label">FCF (CFO − CAPEX):</span>
+                    <span className={`detail-value${report.fcf < 0 ? ' detail-loss' : ' detail-yes'}`}>
+                      {fmtMln(report.fcf)}
+                    </span>
+                  </div>
                 )}
               </div>
             </div>

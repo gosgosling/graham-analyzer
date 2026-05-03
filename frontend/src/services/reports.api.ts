@@ -109,6 +109,16 @@ export const getUnverifiedCountsByCompany = async (): Promise<Record<number, num
     return result;
 };
 
+/** Число всех отчётов по компаниям (в ответе только компании с отчётами ≥ 1). */
+export const getReportCountsByCompany = async (): Promise<Record<number, number>> => {
+    const response = await api.get<Record<string, number>>('/reports/counts/by-company');
+    const result: Record<number, number> = {};
+    for (const [key, value] of Object.entries(response.data || {})) {
+        result[Number(key)] = value;
+    }
+    return result;
+};
+
 // ─── AI-парсинг PDF ─────────────────────────────────────────────────────────
 
 /** Статус настройки LLM на бэкенде — показывать ли UI загрузки PDF. */

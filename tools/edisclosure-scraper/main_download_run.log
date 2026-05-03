@@ -4464,3 +4464,610 @@ Call log:
 2026-04-26 22:35:46  INFO      [TATN 2009] ✓ PDF из архива → TATN_2009.pdf (из 1 файлов, источник: 327dad56222c37dd660e75540ec6b91d81eb0549.pdf)
 2026-04-26 22:35:46  INFO      Пауза 47 с перед следующей компанией...
 2026-04-26 22:36:33  INFO      ─── [50/74] TATNP  (e-disclosure id=118) ──────────────────
+2026-05-02 19:15:42  INFO      ============================================================
+2026-05-02 19:15:42  INFO      Сервис загрузки отчётов e-disclosure.ru стартовал.
+2026-05-02 19:15:42  INFO      Папка для отчётов: /home/devops/Reports
+2026-05-02 19:15:42  INFO      robots.txt: /portal/files.aspx и /portal/FileLoad.ashx — РАЗРЕШЕНЫ
+2026-05-02 19:15:42  INFO      ============================================================
+2026-05-02 19:15:42  INFO      Загружено 179 компаний из PostgreSQL.
+2026-05-02 19:15:42  WARNING   Тикер CIAN@US (Циан АДР) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-05-02 19:15:42  WARNING   Тикер CNTL (Центральный Телеграф) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-05-02 19:15:42  WARNING   Тикер DOMRF (ПАО ДОМ.РФ) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-05-02 19:15:42  WARNING   Тикер FIVE@GS (X5 RetailGroup ГДР) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-05-02 19:15:42  WARNING   Тикер FIXR (Публичное акционерное общество "Фикс Прайс") отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-05-02 19:15:42  WARNING   Тикер FRHC (Freedom Holding Corp/NV) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-05-02 19:15:42  WARNING   Тикер GLTR@GS (Globaltrans Investment PLC) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-05-02 19:15:42  WARNING   Тикер JETL (Джетленд Холдинг) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-05-02 19:15:42  WARNING   Тикер KLSB (Калужская сбытовая компания) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-05-02 19:15:42  WARNING   Тикер MRKU (Россети Урал) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-05-02 19:15:42  WARNING   Тикер NOMPP (Новошип - привилегированные акции) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-05-02 19:15:42  WARNING   Тикер OBNE (Обьнефтегазгеология - ао) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-05-02 19:15:42  WARNING   Тикер SFTL (Noventiq ГДР) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-05-02 19:15:42  WARNING   Тикер SVCB (Совкомбанк) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-05-02 19:15:42  WARNING   Тикер TRMK (Трубная Металлургическая Компания) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-05-02 19:15:42  WARNING   Тикер VEON (VEON) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-05-02 19:15:42  WARNING   Тикер VEON-RX (VEON) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-05-02 19:15:42  WARNING   Тикер VSMO (ВСМПО-АВИСМА) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-05-02 19:15:42  WARNING   Тикер YNDX@US (Nebius Group N.V.) отсутствует в company_ids.json — пропускаем. Добавьте e-disclosure ID вручную.
+2026-05-02 19:15:42  INFO      Режим --start-from TGKA: пропущено тикеров: 136, к обработке: 24.
+2026-05-02 19:15:42  INFO      К обработке: 24 компаний.
+2026-05-02 19:15:42  INFO      ─── [1/24] TGKA  (e-disclosure id=7263) ──────────────────
+2026-05-02 19:16:02  INFO      [TGKA] Найдено 13 годовых консолидированных отчётов.
+2026-05-02 19:16:02  INFO      Получаем ServicePipe-cookies через Playwright...
+2026-05-02 19:16:04  INFO      Получено 3 cookies.
+2026-05-02 19:16:22  INFO      [TGKA] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1737670 → 2021_annual_consolidated.zip
+2026-05-02 19:16:25  INFO      [TGKA] ✓ Сохранён временный файл 2021_annual_consolidated.zip (2221 КБ)
+2026-05-02 19:16:25  INFO      [TGKA 2021] ✓ PDF из архива → TGKA_2021.pdf (из 1 файлов, источник: Æâè-1_îæöÄ_12î2021.pdf)
+2026-05-02 19:16:38  INFO      [TGKA] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1683632 → 2020_annual_consolidated.zip
+2026-05-02 19:16:42  INFO      [TGKA] ✓ Сохранён временный файл 2020_annual_consolidated.zip (2955 КБ)
+2026-05-02 19:16:42  INFO      [TGKA 2020] ✓ PDF из архива → TGKA_2020.pdf (из 1 файлов, источник: Æâè-1_îæöÄ_2020.pdf)
+2026-05-02 19:16:59  INFO      [TGKA] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1617230 → 2019_annual_consolidated.zip
+2026-05-02 19:17:03  INFO      [TGKA] ✓ Сохранён временный файл 2019_annual_consolidated.zip (2065 КБ)
+2026-05-02 19:17:03  INFO      [TGKA 2019] ✓ PDF из архива → TGKA_2019.pdf (из 1 файлов, источник: TGC-1_IFRS_FS_2019_RUS_.pdf)
+2026-05-02 19:17:16  INFO      [TGKA] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1493616 → 2018_annual_consolidated.zip
+2026-05-02 19:17:24  INFO      [TGKA] ✓ Сохранён временный файл 2018_annual_consolidated.zip (6177 КБ)
+2026-05-02 19:17:24  INFO      [TGKA 2018] ✓ PDF из архива → TGKA_2018.pdf (из 1 файлов, источник: Æâè-1 îæöÄ 2018.pdf)
+2026-05-02 19:17:42  INFO      [TGKA] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1400932 → 2017_annual_consolidated.zip
+2026-05-02 19:17:44  INFO      [TGKA] ✓ Сохранён временный файл 2017_annual_consolidated.zip (1029 КБ)
+2026-05-02 19:17:44  INFO      [TGKA 2017] ✓ PDF из архива → TGKA_2017.pdf (из 1 файлов, источник: Æâè-1 îæöÄ 2017 (απß).pdf)
+2026-05-02 19:17:55  INFO      [TGKA] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1304937 → 2016_annual_consolidated.zip
+2026-05-02 19:18:00  INFO      [TGKA] ✓ Сохранён временный файл 2016_annual_consolidated.zip (3582 КБ)
+2026-05-02 19:18:00  INFO      [TGKA 2016] ✓ PDF из архива → TGKA_2016.pdf (из 1 файлов, источник: TGC-1_IFRS_2016_RUS.pdf)
+2026-05-02 19:18:12  INFO      [TGKA] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1178912 → 2015_annual_consolidated.zip
+2026-05-02 19:18:14  INFO      [TGKA] ✓ Сохранён временный файл 2015_annual_consolidated.zip (1224 КБ)
+2026-05-02 19:18:14  INFO      [TGKA 2015] ✓ PDF из архива → TGKA_2015.pdf (из 1 файлов, источник: ÄÇÄ Æâè-1_IFRS FS_2015.pdf)
+2026-05-02 19:18:26  INFO      [TGKA] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1007865 → 2014_annual_consolidated.zip
+2026-05-02 19:18:29  INFO      [TGKA] ✓ Сохранён временный файл 2014_annual_consolidated.zip (1851 КБ)
+2026-05-02 19:18:29  INFO      [TGKA 2014] ✓ PDF из архива → TGKA_2014.pdf (из 1 файлов, источник: IFRS _2014_RUS.pdf)
+2026-05-02 19:18:49  INFO      [TGKA] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=804765 → 2013_annual_consolidated.zip
+2026-05-02 19:18:52  INFO      [TGKA] ✓ Сохранён временный файл 2013_annual_consolidated.zip (2095 КБ)
+2026-05-02 19:18:52  INFO      [TGKA 2013] ✓ PDF из архива → TGKA_2013.pdf (из 1 файлов, источник: TGC-1_IFRS_FS 2013_RUS (FINAL).pdf)
+2026-05-02 19:19:03  INFO      [TGKA] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=577453 → 2012_annual_consolidated.zip
+2026-05-02 19:19:05  INFO      [TGKA] ✓ Сохранён временный файл 2012_annual_consolidated.zip (1299 КБ)
+2026-05-02 19:19:05  INFO      [TGKA 2012] ✓ PDF из архива → TGKA_2012.pdf (из 1 файлов, источник: îöæÄ 2012.pdf)
+2026-05-02 19:19:16  INFO      [TGKA] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=257015 → 2011_annual_consolidated.zip
+2026-05-02 19:19:21  INFO      [TGKA] ✓ Сохранён временный файл 2011_annual_consolidated.zip (1556 КБ)
+2026-05-02 19:19:21  INFO      [TGKA 2011] ✓ PDF из архива → TGKA_2011.pdf (из 1 файлов, источник: îæöÄ_2011ú..pdf)
+2026-05-02 19:19:39  INFO      [TGKA] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=256895 → 2010_annual_consolidated.zip
+2026-05-02 19:19:41  INFO      [TGKA] ✓ Сохранён временный файл 2010_annual_consolidated.zip (672 КБ)
+2026-05-02 19:19:41  INFO      [TGKA 2010] ✓ PDF из архива → TGKA_2010.pdf (из 1 файлов, источник: îæöÄ_2010ú..pdf)
+2026-05-02 19:20:00  INFO      [TGKA] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=256608 → 2009_annual_consolidated.zip
+2026-05-02 19:20:03  INFO      [TGKA] ✓ Сохранён временный файл 2009_annual_consolidated.zip (699 КБ)
+2026-05-02 19:20:03  INFO      [TGKA 2009] ✓ PDF из архива → TGKA_2009.pdf (из 1 файлов, источник: îæöÄ_2009ú..pdf)
+2026-05-02 19:20:03  INFO      Пауза 47 с перед следующей компанией...
+2026-05-02 19:20:50  INFO      ─── [2/24] TGKB  (e-disclosure id=7968) ──────────────────
+2026-05-02 19:21:00  INFO      [TGKB] Найдено 14 годовых консолидированных отчётов.
+2026-05-02 19:21:19  INFO      [TGKB] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1917693 → 2025_annual_consolidated.zip
+2026-05-02 19:21:23  INFO      [TGKB] ✓ Сохранён временный файл 2025_annual_consolidated.zip (2373 КБ)
+2026-05-02 19:21:23  INFO      [TGKB 2025] ✓ PDF из архива → TGKB_2025.pdf (из 1 файлов, источник: TGC-2_MSFO_12m 2025.pdf)
+2026-05-02 19:21:38  INFO      [TGKB] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1871867 → 2024_annual_consolidated.zip
+2026-05-02 19:21:57  INFO      [TGKB] ✓ Сохранён временный файл 2024_annual_consolidated.zip (15343 КБ)
+2026-05-02 19:21:57  INFO      [TGKB 2024] ✓ PDF из архива → TGKB_2024.pdf (из 1 файлов, источник: TGC-2_MSFO_12m 2024.pdf)
+2026-05-02 19:22:14  INFO      [TGKB] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1835095 → 2023_annual_consolidated.zip
+2026-05-02 19:22:25  INFO      [TGKB] ✓ Сохранён временный файл 2023_annual_consolidated.zip (2487 КБ)
+2026-05-02 19:22:25  INFO      [TGKB 2023] ✓ PDF из архива → TGKB_2023.pdf (из 1 файлов, источник: TGC-2_MSFO_2023.pdf)
+2026-05-02 19:22:41  INFO      [TGKB] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1791395 → 2022_annual_consolidated.zip
+2026-05-02 19:22:44  INFO      [TGKB] ✓ Сохранён временный файл 2022_annual_consolidated.zip (2305 КБ)
+2026-05-02 19:22:44  INFO      [TGKB 2022] ✓ PDF из архива → TGKB_2022.pdf (из 1 файлов, источник: TGC-2_MSFO_2022.pdf)
+2026-05-02 19:22:57  INFO      [TGKB] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1748246 → 2021_annual_consolidated.zip
+2026-05-02 19:23:01  INFO      [TGKB] ✓ Сохранён временный файл 2021_annual_consolidated.zip (2902 КБ)
+2026-05-02 19:23:01  INFO      [TGKB 2021] ✓ PDF из архива → TGKB_2021.pdf (из 1 файлов, источник: TGC-2_MSFO_2021.pdf)
+2026-05-02 19:23:20  INFO      [TGKB] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1698199 → 2020_annual_consolidated.zip
+2026-05-02 19:23:24  INFO      [TGKB] ✓ Сохранён временный файл 2020_annual_consolidated.zip (2865 КБ)
+2026-05-02 19:23:24  INFO      [TGKB 2020] ✓ PDF из архива → TGKB_2020.pdf (из 1 файлов, источник: TGC-2_MSFO_2020.pdf)
+2026-05-02 19:23:40  INFO      [TGKB] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1630894 → 2019_annual_consolidated.zip
+2026-05-02 19:23:48  INFO      [TGKB] ✓ Сохранён временный файл 2019_annual_consolidated.zip (5237 КБ)
+2026-05-02 19:23:48  INFO      [TGKB 2019] ✓ PDF из архива → TGKB_2019.pdf (из 1 файлов, источник: TGC-2_MSFO_2019.pdf)
+2026-05-02 19:24:02  INFO      [TGKB] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1513464 → 2018_annual_consolidated.zip
+2026-05-02 19:24:08  INFO      [TGKB] ✓ Сохранён временный файл 2018_annual_consolidated.zip (5568 КБ)
+2026-05-02 19:24:08  INFO      [TGKB 2018] ✓ PDF из архива → TGKB_2018.pdf (из 1 файлов, источник: TGC-2_MSFO_12m 2018.pdf)
+2026-05-02 19:24:27  INFO      [TGKB] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1427248 → 2017_annual_consolidated.zip
+2026-05-02 19:25:37  ERROR     [TGKB] Ошибка сети https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1427248: ('Connection broken: IncompleteRead(1719851 bytes read, 12618424 more expected)', IncompleteRead(1719851 bytes read, 12618424 more expected))
+2026-05-02 19:25:49  INFO      [TGKB] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1334100 → 2016_annual_consolidated.zip
+2026-05-02 19:26:58  ERROR     [TGKB] Ошибка сети https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1334100: ('Connection broken: IncompleteRead(1179179 bytes read, 10787656 more expected)', IncompleteRead(1179179 bytes read, 10787656 more expected))
+2026-05-02 19:27:14  INFO      [TGKB] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1217435 → 2015_annual_consolidated.zip
+2026-05-02 19:27:17  INFO      [TGKB] ✓ Сохранён временный файл 2015_annual_consolidated.zip (2372 КБ)
+2026-05-02 19:27:17  INFO      [TGKB 2015] ✓ PDF из архива → TGKB_2015.pdf (из 1 файлов, источник: TGC-2_ 2015.pdf)
+2026-05-02 19:27:34  INFO      [TGKB] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1056973 → 2014_annual_consolidated.zip
+2026-05-02 19:27:38  INFO      [TGKB] ✓ Сохранён временный файл 2014_annual_consolidated.zip (2336 КБ)
+2026-05-02 19:27:38  INFO      [TGKB 2014] ✓ PDF из архива → TGKB_2014.pdf (из 1 файлов, источник: TGC-2_2014.pdf)
+2026-05-02 19:27:57  INFO      [TGKB] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=859806 → 2013_annual_consolidated.zip
+2026-05-02 19:28:01  INFO      [TGKB] ✓ Сохранён временный файл 2013_annual_consolidated.zip (2546 КБ)
+2026-05-02 19:28:01  INFO      [TGKB 2013] ✓ PDF из архива → TGKB_2013.pdf (из 1 файлов, источник: TGC-2_FS_IFRS_208FZ 2013_final.pdf)
+2026-05-02 19:28:17  INFO      [TGKB] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=661903 → 2012_annual_consolidated.zip
+2026-05-02 19:28:20  INFO      [TGKB] ✓ Сохранён временный файл 2012_annual_consolidated.zip (1218 КБ)
+2026-05-02 19:28:20  INFO      [TGKB 2012] ✓ PDF из архива → TGKB_2012.pdf (из 1 файлов, источник: ÄΓτÑΓ¡«ßΓ∞ îæöÄ ºá 2012 ú«ñ_Æâè -2.pdf)
+2026-05-02 19:28:20  INFO      Пауза 67 с перед следующей компанией...
+2026-05-02 19:29:27  INFO      ─── [3/24] TGKBP  (e-disclosure id=7968) ──────────────────
+2026-05-02 19:29:37  INFO      [TGKBP] Найдено 14 годовых консолидированных отчётов.
+2026-05-02 19:29:56  INFO      [TGKBP] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1917693 → 2025_annual_consolidated.zip
+2026-05-02 19:30:00  INFO      [TGKBP] ✓ Сохранён временный файл 2025_annual_consolidated.zip (2373 КБ)
+2026-05-02 19:30:00  INFO      [TGKBP 2025] ✓ PDF из архива → TGKBP_2025.pdf (из 1 файлов, источник: TGC-2_MSFO_12m 2025.pdf)
+2026-05-02 19:30:15  INFO      [TGKBP] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1871867 → 2024_annual_consolidated.zip
+2026-05-02 19:30:35  INFO      [TGKBP] ✓ Сохранён временный файл 2024_annual_consolidated.zip (15343 КБ)
+2026-05-02 19:30:35  INFO      [TGKBP 2024] ✓ PDF из архива → TGKBP_2024.pdf (из 1 файлов, источник: TGC-2_MSFO_12m 2024.pdf)
+2026-05-02 19:30:50  INFO      [TGKBP] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1835095 → 2023_annual_consolidated.zip
+2026-05-02 19:30:55  INFO      [TGKBP] ✓ Сохранён временный файл 2023_annual_consolidated.zip (2487 КБ)
+2026-05-02 19:30:55  INFO      [TGKBP 2023] ✓ PDF из архива → TGKBP_2023.pdf (из 1 файлов, источник: TGC-2_MSFO_2023.pdf)
+2026-05-02 19:31:07  INFO      [TGKBP] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1791395 → 2022_annual_consolidated.zip
+2026-05-02 19:31:11  INFO      [TGKBP] ✓ Сохранён временный файл 2022_annual_consolidated.zip (2305 КБ)
+2026-05-02 19:31:11  INFO      [TGKBP 2022] ✓ PDF из архива → TGKBP_2022.pdf (из 1 файлов, источник: TGC-2_MSFO_2022.pdf)
+2026-05-02 19:31:25  INFO      [TGKBP] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1748246 → 2021_annual_consolidated.zip
+2026-05-02 19:31:31  INFO      [TGKBP] ✓ Сохранён временный файл 2021_annual_consolidated.zip (2902 КБ)
+2026-05-02 19:31:31  INFO      [TGKBP 2021] ✓ PDF из архива → TGKBP_2021.pdf (из 1 файлов, источник: TGC-2_MSFO_2021.pdf)
+2026-05-02 19:31:50  INFO      [TGKBP] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1698199 → 2020_annual_consolidated.zip
+2026-05-02 19:31:54  INFO      [TGKBP] ✓ Сохранён временный файл 2020_annual_consolidated.zip (2865 КБ)
+2026-05-02 19:31:54  INFO      [TGKBP 2020] ✓ PDF из архива → TGKBP_2020.pdf (из 1 файлов, источник: TGC-2_MSFO_2020.pdf)
+2026-05-02 19:32:13  INFO      [TGKBP] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1630894 → 2019_annual_consolidated.zip
+2026-05-02 19:32:20  INFO      [TGKBP] ✓ Сохранён временный файл 2019_annual_consolidated.zip (5237 КБ)
+2026-05-02 19:32:20  INFO      [TGKBP 2019] ✓ PDF из архива → TGKBP_2019.pdf (из 1 файлов, источник: TGC-2_MSFO_2019.pdf)
+2026-05-02 19:32:39  INFO      [TGKBP] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1513464 → 2018_annual_consolidated.zip
+2026-05-02 19:32:47  INFO      [TGKBP] ✓ Сохранён временный файл 2018_annual_consolidated.zip (5568 КБ)
+2026-05-02 19:32:47  INFO      [TGKBP 2018] ✓ PDF из архива → TGKBP_2018.pdf (из 1 файлов, источник: TGC-2_MSFO_12m 2018.pdf)
+2026-05-02 19:32:58  INFO      [TGKBP] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1427248 → 2017_annual_consolidated.zip
+2026-05-02 19:33:16  INFO      [TGKBP] ✓ Сохранён временный файл 2017_annual_consolidated.zip (14002 КБ)
+2026-05-02 19:33:16  INFO      [TGKBP 2017] ✓ PDF из архива → TGKBP_2017.pdf (из 1 файлов, источник: TGC-2_MSFO_2017.pdf)
+2026-05-02 19:33:27  INFO      [TGKBP] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1334100 → 2016_annual_consolidated.zip
+2026-05-02 19:33:41  INFO      [TGKBP] ✓ Сохранён временный файл 2016_annual_consolidated.zip (11686 КБ)
+2026-05-02 19:33:41  INFO      [TGKBP 2016] ✓ PDF из архива → TGKBP_2016.pdf (из 1 файлов, источник: TGC-2_MSFO_2016.pdf)
+2026-05-02 19:34:01  INFO      [TGKBP] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1217435 → 2015_annual_consolidated.zip
+2026-05-02 19:34:05  INFO      [TGKBP] ✓ Сохранён временный файл 2015_annual_consolidated.zip (2372 КБ)
+2026-05-02 19:34:05  INFO      [TGKBP 2015] ✓ PDF из архива → TGKBP_2015.pdf (из 1 файлов, источник: TGC-2_ 2015.pdf)
+2026-05-02 19:34:24  INFO      [TGKBP] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1056973 → 2014_annual_consolidated.zip
+2026-05-02 19:34:28  INFO      [TGKBP] ✓ Сохранён временный файл 2014_annual_consolidated.zip (2336 КБ)
+2026-05-02 19:34:28  INFO      [TGKBP 2014] ✓ PDF из архива → TGKBP_2014.pdf (из 1 файлов, источник: TGC-2_2014.pdf)
+2026-05-02 19:34:48  INFO      [TGKBP] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=859806 → 2013_annual_consolidated.zip
+2026-05-02 19:34:51  INFO      [TGKBP] ✓ Сохранён временный файл 2013_annual_consolidated.zip (2546 КБ)
+2026-05-02 19:34:51  INFO      [TGKBP 2013] ✓ PDF из архива → TGKBP_2013.pdf (из 1 файлов, источник: TGC-2_FS_IFRS_208FZ 2013_final.pdf)
+2026-05-02 19:35:02  INFO      [TGKBP] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=661903 → 2012_annual_consolidated.zip
+2026-05-02 19:35:04  INFO      [TGKBP] ✓ Сохранён временный файл 2012_annual_consolidated.zip (1218 КБ)
+2026-05-02 19:35:04  INFO      [TGKBP 2012] ✓ PDF из архива → TGKBP_2012.pdf (из 1 файлов, источник: ÄΓτÑΓ¡«ßΓ∞ îæöÄ ºá 2012 ú«ñ_Æâè -2.pdf)
+2026-05-02 19:35:04  INFO      Пауза 74 с перед следующей компанией...
+2026-05-02 19:36:18  INFO      ─── [4/24] TGKJ  (e-disclosure id=8657) ──────────────────
+2026-05-02 19:36:36  INFO      [TGKJ] Найдено 12 годовых консолидированных отчётов.
+2026-05-02 19:36:55  INFO      [TGKJ] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1913144 → 2025_annual_consolidated.zip
+2026-05-02 19:37:09  INFO      [TGKJ] ✓ Сохранён временный файл 2025_annual_consolidated.zip (10361 КБ)
+2026-05-02 19:37:09  INFO      [TGKJ 2025] ✓ PDF из архива → TGKJ_2025.pdf (из 1 файлов, источник: ИНТЕРФАКС_Аудиторское заключение и КФО Форвард Энерго 2025.pdf)
+2026-05-02 19:37:26  INFO      [TGKJ] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1867809 → 2024_annual_consolidated.zip
+2026-05-02 19:37:35  INFO      [TGKJ] ✓ Сохранён временный файл 2024_annual_consolidated.zip (8708 КБ)
+2026-05-02 19:37:35  INFO      [TGKJ 2024] ✓ PDF из архива → TGKJ_2024.pdf (из 1 файлов, источник: INTERFAX_Forward Energo èöÄ 24-r_ß Çç  (05.03)_ñ½∩ αáß¬αδΓ¿∩_v2.pdf)
+2026-05-02 19:37:46  INFO      [TGKJ] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1865360 → 2023_annual_consolidated.zip
+2026-05-02 19:37:49  INFO      [TGKJ] ✓ Сохранён временный файл 2023_annual_consolidated.zip (1488 КБ)
+2026-05-02 19:37:49  INFO      [TGKJ 2023] ✓ PDF из архива → TGKJ_2023.pdf (из 1 файлов, источник: êìÆàÉöÇèæ Çπñ¿Γ«αß¬«Ñ ºá¬½ετÑ¡¿Ñ ¿ èöÄ ö«αóáαñ ¥¡Ñαú« 2023 v3.pdf)
+2026-05-02 19:38:04  INFO      [TGKJ] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1780577 → 2022_annual_consolidated.rar
+2026-05-02 19:38:06  INFO      [TGKJ] ✓ Сохранён временный файл 2022_annual_consolidated.rar (1514 КБ)
+2026-05-02 19:38:06  WARNING   [TGKJ] Неизвестный тип файла 2022_annual_consolidated.rar — оставлен как есть. Добавьте обработку вручную.
+2026-05-02 19:38:24  INFO      [TGKJ] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1748375 → 2021_annual_consolidated.zip
+2026-05-02 19:38:29  INFO      [TGKJ] ✓ Сохранён временный файл 2021_annual_consolidated.zip (3124 КБ)
+2026-05-02 19:38:29  INFO      [TGKJ 2021] ✓ PDF из архива → TGKJ_2021.pdf (из 1 файлов, источник: Çπñ¿Γ«αß¬«Ñ ºá¬½ετÑ¡¿Ñ ¿ èöÄ 2021 âè ö«αΓπ¼.pdf)
+2026-05-02 19:38:41  INFO      [TGKJ] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1698284 → 2020_annual_consolidated.zip
+2026-05-02 19:38:44  INFO      [TGKJ] ✓ Сохранён временный файл 2020_annual_consolidated.zip (1399 КБ)
+2026-05-02 19:38:44  INFO      [TGKJ 2020] ✓ PDF из архива → TGKJ_2020.pdf (из 1 файлов, источник: Çπñ¿Γ«αß¬«Ñ ºá¬½ετÑ¡¿Ñ ¿ èöÄ 2020 âè ö«αΓπ¼.pdf)
+2026-05-02 19:39:03  INFO      [TGKJ] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1630790 → 2019_annual_consolidated.zip
+2026-05-02 19:39:05  INFO      [TGKJ] ✓ Сохранён временный файл 2019_annual_consolidated.zip (1059 КБ)
+2026-05-02 19:39:05  INFO      [TGKJ 2019] ✓ PDF из архива → TGKJ_2019.pdf (из 1 файлов, источник: ö«αΓπ¼ èöÄ 2019 Σ¿¡á½.pdf)
+2026-05-02 19:39:20  INFO      [TGKJ] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1512526 → 2018_annual_consolidated.zip
+2026-05-02 19:39:22  INFO      [TGKJ] ✓ Сохранён временный файл 2018_annual_consolidated.zip (656 КБ)
+2026-05-02 19:39:22  INFO      [TGKJ 2018] ✓ PDF из архива → TGKJ_2018.pdf (из 1 файлов, источник: Fortum IFRS ConsFS 18-r.pdf)
+2026-05-02 19:39:32  INFO      [TGKJ] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1425263 → 2017_annual_consolidated.zip
+2026-05-02 19:39:35  INFO      [TGKJ] ✓ Сохранён временный файл 2017_annual_consolidated.zip (1054 КБ)
+2026-05-02 19:39:35  INFO      [TGKJ 2017] ✓ PDF из архива → TGKJ_2017.pdf (из 1 файлов, источник: Fortum IFRS  FS 17-r_reissued.pdf)
+2026-05-02 19:39:51  INFO      [TGKJ] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1333260 → 2016_annual_consolidated.zip
+2026-05-02 19:39:52  INFO      [TGKJ] ✓ Сохранён временный файл 2016_annual_consolidated.zip (828 КБ)
+2026-05-02 19:39:52  INFO      [TGKJ 2016] ✓ PDF из архива → TGKJ_2016.pdf (из 1 файлов, источник: ö«αΓπ¼ èöÄ 2016.pdf)
+2026-05-02 19:40:10  INFO      [TGKJ] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1259889 → 2015_annual_consolidated.zip
+2026-05-02 19:40:12  INFO      [TGKJ] ✓ Сохранён временный файл 2015_annual_consolidated.zip (1282 КБ)
+2026-05-02 19:40:12  INFO      [TGKJ 2015] ✓ PDF из архива → TGKJ_2015.pdf (из 1 файлов, источник: Fortum IFRS Cons FS 15-r.pdf)
+2026-05-02 19:40:27  INFO      [TGKJ] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1300770 → 2014_annual_consolidated.zip
+2026-05-02 19:40:28  INFO      [TGKJ] ✓ Сохранён временный файл 2014_annual_consolidated.zip (919 КБ)
+2026-05-02 19:40:28  INFO      [TGKJ 2014] ✓ PDF из архива → TGKJ_2014.pdf (из 1 файлов, источник: Fortum IFRS Cons FS 14-r.pdf)
+2026-05-02 19:40:28  INFO      Пауза 80 с перед следующей компанией...
+2026-05-02 19:41:48  INFO      ─── [5/24] TGKN  (e-disclosure id=9396) ──────────────────
+2026-05-02 19:42:04  INFO      [TGKN] Найдено 14 годовых консолидированных отчётов.
+2026-05-02 19:42:14  INFO      [TGKN] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1920934 → 2025_annual_consolidated.zip
+2026-05-02 19:42:16  INFO      [TGKN] ✓ Сохранён временный файл 2025_annual_consolidated.zip (1201 КБ)
+2026-05-02 19:42:16  INFO      [TGKN 2025] ✓ PDF из архива → TGKN_2025.pdf (из 1 файлов, источник: Консолидированная финансовая отчетность (годовая) за 2025 г. (2).pdf)
+2026-05-02 19:42:31  INFO      [TGKN] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1874108 → 2024_annual_consolidated.zip
+2026-05-02 19:42:35  INFO      [TGKN] ✓ Сохранён временный файл 2024_annual_consolidated.zip (2950 КБ)
+2026-05-02 19:42:35  INFO      [TGKN 2024] ✓ PDF из архива → TGKN_2024.pdf (из 1 файлов, источник: Консолидированная финансовая отчетность (годовая) за 2024 г..pdf)
+2026-05-02 19:42:45  INFO      [TGKN] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1830331 → 2023_annual_consolidated.zip
+2026-05-02 19:43:02  INFO      [TGKN] ✓ Сохранён временный файл 2023_annual_consolidated.zip (14421 КБ)
+2026-05-02 19:43:03  INFO      [TGKN 2023] ✓ PDF из архива → TGKN_2023.pdf (из 1 файлов, источник: â«ñ«óá∩ ¬«¡ß«½¿ñ¿α«óá¡¡á∩ Σ¿¡á¡ß«óá∩ «ΓτÑΓ¡«ßΓ∞ ºá 2023 ú..pdf)
+2026-05-02 19:43:18  INFO      [TGKN] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1787313 → 2022_annual_consolidated.zip
+2026-05-02 19:43:29  INFO      [TGKN] ✓ Сохранён временный файл 2022_annual_consolidated.zip (9086 КБ)
+2026-05-02 19:43:29  INFO      [TGKN 2022] ✓ PDF из архива → TGKN_2022.pdf (из 1 файлов, источник: â«ñ«óá∩ ¬«¡ß«½¿ñ¿α«óá¡¡á∩ Σ¿¡á¡ß«óá∩ «ΓτÑΓ¡«ßΓ∞ ºá 2022 ú..pdf)
+2026-05-02 19:43:49  INFO      [TGKN] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1745793 → 2021_annual_consolidated.zip
+2026-05-02 19:43:58  INFO      [TGKN] ✓ Сохранён временный файл 2021_annual_consolidated.zip (7112 КБ)
+2026-05-02 19:43:58  INFO      [TGKN 2021] ✓ PDF из архива → TGKN_2021.pdf (из 1 файлов, источник: â«ñ«óá∩ ¬«¡ß«½¿ñ¿α«óá¡¡á∩ Σ¿¡á¡ß«óá∩ «ΓτÑΓ¡«ßΓ∞ ºá 2021 ú..pdf)
+2026-05-02 19:44:16  INFO      [TGKN] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1735691 → 2020_annual_consolidated.zip
+2026-05-02 19:44:20  INFO      [TGKN] ✓ Сохранён временный файл 2020_annual_consolidated.zip (2144 КБ)
+2026-05-02 19:44:20  INFO      [TGKN 2020] ✓ PDF из архива → TGKN_2020.pdf (из 1 файлов, источник: â«ñ«óá∩ ¬«¡ß«½¿ñ¿α«óá¡¡á∩ Σ¿¡á¡ß«óá∩ «ΓτÑΓ¡«ßΓ∞ ºá 2020 ú..pdf)
+2026-05-02 19:44:39  INFO      [TGKN] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1735690 → 2019_annual_consolidated.zip
+2026-05-02 19:44:48  INFO      [TGKN] ✓ Сохранён временный файл 2019_annual_consolidated.zip (7097 КБ)
+2026-05-02 19:44:48  INFO      [TGKN 2019] ✓ PDF из архива → TGKN_2019.pdf (из 1 файлов, источник: â«ñ«óá∩ ¬«¡ß«½¿ñ¿α«óá¡¡á∩ Σ¿¡á¡ß«óá∩ «ΓτÑΓ¡«ßΓ∞ ºá 2019 ú..pdf)
+2026-05-02 19:45:03  INFO      [TGKN] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1508577 → 2018_annual_consolidated.zip
+2026-05-02 19:45:05  INFO      [TGKN] ✓ Сохранён временный файл 2018_annual_consolidated.zip (1558 КБ)
+2026-05-02 19:45:05  INFO      [TGKN 2018] ✓ PDF из архива → TGKN_2018.pdf (из 1 файлов, источник: â«ñ«óá∩ ¬«¡ß«½¿ñ¿α«óá¡¡á∩ Σ¿¡á¡ß«óá∩ «ΓτÑΓ¡«ßΓ∞ ºá 2018 ú. (010419).pdf)
+2026-05-02 19:45:23  INFO      [TGKN] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1422054 → 2017_annual_consolidated.zip
+2026-05-02 19:45:33  INFO      [TGKN] ✓ Сохранён временный файл 2017_annual_consolidated.zip (5010 КБ)
+2026-05-02 19:45:33  INFO      [TGKN 2017] ✓ PDF из архива → TGKN_2017.pdf (из 1 файлов, источник: â«ñ«óá∩ ¬«¡ß«½¿ñ¿α«óá¡¡á∩ Σ¿¡á¡ß«óá∩ «ΓτÑΓ¡«ßΓ∞ ºá 2017 ú..pdf (300318).pdf)
+2026-05-02 19:45:47  INFO      [TGKN] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1319998 → 2016_annual_consolidated.zip
+2026-05-02 19:45:49  INFO      [TGKN] ✓ Сохранён временный файл 2016_annual_consolidated.zip (2260 КБ)
+2026-05-02 19:45:49  INFO      [TGKN 2016] ✓ PDF из архива → TGKN_2016.pdf (из 1 файлов, источник: â«ñ«óá∩ ¬«¡ß«½¿ñ¿α«óá¡¡á∩ Σ¿¡á¡ß«óá∩ «ΓτÑΓ¡«ßΓ∞ ºá 2016 ú..pdf (270317).pdf)
+2026-05-02 19:46:03  INFO      [TGKN] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1210181 → 2015_annual_consolidated.zip
+2026-05-02 19:46:07  INFO      [TGKN] ✓ Сохранён временный файл 2015_annual_consolidated.zip (2994 КБ)
+2026-05-02 19:46:07  INFO      [TGKN 2015] ✓ PDF из архива → TGKN_2015.pdf (из 1 файлов, источник: ö¿¡á¡ß«óá∩ «ΓτÑΓ¡«ßΓ∞ ó ßΓá¡ñáαΓáσ îæöÄ ¿½¿ US GAAP (ú«ñ«óá∩) ºá 2015 ú..pdf (060416).pdf)
+2026-05-02 19:46:18  INFO      [TGKN] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1126072 → 2014_annual_consolidated.zip
+2026-05-02 19:46:27  INFO      [TGKN] ✓ Сохранён временный файл 2014_annual_consolidated.zip (5600 КБ)
+2026-05-02 19:46:27  INFO      [TGKN 2014] ✓ PDF из архива → TGKN_2014.pdf (из 1 файлов, источник: àªÑ¬óáαΓá½∞¡δ⌐ «ΓτÑΓ ºá 2-⌐ ¬óáαΓá½ 2015 ú. (2).pdf (140815).pdf)
+2026-05-02 19:46:46  INFO      [TGKN] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=930610 → 2013_annual_consolidated.zip
+2026-05-02 19:46:58  INFO      [TGKN] ✓ Сохранён временный файл 2013_annual_consolidated.zip (9591 КБ)
+2026-05-02 19:46:58  INFO      [TGKN 2013] ✓ PDF из архива → TGKN_2013.pdf (из 1 файлов, источник: ö¿¡á¡ß«óá∩ «ΓτÑΓ¡«ßΓ∞ ó ßΓá¡ñáαΓáσ îæöÄ ¿½¿ US GAAP (ú«ñ«óá∩) ºá 2013 ú..pdf (300414).pdf)
+2026-05-02 19:47:11  INFO      [TGKN] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=765071 → 2012_annual_consolidated.zip
+2026-05-02 19:47:19  INFO      [TGKN] ✓ Сохранён временный файл 2012_annual_consolidated.zip (2196 КБ)
+2026-05-02 19:47:19  INFO      [TGKN 2012] ✓ PDF из архива → TGKN_2012.pdf (из 1 файлов, источник: ö¿¡á¡ß«óá∩ «ΓτÑΓ¡«ßΓ∞ ó ßΓá¡ñáαΓáσ îæöÄ ¿½¿ US GAAP (ú«ñ«óá∩) ºá 2012 ú..pdf)
+2026-05-02 19:47:19  INFO      Пауза 73 с перед следующей компанией...
+2026-05-02 19:48:31  INFO      ─── [6/24] TRNFP  (e-disclosure id=636) ──────────────────
+2026-05-02 19:48:45  INFO      [TRNFP] Найдено 3 годовых консолидированных отчётов.
+2026-05-02 19:48:58  INFO      [TRNFP] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1917086 → 2025_annual_consolidated.zip
+2026-05-02 19:48:59  INFO      [TRNFP] ✓ Сохранён временный файл 2025_annual_consolidated.zip (1164 КБ)
+2026-05-02 19:48:59  INFO      [TRNFP 2025] ✓ PDF из архива → TRNFP_2025.pdf (из 1 файлов, источник: TN_IFRS_12m2025_RUS_discl.pdf)
+2026-05-02 19:49:10  INFO      [TRNFP] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1871667 → 2024_annual_consolidated.zip
+2026-05-02 19:49:13  INFO      [TRNFP] ✓ Сохранён временный файл 2024_annual_consolidated.zip (1985 КБ)
+2026-05-02 19:49:13  INFO      [TRNFP 2024] ✓ PDF из архива → TRNFP_2024.pdf (из 1 файлов, источник: TN_IFRS_12m2024_RUS_discl.pdf)
+2026-05-02 19:49:24  INFO      [TRNFP] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1825911 → 2023_annual_consolidated.zip
+2026-05-02 19:49:28  INFO      [TRNFP] ✓ Сохранён временный файл 2023_annual_consolidated.zip (1958 КБ)
+2026-05-02 19:49:28  INFO      [TRNFP 2023] ✓ PDF из архива → TRNFP_2023.pdf (из 1 файлов, источник: TN_IFRS_12m2023_RUS_discl.pdf)
+2026-05-02 19:49:28  INFO      Пауза 85 с перед следующей компанией...
+2026-05-02 19:50:53  INFO      ─── [7/24] TTLK  (e-disclosure id=814) ──────────────────
+2026-05-02 19:51:10  INFO      [TTLK] Найдено 15 годовых консолидированных отчётов.
+2026-05-02 19:51:26  INFO      [TTLK] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1923798 → 2025_annual_consolidated.zip
+2026-05-02 19:51:39  INFO      [TTLK] ✓ Сохранён временный файл 2025_annual_consolidated.zip (10222 КБ)
+2026-05-02 19:51:39  INFO      [TTLK 2025] ✓ PDF из архива → TTLK_2025.pdf (из 1 файлов, источник: Таттелеком,ПАО_2025_МСФО_АЗ бух.отчт.pdf)
+2026-05-02 19:51:52  INFO      [TTLK] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1877786 → 2024_annual_consolidated.zip
+2026-05-02 19:51:58  INFO      [TTLK] ✓ Сохранён временный файл 2024_annual_consolidated.zip (5444 КБ)
+2026-05-02 19:51:58  INFO      [TTLK 2024] ✓ PDF из архива → TTLK_2024.pdf (из 1 файлов, источник: Таттелеком,ПАО_2024_МСФО_ФО АЗ.pdf)
+2026-05-02 19:52:18  INFO      [TTLK] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1834438 → 2023_annual_consolidated.zip
+2026-05-02 19:52:35  INFO      [TTLK] ✓ Сохранён временный файл 2023_annual_consolidated.zip (11841 КБ)
+2026-05-02 19:52:35  INFO      [TTLK 2023] ✓ PDF из архива → TTLK_2023.pdf (из 1 файлов, источник: ÆáΓΓÑ½Ñ¬«¼,ÅÇÄ_2023_Çç íπσ.«ΓτΓ_îæöÄ.pdf)
+2026-05-02 19:52:52  INFO      [TTLK] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1790551 → 2022_annual_consolidated.zip
+2026-05-02 19:53:04  INFO      [TTLK] ✓ Сохранён временный файл 2022_annual_consolidated.zip (10932 КБ)
+2026-05-02 19:53:04  INFO      [TTLK 2022] ✓ PDF из архива → TTLK_2022.pdf (из 1 файлов, источник: Çç_ÆáΓΓÑ½Ñ¬«¼_îæöÄ_83_26.04.2023__compressed.pdf)
+2026-05-02 19:53:21  INFO      [TTLK] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1748126 → 2021_annual_consolidated.zip
+2026-05-02 19:53:24  INFO      [TTLK] ✓ Сохранён временный файл 2021_annual_consolidated.zip (1736 КБ)
+2026-05-02 19:53:24  INFO      [TTLK 2021] ✓ PDF из архива → TTLK_2021.pdf (из 1 файлов, источник: ÆáΓΓÑ½Ñ¬«¼ ÅÇÄ - ¬«¡ß«½¿ñ¿α«óá¡¡á∩ «ΓτÑΓ¡«ßΓ∞ ºá 2021 ú«ñ.pdf)
+2026-05-02 19:53:40  INFO      [TTLK] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1695573 → 2020_annual_consolidated.zip
+2026-05-02 19:53:54  INFO      [TTLK] ✓ Сохранён временный файл 2020_annual_consolidated.zip (11389 КБ)
+2026-05-02 19:53:54  INFO      [TTLK 2020] ✓ PDF из архива → TTLK_2020.pdf (из 1 файлов, источник: ÆáΓΓÑ½Ñ¬«¼,ÅÇÄ_2020_Çç íπσ.«ΓτΓ (îæöÄ).pdf)
+2026-05-02 19:54:08  INFO      [TTLK] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1628011 → 2019_annual_consolidated.zip
+2026-05-02 19:54:16  INFO      [TTLK] ✓ Сохранён временный файл 2019_annual_consolidated.zip (3376 КБ)
+2026-05-02 19:54:16  INFO      [TTLK 2019] ✓ PDF из архива → TTLK_2019.pdf (из 1 файлов, источник: TATTELECOM IFRS 12 ¼Ñß.2019ú. 08.04.2020_Çç «ΓτÑΓ¡«ßΓ∞.pdf)
+2026-05-02 19:54:26  INFO      [TTLK] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1512449 → 2018_annual_consolidated.zip
+2026-05-02 19:54:33  INFO      [TTLK] ✓ Сохранён временный файл 2018_annual_consolidated.zip (4238 КБ)
+2026-05-02 19:54:33  INFO      [TTLK 2018] ✓ PDF из архива → TTLK_2018.pdf (из 1 файлов, источник: TATTELECOM IFRS 2018 от 25.04.2019.pdf)
+2026-05-02 19:54:53  INFO      [TTLK] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1426970 → 2017_annual_consolidated.zip
+2026-05-02 19:54:57  INFO      [TTLK] ✓ Сохранён временный файл 2017_annual_consolidated.zip (2157 КБ)
+2026-05-02 19:54:57  INFO      [TTLK 2017] ✓ PDF из архива → TTLK_2017.pdf (из 1 файлов, источник: «ΓτÑΓ¡«ßΓ∞ îæöÄ ºá 2017ú..pdf)
+2026-05-02 19:55:08  INFO      [TTLK] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1333766 → 2016_annual_consolidated.zip
+2026-05-02 19:55:12  INFO      [TTLK] ✓ Сохранён временный файл 2016_annual_consolidated.zip (2283 КБ)
+2026-05-02 19:55:12  INFO      [TTLK 2016] ✓ PDF из архива → TTLK_2016.pdf (из 1 файлов, источник: TATTELECOM_IFRS _2016 26042017.pdf)
+2026-05-02 19:55:28  INFO      [TTLK] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1229305 → 2015_annual_consolidated.zip
+2026-05-02 19:55:30  INFO      [TTLK] ✓ Сохранён временный файл 2015_annual_consolidated.zip (2063 КБ)
+2026-05-02 19:55:30  INFO      [TTLK 2015] ✓ PDF из архива → TTLK_2015.pdf (из 1 файлов, источник: ÆáΓΓÑ½Ñ¬«¼ IFRS 2015ú. «Γ 22.04.16.pdf)
+2026-05-02 19:55:40  INFO      [TTLK] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1057734 → 2014_annual_consolidated.zip
+2026-05-02 19:55:42  INFO      [TTLK] ✓ Сохранён временный файл 2014_annual_consolidated.zip (1110 КБ)
+2026-05-02 19:55:42  INFO      [TTLK 2014] ✓ PDF из архива → TTLK_2014.pdf (из 1 файлов, источник: ÆáΓΓÑ½Ñ¬«¼ IFRS 2014ú_RUS.pdf)
+2026-05-02 19:56:01  INFO      [TTLK] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=859798 → 2013_annual_consolidated.zip
+2026-05-02 19:56:03  INFO      [TTLK] ✓ Сохранён временный файл 2013_annual_consolidated.zip (1289 КБ)
+2026-05-02 19:56:03  INFO      [TTLK 2013] ✓ PDF из архива → TTLK_2013.pdf (из 1 файлов, источник: Tattelecom IFRS 2013_RUS_signed (UPDATED).pdf)
+2026-05-02 19:56:20  INFO      [TTLK] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=638339 → 2012_annual_consolidated.zip
+2026-05-02 19:56:22  INFO      [TTLK] ✓ Сохранён временный файл 2012_annual_consolidated.zip (1448 КБ)
+2026-05-02 19:56:22  INFO      [TTLK 2012] ✓ PDF из архива → TTLK_2012.pdf (из 1 файлов, источник: Tattelecom IFRS 2012 FS_RUS.pdf)
+2026-05-02 19:56:36  INFO      [TTLK] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=329440 → 2011_annual_consolidated.zip
+2026-05-02 19:56:38  INFO      [TTLK] ✓ Сохранён временный файл 2011_annual_consolidated.zip (1209 КБ)
+2026-05-02 19:56:38  INFO      [TTLK 2011] ✓ PDF из архива → TTLK_2011.pdf (из 1 файлов, источник: TATTELECOM IFRS 2011 (RUS).pdf)
+2026-05-02 19:56:38  INFO      Пауза 58 с перед следующей компанией...
+2026-05-02 19:57:36  INFO      ─── [8/24] UDMN  (e-disclosure id=1370) ──────────────────
+2026-05-02 19:57:53  INFO      [UDMN] Найдено 10 годовых консолидированных отчётов.
+2026-05-02 19:58:08  INFO      [UDMN] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1738814 → 2021_annual_consolidated.zip
+2026-05-02 19:58:13  INFO      [UDMN] ✓ Сохранён временный файл 2021_annual_consolidated.zip (3070 КБ)
+2026-05-02 19:58:13  INFO      [UDMN 2021] ✓ PDF из архива → UDMN_2021.pdf (из 1 файлов, источник: è«¡ß«½¿ñ¿α«óá¡¡á∩_ÄΓτÑΓ¡«ßΓ∞_ôäì_2021.pdf)
+2026-05-02 19:58:26  INFO      [UDMN] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1684545 → 2020_annual_consolidated.zip
+2026-05-02 19:58:33  INFO      [UDMN] ✓ Сохранён временный файл 2020_annual_consolidated.zip (4621 КБ)
+2026-05-02 19:58:33  INFO      [UDMN 2020] ✓ PDF из архива → UDMN_2020.pdf (из 1 файлов, источник: Ç1.1_è«¡ß«½¿ñ¿α«óá¡¡á∩ «ΓτÑΓ¡«ßΓ∞_ôäì_2020_απß_«í∩º_Σ¿¡á½.pdf)
+2026-05-02 19:58:51  INFO      [UDMN] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1632984 → 2019_annual_consolidated.zip
+2026-05-02 19:58:57  INFO      [UDMN] ✓ Сохранён временный файл 2019_annual_consolidated.zip (4042 КБ)
+2026-05-02 19:58:57  INFO      [UDMN 2019] ✓ PDF из архива → UDMN_2019.pdf (из 1 файлов, источник: 2019_è«¡ß«½¿ñ¿α«óá¡¡á∩_ÄΓτÑΓ¡«ßΓ∞.pdf)
+2026-05-02 19:59:16  INFO      [UDMN] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1494504 → 2018_annual_consolidated.zip
+2026-05-02 19:59:22  INFO      [UDMN] ✓ Сохранён временный файл 2018_annual_consolidated.zip (3484 КБ)
+2026-05-02 19:59:22  INFO      [UDMN 2018] ✓ PDF из архива → UDMN_2018.pdf (из 1 файлов, источник: Ç1.1_è«¡ß«½¿ñ¿α«óá¡¡á∩_ÄΓτÑΓ¡«ßΓ∞_çá¬½ετÑ¡¿Ñ_ôäì_2018.pdf)
+2026-05-02 19:59:41  INFO      [UDMN] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1404234 → 2017_annual_consolidated.zip
+2026-05-02 19:59:44  INFO      [UDMN] ✓ Сохранён временный файл 2017_annual_consolidated.zip (2700 КБ)
+2026-05-02 19:59:44  INFO      [UDMN 2017] ✓ PDF из архива → UDMN_2017.pdf (из 1 файлов, источник: Ç1.1_è«¡ß«½¿ñ¿α«óá¡¡á∩_ÄΓτÑΓ¡«ßΓ∞_ôäì_2017.pdf)
+2026-05-02 20:00:01  INFO      [UDMN] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1307055 → 2016_annual_consolidated.zip
+2026-05-02 20:00:04  INFO      [UDMN] ✓ Сохранён временный файл 2016_annual_consolidated.zip (2288 КБ)
+2026-05-02 20:00:04  INFO      [UDMN 2016] ✓ PDF из архива → UDMN_2016.pdf (из 1 файлов, источник: è«¡ß«½¿ñ¿α«óá¡¡á∩_ÄΓτÑΓ¡«ßΓ∞_çá¬½ετÑ¡¿Ñ_ôäì_2016_öæÇä.pdf)
+2026-05-02 20:00:22  INFO      [UDMN] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1181452 → 2015_annual_consolidated.zip
+2026-05-02 20:00:26  INFO      [UDMN] ✓ Сохранён временный файл 2015_annual_consolidated.zip (2077 КБ)
+2026-05-02 20:00:26  INFO      [UDMN 2015] ✓ PDF из архива → UDMN_2015.pdf (из 1 файлов, источник: è«¡ß«½¿ñ¿α«óá¡¡á∩_ÄΓτÑΓ¡«ßΓ∞_ôäì_2015.pdf)
+2026-05-02 20:00:45  INFO      [UDMN] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1011622 → 2014_annual_consolidated.zip
+2026-05-02 20:00:48  INFO      [UDMN] ✓ Сохранён временный файл 2014_annual_consolidated.zip (1958 КБ)
+2026-05-02 20:00:48  INFO      [UDMN 2014] ✓ PDF из архива → UDMN_2014.pdf (из 1 файлов, источник: è«¡ß.íπσ.«Γτ.»« îöæÄ ºá 2014.pdf)
+2026-05-02 20:01:01  INFO      [UDMN] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=811548 → 2013_annual_consolidated.zip
+2026-05-02 20:01:04  INFO      [UDMN] ✓ Сохранён временный файл 2013_annual_consolidated.zip (2373 КБ)
+2026-05-02 20:01:05  INFO      [UDMN 2013] ✓ PDF из архива → UDMN_2013.pdf (из 1 файлов, источник: Çç ¿ «ΓτÑΓ¡«ßΓ∞ îæöÄ ôñ¼παΓ¡ÑΣΓ∞ 2013 ú..pdf)
+2026-05-02 20:01:21  INFO      [UDMN] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=630772 → 2012_annual_consolidated.zip
+2026-05-02 20:01:22  INFO      [UDMN] ✓ Сохранён временный файл 2012_annual_consolidated.zip (1192 КБ)
+2026-05-02 20:01:22  INFO      [UDMN 2012] ✓ PDF из архива → UDMN_2012.pdf (из 1 файлов, источник: Çπñ¿Γ«αß¬«Ñ ºá¬½ετÑ¡¿Ñ ÄÇÄ ôñ¼παΓ¡ÑΣΓ∞ ºá 2012_îæöÄ.pdf)
+2026-05-02 20:01:22  INFO      Пауза 65 с перед следующей компанией...
+2026-05-02 20:02:27  INFO      ─── [9/24] UFOSP  (e-disclosure id=2017) ──────────────────
+2026-05-02 20:02:42  WARNING   [UFOSP] Годовые консолидированные отчёты не найдены.
+2026-05-02 20:02:42  INFO      Пауза 62 с перед следующей компанией...
+2026-05-02 20:03:44  INFO      ─── [10/24] UGLD  (e-disclosure id=11794) ──────────────────
+2026-05-02 20:03:59  INFO      [UGLD] Найдено 6 годовых консолидированных отчётов.
+2026-05-02 20:04:13  INFO      [UGLD] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1924831 → 2025_annual_consolidated.zip
+2026-05-02 20:04:15  INFO      [UGLD] ✓ Сохранён временный файл 2025_annual_consolidated.zip (1554 КБ)
+2026-05-02 20:04:15  INFO      [UGLD 2025] ✓ PDF из архива → UGLD_2025.pdf (из 1 файлов, источник: ПАО ЮГК МСФО 2025.pdf)
+2026-05-02 20:04:33  INFO      [UGLD] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1875957 → 2024_annual_consolidated.zip
+2026-05-02 20:04:35  INFO      [UGLD] ✓ Сохранён временный файл 2024_annual_consolidated.zip (1615 КБ)
+2026-05-02 20:04:35  INFO      [UGLD 2024] ✓ PDF из архива → UGLD_2024.pdf (из 1 файлов, источник: UGC IFRS Cons FS 2024.pdf)
+2026-05-02 20:04:46  INFO      [UGLD] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1835029 → 2023_annual_consolidated.zip
+2026-05-02 20:04:49  INFO      [UGLD] ✓ Сохранён временный файл 2023_annual_consolidated.zip (1520 КБ)
+2026-05-02 20:04:49  INFO      [UGLD 2023] ✓ PDF из архива → UGLD_2023.pdf (из 1 файлов, источник: UGC IFRS 2023_RUS.pdf)
+2026-05-02 20:05:01  INFO      [UGLD] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1791248 → 2022_annual_consolidated.rar
+2026-05-02 20:05:03  INFO      [UGLD] ✓ Сохранён временный файл 2022_annual_consolidated.rar (1500 КБ)
+2026-05-02 20:05:03  WARNING   [UGLD] Неизвестный тип файла 2022_annual_consolidated.rar — оставлен как есть. Добавьте обработку вручную.
+2026-05-02 20:05:20  INFO      [UGLD] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1771488 → 2021_annual_consolidated.zip
+2026-05-02 20:05:23  INFO      [UGLD] ✓ Сохранён временный файл 2021_annual_consolidated.zip (1753 КБ)
+2026-05-02 20:05:23  INFO      [UGLD 2021] ✓ PDF из архива → UGLD_2021.pdf (из 1 файлов, источник: AO UGC_IFRS Cons_2019_2021_Rus.pdf)
+2026-05-02 20:05:42  INFO      [UGLD] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=305123 → 2009_annual_consolidated.rar
+2026-05-02 20:05:42  INFO      [UGLD] ✓ Сохранён временный файл 2009_annual_consolidated.rar (50 КБ)
+2026-05-02 20:05:42  WARNING   [UGLD] Неизвестный тип файла 2009_annual_consolidated.rar — оставлен как есть. Добавьте обработку вручную.
+2026-05-02 20:05:42  INFO      Пауза 52 с перед следующей компанией...
+2026-05-02 20:06:34  INFO      ─── [11/24] UNAC  (e-disclosure id=11433) ──────────────────
+2026-05-02 20:06:51  INFO      [UNAC] Найдено 6 годовых консолидированных отчётов.
+2026-05-02 20:07:03  INFO      [UNAC] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1925076 → 2025_annual_consolidated.zip
+2026-05-02 20:07:06  INFO      [UNAC] ✓ Сохранён временный файл 2025_annual_consolidated.zip (2695 КБ)
+2026-05-02 20:07:06  INFO      [UNAC 2025] ✓ PDF из архива → UNAC_2025.pdf (из 1 файлов, источник: Годовая КФО ОАК за 2025 год с ограничением.pdf)
+2026-05-02 20:07:19  INFO      [UNAC] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1877552 → 2024_annual_consolidated.zip
+2026-05-02 20:07:24  INFO      [UNAC] ✓ Сохранён временный файл 2024_annual_consolidated.zip (3610 КБ)
+2026-05-02 20:07:24  INFO      [UNAC 2024] ✓ PDF из архива → UNAC_2024.pdf (из 1 файлов, источник: Годовая КФО ОАК за 2024 год с ограничением.pdf)
+2026-05-02 20:07:43  INFO      [UNAC] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1860283 → 2023_annual_consolidated.zip
+2026-05-02 20:07:49  INFO      [UNAC] ✓ Сохранён временный файл 2023_annual_consolidated.zip (4114 КБ)
+2026-05-02 20:07:49  INFO      [UNAC 2023] ✓ PDF из архива → UNAC_2023.pdf (из 1 файлов, источник: âèöÄ ÄÇè 2023_ß «úαá¡¿τÑ¡¿Ñ¼_»«óΓ«α¡«.pdf)
+2026-05-02 20:08:07  INFO      [UNAC] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1748255 → 2021_annual_consolidated.zip
+2026-05-02 20:08:10  INFO      [UNAC] ✓ Сохранён временный файл 2021_annual_consolidated.zip (1440 КБ)
+2026-05-02 20:08:10  INFO      [UNAC 2021] ✓ PDF из архива → UNAC_2021.pdf (из 1 файлов, источник: âèöÄ 2021_ß Çç _«úα.pdf)
+2026-05-02 20:08:28  INFO      [UNAC] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1727139 → 2020_annual_consolidated.zip
+2026-05-02 20:08:45  INFO      [UNAC] ✓ Сохранён временный файл 2020_annual_consolidated.zip (8132 КБ)
+2026-05-02 20:08:45  INFO      [UNAC 2020] ✓ PDF из архива → UNAC_2020.pdf (из 1 файлов, источник: âèöÄ ÄÇè 2020_ß «úαá¡¿τÑ¡¿Ñ ¿¡Σ«.pdf)
+2026-05-02 20:09:00  INFO      [UNAC] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1632566 → 2019_annual_consolidated.zip
+2026-05-02 20:09:13  INFO      [UNAC] ✓ Сохранён временный файл 2019_annual_consolidated.zip (9066 КБ)
+2026-05-02 20:09:13  INFO      [UNAC 2019] ✓ PDF из архива → UNAC_2019.pdf (из 1 файлов, источник: èöÄ ÄÇè 2019+«í«íΘÑ¡¡«Ñ Çç_ß «úαá¡¿τÑ¡¿Ñ¼ »« ÅÅ 400.pdf)
+2026-05-02 20:09:13  INFO      Пауза 66 с перед следующей компанией...
+2026-05-02 20:10:19  INFO      ─── [12/24] UNKL  (e-disclosure id=3987) ──────────────────
+2026-05-02 20:10:30  INFO      [UNKL] Найдено 6 годовых консолидированных отчётов.
+2026-05-02 20:10:44  INFO      [UNKL] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1920718 → 2025_annual_consolidated.zip
+2026-05-02 20:10:48  INFO      [UNKL] ✓ Сохранён временный файл 2025_annual_consolidated.zip (2337 КБ)
+2026-05-02 20:10:48  INFO      [UNKL 2025] ✓ PDF из архива → UNKL_2025.pdf (из 1 файлов, источник: АЗ Комбинат Южуралникель_2025 МСФО обобщенная.pdf)
+2026-05-02 20:11:06  INFO      [UNKL] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1875395 → 2024_annual_consolidated.zip
+2026-05-02 20:11:09  INFO      [UNKL] ✓ Сохранён временный файл 2024_annual_consolidated.zip (1911 КБ)
+2026-05-02 20:11:09  INFO      [UNKL 2024] ✓ PDF из архива → UNKL_2024.pdf (из 1 файлов, источник: АЗ ОКФО ЮУНК за 2024г (с отчетностью).pdf)
+2026-05-02 20:11:25  INFO      [UNKL] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1854773 → 2023_annual_consolidated.zip
+2026-05-02 20:11:30  INFO      [UNKL] ✓ Сохранён временный файл 2023_annual_consolidated.zip (2999 КБ)
+2026-05-02 20:11:30  INFO      [UNKL 2023] ✓ PDF из архива → UNKL_2023.pdf (из 1 файлов, источник: Çç ₧ôìè_2023 îæöÄ.pdf)
+2026-05-02 20:11:45  INFO      [UNKL] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1744819 → 2021_annual_consolidated.zip
+2026-05-02 20:11:48  INFO      [UNKL] ✓ Сохранён временный файл 2021_annual_consolidated.zip (1736 КБ)
+2026-05-02 20:11:48  INFO      [UNKL 2021] ✓ PDF из архива → UNKL_2021.pdf (из 1 файлов, источник: îæöÄ è«¼í¿¡áΓ ₧ªπαá½¡¿¬Ñ½∞_2021.pdf)
+2026-05-02 20:12:05  INFO      [UNKL] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1694068 → 2020_annual_consolidated.zip
+2026-05-02 20:12:06  INFO      [UNKL] ✓ Сохранён временный файл 2020_annual_consolidated.zip (1070 КБ)
+2026-05-02 20:12:06  INFO      [UNKL 2020] ✓ PDF из архива → UNKL_2020.pdf (из 1 файлов, источник: îæöÄ_₧ôìè_2020.pdf)
+2026-05-02 20:12:18  INFO      [UNKL] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1644592 → 2019_annual_consolidated.zip
+2026-05-02 20:12:20  INFO      [UNKL] ✓ Сохранён временный файл 2019_annual_consolidated.zip (1082 КБ)
+2026-05-02 20:12:20  INFO      [UNKL 2019] ✓ PDF из архива → UNKL_2019.pdf (из 1 файлов, источник: îæöÄ_₧ôìè_2019 rus.pdf)
+2026-05-02 20:12:20  INFO      Пауза 55 с перед следующей компанией...
+2026-05-02 20:13:14  INFO      ─── [13/24] UPRO  (e-disclosure id=7878) ──────────────────
+2026-05-02 20:13:28  INFO      [UPRO] Найдено 18 годовых консолидированных отчётов.
+2026-05-02 20:13:44  INFO      [UPRO] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1913013 → 2025_annual_consolidated.zip
+2026-05-02 20:13:45  INFO      [UPRO] ✓ Сохранён временный файл 2025_annual_consolidated.zip (731 КБ)
+2026-05-02 20:13:45  INFO      [UPRO 2025] ✓ PDF из архива → UPRO_2025.pdf (из 1 файлов, источник: Обобщенная отчетность МСФО_Юнипро_2025.pdf)
+2026-05-02 20:14:00  INFO      [UPRO] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1867709 → 2024_annual_consolidated.zip
+2026-05-02 20:14:02  INFO      [UPRO] ✓ Сохранён временный файл 2024_annual_consolidated.zip (2369 КБ)
+2026-05-02 20:14:02  INFO      [UPRO 2024] ✓ PDF из архива → UPRO_2024.pdf (из 1 файлов, источник: ₧¡¿»α« â«ñ«óá∩ èöÄ »« îæöÄ ºá 2024 ú«ñ.pdf)
+2026-05-02 20:14:22  INFO      [UPRO] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1823192 → 2023_annual_consolidated.zip
+2026-05-02 20:14:24  INFO      [UPRO] ✓ Сохранён временный файл 2023_annual_consolidated.zip (1358 КБ)
+2026-05-02 20:14:24  INFO      [UPRO 2023] ✓ PDF из архива → UPRO_2023.pdf (из 1 файлов, источник: èöÄ îæöÄ ºá 2023 ú«ñ.pdf)
+2026-05-02 20:14:36  INFO      [UPRO] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1779859 → 2022_annual_consolidated.zip
+2026-05-02 20:14:43  INFO      [UPRO] ✓ Сохранён временный файл 2022_annual_consolidated.zip (5980 КБ)
+2026-05-02 20:14:43  INFO      [UPRO 2022] ✓ PDF из архива → UPRO_2022.pdf (из 1 файлов, источник: ö¿¡á¡ß«óá∩ «ΓτÑΓ¡«ßΓ∞ »« îæöÄ ºá 2022.pdf)
+2026-05-02 20:15:02  INFO      [UPRO] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1736399 → 2021_annual_consolidated.zip
+2026-05-02 20:15:04  INFO      [UPRO] ✓ Сохранён временный файл 2021_annual_consolidated.zip (2531 КБ)
+2026-05-02 20:15:04  INFO      [UPRO 2021] ✓ PDF из архива → UPRO_2021.pdf (из 1 файлов, источник: ö¿¡á¡ß«óá∩ «ΓτÑΓ¡«ßΓ∞ »« îæöÄ ºá 2021 ú«ñ.pdf)
+2026-05-02 20:15:16  INFO      [UPRO] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1682971 → 2020_annual_consolidated.zip
+2026-05-02 20:15:18  INFO      [UPRO] ✓ Сохранён временный файл 2020_annual_consolidated.zip (1755 КБ)
+2026-05-02 20:15:18  INFO      [UPRO 2020] ✓ PDF из архива → UPRO_2020.pdf (из 1 файлов, источник: Финансовая отчетность по МСФО за 2020 год.pdf)
+2026-05-02 20:15:36  INFO      [UPRO] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1616817 → 2019_annual_consolidated.zip
+2026-05-02 20:15:40  INFO      [UPRO] ✓ Сохранён временный файл 2019_annual_consolidated.zip (2351 КБ)
+2026-05-02 20:15:40  INFO      [UPRO 2019] ✓ PDF из архива → UPRO_2019.pdf (из 1 файлов, источник: ö¿¡á¡ß«óá∩ «ΓτÑΓ¡«ßΓ∞ »« îæöÄ ºá 2019 ú«ñ.pdf)
+2026-05-02 20:15:52  INFO      [UPRO] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1493181 → 2018_annual_consolidated.zip
+2026-05-02 20:15:54  INFO      [UPRO] ✓ Сохранён временный файл 2018_annual_consolidated.zip (841 КБ)
+2026-05-02 20:15:54  INFO      [UPRO 2018] ✓ PDF из архива → UPRO_2018.pdf (из 1 файлов, источник: ö¿¡á¡ß«óá∩ «ΓτÑΓ¡«ßΓ∞ »« îæöÄ ºá 2018 ú«ñ.pdf)
+2026-05-02 20:16:04  INFO      [UPRO] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1400706 → 2017_annual_consolidated.zip
+2026-05-02 20:16:07  INFO      [UPRO] ✓ Сохранён временный файл 2017_annual_consolidated.zip (1965 КБ)
+2026-05-02 20:16:07  INFO      [UPRO 2017] ✓ PDF из архива → UPRO_2017.pdf (из 1 файлов, источник: ö¿¡á¡ß«óá∩ «ΓτÑΓ¡«ßΓ∞ »« îæöÄ ºá 2017 ú«ñ.pdf)
+2026-05-02 20:16:23  INFO      [UPRO] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1306350 → 2016_annual_consolidated.zip
+2026-05-02 20:16:25  INFO      [UPRO] ✓ Сохранён временный файл 2016_annual_consolidated.zip (1448 КБ)
+2026-05-02 20:16:25  INFO      [UPRO 2016] ✓ PDF из архива → UPRO_2016.pdf (из 1 файлов, источник: ö¿¡á¡ß«óá∩ «ΓτÑΓ¡«ßΓ∞ »« îæöÄ ºá 2016 ú«ñ.pdf)
+2026-05-02 20:16:43  INFO      [UPRO] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1179970 → 2015_annual_consolidated.zip
+2026-05-02 20:16:47  INFO      [UPRO] ✓ Сохранён временный файл 2015_annual_consolidated.zip (1734 КБ)
+2026-05-02 20:16:47  INFO      [UPRO 2015] ✓ PDF из архива → UPRO_2015.pdf (из 1 файлов, источник: ö¿¡á¡ß«óá∩ «ΓτÑΓ¡«ßΓ∞ »« îæöÄ ºá 2015 ú«ñ.pdf)
+2026-05-02 20:17:04  INFO      [UPRO] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1009434 → 2014_annual_consolidated.zip
+2026-05-02 20:17:06  INFO      [UPRO] ✓ Сохранён временный файл 2014_annual_consolidated.zip (1120 КБ)
+2026-05-02 20:17:06  INFO      [UPRO 2014] ✓ PDF из архива → UPRO_2014.pdf (из 1 файлов, источник: ¥.Äì É«ßß¿∩_îæöÄ_2014.pdf)
+2026-05-02 20:17:21  INFO      [UPRO] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=813405 → 2013_annual_consolidated.zip
+2026-05-02 20:17:28  INFO      [UPRO] ✓ Сохранён временный файл 2013_annual_consolidated.zip (3772 КБ)
+2026-05-02 20:17:28  INFO      [UPRO 2013] ✓ PDF из архива → UPRO_2013.pdf (из 1 файлов, источник: ¥.Äì Σ¿¡á¡ß«óá∩ «ΓτÑΓ¡«ßΓ∞ 2013.PDF)
+2026-05-02 20:17:42  INFO      [UPRO] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=612343 → 2012_annual_consolidated.zip
+2026-05-02 20:17:46  INFO      [UPRO] ✓ Сохранён временный файл 2012_annual_consolidated.zip (3905 КБ)
+2026-05-02 20:17:46  INFO      [UPRO 2012] ✓ PDF из архива → UPRO_2012.pdf (из 1 файлов, источник: E ON IFRS FS 2012 signed.pdf)
+2026-05-02 20:17:59  INFO      [UPRO] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=218180 → 2011_annual_consolidated.zip
+2026-05-02 20:18:07  INFO      [UPRO] ✓ Сохранён временный файл 2011_annual_consolidated.zip (4614 КБ)
+2026-05-02 20:18:07  INFO      [UPRO 2011] ✓ PDF из архива → UPRO_2011.pdf (из 1 файлов, источник: ö¿¡á¡ß«óá∩ «ΓτÑΓ¡«ßΓ∞ »« îæöÄ ºá 2011 ú«ñ.pdf)
+2026-05-02 20:18:21  INFO      [UPRO] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=218168 → 2010_annual_consolidated.zip
+2026-05-02 20:18:24  INFO      [UPRO] ✓ Сохранён временный файл 2010_annual_consolidated.zip (2018 КБ)
+2026-05-02 20:18:24  INFO      [UPRO 2010] ✓ PDF из архива → UPRO_2010.pdf (из 1 файлов, источник: ö¿¡á¡ß«óá∩ «ΓτÑΓ¡«ßΓ∞ »« îæöÄ ºá 2010 ú«ñ.pdf)
+2026-05-02 20:18:40  INFO      [UPRO] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=219003 → 2009_annual_consolidated.zip
+2026-05-02 20:18:41  INFO      [UPRO] ✓ Сохранён временный файл 2009_annual_consolidated.zip (709 КБ)
+2026-05-02 20:18:41  INFO      [UPRO 2009] ✓ PDF из архива → UPRO_2009.pdf (из 1 файлов, источник: ö¿¡á¡ß«óá∩ «ΓτÑΓ¡«ßΓ∞ »« îæöÄ ºá 2009 ú«ñ.pdf)
+2026-05-02 20:18:51  INFO      [UPRO] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=218154 → 2008_annual_consolidated.zip
+2026-05-02 20:18:55  INFO      [UPRO] ✓ Сохранён временный файл 2008_annual_consolidated.zip (3433 КБ)
+2026-05-02 20:18:55  INFO      [UPRO 2008] ✓ PDF из архива → UPRO_2008.pdf (из 1 файлов, источник: ö¿¡á¡ß«óá∩ «ΓτÑΓ¡«ßΓ∞ »« îæöÄ ºá 2008 ú«ñ.pdf)
+2026-05-02 20:18:55  INFO      Пауза 85 с перед следующей компанией...
+2026-05-02 20:20:21  INFO      ─── [14/24] UWGN  (e-disclosure id=35102) ──────────────────
+2026-05-02 20:20:33  INFO      [UWGN] Найдено 3 годовых консолидированных отчётов.
+2026-05-02 20:20:50  INFO      [UWGN] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1923683 → 2025_annual_consolidated.zip
+2026-05-02 20:20:57  INFO      [UWGN] ✓ Сохранён временный файл 2025_annual_consolidated.zip (3447 КБ)
+2026-05-02 20:20:57  INFO      [UWGN 2025] ✓ PDF из архива → UWGN_2025.pdf (из 1 файлов, источник: НПК_ОВК_КФО_МСФО_31.12.2025.pdf)
+2026-05-02 20:21:10  INFO      [UWGN] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1877476 → 2024_annual_consolidated.zip
+2026-05-02 20:21:12  INFO      [UWGN] ✓ Сохранён временный файл 2024_annual_consolidated.zip (1418 КБ)
+2026-05-02 20:21:12  INFO      [UWGN 2024] ✓ PDF из архива → UWGN_2024.pdf (из 1 файлов, источник: NPK_OVK_IFRS_Cons_SP_FS_24-r_(НПК_ОВК_МСФО_Конс_СН_АЗ_24-р).pdf)
+2026-05-02 20:21:31  INFO      [UWGN] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1861777 → 2023_annual_consolidated.zip
+2026-05-02 20:21:32  INFO      [UWGN] ✓ Сохранён временный файл 2023_annual_consolidated.zip (1481 КБ)
+2026-05-02 20:21:32  INFO      [UWGN 2023] ✓ PDF из архива → UWGN_2023.pdf (из 1 файлов, источник: NPK_OVK_IFRS_Cons_FS_23-r_(ìÅè_Äéè_îæöÄ_è«¡ß_Çç_23-α)_SP.pdf)
+2026-05-02 20:21:32  INFO      Пауза 72 с перед следующей компанией...
+2026-05-02 20:22:45  INFO      ─── [15/24] VKCO  (e-disclosure id=23360) ──────────────────
+2026-05-02 20:22:57  WARNING   [VKCO] Годовые консолидированные отчёты не найдены.
+2026-05-02 20:22:57  INFO      Пауза 90 с перед следующей компанией...
+2026-05-02 20:24:27  INFO      ─── [16/24] VRSB  (e-disclosure id=4717) ──────────────────
+2026-05-02 20:24:41  WARNING   [VRSB] Годовые консолидированные отчёты не найдены.
+2026-05-02 20:24:41  INFO      Пауза 49 с перед следующей компанией...
+2026-05-02 20:25:30  INFO      ─── [17/24] VSEH  (e-disclosure id=39131) ──────────────────
+2026-05-02 20:25:43  INFO      [VSEH] Найдено 2 годовых консолидированных отчётов.
+2026-05-02 20:25:56  INFO      [VSEH] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1918031 → 2025_annual_consolidated.zip
+2026-05-02 20:26:00  INFO      [VSEH] ✓ Сохранён временный файл 2025_annual_consolidated.zip (3970 КБ)
+2026-05-02 20:26:00  INFO      [VSEH 2025] ✓ PDF из архива → VSEH_2025.pdf (из 1 файлов, источник: 2025_Консолидированная отчетность ПАО ВИ_МСФО.pdf)
+2026-05-02 20:26:16  INFO      [VSEH] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1877453 → 2024_annual_consolidated.zip
+2026-05-02 20:26:18  INFO      [VSEH] ✓ Сохранён временный файл 2024_annual_consolidated.zip (1017 КБ)
+2026-05-02 20:26:18  INFO      [VSEH 2024] ✓ PDF из архива → VSEH_2024.pdf (из 1 файлов, источник: Консолидированная отчетность ПАО ВИ_МСФО 2024.pdf)
+2026-05-02 20:26:18  INFO      Пауза 59 с перед следующей компанией...
+2026-05-02 20:27:16  INFO      ─── [18/24] VTBR  (e-disclosure id=1210) ──────────────────
+2026-05-02 20:27:32  INFO      [VTBR] Найдено 2 годовых консолидированных отчётов.
+2026-05-02 20:27:49  INFO      [VTBR] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1912826 → 2025_annual_consolidated.zip
+2026-05-02 20:28:04  INFO      [VTBR] ✓ Сохранён временный файл 2025_annual_consolidated.zip (2977 КБ)
+2026-05-02 20:28:04  INFO      [VTBR 2025] ✓ PDF из архива → VTBR_2025.pdf (из 1 файлов, источник: Report_Y25_RUS_обобщенная_FINAL.pdf)
+2026-05-02 20:28:17  INFO      [VTBR] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1880207 → 2024_annual_consolidated.zip
+2026-05-02 20:28:26  INFO      [VTBR] ✓ Сохранён временный файл 2024_annual_consolidated.zip (2537 КБ)
+2026-05-02 20:28:26  INFO      [VTBR 2024] ✓ PDF из архива → VTBR_2024.pdf (из 1 файлов, источник: RUS_vtb-group-ifrs-as-of-31-December-2024.pdf)
+2026-05-02 20:28:26  INFO      Пауза 51 с перед следующей компанией...
+2026-05-02 20:29:17  INFO      ─── [19/24] WUSH  (e-disclosure id=38772) ──────────────────
+2026-05-02 20:29:31  INFO      [WUSH] Найдено 4 годовых консолидированных отчётов.
+2026-05-02 20:29:42  INFO      [WUSH] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1913770 → 2025_annual_consolidated.zip
+2026-05-02 20:29:43  INFO      [WUSH] ✓ Сохранён временный файл 2025_annual_consolidated.zip (1135 КБ)
+2026-05-02 20:29:43  INFO      [WUSH 2025] ✓ PDF из архива → WUSH_2025.pdf (из 1 файлов, источник: АЗ ПАО ВУШ Холдинг 2025_06.03.26.pdf)
+2026-05-02 20:30:00  INFO      [WUSH] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1871860 → 2024_annual_consolidated.zip
+2026-05-02 20:30:02  INFO      [WUSH] ✓ Сохранён временный файл 2024_annual_consolidated.zip (758 КБ)
+2026-05-02 20:30:02  INFO      [WUSH 2024] ✓ PDF из архива → WUSH_2024.pdf (из 1 файлов, источник: îæöÄ ÅÇÄ éôÿ ò«½ñ¿¡ú 2024.pdf)
+2026-05-02 20:30:14  INFO      [WUSH] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1827110 → 2023_annual_consolidated.zip
+2026-05-02 20:30:15  INFO      [WUSH] ✓ Сохранён временный файл 2023_annual_consolidated.zip (1045 КБ)
+2026-05-02 20:30:15  INFO      [WUSH 2023] ✓ PDF из архива → WUSH_2023.pdf (из 1 файлов, источник: Çç+ îæöÄ ÅÇÄ éôÿ ò«½ñ¿¡ú 2023.pdf)
+2026-05-02 20:30:33  INFO      [WUSH] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1789724 → 2022_annual_consolidated.zip
+2026-05-02 20:30:35  INFO      [WUSH] ✓ Сохранён временный файл 2022_annual_consolidated.zip (1033 КБ)
+2026-05-02 20:30:35  INFO      [WUSH 2022] ✓ PDF из архива → WUSH_2022.pdf (из 1 файлов, источник: Çç ÅÇÄ éôÿ 2022.pdf)
+2026-05-02 20:30:35  INFO      Пауза 53 с перед следующей компанией...
+2026-05-02 20:31:28  INFO      ─── [20/24] X5  (e-disclosure id=39008) ──────────────────
+2026-05-02 20:31:38  INFO      [X5] Найдено 5 годовых консолидированных отчётов.
+2026-05-02 20:31:53  INFO      [X5] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1915676 → 2025_annual_consolidated.zip
+2026-05-02 20:31:58  INFO      [X5] ✓ Сохранён временный файл 2025_annual_consolidated.zip (2230 КБ)
+2026-05-02 20:31:58  INFO      [X5 2025] ✓ PDF из архива → X5_2025.pdf (из 1 файлов, источник: Аудиторское заключение и Финансовая отчетность_ПАО КЦ ИКС 5_2025.pdf)
+2026-05-02 20:32:13  INFO      [X5] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1869825 → 2024_annual_consolidated.zip
+2026-05-02 20:32:15  INFO      [X5] ✓ Сохранён временный файл 2024_annual_consolidated.zip (1942 КБ)
+2026-05-02 20:32:15  INFO      [X5 2024] ✓ PDF из архива → X5_2024.pdf (из 1 файлов, источник: Çπñ¿Γ«αß¬«Ñ ºá¬½ετÑ¡¿Ñ ¿ ö¿¡á¡ß«óá∩ «ΓτÑΓ¡«ßΓ∞_ÅÇÄ èû êèæ 5_2024_Σ«α¼áΓ_äÄÅ.pdf)
+2026-05-02 20:32:29  INFO      [X5] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1850785 → 2023_annual_consolidated.zip
+2026-05-02 20:32:32  INFO      [X5] ✓ Сохранён временный файл 2023_annual_consolidated.zip (2180 КБ)
+2026-05-02 20:32:32  INFO      [X5 2023] ✓ PDF из архива → X5_2023.pdf (из 1 файлов, источник: ö¿¡á¡ß«óá∩ «ΓτÑΓ¡«ßΓ∞_ÅÇÄ èû_2021-2023_απß_ñ«»_Σ¿¡á½_»«ñ»¿ßá¡¡á∩.pdf)
+2026-05-02 20:32:49  INFO      [X5] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1850786 → 2022_annual_consolidated.zip
+2026-05-02 20:32:53  INFO      [X5] ✓ Сохранён временный файл 2022_annual_consolidated.zip (2180 КБ)
+2026-05-02 20:32:53  INFO      [X5 2022] ✓ PDF из архива → X5_2022.pdf (из 1 файлов, источник: ö¿¡á¡ß«óá∩ «ΓτÑΓ¡«ßΓ∞_ÅÇÄ èû_2021-2023_απß_ñ«»_Σ¿¡á½_»«ñ»¿ßá¡¡á∩.pdf)
+2026-05-02 20:33:10  INFO      [X5] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1850787 → 2021_annual_consolidated.zip
+2026-05-02 20:33:13  INFO      [X5] ✓ Сохранён временный файл 2021_annual_consolidated.zip (2180 КБ)
+2026-05-02 20:33:13  INFO      [X5 2021] ✓ PDF из архива → X5_2021.pdf (из 1 файлов, источник: ö¿¡á¡ß«óá∩ «ΓτÑΓ¡«ßΓ∞_ÅÇÄ èû_2021-2023_απß_ñ«»_Σ¿¡á½_»«ñ»¿ßá¡¡á∩.pdf)
+2026-05-02 20:33:13  INFO      Пауза 90 с перед следующей компанией...
+2026-05-02 20:34:43  INFO      ─── [21/24] YAKG  (e-disclosure id=4994) ──────────────────
+2026-05-02 20:34:59  INFO      [YAKG] Найдено 9 годовых консолидированных отчётов.
+2026-05-02 20:35:11  INFO      [YAKG] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1925529 → 2025_annual_consolidated.zip
+2026-05-02 20:35:49  INFO      [YAKG] ✓ Сохранён временный файл 2025_annual_consolidated.zip (2004 КБ)
+2026-05-02 20:35:49  INFO      [YAKG 2025] ✓ PDF из архива → YAKG_2025.pdf (из 1 файлов, источник: ЯТЭК_Раскрываемая МСФО с АЗ_2025.pdf)
+2026-05-02 20:36:01  INFO      [YAKG] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1878854 → 2024_annual_consolidated.zip
+2026-05-02 20:36:28  INFO      [YAKG] ✓ Сохранён временный файл 2024_annual_consolidated.zip (1217 КБ)
+2026-05-02 20:36:28  INFO      [YAKG 2024] ✓ PDF из архива → YAKG_2024.pdf (из 1 файлов, источник: ЯТЭК_МСФО_2024_30.04.pdf)
+2026-05-02 20:36:40  INFO      [YAKG] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1834847 → 2023_annual_consolidated.zip
+2026-05-02 20:37:14  INFO      [YAKG] ✓ Сохранён временный файл 2023_annual_consolidated.zip (1735 КБ)
+2026-05-02 20:37:14  INFO      [YAKG 2023] ✓ PDF из архива → YAKG_2023.pdf (из 1 файлов, источник: ƒÆ¥è_ÄΓτÑΓ¡«ßΓ∞_îæöÄ_2023.pdf)
+2026-05-02 20:37:28  INFO      [YAKG] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1796857 → 2022_annual_consolidated.zip
+2026-05-02 20:38:13  INFO      [YAKG] ✓ Сохранён временный файл 2022_annual_consolidated.zip (2268 КБ)
+2026-05-02 20:38:13  INFO      [YAKG 2022] ✓ PDF из архива → YAKG_2022.pdf (из 1 файлов, источник: è«¡ß«½¿ñ¿α«óá¡¡á∩ îæöÄ «ΓτÑΓ¡«ßΓ∞ ºá 2022 ú«ñ (final).pdf)
+2026-05-02 20:38:24  INFO      [YAKG] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1330894 → 2016_annual_consolidated.zip
+2026-05-02 20:38:41  INFO      [YAKG] ✓ Сохранён временный файл 2016_annual_consolidated.zip (957 КБ)
+2026-05-02 20:38:41  INFO      [YAKG 2016] ✓ PDF из архива → YAKG_2016.pdf (из 1 файлов, источник: ƒÆ¥è è«¡ß«½¿ñ¿α«óá¡¡á∩ îæöÄ «ΓτÑΓ¡«ßΓ∞ ºá 2016 ú«ñ.pdf)
+2026-05-02 20:38:57  INFO      [YAKG] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1212137 → 2015_annual_consolidated.zip
+2026-05-02 20:39:12  INFO      [YAKG] ✓ Сохранён временный файл 2015_annual_consolidated.zip (866 КБ)
+2026-05-02 20:39:12  INFO      [YAKG 2015] ✓ PDF из архива → YAKG_2015.pdf (из 1 файлов, источник: ƒÆ¥è è«¡ß«½¿ñ¿α«óá¡¡á∩ îæöÄ «ΓτÑΓ¡«ßΓ∞ ºá 2015 ú«ñ.pdf)
+2026-05-02 20:39:27  INFO      [YAKG] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1049559 → 2014_annual_consolidated.zip
+2026-05-02 20:39:55  INFO      [YAKG] ✓ Сохранён временный файл 2014_annual_consolidated.zip (1598 КБ)
+2026-05-02 20:39:55  INFO      [YAKG 2014] ✓ PDF из архива → YAKG_2014.pdf (из 1 файлов, источник: ƒÆ¥è ¬«¡ß«½¿ñ¿α«óá¡¡á∩ îæöÄ ÄΓτÑΓ¡«ßΓ∞ ºá 2014 ú«ñ.pdf)
+2026-05-02 20:40:13  INFO      [YAKG] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=894362 → 2013_annual_consolidated.zip
+2026-05-02 20:40:37  INFO      [YAKG] ✓ Сохранён временный файл 2013_annual_consolidated.zip (1348 КБ)
+2026-05-02 20:40:37  INFO      [YAKG 2013] ✓ PDF из архива → YAKG_2013.pdf (из 1 файлов, источник: ú«ñ«óá∩ «ΓτÑΓ¡«ßΓ∞ »« îæöÄ 2013ú..pdf)
+2026-05-02 20:40:54  INFO      [YAKG] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=725088 → 2012_annual_consolidated.zip
+2026-05-02 20:41:09  INFO      [YAKG] ✓ Сохранён временный файл 2012_annual_consolidated.zip (638 КБ)
+2026-05-02 20:41:09  INFO      [YAKG 2012] ✓ PDF из архива → YAKG_2012.pdf (из 1 файлов, источник: YTEK_FS_2012_RUS - íÑº ßó∩ºÑ⌐ v15_final.pdf)
+2026-05-02 20:41:09  INFO      Пауза 55 с перед следующей компанией...
+2026-05-02 20:42:05  INFO      ─── [22/24] YDEX  (e-disclosure id=39059) ──────────────────
+2026-05-02 20:42:19  INFO      [YDEX] Найдено 2 годовых консолидированных отчётов.
+2026-05-02 20:42:33  INFO      [YDEX] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1915751 → 2025_annual_consolidated.zip
+2026-05-02 20:42:34  INFO      [YDEX] ✓ Сохранён временный файл 2025_annual_consolidated.zip (1323 КБ)
+2026-05-02 20:42:34  INFO      [YDEX 2025] ✓ PDF из архива → YDEX_2025.pdf (из 1 файлов, источник: YANDEX_IFRS_AUDIT_RPRT_2025.pdf)
+2026-05-02 20:42:48  INFO      [YDEX] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1873932 → 2024_annual_consolidated.zip
+2026-05-02 20:42:55  INFO      [YDEX] ✓ Сохранён временный файл 2024_annual_consolidated.zip (7386 КБ)
+2026-05-02 20:42:55  INFO      [YDEX 2024] ✓ PDF из архива → YDEX_2024.pdf (из 1 файлов, источник: МКПАО_ЯНДЕКС_Консолидированная_и_комбинированная_отчетность_по_МСФО.pdf)
+2026-05-02 20:42:55  INFO      Пауза 58 с перед следующей компанией...
+2026-05-02 20:43:53  INFO      ─── [23/24] ZAYM  (e-disclosure id=38344) ──────────────────
+2026-05-02 20:44:07  INFO      [ZAYM] Найдено 4 годовых консолидированных отчётов.
+2026-05-02 20:44:19  INFO      [ZAYM] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1916432 → 2025_annual_consolidated.zip
+2026-05-02 20:45:11  INFO      [ZAYM] ✓ Сохранён временный файл 2025_annual_consolidated.zip (2679 КБ)
+2026-05-02 20:45:11  INFO      [ZAYM 2025] ✓ PDF из архива → ZAYM_2025.pdf (из 1 файлов, источник: ПАО МКК Займер_АЗ МСФО 2025.pdf)
+2026-05-02 20:45:21  INFO      [ZAYM] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1872488 → 2024_annual_consolidated.zip
+2026-05-02 20:45:56  INFO      [ZAYM] ✓ Сохранён временный файл 2024_annual_consolidated.zip (1963 КБ)
+2026-05-02 20:45:56  INFO      [ZAYM 2024] ✓ PDF из архива → ZAYM_2024.pdf (из 1 файлов, источник: ПАО МФК Займер_МСФО_с_АЗ.pdf)
+2026-05-02 20:46:06  INFO      [ZAYM] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1826642 → 2023_annual_consolidated.zip
+2026-05-02 20:46:51  INFO      [ZAYM] ✓ Сохранён временный файл 2023_annual_consolidated.zip (2289 КБ)
+2026-05-02 20:46:51  INFO      [ZAYM 2023] ✓ PDF из архива → ZAYM_2023.pdf (из 1 файлов, источник: è«¡ß«½¿ñ¿α«óá¡¡á∩ Σ¿¡á¡ß«óá∩ «ΓτÑΓ¡«ßΓ∞ îæöÄ ºá 2023ú ÅÇÄ îöè çá⌐¼Ñα.pdf)
+2026-05-02 20:47:02  INFO      [ZAYM] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1823467 → 2022_annual_consolidated.zip
+2026-05-02 20:47:47  INFO      [ZAYM] ✓ Сохранён временный файл 2022_annual_consolidated.zip (2397 КБ)
+2026-05-02 20:47:47  INFO      [ZAYM 2022] ✓ PDF из архива → ZAYM_2022.pdf (из 1 файлов, источник: è«¡ß«½¿ñ¿α«óá¡¡á∩ Σ¿¡á¡ß«óá∩ «ΓτÑΓ¡«ßΓ∞ îæöÄ ºá 2020-2022 ú«ñδ.pdf)
+2026-05-02 20:47:47  INFO      Пауза 73 с перед следующей компанией...
+2026-05-02 20:49:00  INFO      ─── [24/24] ZILLP  (e-disclosure id=3649) ──────────────────
+2026-05-02 20:49:15  INFO      [ZILLP] Найдено 7 годовых консолидированных отчётов.
+2026-05-02 20:49:33  INFO      [ZILLP] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1925167 → 2025_annual_consolidated.zip
+2026-05-02 20:49:51  INFO      [ZILLP] ✓ Сохранён временный файл 2025_annual_consolidated.zip (7224 КБ)
+2026-05-02 20:49:51  INFO      [ZILLP 2025] ✓ PDF из архива → ZILLP_2025.pdf (из 1 файлов, источник: АМО ЗИЛ МСФО.pdf)
+2026-05-02 20:50:05  INFO      [ZILLP] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1878607 → 2024_annual_consolidated.zip
+2026-05-02 20:50:12  INFO      [ZILLP] ✓ Сохранён временный файл 2024_annual_consolidated.zip (1819 КБ)
+2026-05-02 20:50:12  INFO      [ZILLP 2024] ✓ PDF из архива → ZILLP_2024.pdf (из 1 файлов, источник: АМО ЗИЛ_КФО_31.12.2024.pdf)
+2026-05-02 20:50:31  INFO      [ZILLP] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1835053 → 2023_annual_consolidated.zip
+2026-05-02 20:50:37  INFO      [ZILLP] ✓ Сохранён временный файл 2023_annual_consolidated.zip (1603 КБ)
+2026-05-02 20:50:37  INFO      [ZILLP 2023] ✓ PDF из архива → ZILLP_2023.pdf (из 1 файлов, источник: èöÄ ÇîÄ çêï_2023.pdf)
+2026-05-02 20:50:47  INFO      [ZILLP] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1790917 → 2022_annual_consolidated.zip
+2026-05-02 20:51:26  INFO      [ZILLP] ✓ Сохранён временный файл 2022_annual_consolidated.zip (10038 КБ)
+2026-05-02 20:51:26  INFO      [ZILLP 2022] ✓ PDF из архива → ZILLP_2022.pdf (из 1 файлов, источник: ÇîÄ çêï_31.12.2022_îæöÄ.pdf)
+2026-05-02 20:51:38  INFO      [ZILLP] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1748069 → 2021_annual_consolidated.zip
+2026-05-02 20:51:52  INFO      [ZILLP] ✓ Сохранён временный файл 2021_annual_consolidated.zip (2596 КБ)
+2026-05-02 20:51:52  INFO      [ZILLP 2021] ✓ PDF из архива → ZILLP_2021.pdf (из 1 файлов, источник: èöÄ_ÇîÄ çêï_2021.pdf)
+2026-05-02 20:52:12  INFO      [ZILLP] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1697863 → 2020_annual_consolidated.zip
+2026-05-02 20:52:19  INFO      [ZILLP] ✓ Сохранён временный файл 2020_annual_consolidated.zip (1350 КБ)
+2026-05-02 20:52:19  INFO      [ZILLP 2020] ✓ PDF из архива → ZILLP_2020.pdf (из 1 файлов, источник: è«¡ß«½¿ñ¿α«óá¡¡á∩ «ΓτÑΓ¡«ßΓ∞ ÇîÄ çêï 2020.pdf)
+2026-05-02 20:52:33  INFO      [ZILLP] Скачиваем https://www.e-disclosure.ru/portal/FileLoad.ashx?Fileid=1672441 → 2019_annual_consolidated.zip
+2026-05-02 20:52:38  INFO      [ZILLP] ✓ Сохранён временный файл 2019_annual_consolidated.zip (1579 КБ)
+2026-05-02 20:52:38  INFO      [ZILLP 2019] ✓ PDF из архива → ZILLP_2019.pdf (из 1 файлов, источник: è«¡ß«½¿ñ¿α«óá¡¡á∩ «ΓτÑΓ¡«ßΓ∞ ÇîÄ çêï 2019.pdf)
+2026-05-02 20:52:38  INFO      ============================================================
+2026-05-02 20:52:38  INFO      Готово. Загружено новых файлов: 164, пропущено/ошибок: 5.
