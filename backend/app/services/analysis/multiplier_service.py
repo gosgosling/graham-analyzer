@@ -102,12 +102,16 @@ def get_ltm_data(db: Session, company_id: int) -> Optional[Dict]:
         ltm_net_income = sum_rub(quarterly, "net_income")
         ltm_revenue = sum_rub(quarterly, "revenue")
         ltm_dividends = sum_rub(quarterly, "dividends_per_share")
+        ltm_operating_cash_flow = sum_rub(quarterly, "operating_cash_flow")
+        ltm_capex = sum_rub(quarterly, "capex")
         source = "quarterly_4"
     elif annual:
         rate = _to_float(annual.exchange_rate)
         ltm_net_income = _convert(annual.net_income, annual.currency, rate)
         ltm_revenue = _convert(annual.revenue, annual.currency, rate)
         ltm_dividends = _convert(annual.dividends_per_share, annual.currency, rate)
+        ltm_operating_cash_flow = _convert(annual.operating_cash_flow, annual.currency, rate)
+        ltm_capex = _convert(annual.capex, annual.currency, rate)
         source = "annual"
     else:
         # Только квартальный(е) без полного года — берём что есть
@@ -115,6 +119,8 @@ def get_ltm_data(db: Session, company_id: int) -> Optional[Dict]:
         ltm_net_income = sum_rub(reports_available, "net_income")
         ltm_revenue = sum_rub(reports_available, "revenue")
         ltm_dividends = sum_rub(reports_available, "dividends_per_share")
+        ltm_operating_cash_flow = sum_rub(reports_available, "operating_cash_flow")
+        ltm_capex = sum_rub(reports_available, "capex")
         source = f"quarterly_{len(reports_available)}"
 
     # Дополнительные банковские LTM-показатели (суммируем если report_type = "bank")
@@ -132,6 +138,8 @@ def get_ltm_data(db: Session, company_id: int) -> Optional[Dict]:
         "ltm_net_income": ltm_net_income,
         "ltm_revenue": ltm_revenue,
         "ltm_dividends_per_share": ltm_dividends,
+        "ltm_operating_cash_flow": ltm_operating_cash_flow,
+        "ltm_capex": ltm_capex,
         "ltm_net_interest_income": ltm_net_interest_income,
         "ltm_fee_commission_income": ltm_fee_commission_income,
         "balance_report": latest,
@@ -193,6 +201,12 @@ def calculate_current_multipliers(
         ltm_dividends_per_share=_ltm_back_to_report_currency(
             ltm["ltm_dividends_per_share"], balance_report
         ),
+        ltm_operating_cash_flow=_ltm_back_to_report_currency(
+            ltm.get("ltm_operating_cash_flow"), balance_report
+        ),
+        ltm_capex=_ltm_back_to_report_currency(
+            ltm.get("ltm_capex"), balance_report
+        ),
     )
 
     return {
@@ -200,6 +214,8 @@ def calculate_current_multipliers(
         "ltm_net_income": ltm["ltm_net_income"],
         "ltm_revenue": ltm["ltm_revenue"],
         "ltm_dividends_per_share": ltm["ltm_dividends_per_share"],
+        "ltm_operating_cash_flow": ltm.get("ltm_operating_cash_flow"),
+        "ltm_capex": ltm.get("ltm_capex"),
         "ltm_source": ltm["source"],
         "balance_report_id": balance_report.id,
         "balance_report_date": balance_report.report_date.isoformat(),
@@ -272,6 +288,10 @@ def save_current_multiplier(
     existing.current_ratio = mults.get("current_ratio")  # type: ignore
     existing.dividend_yield = mults.get("dividend_yield")  # type: ignore
     existing.cost_to_income = mults.get("cost_to_income")  # type: ignore
+    existing.ltm_fcf = mults.get("ltm_fcf")  # type: ignore
+    existing.ltm_operating_cash_flow = mults.get("ltm_operating_cash_flow")  # type: ignore
+    existing.price_to_fcf = mults.get("price_to_fcf")  # type: ignore
+    existing.fcf_to_net_income = mults.get("fcf_to_net_income")  # type: ignore
 
     # Балансовые данные из отчёта (в рублях)
     balance_report_id = mults.get("balance_report_id")
@@ -447,6 +467,10 @@ def save_report_based_multiplier(
     existing.current_ratio = mults.get("current_ratio")  # type: ignore
     existing.dividend_yield = mults.get("dividend_yield")  # type: ignore
     existing.cost_to_income = mults.get("cost_to_income")  # type: ignore
+    existing.ltm_fcf = mults.get("ltm_fcf")  # type: ignore
+    existing.ltm_operating_cash_flow = mults.get("ltm_operating_cash_flow")  # type: ignore
+    existing.price_to_fcf = mults.get("price_to_fcf")  # type: ignore
+    existing.fcf_to_net_income = mults.get("fcf_to_net_income")  # type: ignore
 
     rate = _to_float(report.exchange_rate)
 
@@ -456,6 +480,12 @@ def save_report_based_multiplier(
     existing.ltm_net_income = crub(report.net_income)  # type: ignore
     existing.ltm_revenue = crub(report.revenue)  # type: ignore
     existing.ltm_dividends_per_share = crub(report.dividends_per_share)  # type: ignore
+    existing.ltm_operating_cash_flow = crub(getattr(report, 'operating_cash_flow', None))  # type: ignore
+    ocf_rub = crub(getattr(report, 'operating_cash_flow', None))
+    cap_rub = crub(getattr(report, 'capex', None))
+    existing.ltm_fcf = round(ocf_rub - cap_rub, 3) if (ocf_rub is not None and cap_rub is not None) else None  # type: ignore
+    existing.price_to_fcf = mults.get("price_to_fcf")  # type: ignore
+    existing.fcf_to_net_income = mults.get("fcf_to_net_income")  # type: ignore
     existing.equity = crub(report.equity)  # type: ignore
     existing.total_liabilities = crub(report.total_liabilities)  # type: ignore
     existing.current_assets = crub(report.current_assets)  # type: ignore

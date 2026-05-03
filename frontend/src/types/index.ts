@@ -93,6 +93,14 @@ export interface MultiplierRecord {
     /** Cost-to-Income ratio (%), только для банков */
     cost_to_income: number | null;
 
+    // Денежные потоки LTM (NULL для банков)
+    ltm_fcf: number | null;
+    ltm_operating_cash_flow: number | null;
+    /** P/FCF = Market Cap / LTM FCF, NULL для банков и FCF ≤ 0 */
+    price_to_fcf: number | null;
+    /** FCF/NI = LTM FCF / LTM Net Income × 100%, детектор качества прибыли */
+    fcf_to_net_income: number | null;
+
     created_at?: string;
     updated_at?: string | null;
 
@@ -126,6 +134,12 @@ export interface CurrentMultipliers {
     current_ratio: number | null;
     dividend_yield: number | null;
     cost_to_income: number | null;
+
+    // Денежные потоки LTM (NULL для банков)
+    ltm_fcf: number | null;
+    ltm_operating_cash_flow: number | null;
+    price_to_fcf: number | null;
+    fcf_to_net_income: number | null;
 }
 
 /** GET /companies/sync/status */
@@ -208,9 +222,24 @@ export interface FinancialReportCreate {
     operating_expenses?: number | null;    // Операционные расходы (до резервов), млн
     provisions?: number | null;            // Резервы под обесценение кредитов, млн
 
+    // Денежные потоки (ОДДС) — для всех типов, кроме банков (для банков оставляют null)
+    /** Операционный денежный поток (CF from operations), млн валюты */
+    operating_cash_flow?: number | null;
+    /** CAPEX — капитальные затраты, положительное число, млн валюты */
+    capex?: number | null;
+    /** Амортизация и износ (D&A), млн — для сравнения с CAPEX (будущий модуль анализа) */
+    depreciation_amortization?: number | null;
+
     // Валюта
     currency: string; // "RUB" или "USD"
     exchange_rate?: number | null; // Обязателен для USD
+
+    // ─── AI-извлечение (передаются при PUT после парсинга или правки аналитиком) ───
+    auto_extracted?: boolean;
+    verified_by_analyst?: boolean;
+    extraction_notes?: string | null;
+    extraction_model?: string | null;
+    source_pdf_path?: string | null;
 }
 
 export interface FinancialReport extends FinancialReportCreate {
@@ -229,6 +258,12 @@ export interface FinancialReport extends FinancialReportCreate {
     current_liabilities_rub?: number | null;
     equity_rub?: number | null;
     dividends_per_share_rub?: number | null;
+    /** FCF = operating_cash_flow - capex, млн валюты (computed) */
+    fcf?: number | null;
+    operating_cash_flow_rub?: number | null;
+    capex_rub?: number | null;
+    depreciation_amortization_rub?: number | null;
+    fcf_rub?: number | null;
 
     // ─── AI-парсер / проверка аналитиком ────────────────────────────────
     /** Был ли отчёт создан автоматически через AI-парсинг PDF */
@@ -243,6 +278,9 @@ export interface FinancialReport extends FinancialReportCreate {
     source_pdf_path?: string | null;
     /** Когда аналитик отметил отчёт как проверенный */
     verified_at?: string | null;
+
+    /** bank | general — с бэкенда, только для отображения */
+    report_type?: string;
 }
 
 /** Ответ эндпоинта POST /reports/parse-pdf */

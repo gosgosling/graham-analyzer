@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import {
   getCompanyById,
@@ -39,6 +39,8 @@ const CompanyDetail: React.FC = () => {
     mutationFn: createFinancialReport,
     onSuccess: async () => {
       queryClient.invalidateQueries({ queryKey: ['reports', companyId] });
+      queryClient.invalidateQueries({ queryKey: ['reports-counts-by-company'] });
+      queryClient.invalidateQueries({ queryKey: ['reports-unverified-counts'] });
       queryClient.invalidateQueries({ queryKey: ['multipliers', companyId] });
       await refreshCompanyMultipliers(Number(companyId), true);
       queryClient.invalidateQueries({ queryKey: ['multipliers', companyId] });
@@ -63,6 +65,8 @@ const CompanyDetail: React.FC = () => {
     onSuccess: async (_, variables) => {
       // Инвалидируем кэш отчётов и мультипликаторов
       queryClient.invalidateQueries({ queryKey: ['reports', companyId] });
+      queryClient.invalidateQueries({ queryKey: ['reports-counts-by-company'] });
+      queryClient.invalidateQueries({ queryKey: ['reports-unverified-counts'] });
       queryClient.invalidateQueries({ queryKey: ['multipliers', companyId] });
       // Пересчитываем мультипликаторы на сервере
       await refreshCompanyMultipliers(Number(companyId), true);
@@ -81,6 +85,7 @@ const CompanyDetail: React.FC = () => {
     mutationFn: (reportId: number) => verifyReport(reportId),
     onSuccess: (updated) => {
       queryClient.invalidateQueries({ queryKey: ['reports', companyId] });
+      queryClient.invalidateQueries({ queryKey: ['reports-counts-by-company'] });
       queryClient.invalidateQueries({ queryKey: ['reports-unverified-counts'] });
       setSelectedReport(updated);
     },
@@ -96,6 +101,7 @@ const CompanyDetail: React.FC = () => {
     mutationFn: (reportId: number) => deleteFinancialReport(reportId),
     onSuccess: async () => {
       queryClient.invalidateQueries({ queryKey: ['reports', companyId] });
+      queryClient.invalidateQueries({ queryKey: ['reports-counts-by-company'] });
       queryClient.invalidateQueries({ queryKey: ['multipliers', companyId] });
       queryClient.invalidateQueries({ queryKey: ['reports-unverified-counts'] });
       try {
@@ -402,18 +408,10 @@ const CompanyDetail: React.FC = () => {
           <section className="info-card">
             {/* Заголовок: сворачивание по клику на название; справа — как в списке компаний + стрелка */}
             <div className="reports-card-header">
-              <div
-                className="reports-card-header-title"
-                role="button"
-                tabIndex={0}
-                aria-expanded={reportsExpanded}
-                onClick={() => setReportsExpanded((v) => !v)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    setReportsExpanded((v) => !v);
-                  }
-                }}
+              <Link
+                className="reports-card-header-title reports-card-header-title--nav-matrix"
+                to={`/company/${companyId}/reports-matrix`}
+                title="Открыть таблицу всех полей по периодам"
               >
                 <h2 className="card-title" style={{ margin: 0, paddingBottom: 0, borderBottom: 'none', display: 'flex', alignItems: 'center', gap: 8 }}>
                   📋 Финансовые отчеты
@@ -429,7 +427,7 @@ const CompanyDetail: React.FC = () => {
                     </span>
                   )}
                 </h2>
-              </div>
+              </Link>
               <div className="reports-card-header-actions">
                 <AddReportMenu
                   disabled={createReportMutation.isPending}
@@ -964,6 +962,41 @@ const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
                   <div className="detail-item">
                     <span className="detail-label">Собственный капитал:</span>
                     <span className="detail-value">{fmtMln(report.equity)}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Денежные потоки (ОДДС) */}
+          {(report.operating_cash_flow != null || report.capex != null || report.depreciation_amortization != null) && (
+            <div className="detail-section">
+              <h3>Денежные потоки (ОДДС) <span className="section-units">(млн {cur})</span></h3>
+              <div className="detail-grid">
+                {report.operating_cash_flow != null && (
+                  <div className="detail-item">
+                    <span className="detail-label">Операционный поток (CFO):</span>
+                    <span className="detail-value">{fmtMln(report.operating_cash_flow)}</span>
+                  </div>
+                )}
+                {report.capex != null && (
+                  <div className="detail-item">
+                    <span className="detail-label">CAPEX:</span>
+                    <span className="detail-value">{fmtMln(report.capex)}</span>
+                  </div>
+                )}
+                {report.depreciation_amortization != null && (
+                  <div className="detail-item">
+                    <span className="detail-label">Амортизация и износ (D&amp;A):</span>
+                    <span className="detail-value">{fmtMln(report.depreciation_amortization)}</span>
+                  </div>
+                )}
+                {report.fcf != null && (
+                  <div className="detail-item">
+                    <span className="detail-label">FCF (CFO − CAPEX):</span>
+                    <span className={`detail-value${report.fcf < 0 ? ' detail-loss' : ' detail-yes'}`}>
+                      {fmtMln(report.fcf)}
+                    </span>
                   </div>
                 )}
               </div>

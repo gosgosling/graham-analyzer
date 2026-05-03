@@ -382,7 +382,7 @@
   color: var(--color-text-primary);
 }
 
-/* Reports Card Header: название сворачивает блок; справа — кнопка как в списке компаний + стрелка */
+/* Reports Card Header: клик по названию — страница матрицы полей; сворачивание — стрелкой справа */
 .reports-card-header {
   display: flex;
   align-items: center;
@@ -398,10 +398,19 @@
   user-select: none;
 }
 
+.reports-card-header-title--nav-matrix {
+  text-decoration: none;
+  color: inherit;
+}
+
 .reports-card-header-title:focus-visible {
   outline: none;
   box-shadow: var(--shadow-focus-ring-purple);
   border-radius: var(--radius-xs);
+}
+
+.reports-card-header-title--nav-matrix:hover .card-title {
+  color: var(--color-primary);
 }
 
 .reports-card-header-actions {
@@ -1167,9 +1176,15 @@
   margin-left: 6px;
 }
 
-/* Положительное значение (дивиденды выплачивались) */
+/* Положительное значение (дивиденды выплачивались, FCF > 0) */
 .detail-yes {
   color: var(--color-success);
+}
+
+/* Отрицательное значение (FCF < 0, убыток) */
+.detail-loss {
+  color: var(--color-error);
+  font-weight: 700;
 }
 
 /* Футер модального окна */

@@ -6,6 +6,7 @@ import './App.css';
 import SecuritiesList from './pages/SecuritiesList';
 import CompaniesList from './pages/CompaniesList';
 import CompanyDetail from './pages/CompanyDetail';
+import CompanyReportsMatrix from './pages/CompanyReportsMatrix';
 import BondsList from './pages/BondsList';
 import BondDetail from './pages/BondDetail';
 import ThemeToggle from './components/ThemeToggle';
@@ -98,6 +99,7 @@ function App() {
             <Route path="/" element={<SecuritiesList />} />
             <Route path="/companies" element={<CompaniesList />} />
             <Route path="/company/:companyId" element={<CompanyDetail />} />
+            <Route path="/company/:companyId/reports-matrix" element={<CompanyReportsMatrix />} />
             <Route path="/bonds" element={<BondsList />} />
             <Route path="/bond/:figi" element={<BondDetail />} />
           </Routes>

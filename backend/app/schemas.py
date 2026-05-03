@@ -151,6 +151,14 @@ class FinancialReportCreate(BaseModel):
     operating_expenses: Optional[float] = None       # Операционные расходы (до резервов), млн
     provisions: Optional[float] = None               # Резервы под обесценение, млн
 
+    # ─── Денежные потоки (ОДДС) ───────────────────────────────────────────────
+    # Для банков FCF концептуально неприменим, поля оставляем None.
+    # capex — положительное число (абсолютная величина оттока), млн валюты.
+    operating_cash_flow: Optional[float] = None  # Операционный денежный поток, млн
+    capex: Optional[float] = None                # CAPEX (положит. число), млн
+    # Амортизация и износ (D&A), млн — для сопоставления с CAPEX; не в формулах мультипликаторов.
+    depreciation_amortization: Optional[float] = None
+
     # Валюта
     currency: str = "RUB"
     exchange_rate: Optional[float] = None
@@ -232,6 +240,11 @@ class FinancialReport(BaseModel):
     fee_commission_income: Optional[float] = None
     operating_expenses: Optional[float] = None
     provisions: Optional[float] = None
+
+    # Денежные потоки (ОДДС)
+    operating_cash_flow: Optional[float] = None  # Операционный поток, млн
+    capex: Optional[float] = None                # CAPEX (положит. число), млн
+    depreciation_amortization: Optional[float] = None  # D&A, млн
 
     # Валюта
     currency: str = "RUB"
@@ -345,6 +358,38 @@ class FinancialReport(BaseModel):
         """Дивиденды на акцию в рублях"""
         return self._convert_to_rub(self.dividends_per_share)
 
+    @computed_field  # type: ignore
+    @property
+    def fcf(self) -> Optional[float]:
+        """FCF = Операционный поток – CAPEX, млн валюты отчёта. None если хотя бы одно поле не заполнено."""
+        if self.operating_cash_flow is None or self.capex is None:
+            return None
+        return round(self.operating_cash_flow - self.capex, 3)
+
+    @computed_field  # type: ignore
+    @property
+    def operating_cash_flow_rub(self) -> Optional[float]:
+        """Операционный денежный поток в рублях, млн"""
+        return self._convert_to_rub(self.operating_cash_flow)
+
+    @computed_field  # type: ignore
+    @property
+    def capex_rub(self) -> Optional[float]:
+        """CAPEX в рублях, млн"""
+        return self._convert_to_rub(self.capex)
+
+    @computed_field  # type: ignore
+    @property
+    def depreciation_amortization_rub(self) -> Optional[float]:
+        """Амортизация и износ в рублях, млн"""
+        return self._convert_to_rub(self.depreciation_amortization)
+
+    @computed_field  # type: ignore
+    @property
+    def fcf_rub(self) -> Optional[float]:
+        """FCF в рублях, млн"""
+        return self._convert_to_rub(self.fcf)
+
 
 # ---------------------------------------------------------------------------
 # StockPrice schemas
@@ -400,6 +445,13 @@ class MultiplierResponse(BaseModel):
     dividend_yield: Optional[float] = None
     cost_to_income: Optional[float] = None  # % — только для банков
 
+    # Денежные потоки LTM (NULL для банков)
+    ltm_fcf: Optional[float] = None
+    ltm_operating_cash_flow: Optional[float] = None
+    # Мультипликаторы FCF (NULL для банков)
+    price_to_fcf: Optional[float] = None
+    fcf_to_net_income: Optional[float] = None  # %, детектор качества прибыли
+
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
@@ -438,6 +490,13 @@ class CurrentMultipliersResponse(BaseModel):
     current_ratio: Optional[float] = None
     dividend_yield: Optional[float] = None
     cost_to_income: Optional[float] = None  # % — только для банков
+
+    # Денежные потоки LTM (NULL для банков)
+    ltm_fcf: Optional[float] = None
+    ltm_operating_cash_flow: Optional[float] = None
+    # Мультипликаторы FCF (NULL для банков)
+    price_to_fcf: Optional[float] = None
+    fcf_to_net_income: Optional[float] = None  # %, детектор качества прибыли
 
 
 class PriceUpdateResponse(BaseModel):

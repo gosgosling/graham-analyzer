@@ -4,6 +4,7 @@ import ruRU from 'antd/locale/ru_RU';
 import dayjs, { Dayjs } from 'dayjs';
 import 'dayjs/locale/ru';
 import { FinancialReportCreate } from '../types';
+import { detectSectorDisplayKind } from '../utils/sectorDisplayKind';
 import {
     getMoexPrice,
     getMoexShares,
@@ -149,44 +150,6 @@ const FormattedInput: React.FC<FormattedInputProps> = ({
         />
     );
 };
-
-/** Только для UI-бейджа «тип отрасли» — не путать с report_type в БД (bank/general). */
-type SectorDisplayKind = 'bank' | 'it' | 'general';
-
-/**
- * Группа для подписи по строке sector из T-Invest и др.
- * Банки — первыми (чтобы не пересечься с «fintech» как IT и т.п.).
- * IT: у многих эмитентов сектор ровно «it»; плюс типичные ключевые слова.
- */
-function detectSectorDisplayKind(sector?: string | null): SectorDisplayKind {
-    if (!sector) return 'general';
-    const raw = sector.trim();
-    const s = raw.toLowerCase();
-
-    const bankKeywords = [
-        'banks', 'bank', 'banking', 'financials', 'financial_services',
-        'финансы', 'банки', 'банк', 'insurance', 'страхов',
-    ];
-    // «financial» отдельно — чтобы не цеплять «non-financial»
-    if (
-        bankKeywords.some((kw) => s === kw || s.includes(kw))
-        || (s.includes('financial') && !s.includes('non-financial') && !s.includes('nonfinancial'))
-    ) {
-        return 'bank';
-    }
-
-    if (s === 'it') return 'it';
-
-    const itKeywords = [
-        'technology', 'technologies', 'software', 'internet', 'digital',
-        'telecom', 'telecommunication', 'electronics', 'hardware',
-        'semiconductor', 'cyber', 'cloud', 'saas', 'informatics',
-        'информационн', 'программ', 'цифров', 'телеком', 'it_services',
-    ];
-    if (itKeywords.some((kw) => s.includes(kw))) return 'it';
-
-    return 'general';
-}
 
 interface ReportFormProps {
     companyId: number;
@@ -563,6 +526,9 @@ const ReportForm: React.FC<ReportFormProps> = ({ companyId, companyName, ticker,
         fee_commission_income: null,
         operating_expenses: null,
         provisions: null,
+        operating_cash_flow: null,
+        capex: null,
+        depreciation_amortization: null,
         currency: 'RUB',
         exchange_rate: null,
     };
@@ -1360,6 +1326,90 @@ const ReportForm: React.FC<ReportFormProps> = ({ companyId, companyName, ticker,
                         </div>
                     )}
                     
+                    {/* Денежные потоки (ОДДС) — только для non-bank */}
+                    {!isBank && (
+                        <div className="form-section form-section-cashflow">
+                            <h3>
+                                Денежные потоки (ОДДС)
+                                <span className="section-units-hint">млн {formData.currency}</span>
+                            </h3>
+                            <p className="section-description">
+                                Данные из Отчёта о движении денежных средств и связанных форм.
+                                FCF = Операционный поток − CAPEX рассчитывается автоматически.
+                                Соотношение CAPEX и амортизации сохраняется для будущего модуля анализа
+                                (флаги «рост / каннибализация активов» — позже).
+                            </p>
+
+                            <div className="form-row">
+                                <label className="form-label">
+                                    Операционный денежный поток, млн {formData.currency}:
+                                    <FormattedInput
+                                        name="operating_cash_flow"
+                                        numericValue={formData.operating_cash_flow}
+                                        onNumericChange={handleNumericChange}
+                                        placeholder="например: 120 000"
+                                        className="form-input form-input-thousands"
+                                    />
+                                    <small className="field-hint">
+                                        Cash flow from operations (CFO). Может быть отрицательным.
+                                    </small>
+                                </label>
+
+                                <label className="form-label">
+                                    CAPEX (капитальные затраты), млн {formData.currency}:
+                                    <FormattedInput
+                                        name="capex"
+                                        numericValue={formData.capex}
+                                        onNumericChange={handleNumericChange}
+                                        placeholder="например: 40 000"
+                                        className="form-input form-input-thousands"
+                                    />
+                                    <small className="field-hint">
+                                        Вводите положительное число. FCF = Операц. поток − CAPEX.
+                                    </small>
+                                </label>
+                            </div>
+
+                            <div className="form-row">
+                                <label className="form-label">
+                                    Амортизация и износ (D&amp;A), млн {formData.currency}:
+                                    <FormattedInput
+                                        name="depreciation_amortization"
+                                        numericValue={formData.depreciation_amortization}
+                                        onNumericChange={handleNumericChange}
+                                        placeholder="например: 35 000"
+                                        className="form-input form-input-thousands"
+                                    />
+                                    <small className="field-hint">
+                                        Из ОПУ или строка корректировки к операционному потоку в ОДДС.
+                                        Не входит в расчёт мультипликаторов; позже — диагностика vs CAPEX.
+                                    </small>
+                                </label>
+                            </div>
+
+                            {formData.capex != null && formData.depreciation_amortization != null && formData.depreciation_amortization !== 0 && (
+                                <div className="cashflow-da-preview">
+                                    <span className="cashflow-da-label">CAPEX / D&amp;A:</span>
+                                    <span className="cashflow-da-value">
+                                        {(formData.capex / formData.depreciation_amortization).toLocaleString('ru-RU', { maximumFractionDigits: 2 })}
+                                    </span>
+                                    <span className="cashflow-da-hint">
+                                        &gt; 1 — обычно выше износ; &lt; 1 — ниже износа (контекст в будущем модуле).
+                                    </span>
+                                </div>
+                            )}
+
+                            {formData.operating_cash_flow != null && formData.capex != null && (
+                                <div className="cashflow-fcf-preview">
+                                    <span className="cashflow-fcf-label">FCF (расчётный):</span>
+                                    <span className={`cashflow-fcf-value${(formData.operating_cash_flow - formData.capex) < 0 ? ' negative' : ''}`}>
+                                        {((formData.operating_cash_flow - formData.capex)).toLocaleString('ru-RU', { maximumFractionDigits: 0 })} млн {formData.currency}
+                                    </span>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
                     {/* Балансовые показатели */}
                     <div className="form-section">
                         <h3>

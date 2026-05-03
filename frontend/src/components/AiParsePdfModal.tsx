@@ -26,6 +26,9 @@ interface AiParsePdfModalProps {
   onSuccess?: (response: ParsePdfResponse) => void;
   /** По умолчанию 'create'. 'compare' — только сравнить, в БД ничего не писать. */
   initialMode?: Mode;
+  /** При открытии из матрицы отчётов — сразу подставить год. */
+  initialFiscalYear?: number;
+  initialAccountingStandard?: AccountingStandard;
 }
 
 const currentYear = new Date().getFullYear();
@@ -46,16 +49,36 @@ const AiParsePdfModal: React.FC<AiParsePdfModalProps> = ({
   onClose,
   onSuccess,
   initialMode = 'create',
+  initialFiscalYear,
+  initialAccountingStandard,
 }) => {
   const queryClient = useQueryClient();
   const [mode, setMode] = useState<Mode>(initialMode);
   const [file, setFile] = useState<File | null>(null);
-  const [fiscalYear, setFiscalYear] = useState<number>(currentYear - 1);
-  const [accountingStandard, setAccountingStandard] = useState<AccountingStandard>('IFRS');
+  const [fiscalYear, setFiscalYear] = useState<number>(
+    initialFiscalYear != null && Number.isFinite(initialFiscalYear)
+      ? initialFiscalYear
+      : currentYear - 1,
+  );
+  const [accountingStandard, setAccountingStandard] = useState<AccountingStandard>(
+    initialAccountingStandard ?? 'IFRS',
+  );
   const [consolidated, setConsolidated] = useState(true);
   const [force, setForce] = useState(false);
   const [result, setResult] = useState<ParsePdfResponse | null>(null);
   const [compareResult, setCompareResult] = useState<ComparePdfResponse | null>(null);
+
+  React.useEffect(() => {
+    if (initialFiscalYear != null && Number.isFinite(initialFiscalYear)) {
+      setFiscalYear(initialFiscalYear);
+    }
+  }, [initialFiscalYear]);
+
+  React.useEffect(() => {
+    if (initialAccountingStandard != null) {
+      setAccountingStandard(initialAccountingStandard);
+    }
+  }, [initialAccountingStandard]);
 
   const { data: llmStatus, isLoading: llmStatusLoading } = useQuery({
     queryKey: ['llm-status'],
@@ -69,6 +92,7 @@ const AiParsePdfModal: React.FC<AiParsePdfModalProps> = ({
       setResult(response);
       queryClient.invalidateQueries({ queryKey: ['reports'] });
       queryClient.invalidateQueries({ queryKey: ['reports', String(companyId)] });
+      queryClient.invalidateQueries({ queryKey: ['reports-counts-by-company'] });
       queryClient.invalidateQueries({ queryKey: ['reports-unverified-counts'] });
       await refreshCompanyMultipliers(companyId, true).catch(() => {});
       queryClient.invalidateQueries({ queryKey: ['multipliers', String(companyId)] });
@@ -872,6 +896,7 @@ const BatchParsePanel: React.FC<BatchParsePanelProps> = ({
     if (anySucceeded) {
       queryClient.invalidateQueries({ queryKey: ['reports'] });
       queryClient.invalidateQueries({ queryKey: ['reports', String(companyId)] });
+      queryClient.invalidateQueries({ queryKey: ['reports-counts-by-company'] });
       queryClient.invalidateQueries({ queryKey: ['reports-unverified-counts'] });
       await refreshCompanyMultipliers(companyId, true).catch(() => {});
       queryClient.invalidateQueries({ queryKey: ['multipliers', String(companyId)] });

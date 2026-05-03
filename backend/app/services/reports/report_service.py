@@ -68,6 +68,9 @@ def create_report(db: Session, report_data: FinancialReportCreate) -> FinancialR
         fee_commission_income=report_data.fee_commission_income,
         operating_expenses=report_data.operating_expenses,
         provisions=report_data.provisions,
+        operating_cash_flow=report_data.operating_cash_flow,
+        capex=report_data.capex,
+        depreciation_amortization=report_data.depreciation_amortization,
         # Верификация / источник AI
         auto_extracted=report_data.auto_extracted,
         verified_by_analyst=report_data.verified_by_analyst,
@@ -235,6 +238,9 @@ def update_report(
     db_report.fee_commission_income = report_data.fee_commission_income  # type: ignore
     db_report.operating_expenses = report_data.operating_expenses  # type: ignore
     db_report.provisions = report_data.provisions  # type: ignore
+    db_report.operating_cash_flow = report_data.operating_cash_flow  # type: ignore
+    db_report.capex = report_data.capex  # type: ignore
+    db_report.depreciation_amortization = report_data.depreciation_amortization  # type: ignore
 
     # Любая ручная правка через форму по умолчанию подтверждает корректность данных.
     # Схема FinancialReportCreate имеет verified_by_analyst=True по умолчанию, поэтому
@@ -373,6 +379,24 @@ def count_unverified_by_company(db: Session) -> dict[int, int]:
             sa_func.count(FinancialReport.id),
         )
         .filter(FinancialReport.verified_by_analyst.is_(False))
+        .group_by(FinancialReport.company_id)
+        .all()
+    )
+    return {company_id: count for company_id, count in rows}
+
+
+def count_reports_by_company(db: Session) -> dict[int, int]:
+    """
+    Число финансовых отчётов по каждой компании (все отчёты).
+    Компании без отчётов в результат не попадают — на фронте считают как 0.
+    """
+    from sqlalchemy import func as sa_func
+
+    rows = (
+        db.query(
+            FinancialReport.company_id,
+            sa_func.count(FinancialReport.id),
+        )
         .group_by(FinancialReport.company_id)
         .all()
     )

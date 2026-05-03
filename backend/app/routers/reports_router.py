@@ -163,6 +163,14 @@ def unverified_counts_by_company(db: Session = Depends(get_db)):
     return report_service.count_unverified_by_company(db=db)
 
 
+@router.get("/counts/by-company", response_model=Dict[int, int])
+def report_counts_by_company(db: Session = Depends(get_db)):
+    """
+    Вернуть {company_id: число всех отчётов}. Компании без отчётов в ответе отсутствуют.
+    """
+    return report_service.count_reports_by_company(db=db)
+
+
 @router.post("/{report_id}/verify", response_model=FinancialReport)
 def verify_report(report_id: int, db: Session = Depends(get_db)):
     """
