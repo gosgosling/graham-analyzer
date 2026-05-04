@@ -88,7 +88,8 @@ function pfcfLevel(v: number | null, fcf: number | null): Level {
 }
 
 /**
- * FCF/Net Income (конверсия) — детектор качества прибыли.
+ * FCF/Net Income (конверсия) — детектор качества прибыли при положительном NI.
+ * Использовать только когда LTM net income > 0 (см. `fcfNiBadge`).
  *  ≥ 100%: FCF превышает прибыль → high-quality earnings ('good')
  *  70–99%: норма ('warn')
  *  0–69%: сомнительное качество ('bad')
@@ -100,6 +101,23 @@ function fcfNiLevel(v: number | null): Level {
   if (v >= 70) return 'warn';
   if (v >= 0) return 'bad';
   return 'loss';  // FCF отрицательный — красный флаг
+}
+
+/** UI для FCF/NI: при NI ≤ 0 — как у P/E («Убыток», level-loss); при NI > 0 — число и шкала fcfNiLevel. */
+function fcfNiBadge(
+  fcfNi: number | null | undefined,
+  ltmNetIncome: number | null | undefined,
+): { value: number | null; level: Level; nullHint?: string } {
+  const ni = ltmNetIncome ?? null;
+  if (ni !== null && ni <= 0) {
+    return {
+      value: null,
+      level: 'loss',
+      nullHint: 'Чистая прибыль ≤ 0 — соотношение FCF/NI не применимо',
+    };
+  }
+  const v = fcfNi ?? null;
+  return { value: v, level: fcfNiLevel(v) };
 }
 
 // ─── Отраслевые профили Current Ratio ────────────────────────────────────────
@@ -408,6 +426,16 @@ interface CurrentCardsProps {
   crProfile: CrProfile;
 }
 
+interface DashboardCard {
+  label: string;
+  value: number | null;
+  level: Level;
+  hint: string;
+  threshold: string;
+  suffix?: string;
+  nullHint?: string;
+}
+
 const CurrentCards: React.FC<CurrentCardsProps> = ({ data, crProfile }) => {
   const income = data.ltm_net_income;
   const isLoss = income !== null && income < 0;
@@ -417,6 +445,7 @@ const CurrentCards: React.FC<CurrentCardsProps> = ({ data, crProfile }) => {
   const ltmFcf = (data as any).ltm_fcf as number | null | undefined;
   const pfcf = (data as any).price_to_fcf as number | null | undefined;
   const fcfNi = (data as any).fcf_to_net_income as number | null | undefined;
+  const fcfNiUi = fcfNiBadge(fcfNi ?? null, income ?? null);
 
   const baseCards = [
     {
@@ -479,31 +508,37 @@ const CurrentCards: React.FC<CurrentCardsProps> = ({ data, crProfile }) => {
     },
     {
       label: 'FCF/NI',
-      value: fcfNi ?? null,
-      level: fcfNiLevel(fcfNi ?? null),
+      value: fcfNiUi.value,
+      level: fcfNiUi.level,
       hint: 'Качество прибыли (FCF / Net Income)',
-      threshold: (fcfNi ?? 0) < 0
-        ? '⚠ Красный флаг: FCF < 0'
-        : (fcfNi ?? 0) >= 100
-          ? 'FCF > прибыли — отлично'
-          : (fcfNi ?? 0) >= 70
-            ? '70–100% — норма'
-            : '< 70% — сомнительно',
+      threshold:
+        income !== null && income <= 0
+          ? 'Прибыль ≤ 0 — показатель не применим'
+          : fcfNiUi.value === null
+            ? 'Недостаточно данных'
+            : fcfNiUi.value < 0
+              ? '⚠ Красный флаг: FCF < 0'
+              : fcfNiUi.value >= 100
+                ? 'FCF > прибыли — отлично'
+                : fcfNiUi.value >= 70
+                  ? '70–100% — норма'
+                  : '< 70% — сомнительно',
       suffix: '%',
+      nullHint: fcfNiUi.nullHint,
     },
   ] : [];
 
-  const cards = [...baseCards, ...fcfCards];
+  const cards: DashboardCard[] = [...baseCards, ...fcfCards];
 
   return (
     <div className="current-cards-grid">
-      {cards.map(({ label, value, level, hint, threshold, suffix = '' }) => (
+      {cards.map(({ label, value, level, hint, threshold, suffix = '', nullHint }) => (
         <div key={label} className={`current-card level-${level}`}>
           <div className="current-card-label">{label}</div>
-          <div className="current-card-value">
+          <div className="current-card-value" title={nullHint}>
             {value !== null
               ? `${fmt(value)}${suffix}`
-              : level === 'loss' ? (label === 'FCF/NI' ? 'Отриц. FCF' : 'Убыток') : '—'}
+              : level === 'loss' ? 'Убыток' : '—'}
           </div>
           <div className="current-card-hint">{hint}</div>
           <div className={`current-card-threshold level-${level}`}>{threshold}</div>
@@ -731,6 +766,7 @@ const HistTable: React.FC<HistTableProps> = ({ rows, currentRow, crProfile }) =>
           {/* LTM-строка (актуальные данные) */}
           {currentRow && (() => {
             const ltmIsLoss = currentRow.ltm_net_income !== null && currentRow.ltm_net_income < 0;
+            const fcfNiLtm = fcfNiBadge((currentRow as any).fcf_to_net_income, currentRow.ltm_net_income);
             return (
               <tr className="row-ltm">
                 <td className="col-year"><span className="badge-ltm">LTM</span></td>
@@ -752,7 +788,14 @@ const HistTable: React.FC<HistTableProps> = ({ rows, currentRow, crProfile }) =>
                   nullHint={crProfile.notApplicable ? 'CR не применим для данного типа компании' : undefined} /></td>
                 <td><MetricBadge value={currentRow.dividend_yield} level={dyLevel(currentRow.dividend_yield)} suffix="%" /></td>
                 <td><MetricBadge value={(currentRow as any).price_to_fcf ?? null} level={pfcfLevel((currentRow as any).price_to_fcf ?? null, (currentRow as any).ltm_fcf ?? null)} /></td>
-                <td><MetricBadge value={(currentRow as any).fcf_to_net_income ?? null} level={fcfNiLevel((currentRow as any).fcf_to_net_income ?? null)} suffix="%" /></td>
+                <td>
+                  <MetricBadge
+                    value={fcfNiLtm.value}
+                    level={fcfNiLtm.level}
+                    suffix="%"
+                    nullHint={fcfNiLtm.nullHint}
+                  />
+                </td>
                 <td className={(currentRow as any).ltm_fcf !== null && (currentRow as any).ltm_fcf !== undefined && (currentRow as any).ltm_fcf < 0 ? 'cell-loss' : ''}>{fmtMln((currentRow as any).ltm_fcf ?? null)}</td>
                 <td>{fmtMln(currentRow.ltm_revenue)}</td>
                 <td className={ltmIsLoss ? 'cell-loss' : ''}>{fmtMln(currentRow.ltm_net_income)}</td>
@@ -770,6 +813,8 @@ const HistTable: React.FC<HistTableProps> = ({ rows, currentRow, crProfile }) =>
             const noLiab    = r.total_liabilities === null;
             const noCurr    = r.current_assets === null || r.current_liabilities === null;
             const noDivs    = r.ltm_dividends_per_share === null;
+
+            const fcfNiRow = fcfNiBadge(r.fcf_to_net_income, r.ltm_net_income);
 
             const peHint = isLoss
               ? 'Убыток за период — P/E не рассчитывается'
@@ -818,7 +863,14 @@ const HistTable: React.FC<HistTableProps> = ({ rows, currentRow, crProfile }) =>
                 <td><MetricBadge value={r.dividend_yield} level={dyLevel(r.dividend_yield)} suffix="%"
                   nullHint={noDivs ? 'Дивиденды не указаны' : noPrice ? 'Нет цены акции' : undefined} /></td>
                 <td><MetricBadge value={r.price_to_fcf} level={pfcfLevel(r.price_to_fcf, r.ltm_fcf)} /></td>
-                <td><MetricBadge value={r.fcf_to_net_income} level={fcfNiLevel(r.fcf_to_net_income)} suffix="%" /></td>
+                <td>
+                  <MetricBadge
+                    value={fcfNiRow.value}
+                    level={fcfNiRow.level}
+                    suffix="%"
+                    nullHint={fcfNiRow.nullHint}
+                  />
+                </td>
                 <td className={r.ltm_fcf !== null && r.ltm_fcf < 0 ? 'cell-loss' : ''}>{fmtMln(r.ltm_fcf)}</td>
                 <td>{fmtMln(r.ltm_revenue)}</td>
                 <td className={isLoss ? 'cell-loss' : ''}>{fmtMln(r.ltm_net_income)}</td>

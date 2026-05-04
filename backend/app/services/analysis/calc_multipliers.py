@@ -157,9 +157,9 @@ def calculate_multipliers(
         if market_cap_full and ltm_fcf_mln is not None and ltm_fcf_mln > 0:
             price_to_fcf = round(market_cap_full / (ltm_fcf_mln * MILLION), 2)
 
-        # FCF / Net Income × 100% — детектор качества прибыли
-        # Считаем при любом FCF (в т.ч. отрицательном) если net_income != 0
-        if ltm_fcf_mln is not None and net_income_mln and net_income_mln != 0:
+        # FCF / Net Income × 100% — детектор качества прибыли (только при NI > 0).
+        # При NI ≤ 0 отношение не считаем: два отрицательных числа дали бы положительный % — вводит в заблуждение.
+        if ltm_fcf_mln is not None and net_income_mln is not None and net_income_mln > 0:
             fcf_to_net_income = round(ltm_fcf_mln / net_income_mln * 100, 2)
 
     return {
