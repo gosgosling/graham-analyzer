@@ -1,4 +1,5 @@
 from app.models.financial_report import FinancialReport
+from app.services.analysis.fcf import compute_fcf
 from app.utils.currency_converter import convert_to_rub
 from typing import Dict, Optional
 
@@ -26,6 +27,9 @@ def calculate_multipliers(
     ltm_dividends_per_share: Optional[float] = None,
     ltm_operating_cash_flow: Optional[float] = None,
     ltm_capex: Optional[float] = None,
+    ltm_lease_principal: Optional[float] = None,
+    ltm_lease_interest: Optional[float] = None,
+    ltm_debt_principal: Optional[float] = None,
 ) -> Dict[str, Optional[float]]:
     """
     Рассчитывает финансовые мультипликаторы.
@@ -72,9 +76,14 @@ def calculate_multipliers(
         to_rub_mln(ltm_net_income) if ltm_net_income is not None
         else to_rub_mln(report.net_income)
     )
+    # Дивиденды на акцию (только обыкновенные; поле dividends_per_share).
+    # Если ltm_dividends_per_share передан явно — используем его.
+    # При прямом чтении из отчёта — учитываем флаг dividends_paid:
+    # если выплат не было (dividends_paid=False), dividend_yield должен быть None.
+    _report_dps = report.dividends_per_share if getattr(report, "dividends_paid", False) else None
     dividends_per_share_rub = (
         to_rub_full(ltm_dividends_per_share) if ltm_dividends_per_share is not None
-        else to_rub_full(report.dividends_per_share)
+        else to_rub_full(_report_dps)
     )
 
     # Балансовые (в млн валюты → млн рублей)
@@ -91,13 +100,15 @@ def calculate_multipliers(
         market_cap_mln = round(market_cap_full / MILLION, 3)
 
     # P/E = Market Cap (полн. руб.) / Net Income (полн. руб.)
+    # Считаем и при отрицательной прибыли (отрицательный P/E).
     pe_ratio: Optional[float] = None
-    if market_cap_full and net_income_mln and net_income_mln > 0:
+    if market_cap_full and net_income_mln is not None and net_income_mln != 0:
         pe_ratio = round(market_cap_full / (net_income_mln * MILLION), 2)
 
     # P/B = Market Cap (полн.) / Equity (полн.)
+    # Считаем и при отрицательном капитале (отрицательный P/B).
     pb_ratio: Optional[float] = None
-    if market_cap_full and equity_mln and equity_mln > 0:
+    if market_cap_full and equity_mln is not None and equity_mln != 0:
         pb_ratio = round(market_cap_full / (equity_mln * MILLION), 2)
 
     # ROE = Net Income / Equity × 100%  (миллионы сокращаются)
@@ -146,15 +157,32 @@ def calculate_multipliers(
         # LTM операционный поток и CAPEX: сначала берём LTM-агрегат, затем fallback на отчёт
         ocf_raw = ltm_operating_cash_flow if ltm_operating_cash_flow is not None else getattr(report, 'operating_cash_flow', None)
         cap_raw = ltm_capex if ltm_capex is not None else getattr(report, 'capex', None)
+        lease_p_raw = (
+            ltm_lease_principal if ltm_lease_principal is not None
+            else getattr(report, 'lease_principal', None)
+        )
+        lease_i_raw = (
+            ltm_lease_interest if ltm_lease_interest is not None
+            else getattr(report, 'lease_interest', None)
+        )
+        debt_p_raw = (
+            ltm_debt_principal if ltm_debt_principal is not None
+            else getattr(report, 'debt_principal', None)
+        )
 
         ltm_ocf_mln = to_rub_mln(ocf_raw)
         cap_mln = to_rub_mln(cap_raw)
+        lease_p_mln = to_rub_mln(lease_p_raw) if lease_p_raw is not None else None
+        lease_i_mln = to_rub_mln(lease_i_raw) if lease_i_raw is not None else None
+        debt_p_mln = to_rub_mln(debt_p_raw) if debt_p_raw is not None else None
 
         if ltm_ocf_mln is not None and cap_mln is not None:
-            ltm_fcf_mln = round(ltm_ocf_mln - cap_mln, 3)
+            ltm_fcf_mln = compute_fcf(
+                ltm_ocf_mln, cap_mln, lease_p_mln, lease_i_mln, debt_p_mln
+            )
 
-        # P/FCF = Market Cap / LTM FCF  (только если FCF > 0)
-        if market_cap_full and ltm_fcf_mln is not None and ltm_fcf_mln > 0:
+        # P/FCF = Market Cap / LTM FCF (в т.ч. отрицательный при FCF < 0)
+        if market_cap_full and ltm_fcf_mln is not None and ltm_fcf_mln != 0:
             price_to_fcf = round(market_cap_full / (ltm_fcf_mln * MILLION), 2)
 
         # FCF / Net Income × 100% — детектор качества прибыли (только при NI > 0).
