@@ -20,38 +20,18 @@ type Level = 'good' | 'warn' | 'bad' | 'neutral' | 'loss';
 
 function peLevel(v: number | null): Level {
   if (v === null) return 'neutral';
+  if (v < 0) return 'bad';
   if (v <= 15) return 'good';
   if (v <= 25) return 'warn';
   return 'bad';
 }
 
-/**
- * Уровень для P/E с учётом убытка.
- * Если P/E есть — стандартная градация.
- * Если P/E null + доход < 0 — компания убыточна ('loss').
- * Иначе — нет данных ('neutral').
- */
-function peLevelContext(pe: number | null, income: number | null): Level {
-  if (pe !== null) return peLevel(pe);
-  if (income !== null && income < 0) return 'loss';
-  return 'neutral';
-}
-
 function pbLevel(v: number | null): Level {
   if (v === null) return 'neutral';
+  if (v < 0) return 'bad';
   if (v <= 1.5) return 'good';
   if (v <= 3) return 'warn';
   return 'bad';
-}
-
-/**
- * Уровень P/B с учётом отрицательного капитала:
- * если капитал < 0, P/B не считается и показываем 'bad' (book deficit).
- */
-function pbLevelContext(pb: number | null, equity: number | null): Level {
-  if (pb !== null) return pbLevel(pb);
-  if (equity !== null && equity < 0) return 'loss';
-  return 'neutral';
 }
 
 function roeLevel(v: number | null): Level {
@@ -73,18 +53,13 @@ function deLevel(v: number | null): Level {
   return 'bad';
 }
 
-/**
- * P/FCF — аналог P/E: те же пороги, но по денежному потоку.
- * < 0 (отрицательный FCF) → loss.
- */
-function pfcfLevel(v: number | null, fcf: number | null): Level {
-  if (v !== null) {
-    if (v <= 15) return 'good';
-    if (v <= 25) return 'warn';
-    return 'bad';
-  }
-  if (fcf !== null && fcf < 0) return 'loss';
-  return 'neutral';
+/** P/FCF — аналог P/E: те же пороги, в т.ч. отрицательное значение при FCF < 0. */
+function pfcfLevel(v: number | null): Level {
+  if (v === null) return 'neutral';
+  if (v < 0) return 'bad';
+  if (v <= 15) return 'good';
+  if (v <= 25) return 'warn';
+  return 'bad';
 }
 
 /**
@@ -103,7 +78,45 @@ function fcfNiLevel(v: number | null): Level {
   return 'loss';  // FCF отрицательный — красный флаг
 }
 
-/** UI для FCF/NI: при NI ≤ 0 — как у P/E («Убыток», level-loss); при NI > 0 — число и шкала fcfNiLevel. */
+/** ROE в таблице: капитал ≤ 0 → Н/Д; убыток → «убыток»; ROE > 100% → «Искажено». */
+function roeBadge(
+  roe: number | null | undefined,
+  netIncome: number | null | undefined,
+  equity: number | null | undefined,
+): { value: number | null; level: Level; textLabel?: string; nullHint?: string; centered?: boolean } {
+  const eq = equity ?? null;
+  const ni = netIncome ?? null;
+
+  if (eq !== null && eq <= 0) {
+    return {
+      value: null,
+      level: 'loss',
+      textLabel: 'Н/Д',
+      nullHint: 'Собственный капитал ≤ 0 — ROE не применим',
+      centered: true,
+    };
+  }
+  if (ni !== null && ni < 0) {
+    return {
+      value: null,
+      level: 'loss',
+      textLabel: 'убыток',
+      nullHint: 'Убыток за период — ROE не показывается',
+    };
+  }
+  const v = roe ?? null;
+  if (v !== null && v > 100) {
+    return {
+      value: null,
+      level: 'warn',
+      textLabel: 'Искажено',
+      nullHint: 'ROE > 100% — показатель может быть искажён (малый капитал или разовые эффекты)',
+    };
+  }
+  return { value: v, level: roeLevel(v) };
+}
+
+/** UI для FCF/NI: при NI ≤ 0 — «убыток»; при NI > 0 — число и шкала fcfNiLevel. */
 function fcfNiBadge(
   fcfNi: number | null | undefined,
   ltmNetIncome: number | null | undefined,
@@ -361,23 +374,47 @@ function dyLevel(v: number | null): Level {
 // ─── Вспомогательные компоненты ──────────────────────────────────────────────
 
 function MetricBadge({
-  value, level, suffix = '', nullHint,
+  value, level, suffix = '', nullHint, textLabel, centered = false,
 }: {
   value: number | null;
   level: Level;
   suffix?: string;
   nullHint?: string;
+  textLabel?: string;
+  centered?: boolean;
 }) {
+  const tipClass = nullHint ? ' mult-cell-tip' : '';
+
+  const wrap = (node: React.ReactElement) =>
+    centered ? <span className="mult-cell-center">{node}</span> : node;
+
+  if (textLabel) {
+    const isCompact = textLabel === 'убыток' || textLabel === 'Н/Д' || textLabel === 'Искажено';
+    return wrap(
+      <span
+        className={`mult-cell ${level}${isCompact ? ' mult-cell-text-label' : ''}${tipClass}`}
+        title={nullHint}
+      >
+        {textLabel}
+      </span>,
+    );
+  }
   if (value === null) {
     if (level === 'loss') {
-      return (
-        <span className="mult-cell loss null-hint" title={nullHint ?? 'Убыток за период — показатель не применим'}>
-          Убыток
-        </span>
+      return wrap(
+        <span
+          className={`mult-cell loss mult-cell-text-label${tipClass}`}
+          title={nullHint ?? 'Убыток за период — показатель не применим'}
+        >
+          убыток
+        </span>,
       );
     }
     return (
-      <span className="mult-cell neutral null-hint" title={nullHint ?? 'Недостаточно данных'}>
+      <span
+        className={`mult-cell neutral${nullHint ? ' mult-cell-tip' : ''}`}
+        title={nullHint ?? 'Недостаточно данных'}
+      >
         —
       </span>
     );
@@ -389,9 +426,106 @@ function MetricBadge({
   );
 }
 
+function RoeMetricBadge({
+  roe,
+  netIncome,
+  equity,
+}: {
+  roe: number | null | undefined;
+  netIncome: number | null | undefined;
+  equity: number | null | undefined;
+}) {
+  const ui = roeBadge(roe, netIncome, equity);
+  return (
+    <MetricBadge
+      value={ui.value}
+      level={ui.level}
+      suffix="%"
+      nullHint={ui.nullHint}
+      textLabel={ui.textLabel}
+      centered={ui.centered}
+    />
+  );
+}
+
+/** Нет дивидендной доходности: выплаты по обыкновенным не указаны или не было выплат */
+function NoDividendYieldMark({ className = '' }: { className?: string }) {
+  return (
+    <span className={`mult-cell-center${className ? ` ${className}` : ''}`}>
+      <span
+        className="mult-div-none mult-div-none--wrap mult-cell-tip"
+        title="Дивиденды по обыкновенным акциям за период не выплачивались или не указаны в отчётах"
+        aria-label="Дивиденды не выплачивались"
+      >
+        <span className="mult-div-none-box" aria-hidden>
+          ×
+        </span>
+      </span>
+    </span>
+  );
+}
+
+function DividendYieldBadge({
+  dividendYield,
+  ltmDividendsPerShare,
+  priceUsed,
+  isPreferredShare = false,
+}: {
+  dividendYield: number | null;
+  ltmDividendsPerShare: number | null;
+  priceUsed: number | null;
+  /** Тикер представляет привилегированные акции — у него нет понятия
+   *  «не выплачивались по обыкновенным», поэтому красный маркер не нужен. */
+  isPreferredShare?: boolean;
+}) {
+  if (dividendYield !== null) {
+    const lvl = dyLevel(dividendYield);
+    return (
+      <span
+        className={`mult-cell ${lvl}`}
+        title={isPreferredShare ? 'Доходность по привилегированным акциям' : undefined}
+      >
+        {dividendYield.toFixed(2)}%
+      </span>
+    );
+  }
+  if (ltmDividendsPerShare === null) {
+    if (isPreferredShare) {
+      return (
+        <span
+          className="mult-cell neutral null-hint"
+          title="Доходность по привилегированным акциям — дивиденды в отчётах не указаны"
+        >
+          —
+        </span>
+      );
+    }
+    return <NoDividendYieldMark />;
+  }
+  const hint =
+    priceUsed === null || priceUsed === undefined
+      ? 'Недостаточно данных для расчёта доходности'
+      : 'Нет цены акции для расчёта доходности';
+  return (
+    <span className="mult-cell neutral null-hint" title={hint}>
+      —
+    </span>
+  );
+}
+
 function fmt(n: number | null, decimals = 2): string {
   if (n === null) return '—';
   return n.toLocaleString('ru-RU', { maximumFractionDigits: decimals });
+}
+
+/** Заголовок колонки: название + единица измерения меньшим шрифтом снизу. */
+function ColHeaderWithUnit({ title, unit = 'млрд ₽' }: { title: string; unit?: string }) {
+  return (
+    <span className="col-header-stacked">
+      <span className="col-header-title">{title}</span>
+      <span className="col-header-unit">{unit}</span>
+    </span>
+  );
 }
 
 /**
@@ -404,6 +538,12 @@ function fmtMln(n: number | null): string {
   if (abs >= 1_000_000) return (n / 1_000_000).toFixed(2) + ' трлн ₽';
   if (abs >= 1_000)     return (n / 1_000).toFixed(2) + ' млрд ₽';
   return n.toLocaleString('ru-RU', { maximumFractionDigits: 1 }) + ' млн ₽';
+}
+
+/** Значение в млн ₽ → число в млрд (без единицы; единица в заголовке колонки). */
+function fmtMlnBln(n: number | null): string {
+  if (n === null) return '—';
+  return (n / 1_000).toFixed(2);
 }
 
 function fmtDate(d: string): string {
@@ -424,6 +564,8 @@ function fmtDateFull(iso: string): string {
 interface CurrentCardsProps {
   data: CurrentMultipliers;
   crProfile: CrProfile;
+  /** Тикер компании — привилегированные акции (TRNFP, BANEP, SBERP …) */
+  isPreferredShare?: boolean;
 }
 
 interface DashboardCard {
@@ -434,11 +576,13 @@ interface DashboardCard {
   threshold: string;
   suffix?: string;
   nullHint?: string;
+  textLabel?: string;
 }
 
-const CurrentCards: React.FC<CurrentCardsProps> = ({ data, crProfile }) => {
+const CurrentCards: React.FC<CurrentCardsProps> = ({ data, crProfile, isPreferredShare = false }) => {
   const income = data.ltm_net_income;
   const isLoss = income !== null && income < 0;
+  const roeUi = roeBadge(data.roe, income, data.equity ?? null);
   const isBank = data.cost_to_income !== null || (
     data.debt_to_equity === null && data.current_ratio === null
   );
@@ -451,24 +595,33 @@ const CurrentCards: React.FC<CurrentCardsProps> = ({ data, crProfile }) => {
     {
       label: 'P/E',
       value: data.pe_ratio,
-      level: peLevelContext(data.pe_ratio, income),
+      level: peLevel(data.pe_ratio),
       hint: 'Цена / Прибыль',
-      threshold: isLoss ? 'Убыток — P/E не применим' : '≤ 15 — хорошо',
+      threshold: isLoss ? 'Отрицательный P/E при убытке' : '≤ 15 — хорошо',
     },
     {
       label: 'P/B',
       value: data.pb_ratio,
-      level: pbLevelContext(data.pb_ratio, data.market_cap),
+      level: pbLevel(data.pb_ratio),
       hint: 'Цена / Балансовая стоимость',
-      threshold: '≤ 1.5 — хорошо',
+      threshold: data.pb_ratio !== null && data.pb_ratio < 0 ? 'Отрицательный P/B' : '≤ 1.5 — хорошо',
     },
     {
       label: 'ROE',
-      value: data.roe,
-      level: roeLevel(data.roe),
+      value: roeUi.textLabel ? null : roeUi.value,
+      level: roeUi.level,
       hint: 'Рентабельность капитала',
-      threshold: isLoss && data.roe !== null && data.roe < 0 ? 'Отрицательный ROE' : '≥ 15% — хорошо',
+      threshold:
+        roeUi.textLabel === 'Н/Д'
+          ? 'Капитал ≤ 0'
+          : roeUi.textLabel === 'убыток'
+            ? 'Убыток за период'
+            : roeUi.textLabel === 'Искажено'
+              ? 'ROE > 100%'
+              : '≥ 15% — хорошо',
       suffix: '%',
+      nullHint: roeUi.nullHint,
+      textLabel: roeUi.textLabel,
     },
     {
       label: 'Долг/Капитал',
@@ -489,9 +642,25 @@ const CurrentCards: React.FC<CurrentCardsProps> = ({ data, crProfile }) => {
     {
       label: 'Div. Yield',
       value: data.dividend_yield,
-      level: dyLevel(data.dividend_yield),
-      hint: 'Дивидендная доходность',
-      threshold: '≥ 3% — хорошо',
+      level:
+        data.dividend_yield !== null
+          ? dyLevel(data.dividend_yield)
+          : data.ltm_dividends_per_share === null
+            ? isPreferredShare
+              ? 'neutral'
+              : 'bad'
+            : 'neutral',
+      hint: isPreferredShare
+        ? 'Дивидендная доходность (привилегированные)'
+        : 'Дивидендная доходность',
+      threshold:
+        data.dividend_yield !== null
+          ? '≥ 3% — хорошо'
+          : data.ltm_dividends_per_share === null
+            ? isPreferredShare
+              ? 'Дивиденды по префам в отчётах не указаны'
+              : 'Нет выплат по обыкновенным в отчётах'
+            : 'Нет цены / данных для расчёта',
       suffix: '%',
     },
   ];
@@ -502,9 +671,9 @@ const CurrentCards: React.FC<CurrentCardsProps> = ({ data, crProfile }) => {
     {
       label: 'P/FCF',
       value: pfcf ?? null,
-      level: pfcfLevel(pfcf ?? null, ltmFcf ?? null),
+      level: pfcfLevel(pfcf ?? null),
       hint: 'Цена / Свободный денежный поток',
-      threshold: (ltmFcf ?? 0) < 0 ? 'FCF отрицателен' : '≤ 15 — хорошо',
+      threshold: pfcf !== null && pfcf !== undefined && pfcf < 0 ? 'Отрицательный P/FCF' : '≤ 15 — хорошо',
     },
     {
       label: 'FCF/NI',
@@ -532,13 +701,27 @@ const CurrentCards: React.FC<CurrentCardsProps> = ({ data, crProfile }) => {
 
   return (
     <div className="current-cards-grid">
-      {cards.map(({ label, value, level, hint, threshold, suffix = '', nullHint }) => (
+      {cards.map(({ label, value, level, hint, threshold, suffix = '', nullHint, textLabel }) => (
         <div key={label} className={`current-card level-${level}`}>
           <div className="current-card-label">{label}</div>
           <div className="current-card-value" title={nullHint}>
-            {value !== null
-              ? `${fmt(value)}${suffix}`
-              : level === 'loss' ? 'Убыток' : '—'}
+            {label === 'Div. Yield' && value === null && data.ltm_dividends_per_share === null ? (
+              isPreferredShare ? (
+                '—'
+              ) : (
+                <NoDividendYieldMark className="mult-div-none--card" />
+              )
+            ) : textLabel ? (
+              <span className={textLabel === 'убыток' ? 'card-text-label card-text-label--loss' : 'card-text-label'}>
+                {textLabel}
+              </span>
+            ) : value !== null ? (
+              `${fmt(value)}${suffix}`
+            ) : level === 'loss' ? (
+              <span className="card-text-label card-text-label--loss">убыток</span>
+            ) : (
+              '—'
+            )}
           </div>
           <div className="current-card-hint">{hint}</div>
           <div className={`current-card-threshold level-${level}`}>{threshold}</div>
@@ -646,6 +829,8 @@ interface HistTableProps {
   rows: MultiplierRecord[];
   currentRow?: CurrentMultipliers;
   crProfile: CrProfile;
+  /** Тикер представляет привилегированные акции — влияет на отображение Div. Yield */
+  isPreferredShare?: boolean;
 }
 
 /** Всплывающая подсказка: цена в ячейке — на конец периода; рядом — на дату публикации отчёта. */
@@ -721,7 +906,7 @@ const HistPriceCell: React.FC<{ row: MultiplierRecord }> = ({ row }) => {
   );
 };
 
-const HistTable: React.FC<HistTableProps> = ({ rows, currentRow, crProfile }) => {
+const HistTable: React.FC<HistTableProps> = ({ rows, currentRow, crProfile, isPreferredShare = false }) => {
   const [crTooltipVisible, setCrTooltipVisible] = React.useState(false);
   const crThRef = React.useRef<HTMLTableCellElement | null>(null);
 
@@ -737,7 +922,9 @@ const HistTable: React.FC<HistTableProps> = ({ rows, currentRow, crProfile }) =>
             >
               Цена, ₽
             </th>
-            <th className="col-mkt">Кап., млрд ₽</th>
+            <th className="col-mkt col-header-unit-col">
+              <ColHeaderWithUnit title="Кап." />
+            </th>
             <th className="col-mult">P/E</th>
             <th className="col-mult">P/B</th>
             <th className="col-mult">ROE, %</th>
@@ -757,9 +944,15 @@ const HistTable: React.FC<HistTableProps> = ({ rows, currentRow, crProfile }) =>
             <th className="col-mult">Div, %</th>
             <th className="col-mult" title="Price / Free Cash Flow (только для non-bank)">P/FCF</th>
             <th className="col-mult" title="FCF / Net Income × 100% — качество прибыли">FCF/NI, %</th>
-            <th className="col-rev" title="FCF = Операционный поток − CAPEX, LTM">FCF LTM</th>
-            <th className="col-rev">Выручка LTM</th>
-            <th className="col-ni">Прибыль LTM</th>
+            <th className="col-rev col-header-unit-col" title="FCF = Операционный поток − CAPEX">
+              <ColHeaderWithUnit title="FCF" />
+            </th>
+            <th className="col-rev col-header-unit-col">
+              <ColHeaderWithUnit title="Выручка" />
+            </th>
+            <th className="col-ni col-header-unit-col">
+              <ColHeaderWithUnit title="Прибыль" />
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -772,13 +965,15 @@ const HistTable: React.FC<HistTableProps> = ({ rows, currentRow, crProfile }) =>
                 <td className="col-year"><span className="badge-ltm">LTM</span></td>
                 <td>{currentRow.price_used !== null ? fmt(currentRow.price_used) : '—'}</td>
                 <td>{currentRow.market_cap !== null ? (currentRow.market_cap / 1_000).toFixed(2) : '—'}</td>
-                <td><MetricBadge
-                  value={currentRow.pe_ratio}
-                  level={peLevelContext(currentRow.pe_ratio, currentRow.ltm_net_income)}
-                  nullHint={ltmIsLoss ? 'Убыток за период — P/E не рассчитывается' : undefined}
-                /></td>
+                <td><MetricBadge value={currentRow.pe_ratio} level={peLevel(currentRow.pe_ratio)} /></td>
                 <td><MetricBadge value={currentRow.pb_ratio} level={pbLevel(currentRow.pb_ratio)} /></td>
-                <td><MetricBadge value={currentRow.roe} level={roeLevel(currentRow.roe)} suffix="%" /></td>
+                <td>
+                  <RoeMetricBadge
+                    roe={currentRow.roe}
+                    netIncome={currentRow.ltm_net_income}
+                    equity={currentRow.equity ?? null}
+                  />
+                </td>
                 <td><MetricBadge
                   value={currentRow.debt_to_equity}
                   level={deLevel(currentRow.debt_to_equity)}
@@ -786,8 +981,15 @@ const HistTable: React.FC<HistTableProps> = ({ rows, currentRow, crProfile }) =>
                 /></td>
                 <td><MetricBadge value={currentRow.current_ratio} level={crLevel(currentRow.current_ratio, crProfile)}
                   nullHint={crProfile.notApplicable ? 'CR не применим для данного типа компании' : undefined} /></td>
-                <td><MetricBadge value={currentRow.dividend_yield} level={dyLevel(currentRow.dividend_yield)} suffix="%" /></td>
-                <td><MetricBadge value={(currentRow as any).price_to_fcf ?? null} level={pfcfLevel((currentRow as any).price_to_fcf ?? null, (currentRow as any).ltm_fcf ?? null)} /></td>
+                <td>
+                  <DividendYieldBadge
+                    dividendYield={currentRow.dividend_yield}
+                    ltmDividendsPerShare={currentRow.ltm_dividends_per_share}
+                    priceUsed={currentRow.price_used}
+                    isPreferredShare={isPreferredShare}
+                  />
+                </td>
+                <td><MetricBadge value={(currentRow as any).price_to_fcf ?? null} level={pfcfLevel((currentRow as any).price_to_fcf ?? null)} /></td>
                 <td>
                   <MetricBadge
                     value={fcfNiLtm.value}
@@ -796,9 +998,9 @@ const HistTable: React.FC<HistTableProps> = ({ rows, currentRow, crProfile }) =>
                     nullHint={fcfNiLtm.nullHint}
                   />
                 </td>
-                <td className={(currentRow as any).ltm_fcf !== null && (currentRow as any).ltm_fcf !== undefined && (currentRow as any).ltm_fcf < 0 ? 'cell-loss' : ''}>{fmtMln((currentRow as any).ltm_fcf ?? null)}</td>
-                <td>{fmtMln(currentRow.ltm_revenue)}</td>
-                <td className={ltmIsLoss ? 'cell-loss' : ''}>{fmtMln(currentRow.ltm_net_income)}</td>
+                <td className={(currentRow as any).ltm_fcf !== null && (currentRow as any).ltm_fcf !== undefined && (currentRow as any).ltm_fcf < 0 ? 'cell-loss' : ''}>{fmtMlnBln((currentRow as any).ltm_fcf ?? null)}</td>
+                <td>{fmtMlnBln(currentRow.ltm_revenue)}</td>
+                <td className={ltmIsLoss ? 'cell-loss' : ''}>{fmtMlnBln(currentRow.ltm_net_income)}</td>
               </tr>
             );
           })()}
@@ -812,25 +1014,16 @@ const HistTable: React.FC<HistTableProps> = ({ rows, currentRow, crProfile }) =>
             const negEquity = r.equity !== null && r.equity < 0;
             const noLiab    = r.total_liabilities === null;
             const noCurr    = r.current_assets === null || r.current_liabilities === null;
-            const noDivs    = r.ltm_dividends_per_share === null;
-
             const fcfNiRow = fcfNiBadge(r.fcf_to_net_income, r.ltm_net_income);
 
-            const peHint = isLoss
-              ? 'Убыток за период — P/E не рассчитывается'
-              : noIncome ? 'Нет данных о чистой прибыли (net_income)'
-              : noPrice  ? 'Нет цены / акций'
-              : undefined;
-
-            const pbHint = negEquity
-              ? 'Отрицательный капитал — P/B не рассчитывается'
-              : noEquity ? 'Нет данных о капитале (equity)'
-              : noPrice  ? 'Нет цены / акций'
-              : undefined;
-
-            const roeHint = noIncome
+            const peHint = noIncome
               ? 'Нет данных о чистой прибыли (net_income)'
-              : noEquity ? 'Нет данных о капитале (equity)'
+              : noPrice ? 'Нет цены / акций'
+              : undefined;
+
+            const pbHint = noEquity
+              ? 'Нет данных о капитале (equity)'
+              : noPrice ? 'Нет цены / акций'
               : undefined;
 
             const deHint = negEquity
@@ -846,23 +1039,23 @@ const HistTable: React.FC<HistTableProps> = ({ rows, currentRow, crProfile }) =>
                   <HistPriceCell row={r} />
                 </td>
                 <td>{r.market_cap !== null ? (r.market_cap / 1_000).toFixed(2) : '—'}</td>
-                <td><MetricBadge
-                  value={r.pe_ratio}
-                  level={peLevelContext(r.pe_ratio, r.ltm_net_income)}
-                  nullHint={peHint}
-                /></td>
-                <td><MetricBadge
-                  value={r.pb_ratio}
-                  level={pbLevelContext(r.pb_ratio, r.equity)}
-                  nullHint={pbHint}
-                /></td>
-                <td><MetricBadge value={r.roe} level={roeLevel(r.roe)} suffix="%" nullHint={roeHint} /></td>
+                <td><MetricBadge value={r.pe_ratio} level={peLevel(r.pe_ratio)} nullHint={peHint} /></td>
+                <td><MetricBadge value={r.pb_ratio} level={pbLevel(r.pb_ratio)} nullHint={pbHint} /></td>
+                <td>
+                  <RoeMetricBadge roe={r.roe} netIncome={r.ltm_net_income} equity={r.equity} />
+                </td>
                 <td><MetricBadge value={r.debt_to_equity} level={deLevel(r.debt_to_equity)} nullHint={deHint} /></td>
                 <td><MetricBadge value={r.current_ratio} level={crLevel(r.current_ratio, crProfile)}
                   nullHint={noCurr ? 'Нет оборотных активов или краткосрочных обязательств' : crProfile.notApplicable ? 'CR не применим для данного типа компании' : undefined} /></td>
-                <td><MetricBadge value={r.dividend_yield} level={dyLevel(r.dividend_yield)} suffix="%"
-                  nullHint={noDivs ? 'Дивиденды не указаны' : noPrice ? 'Нет цены акции' : undefined} /></td>
-                <td><MetricBadge value={r.price_to_fcf} level={pfcfLevel(r.price_to_fcf, r.ltm_fcf)} /></td>
+                <td>
+                  <DividendYieldBadge
+                    dividendYield={r.dividend_yield}
+                    ltmDividendsPerShare={r.ltm_dividends_per_share}
+                    priceUsed={r.price_used}
+                    isPreferredShare={isPreferredShare}
+                  />
+                </td>
+                <td><MetricBadge value={r.price_to_fcf} level={pfcfLevel(r.price_to_fcf)} /></td>
                 <td>
                   <MetricBadge
                     value={fcfNiRow.value}
@@ -871,9 +1064,9 @@ const HistTable: React.FC<HistTableProps> = ({ rows, currentRow, crProfile }) =>
                     nullHint={fcfNiRow.nullHint}
                   />
                 </td>
-                <td className={r.ltm_fcf !== null && r.ltm_fcf < 0 ? 'cell-loss' : ''}>{fmtMln(r.ltm_fcf)}</td>
-                <td>{fmtMln(r.ltm_revenue)}</td>
-                <td className={isLoss ? 'cell-loss' : ''}>{fmtMln(r.ltm_net_income)}</td>
+                <td className={r.ltm_fcf !== null && r.ltm_fcf < 0 ? 'cell-loss' : ''}>{fmtMlnBln(r.ltm_fcf)}</td>
+                <td>{fmtMlnBln(r.ltm_revenue)}</td>
+                <td className={isLoss ? 'cell-loss' : ''}>{fmtMlnBln(r.ltm_net_income)}</td>
               </tr>
             );
           })}
@@ -1343,7 +1536,11 @@ const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company }) => {
                 {currentData && (
                   <>
                     <LtmMeta data={currentData} />
-                    <CurrentCards data={currentData} crProfile={crProfile} />
+                    <CurrentCards
+                      data={currentData}
+                      crProfile={crProfile}
+                      isPreferredShare={!!company.is_preferred_share}
+                    />
                     <div className="ltm-financials">
                       <h3 className="ltm-fin-title">Финансовые показатели LTM</h3>
                       <div className="ltm-fin-grid">
@@ -1393,7 +1590,12 @@ const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company }) => {
             {(rows.length > 0 || currentData) && (
               <div className="mult-history-row">
                 <div className="mult-history-label">История мультипликаторов</div>
-                <HistTable rows={rows} currentRow={currentData ?? undefined} crProfile={crProfile} />
+                <HistTable
+                  rows={rows}
+                  currentRow={currentData ?? undefined}
+                  crProfile={crProfile}
+                  isPreferredShare={!!company.is_preferred_share}
+                />
               </div>
             )}
           </>

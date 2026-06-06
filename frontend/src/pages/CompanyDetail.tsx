@@ -9,6 +9,7 @@ import {
   deleteFinancialReport,
   refreshCompanyMultipliers,
   verifyReport,
+  updateCompanyPreferredShare,
 } from '../services';
 import { FinancialReport, FinancialReportCreate } from '../types';
 import MultipliersPanel from '../components/MultipliersPanel';
@@ -17,6 +18,7 @@ import VerificationBadge from '../components/VerificationBadge';
 import AiParsePdfModal from '../components/AiParsePdfModal';
 import { shadeHex, isLightBrandHex, isNeutralBrandForHero } from '../utils/brandColor';
 import { getCompanyLogoCandidates } from '../utils/companyLogo';
+import { isMisclassifiedAsPreferred } from '../utils/companyShareClass';
 import './CompanyDetail.css';
 
 type ReportPeriodFilter = 'all' | 'annual' | 'quarterly' | 'semi_annual';
@@ -95,6 +97,22 @@ const CompanyDetail: React.FC = () => {
     },
   });
 
+  // Сброс ошибочного флага is_preferred_share (если в БД остался после старого UI).
+  const preferredShareMutation = useMutation({
+    mutationFn: ({ id, value }: { id: number; value: boolean }) =>
+      updateCompanyPreferredShare(id, value),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['company', companyId] });
+      await queryClient.invalidateQueries({ queryKey: ['multipliers-current', companyId] });
+      await queryClient.invalidateQueries({ queryKey: ['multipliers-history', companyId] });
+      await queryClient.invalidateQueries({ queryKey: ['multipliers', companyId] });
+    },
+    onError: (err: any) => {
+      const d = err?.response?.data?.detail;
+      alert(typeof d === 'string' ? d : 'Не удалось обновить тип акций');
+    },
+  });
+
   // Удаление отчёта: инвалидируем кэш и триггерим пересчёт current-мультипликаторов
   // (чтобы панель LTM-показателей не показывала данные удалённого отчёта).
   const deleteReportMutation = useMutation({
@@ -130,6 +148,20 @@ const CompanyDetail: React.FC = () => {
     queryFn: () => getCompanyReports(Number(companyId)),
     enabled: !!companyId,
   });
+
+  // Сброс ошибочного «префы» (старая кнопка-индикатор: клик по «Обыкн.» включал префы у SIBN и т.п.)
+  const misclassifiedFixRef = useRef<number | null>(null);
+  useEffect(() => {
+    misclassifiedFixRef.current = null;
+  }, [companyId]);
+  useEffect(() => {
+    if (!company?.id) return;
+    if (!isMisclassifiedAsPreferred(company)) return;
+    if (misclassifiedFixRef.current === company.id) return;
+    misclassifiedFixRef.current = company.id;
+    preferredShareMutation.mutate({ id: company.id, value: false });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- однократный сброс по company.id
+  }, [company?.id, company?.is_preferred_share, company?.ticker, company?.name]);
 
   // Уникальные стандарты учёта для фильтра — хук должен быть до любых return
   const availableStandards = useMemo(() => {
@@ -717,6 +749,7 @@ const CompanyDetail: React.FC = () => {
           companyName={company.name}
           ticker={company.ticker}
           sector={company.sector}
+          isPreferredShare={company.is_preferred_share}
           onSubmit={async (data) => {
             await createReportMutation.mutateAsync(data);
           }}
@@ -732,6 +765,7 @@ const CompanyDetail: React.FC = () => {
           ticker={company.ticker}
           sector={company.sector}
           reportId={editingReport.id}
+          isPreferredShare={company.is_preferred_share}
           initialValues={{
             ...editingReport,
             period_type: editingReport.period_type.toLowerCase() as any,
@@ -969,7 +1003,12 @@ const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
           )}
 
           {/* Денежные потоки (ОДДС) */}
-          {(report.operating_cash_flow != null || report.capex != null || report.depreciation_amortization != null) && (
+          {(report.operating_cash_flow != null ||
+            report.capex != null ||
+            report.lease_principal != null ||
+            report.lease_interest != null ||
+            report.debt_principal != null ||
+            report.depreciation_amortization != null) && (
             <div className="detail-section">
               <h3>Денежные потоки (ОДДС) <span className="section-units">(млн {cur})</span></h3>
               <div className="detail-grid">
@@ -985,6 +1024,24 @@ const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
                     <span className="detail-value">{fmtMln(report.capex)}</span>
                   </div>
                 )}
+                {report.lease_principal != null && (
+                  <div className="detail-item">
+                    <span className="detail-label">Тело аренды:</span>
+                    <span className="detail-value">{fmtMln(report.lease_principal)}</span>
+                  </div>
+                )}
+                {report.lease_interest != null && (
+                  <div className="detail-item">
+                    <span className="detail-label">Проценты по аренде:</span>
+                    <span className="detail-value">{fmtMln(report.lease_interest)}</span>
+                  </div>
+                )}
+                {report.debt_principal != null && (
+                  <div className="detail-item">
+                    <span className="detail-label">Тело долга (долг. ЦБ):</span>
+                    <span className="detail-value">{fmtMln(report.debt_principal)}</span>
+                  </div>
+                )}
                 {report.depreciation_amortization != null && (
                   <div className="detail-item">
                     <span className="detail-label">Амортизация и износ (D&amp;A):</span>
@@ -993,7 +1050,7 @@ const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
                 )}
                 {report.fcf != null && (
                   <div className="detail-item">
-                    <span className="detail-label">FCF (CFO − CAPEX):</span>
+                    <span className="detail-label">FCF:</span>
                     <span className={`detail-value${report.fcf < 0 ? ' detail-loss' : ' detail-yes'}`}>
                       {fmtMln(report.fcf)}
                     </span>
