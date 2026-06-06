@@ -5,6 +5,16 @@ from app.models.company import Company
 from app.schemas import CompanyCreate
 
 
+def detect_preferred_share(ticker: Optional[str]) -> bool:
+    """Эвристика: MOEX-тикер привилегированных акций оканчивается на «P»
+    (BANEP, TRNFP, SBERP, NKNCP …). Используется при создании компании
+    через синхронизацию из T-Invest; ручной флажок имеет приоритет."""
+    if not ticker:
+        return False
+    t = ticker.strip().upper()
+    return len(t) >= 2 and t.endswith("P")
+
+
 def get_company_by_figi(db: Session, figi: str) -> Optional[Company]:
     """Поиск по FIGI — основной ключ при синхронизации с T-Invest (стабильнее ISIN)."""
     if not figi:
@@ -52,6 +62,14 @@ def create_company(db: Session, company_data: CompanyCreate) -> Company:
     Raises:
         IntegrityError: Если компания с таким FIGI уже существует
     """
+    # Если флаг is_preferred_share явно не задан — пытаемся определить
+    # по суффиксу тикера. Иначе используем переданное значение.
+    is_pref = (
+        company_data.is_preferred_share
+        if company_data.is_preferred_share is not None
+        else detect_preferred_share(company_data.ticker)
+    )
+
     db_company = Company(
         figi=company_data.figi,
         ticker=company_data.ticker,
@@ -63,6 +81,7 @@ def create_company(db: Session, company_data: CompanyCreate) -> Company:
         api_trade_available_flag=company_data.api_trade_available_flag,
         brand_logo_url=company_data.brand_logo_url,
         brand_color=company_data.brand_color,
+        is_preferred_share=is_pref,
     )
     db.add(db_company)
     db.commit()
@@ -98,6 +117,37 @@ def _apply_company_update(db_company: Company, company_data: CompanyCreate, db: 
     db_company.api_trade_available_flag = company_data.api_trade_available_flag  # type: ignore
     db_company.brand_logo_url = company_data.brand_logo_url  # type: ignore
     db_company.brand_color = company_data.brand_color  # type: ignore
+    # is_preferred_share при апдейте из T-Invest НЕ перетираем — ручной
+    # тумблер пользователя в карточке компании остаётся в приоритете.
+    # Применяем только если значение явно передано (например, из PATCH).
+    if company_data.is_preferred_share is not None:
+        db_company.is_preferred_share = company_data.is_preferred_share  # type: ignore
+    db.commit()
+    db.refresh(db_company)
+    return db_company
+
+
+def _instrument_can_be_preferred(company: Company) -> bool:
+    """Тикер/название допускают режим «привилегированные акции»."""
+    if detect_preferred_share(company.ticker):
+        return True
+    name = (company.name or "").lower()
+    return "привилегирован" in name
+
+
+def set_preferred_share_flag(
+    db: Session, company_id: int, is_preferred: bool
+) -> Optional[Company]:
+    """Ручное переключение флажка «инструмент — привилегированные акции»
+    из карточки компании. Возвращает обновлённый объект или None."""
+    db_company = get_company_by_id(db, company_id)
+    if not db_company:
+        return None
+    if is_preferred and not _instrument_can_be_preferred(db_company):
+        # SIBN, GAZP и т.п. — только обыкновенный тикер, префов на MOEX нет.
+        db_company.is_preferred_share = False  # type: ignore
+    else:
+        db_company.is_preferred_share = is_preferred  # type: ignore
     db.commit()
     db.refresh(db_company)
     return db_company

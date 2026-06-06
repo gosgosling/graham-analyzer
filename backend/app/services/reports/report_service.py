@@ -61,6 +61,8 @@ def create_report(db: Session, report_data: FinancialReportCreate) -> FinancialR
         equity=report_data.equity,
         dividends_per_share=report_data.dividends_per_share,
         dividends_paid=report_data.dividends_paid,
+        has_preferred_shares=report_data.has_preferred_shares,
+        preferred_share_dividends=report_data.preferred_share_dividends,
         currency=report_data.currency,
         exchange_rate=report_data.exchange_rate,
         # Банковские показатели
@@ -70,6 +72,9 @@ def create_report(db: Session, report_data: FinancialReportCreate) -> FinancialR
         provisions=report_data.provisions,
         operating_cash_flow=report_data.operating_cash_flow,
         capex=report_data.capex,
+        lease_principal=report_data.lease_principal,
+        lease_interest=report_data.lease_interest,
+        debt_principal=report_data.debt_principal,
         depreciation_amortization=report_data.depreciation_amortization,
         # Верификация / источник AI
         auto_extracted=report_data.auto_extracted,
@@ -231,6 +236,8 @@ def update_report(
     db_report.equity = report_data.equity  # type: ignore
     db_report.dividends_per_share = report_data.dividends_per_share  # type: ignore
     db_report.dividends_paid = report_data.dividends_paid  # type: ignore
+    db_report.has_preferred_shares = report_data.has_preferred_shares  # type: ignore
+    db_report.preferred_share_dividends = report_data.preferred_share_dividends  # type: ignore
     db_report.currency = report_data.currency  # type: ignore
     db_report.exchange_rate = report_data.exchange_rate  # type: ignore
     # Банковские показатели
@@ -240,6 +247,9 @@ def update_report(
     db_report.provisions = report_data.provisions  # type: ignore
     db_report.operating_cash_flow = report_data.operating_cash_flow  # type: ignore
     db_report.capex = report_data.capex  # type: ignore
+    db_report.lease_principal = report_data.lease_principal  # type: ignore
+    db_report.lease_interest = report_data.lease_interest  # type: ignore
+    db_report.debt_principal = report_data.debt_principal  # type: ignore
     db_report.depreciation_amortization = report_data.depreciation_amortization  # type: ignore
 
     # Любая ручная правка через форму по умолчанию подтверждает корректность данных.

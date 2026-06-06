@@ -81,6 +81,8 @@ class Company(BaseModel):
     api_trade_available_flag: bool = False  # Доступность для торговли через API
     brand_logo_url: Optional[str] = None  # URL логотипа (CDN Т-Банка)
     brand_color: Optional[str] = None  # Основной цвет бренда (#RRGGBB)
+    # Тикер представляет привилегированные акции (см. модель Company)
+    is_preferred_share: bool = False
 
     class Config:
         from_attributes = True  # Для SQLAlchemy моделей
@@ -98,6 +100,9 @@ class CompanyCreate(BaseModel):
     dividend_start_year: Optional[int] = None  # Год начала выплаты дивидендов
     brand_logo_url: Optional[str] = None
     brand_color: Optional[str] = None
+    # Тикер представляет привилегированные акции. При синхронизации из
+    # T-Invest автодетектится по суффиксу «P»; вручную правится через PATCH.
+    is_preferred_share: Optional[bool] = None
 
 
 class FinancialReportCreate(BaseModel):
@@ -142,6 +147,8 @@ class FinancialReportCreate(BaseModel):
     equity: Optional[float] = None
     dividends_per_share: Optional[float] = None  # ₽/$ за акцию (полные единицы)
     dividends_paid: bool = False
+    has_preferred_shares: bool = False
+    preferred_share_dividends: Optional[float] = None  # млн валюты отчёта
 
     # ─── Банковские показатели (заполняются только для банков) ───
     # revenue при этом = Total Operating Income (NII + комиссии + трейдинг + прочее)
@@ -156,6 +163,9 @@ class FinancialReportCreate(BaseModel):
     # capex — положительное число (абсолютная величина оттока), млн валюты.
     operating_cash_flow: Optional[float] = None  # Операционный денежный поток, млн
     capex: Optional[float] = None                # CAPEX (положит. число), млн
+    lease_principal: Optional[float] = None      # Тело аренды, млн (положит. отток)
+    lease_interest: Optional[float] = None       # Проценты по аренде, млн
+    debt_principal: Optional[float] = None       # Тело долга (долг. ЦБ), млн
     # Амортизация и износ (D&A), млн — для сопоставления с CAPEX; не в формулах мультипликаторов.
     depreciation_amortization: Optional[float] = None
 
@@ -231,6 +241,8 @@ class FinancialReport(BaseModel):
     equity: Optional[float] = None
     dividends_per_share: Optional[float] = None
     dividends_paid: bool = False
+    has_preferred_shares: bool = False
+    preferred_share_dividends: Optional[float] = None
 
     # Тип отрасли
     report_type: str = "general"
@@ -244,6 +256,9 @@ class FinancialReport(BaseModel):
     # Денежные потоки (ОДДС)
     operating_cash_flow: Optional[float] = None  # Операционный поток, млн
     capex: Optional[float] = None                # CAPEX (положит. число), млн
+    lease_principal: Optional[float] = None
+    lease_interest: Optional[float] = None
+    debt_principal: Optional[float] = None
     depreciation_amortization: Optional[float] = None  # D&A, млн
 
     # Валюта
@@ -361,10 +376,16 @@ class FinancialReport(BaseModel):
     @computed_field  # type: ignore
     @property
     def fcf(self) -> Optional[float]:
-        """FCF = Операционный поток – CAPEX, млн валюты отчёта. None если хотя бы одно поле не заполнено."""
-        if self.operating_cash_flow is None or self.capex is None:
-            return None
-        return round(self.operating_cash_flow - self.capex, 3)
+        """FCF = OCF − CAPEX − аренда (тело, %) − тело долга; млн валюты отчёта."""
+        from app.services.analysis.fcf import compute_fcf
+
+        return compute_fcf(
+            self.operating_cash_flow,
+            self.capex,
+            self.lease_principal,
+            self.lease_interest,
+            self.debt_principal,
+        )
 
     @computed_field  # type: ignore
     @property
@@ -389,6 +410,35 @@ class FinancialReport(BaseModel):
     def fcf_rub(self) -> Optional[float]:
         """FCF в рублях, млн"""
         return self._convert_to_rub(self.fcf)
+
+    @computed_field  # type: ignore
+    @property
+    def adjusted_net_income(self) -> Optional[float]:
+        """Чистая прибыль для обыкновенных акций: NI − дивиденды по префам (млн валюты)."""
+        if self.net_income is None:
+            return None
+        sub = float(self.preferred_share_dividends or 0) if self.has_preferred_shares else 0.0
+        return round(self.net_income - sub, 3)
+
+    @computed_field  # type: ignore
+    @property
+    def adjusted_fcf(self) -> Optional[float]:
+        """FCF для обыкновенных: OCF − CAPEX − дивиденды по префам (млн валюты)."""
+        base = self.fcf
+        if base is None:
+            return None
+        sub = float(self.preferred_share_dividends or 0) if self.has_preferred_shares else 0.0
+        return round(base - sub, 3)
+
+    @computed_field  # type: ignore
+    @property
+    def adjusted_net_income_rub(self) -> Optional[float]:
+        return self._convert_to_rub(self.adjusted_net_income)
+
+    @computed_field  # type: ignore
+    @property
+    def adjusted_fcf_rub(self) -> Optional[float]:
+        return self._convert_to_rub(self.adjusted_fcf)
 
 
 # ---------------------------------------------------------------------------
@@ -481,6 +531,7 @@ class CurrentMultipliersResponse(BaseModel):
     price_used: Optional[float] = None
     shares_used: Optional[int] = None
     market_cap: Optional[float] = None
+    equity: Optional[float] = None  # собственный капитал, млн ₽ (из балансового отчёта)
 
     # Мультипликаторы
     pe_ratio: Optional[float] = None

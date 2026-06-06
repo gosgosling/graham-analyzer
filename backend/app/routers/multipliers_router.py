@@ -122,13 +122,19 @@ def refresh_multipliers(
 
     price = tinvest_price_service.update_company_price(db=db, company=company)
 
-    if save_to_cache and price is not None:
-        mults = multiplier_service.calculate_current_multipliers(
-            db=db,
-            company_id=company_id,
-        )
-        if mults:
-            multiplier_service.save_current_multiplier(db=db, company_id=company_id, mults=mults)
+    if save_to_cache:
+        if price is not None:
+            mults = multiplier_service.calculate_current_multipliers(
+                db=db,
+                company_id=company_id,
+            )
+            if mults:
+                multiplier_service.save_current_multiplier(
+                    db=db, company_id=company_id, mults=mults
+                )
+        # LTM (current) и история по годам (report_based) — разные кэши.
+        # После импорта отчётов в обход API история могла остаться пустой.
+        multiplier_service.backfill_report_based_multipliers(db, company_id)
 
     return PriceUpdateResponse(
         company_id=company_id,
@@ -172,6 +178,21 @@ def get_multipliers_history(
         mult_type=type,
         limit=limit,
     )
+    # Если есть отчёты, но нет report_based в кэше — пересчитываем (импорт/SQL).
+    if type == "report_based" and not history:
+        report_count = (
+            db.query(FinancialReport)
+            .filter(FinancialReport.company_id == company_id)
+            .count()
+        )
+        if report_count > 0:
+            multiplier_service.backfill_report_based_multipliers(db, company_id)
+            history = multiplier_service.get_multipliers_history(
+                db=db,
+                company_id=company_id,
+                mult_type=type,
+                limit=limit,
+            )
     return [_multiplier_to_response(m) for m in history]
 
 
