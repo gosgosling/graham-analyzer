@@ -30,6 +30,12 @@ class Company(Base):
     # Год начала выплаты дивидендов (для анализа непрерывности по Грэму)
     dividend_start_year: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 
+    # Тикер представляет привилегированные акции (TRNFP, BANEP, SBERP …).
+    # Влияет на: интерпретацию dividends_per_share как доходности префов,
+    # скрытие чекбокса «Есть привилегированные акции» в форме отчёта
+    # и расчёт скорректированной прибыли/FCF.
+    is_preferred_share: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
     # Текущая цена акции (обновляется из T-Invest API раз в день)
     current_price: Mapped[Optional[float]] = mapped_column(Numeric(15, 4), nullable=True)
     price_updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)

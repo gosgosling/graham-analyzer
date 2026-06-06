@@ -99,6 +99,12 @@ class FinancialReport(Base):
     dividends_per_share: Mapped[Optional[float]] = mapped_column(Numeric(10, 4), nullable=True)  # Дивиденды на акцию (₽ или $ за акцию)
     dividends_paid: Mapped[Optional[bool]] = mapped_column(default=False)  # выплачивались ли дивиденды в этом периоде
 
+    # Привилегированные акции: дивиденды по префам (млн валюты) вычитаются из NI и FCF для оценки по обыкновенным
+    has_preferred_shares: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    preferred_share_dividends: Mapped[Optional[float]] = mapped_column(
+        Numeric(15, 3), nullable=True
+    )
+
     # ─── Банковские показатели (только для report_type = "bank") ─────────────────
     # revenue в банковском отчёте = Total Operating Income (сумма всех операц. доходов)
     # current_assets / current_liabilities остаются NULL для банков (понятие неприменимо)
@@ -120,13 +126,23 @@ class FinancialReport(Base):
     # ─── Денежные потоки (ОДДС) ──────────────────────────────────────────────
     # Все значения в МИЛЛИОНАХ валюты отчёта (как и остальные P&L-показатели).
     # capex хранится как положительное число (абсолютная величина оттока).
-    # FCF = operating_cash_flow - capex  (вычисляется, не хранится).
+    # FCF = OCF − CAPEX − lease_principal − lease_interest − debt_principal
+    # (последние три опциональны; вычисляется, не хранится).
     operating_cash_flow: Mapped[Optional[float]] = mapped_column(
         Numeric(15, 3), nullable=True
     )  # Операционный денежный поток, млн
     capex: Mapped[Optional[float]] = mapped_column(
         Numeric(15, 3), nullable=True
     )  # Капитальные затраты (CAPEX), положит. число, млн
+    lease_principal: Mapped[Optional[float]] = mapped_column(
+        Numeric(15, 3), nullable=True
+    )  # Тело аренды (IFRS 16), положит. отток, млн
+    lease_interest: Mapped[Optional[float]] = mapped_column(
+        Numeric(15, 3), nullable=True
+    )  # Проценты по аренде, положит. отток, млн
+    debt_principal: Mapped[Optional[float]] = mapped_column(
+        Numeric(15, 3), nullable=True
+    )  # Выплаты по долговым ЦБ (тело долга), положит. отток, млн
     # Амортизация и износ (из ОПУ или корректировка к ОДДС), млн — для диагностики CAPEX vs D&A;
     # в расчёт мультипликаторов не входит (будущий модуль справедливой стоимости).
     depreciation_amortization: Mapped[Optional[float]] = mapped_column(

@@ -1,13 +1,23 @@
 import os
 
 from fastapi import APIRouter, HTTPException, Depends
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from app.schemas import Company
 from typing import List
 from app.database import get_db
-from app.services.companies.company_service import get_all_companies, get_company_by_id
+from app.services.companies.company_service import (
+    get_all_companies,
+    get_company_by_id,
+    set_preferred_share_flag,
+)
 from app.services.companies.sync_service import sync_companies_from_tinkoff
 from app.models.company import Company as CompanyModel
+
+
+class PreferredShareUpdate(BaseModel):
+    """Тело PATCH /companies/{id}/preferred-share: новое значение флажка."""
+    is_preferred_share: bool
 
 router = APIRouter(prefix="/companies", tags=["companies"])
 
@@ -108,6 +118,23 @@ def get_company(company_id: int, db: Session = Depends(get_db)):
         HTTPException: Если компания не найдена
     """
     company = get_company_by_id(db, company_id)
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+    return company
+
+
+@router.patch("/{company_id}/preferred-share", response_model=Company)
+def update_preferred_share_flag(
+    company_id: int,
+    payload: PreferredShareUpdate,
+    db: Session = Depends(get_db),
+):
+    """
+    Ручное переключение флажка «инструмент — привилегированные акции».
+    Применяется в карточке компании; имеет приоритет над авто-детектом
+    на следующей синхронизации с T-Invest.
+    """
+    company = set_preferred_share_flag(db, company_id, payload.is_preferred_share)
     if not company:
         raise HTTPException(status_code=404, detail="Company not found")
     return company

@@ -84,10 +84,17 @@ def get_ltm_data(db: Session, company_id: int) -> Optional[Dict]:
         return None
 
     def sum_rub(reports: List[FinancialReport], attr: str) -> Optional[float]:
-        """Суммирует поле по отчётам, конвертируя каждый в рубли."""
+        """Суммирует поле по отчётам, конвертируя каждый в рубли.
+
+        Для поля dividends_per_share пропускаем отчёты, в которых
+        dividends_paid=False — иначе застрявшее в поле значение (например,
+        дивиденды по префам, введённые ошибочно) даёт фантомную доходность.
+        """
         total = 0.0
         has_any = False
         for r in reports:
+            if attr == "dividends_per_share" and not getattr(r, "dividends_paid", False):
+                continue
             val = getattr(r, attr, None)
             if val is not None:
                 rate = _to_float(r.exchange_rate)
@@ -104,14 +111,22 @@ def get_ltm_data(db: Session, company_id: int) -> Optional[Dict]:
         ltm_dividends = sum_rub(quarterly, "dividends_per_share")
         ltm_operating_cash_flow = sum_rub(quarterly, "operating_cash_flow")
         ltm_capex = sum_rub(quarterly, "capex")
+        ltm_lease_principal = sum_rub(quarterly, "lease_principal")
+        ltm_lease_interest = sum_rub(quarterly, "lease_interest")
+        ltm_debt_principal = sum_rub(quarterly, "debt_principal")
         source = "quarterly_4"
     elif annual:
         rate = _to_float(annual.exchange_rate)
         ltm_net_income = _convert(annual.net_income, annual.currency, rate)
         ltm_revenue = _convert(annual.revenue, annual.currency, rate)
-        ltm_dividends = _convert(annual.dividends_per_share, annual.currency, rate)
+        # Дивиденды учитываем только если в этом отчёте они реально выплачивались
+        _annual_dps = annual.dividends_per_share if getattr(annual, "dividends_paid", False) else None
+        ltm_dividends = _convert(_annual_dps, annual.currency, rate)
         ltm_operating_cash_flow = _convert(annual.operating_cash_flow, annual.currency, rate)
         ltm_capex = _convert(annual.capex, annual.currency, rate)
+        ltm_lease_principal = _convert(annual.lease_principal, annual.currency, rate)
+        ltm_lease_interest = _convert(annual.lease_interest, annual.currency, rate)
+        ltm_debt_principal = _convert(annual.debt_principal, annual.currency, rate)
         source = "annual"
     else:
         # Только квартальный(е) без полного года — берём что есть
@@ -140,6 +155,9 @@ def get_ltm_data(db: Session, company_id: int) -> Optional[Dict]:
         "ltm_dividends_per_share": ltm_dividends,
         "ltm_operating_cash_flow": ltm_operating_cash_flow,
         "ltm_capex": ltm_capex,
+        "ltm_lease_principal": ltm_lease_principal,
+        "ltm_lease_interest": ltm_lease_interest,
+        "ltm_debt_principal": ltm_debt_principal,
         "ltm_net_interest_income": ltm_net_interest_income,
         "ltm_fee_commission_income": ltm_fee_commission_income,
         "balance_report": latest,
@@ -207,7 +225,21 @@ def calculate_current_multipliers(
         ltm_capex=_ltm_back_to_report_currency(
             ltm.get("ltm_capex"), balance_report
         ),
+        ltm_lease_principal=_ltm_back_to_report_currency(
+            ltm.get("ltm_lease_principal"), balance_report
+        ),
+        ltm_lease_interest=_ltm_back_to_report_currency(
+            ltm.get("ltm_lease_interest"), balance_report
+        ),
+        ltm_debt_principal=_ltm_back_to_report_currency(
+            ltm.get("ltm_debt_principal"), balance_report
+        ),
     )
+
+    rate = _to_float(balance_report.exchange_rate)
+
+    def crub(v):
+        return _convert(v, balance_report.currency, rate)
 
     return {
         **mults,
@@ -222,6 +254,7 @@ def calculate_current_multipliers(
         "current_price": price,
         "company_id": company_id,
         "date": date.today().isoformat(),
+        "equity": crub(balance_report.equity),
     }
 
 
@@ -480,10 +513,18 @@ def save_report_based_multiplier(
     existing.ltm_net_income = crub(report.net_income)  # type: ignore
     existing.ltm_revenue = crub(report.revenue)  # type: ignore
     existing.ltm_dividends_per_share = crub(report.dividends_per_share)  # type: ignore
+    from app.services.analysis.fcf import compute_fcf
+
     existing.ltm_operating_cash_flow = crub(getattr(report, 'operating_cash_flow', None))  # type: ignore
     ocf_rub = crub(getattr(report, 'operating_cash_flow', None))
     cap_rub = crub(getattr(report, 'capex', None))
-    existing.ltm_fcf = round(ocf_rub - cap_rub, 3) if (ocf_rub is not None and cap_rub is not None) else None  # type: ignore
+    existing.ltm_fcf = compute_fcf(
+        ocf_rub,
+        cap_rub,
+        crub(getattr(report, 'lease_principal', None)),
+        crub(getattr(report, 'lease_interest', None)),
+        crub(getattr(report, 'debt_principal', None)),
+    )  # type: ignore
     existing.price_to_fcf = mults.get("price_to_fcf")  # type: ignore
     existing.fcf_to_net_income = mults.get("fcf_to_net_income")  # type: ignore
     existing.equity = crub(report.equity)  # type: ignore
@@ -494,6 +535,37 @@ def save_report_based_multiplier(
     db.commit()
     db.refresh(existing)
     return existing
+
+
+def backfill_report_based_multipliers(
+    db: Session,
+    company_id: int,
+) -> dict[str, int]:
+    """
+    Пересчитывает report_based-мультипликаторы для всех отчётов компании.
+
+    Нужно после массового импорта или прямой SQL-вставки отчётов, когда
+    create_report / update_report не вызывались и кэш истории пуст.
+    """
+    reports = (
+        db.query(FinancialReport)
+        .filter(FinancialReport.company_id == company_id)
+        .order_by(FinancialReport.report_date.asc())
+        .all()
+    )
+    saved = 0
+    skipped = 0
+    for report in reports:
+        result = save_report_based_multiplier(db, report)
+        if result is not None:
+            saved += 1
+        else:
+            skipped += 1
+    return {
+        "total_reports": len(reports),
+        "saved": saved,
+        "skipped": skipped,
+    }
 
 
 def get_multipliers_history(
