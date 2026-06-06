@@ -15,6 +15,7 @@ import {
     MoexDividendsResult,
     FxRateResult,
 } from '../services';
+import { computeFcf } from '../utils/fcf';
 import './ReportForm.css';
 
 dayjs.locale('ru');
@@ -162,6 +163,14 @@ interface ReportFormProps {
     initialValues?: Partial<FinancialReportCreate>;
     /** ID редактируемого отчёта (для заголовка и метаданных) */
     reportId?: number;
+    /** Встроенный режим (матрица отчётов): без полноэкранного overlay */
+    embedded?: boolean;
+    /**
+     * Тикер представляет привилегированные акции. В этом случае поля
+     * «Есть привилегированные акции» и «Дивиденды по префам, млн» прячутся —
+     * они нужны только когда обыкновенные и префы лежат под одним тикером.
+     */
+    isPreferredShare?: boolean;
     onSubmit: (reportData: FinancialReportCreate) => Promise<void>;
     onCancel: () => void;
 }
@@ -471,7 +480,18 @@ const PriceFetchBadge: React.FC<{
     return null;
 };
 
-const ReportForm: React.FC<ReportFormProps> = ({ companyId, companyName, ticker, sector, initialValues, reportId, onSubmit, onCancel }) => {
+const ReportForm: React.FC<ReportFormProps> = ({
+    companyId,
+    companyName,
+    ticker,
+    sector,
+    initialValues,
+    reportId,
+    embedded = false,
+    isPreferredShare = false,
+    onSubmit,
+    onCancel,
+}) => {
     const sectorKind = detectSectorDisplayKind(sector);
     const isBank = sectorKind === 'bank';
     const isEditMode = !!reportId;
@@ -522,12 +542,17 @@ const ReportForm: React.FC<ReportFormProps> = ({ companyId, companyName, ticker,
         equity: null,
         dividends_per_share: null,
         dividends_paid: false,
+        has_preferred_shares: false,
+        preferred_share_dividends: null,
         net_interest_income: null,
         fee_commission_income: null,
         operating_expenses: null,
         provisions: null,
         operating_cash_flow: null,
         capex: null,
+        lease_principal: null,
+        lease_interest: null,
+        debt_principal: null,
         depreciation_amortization: null,
         currency: 'RUB',
         exchange_rate: null,
@@ -1241,6 +1266,37 @@ const ReportForm: React.FC<ReportFormProps> = ({ companyId, companyName, ticker,
                                 <small className="field-hint">Сумма в миллионах; отрицательное = убыток</small>
                             </label>
                         </div>
+                        {!isPreferredShare && formData.net_income != null && formData.net_income !== undefined && (
+                            <div className="form-row">
+                                <div className="cashflow-fcf-preview form-label-full" style={{ gridColumn: '1 / -1' }}>
+                                    <span className="cashflow-fcf-label">
+                                        Скорректированная чистая прибыль (для обыкновенных акций):
+                                    </span>
+                                    <span
+                                        className={`cashflow-fcf-value${
+                                            formData.net_income -
+                                                (formData.has_preferred_shares
+                                                    ? formData.preferred_share_dividends ?? 0
+                                                    : 0) <
+                                            0
+                                                ? ' negative'
+                                                : ''
+                                        }`}
+                                    >
+                                        {(
+                                            formData.net_income -
+                                            (formData.has_preferred_shares
+                                                ? formData.preferred_share_dividends ?? 0
+                                                : 0)
+                                        ).toLocaleString('ru-RU', { maximumFractionDigits: 0 })}{' '}
+                                        млн {formData.currency}
+                                    </span>
+                                    <small className="field-hint" style={{ display: 'block', marginTop: 6 }}>
+                                        Чистая прибыль из отчёта минус дивиденды по привилегированным акциям (если включено ниже).
+                                    </small>
+                                </div>
+                            </div>
+                        )}
                         <div className="form-row">
                             <label className="form-label form-label-full">
                                 Фактическая прибыль / убыток (отчётная), млн {formData.currency}:
@@ -1335,9 +1391,9 @@ const ReportForm: React.FC<ReportFormProps> = ({ companyId, companyName, ticker,
                             </h3>
                             <p className="section-description">
                                 Данные из Отчёта о движении денежных средств и связанных форм.
-                                FCF = Операционный поток − CAPEX рассчитывается автоматически.
-                                Соотношение CAPEX и амортизации сохраняется для будущего модуля анализа
-                                (флаги «рост / каннибализация активов» — позже).
+                                Базовый FCF = операционный поток − CAPEX. Опционально можно уточнить оттоки по аренде
+                                и выплатам тела долга по долговым ЦБ. При наличии привилегированных акций ниже
+                                показывается FCF для обыкновенных (минус дивиденды по префам).
                             </p>
 
                             <div className="form-row">
@@ -1365,7 +1421,51 @@ const ReportForm: React.FC<ReportFormProps> = ({ companyId, companyName, ticker,
                                         className="form-input form-input-thousands"
                                     />
                                     <small className="field-hint">
-                                        Вводите положительное число. FCF = Операц. поток − CAPEX.
+                                        Вводите положительное число (отток из ОДДС).
+                                    </small>
+                                </label>
+                            </div>
+
+                            <div className="form-row form-row-optional-outflows">
+                                <label className="form-label">
+                                    Тело аренды, млн {formData.currency}:
+                                    <FormattedInput
+                                        name="lease_principal"
+                                        numericValue={formData.lease_principal}
+                                        onNumericChange={handleNumericChange}
+                                        placeholder="опционально"
+                                        className="form-input form-input-thousands"
+                                    />
+                                    <small className="field-hint">
+                                        Погашение обязательств по аренде (IFRS 16). Положительное число.
+                                    </small>
+                                </label>
+
+                                <label className="form-label">
+                                    Проценты по аренде, млн {formData.currency}:
+                                    <FormattedInput
+                                        name="lease_interest"
+                                        numericValue={formData.lease_interest}
+                                        onNumericChange={handleNumericChange}
+                                        placeholder="опционально"
+                                        className="form-input form-input-thousands"
+                                    />
+                                    <small className="field-hint">
+                                        Процентная часть арендных платежей. Положительное число.
+                                    </small>
+                                </label>
+
+                                <label className="form-label">
+                                    Тело долга (долг. ЦБ), млн {formData.currency}:
+                                    <FormattedInput
+                                        name="debt_principal"
+                                        numericValue={formData.debt_principal}
+                                        onNumericChange={handleNumericChange}
+                                        placeholder="опционально"
+                                        className="form-input form-input-thousands"
+                                    />
+                                    <small className="field-hint">
+                                        Выплаты по долговым ценным бумагам (тело, без процентов). Положительное число.
                                     </small>
                                 </label>
                             </div>
@@ -1399,14 +1499,53 @@ const ReportForm: React.FC<ReportFormProps> = ({ companyId, companyName, ticker,
                                 </div>
                             )}
 
-                            {formData.operating_cash_flow != null && formData.capex != null && (
-                                <div className="cashflow-fcf-preview">
-                                    <span className="cashflow-fcf-label">FCF (расчётный):</span>
-                                    <span className={`cashflow-fcf-value${(formData.operating_cash_flow - formData.capex) < 0 ? ' negative' : ''}`}>
-                                        {((formData.operating_cash_flow - formData.capex)).toLocaleString('ru-RU', { maximumFractionDigits: 0 })} млн {formData.currency}
-                                    </span>
-                                </div>
-                            )}
+                            {(() => {
+                                const fcfPreview = computeFcf(
+                                    formData.operating_cash_flow,
+                                    formData.capex,
+                                    formData.lease_principal,
+                                    formData.lease_interest,
+                                    formData.debt_principal,
+                                );
+                                if (fcfPreview == null) return null;
+                                const prefDiv = formData.has_preferred_shares
+                                    ? formData.preferred_share_dividends ?? 0
+                                    : 0;
+                                const adjustedFcf = fcfPreview - prefDiv;
+                                const hasExtraOutflows =
+                                    (formData.lease_principal ?? 0) !== 0 ||
+                                    (formData.lease_interest ?? 0) !== 0 ||
+                                    (formData.debt_principal ?? 0) !== 0;
+                                return (
+                                    <>
+                                        <div className="cashflow-fcf-preview">
+                                            <span className="cashflow-fcf-label">FCF (расчётный):</span>
+                                            <span className={`cashflow-fcf-value${fcfPreview < 0 ? ' negative' : ''}`}>
+                                                {fcfPreview.toLocaleString('ru-RU', { maximumFractionDigits: 0 })} млн {formData.currency}
+                                            </span>
+                                            {hasExtraOutflows && (
+                                                <small className="field-hint" style={{ display: 'block', marginTop: 6 }}>
+                                                    Опер. поток − CAPEX − аренда (тело и %) − тело долга (долг. ЦБ).
+                                                </small>
+                                            )}
+                                        </div>
+                                        {!isPreferredShare && (
+                                            <div className="cashflow-fcf-preview">
+                                                <span className="cashflow-fcf-label">
+                                                    Скорректированный FCF (для обыкновенных акций):
+                                                </span>
+                                                <span className={`cashflow-fcf-value${adjustedFcf < 0 ? ' negative' : ''}`}>
+                                                    {adjustedFcf.toLocaleString('ru-RU', { maximumFractionDigits: 0 })}{' '}
+                                                    млн {formData.currency}
+                                                </span>
+                                                <small className="field-hint" style={{ display: 'block', marginTop: 6 }}>
+                                                    FCF − дивиденды по привилегированным акциям (если указаны в блоке «Дивиденды»).
+                                                </small>
+                                            </div>
+                                        )}
+                                    </>
+                                );
+                            })()}
                         </div>
                     )}
 
@@ -1500,6 +1639,58 @@ const ReportForm: React.FC<ReportFormProps> = ({ companyId, companyName, ticker,
                     <div className="form-section">
                         <h3>Дивиденды</h3>
 
+                        {isPreferredShare && (
+                            <p className="section-description">
+                                Этот тикер — привилегированные акции, поля для разделения
+                                «общие/префы» скрыты: введённые в этом блоке выплаты и так
+                                трактуются как дивиденды по префам.
+                            </p>
+                        )}
+
+                        {!isPreferredShare && (
+                            <>
+                                <div className="form-row">
+                                    <label className="form-label checkbox-label">
+                                        <input
+                                            type="checkbox"
+                                            name="has_preferred_shares"
+                                            checked={!!formData.has_preferred_shares}
+                                            onChange={(e) => {
+                                                const checked = e.target.checked;
+                                                setFormData((prev) => ({
+                                                    ...prev,
+                                                    has_preferred_shares: checked,
+                                                    preferred_share_dividends: checked
+                                                        ? prev.preferred_share_dividends
+                                                        : null,
+                                                }));
+                                            }}
+                                            className="form-checkbox"
+                                        />
+                                        Компания имеет привилегированные акции
+                                    </label>
+                                </div>
+
+                                {formData.has_preferred_shares && (
+                                    <div className="form-row">
+                                        <label className="form-label form-label-full">
+                                            Дивиденды по привилегированным акциям за период, млн {formData.currency}:
+                                            <FormattedInput
+                                                name="preferred_share_dividends"
+                                                numericValue={formData.preferred_share_dividends}
+                                                onNumericChange={handleNumericChange}
+                                                placeholder="например: 500"
+                                                className="form-input form-input-thousands"
+                                            />
+                                            <small className="field-hint">
+                                                Сумма в миллионах; вычитается из чистой прибыли и из FCF при оценке доходности обыкновенных акций.
+                                            </small>
+                                        </label>
+                                    </div>
+                                )}
+                            </>
+                        )}
+
                         {/* Информационная панель с данными Мосбиржи */}
                         {ticker && (
                             <div className="dividends-fetch-row">
@@ -1572,7 +1763,7 @@ const ReportForm: React.FC<ReportFormProps> = ({ companyId, companyName, ticker,
                             className="btn btn-cancel"
                             disabled={isSubmitting}
                         >
-                            Отмена
+                            {embedded ? 'Свернуть' : 'Отмена'}
                         </button>
                         <button
                             type="submit"

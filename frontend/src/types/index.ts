@@ -96,7 +96,7 @@ export interface MultiplierRecord {
     // Денежные потоки LTM (NULL для банков)
     ltm_fcf: number | null;
     ltm_operating_cash_flow: number | null;
-    /** P/FCF = Market Cap / LTM FCF, NULL для банков и FCF ≤ 0 */
+    /** P/FCF = Market Cap / LTM FCF, NULL для банков и FCF = 0 */
     price_to_fcf: number | null;
     /** FCF/NI = LTM FCF / LTM Net Income × 100%, детектор качества прибыли */
     fcf_to_net_income: number | null;
@@ -126,6 +126,8 @@ export interface CurrentMultipliers {
     price_used: number | null;
     shares_used: number | null;
     market_cap: number | null;
+    /** Собственный капитал, млн ₽ (из балансового отчёта) */
+    equity: number | null;
 
     pe_ratio: number | null;
     pb_ratio: number | null;
@@ -180,6 +182,12 @@ export interface Company {
     brand_logo_url?: string | null;
     /** Основной цвет бренда (#RRGGBB) */
     brand_color?: string | null;
+    /**
+     * Тикер представляет привилегированные акции (TRNFP, BANEP, SBERP …).
+     * Влияет на интерпретацию dividends_per_share как доходности префов
+     * и на отображение/расчёт скорректированных метрик.
+     */
+    is_preferred_share?: boolean;
 }
 
 export interface FinancialReportCreate {
@@ -214,6 +222,10 @@ export interface FinancialReportCreate {
     equity?: number | null;
     dividends_per_share?: number | null;
     dividends_paid: boolean;
+    /** Есть привилегированные акции — для корректировки прибыли и FCF на обыкновенные */
+    has_preferred_shares?: boolean;
+    /** Дивиденды по привилегированным акциям за период, млн валюты отчёта */
+    preferred_share_dividends?: number | null;
 
     // Банковские показатели (заполняются только для банков, определяется автоматически по сектору)
     // revenue при этом = Total Operating Income (NII + комиссии + трейдинг + прочее)
@@ -227,6 +239,12 @@ export interface FinancialReportCreate {
     operating_cash_flow?: number | null;
     /** CAPEX — капитальные затраты, положительное число, млн валюты */
     capex?: number | null;
+    /** Тело аренды (IFRS 16), положительный отток, млн */
+    lease_principal?: number | null;
+    /** Проценты по аренде, положительный отток, млн */
+    lease_interest?: number | null;
+    /** Выплаты по долговым ЦБ (тело долга), положительный отток, млн */
+    debt_principal?: number | null;
     /** Амортизация и износ (D&A), млн — для сравнения с CAPEX (будущий модуль анализа) */
     depreciation_amortization?: number | null;
 
@@ -258,12 +276,18 @@ export interface FinancialReport extends FinancialReportCreate {
     current_liabilities_rub?: number | null;
     equity_rub?: number | null;
     dividends_per_share_rub?: number | null;
-    /** FCF = operating_cash_flow - capex, млн валюты (computed) */
+    /** FCF = OCF − CAPEX − аренда − % аренды − тело долга (computed) */
     fcf?: number | null;
+    /** Чистая прибыль для обыкновенных: net_income − pref dividends (computed) */
+    adjusted_net_income?: number | null;
+    /** FCF для обыкновенных: OCF − CAPEX − pref dividends (computed) */
+    adjusted_fcf?: number | null;
     operating_cash_flow_rub?: number | null;
     capex_rub?: number | null;
     depreciation_amortization_rub?: number | null;
     fcf_rub?: number | null;
+    adjusted_net_income_rub?: number | null;
+    adjusted_fcf_rub?: number | null;
 
     // ─── AI-парсер / проверка аналитиком ────────────────────────────────
     /** Был ли отчёт создан автоматически через AI-парсинг PDF */

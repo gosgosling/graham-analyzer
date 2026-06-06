@@ -46,3 +46,19 @@ export const syncCompaniesFromTinkoff = async (): Promise<CompaniesSyncResponse>
     const response = await api.post<CompaniesSyncResponse>('/companies/sync');
     return response.data;
 };
+
+/**
+ * Переключить флажок «инструмент — привилегированные акции» вручную в
+ * карточке компании. Имеет приоритет над авто-детектом при последующей
+ * синхронизации из T-Invest API.
+ */
+export const updateCompanyPreferredShare = async (
+    companyId: number,
+    isPreferredShare: boolean,
+): Promise<Company> => {
+    const response = await api.patch<Company>(
+        `/companies/${companyId}/preferred-share`,
+        { is_preferred_share: isPreferredShare },
+    );
+    return response.data;
+};
