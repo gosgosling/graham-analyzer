@@ -280,6 +280,21 @@
 .current-card.level-bad   .current-card-value { color: var(--color-error-text); }
 .current-card.level-loss  .current-card-value { color: var(--color-loss-text); font-size: 1.25rem; }
 
+.card-text-label {
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.card-text-label--loss {
+  font-size: 0.82rem;
+  text-transform: lowercase;
+}
+
+.current-card-value .mult-div-none.mult-div-none--card {
+  font-size: 1rem;
+  line-height: 1;
+}
+
 .current-card-hint {
   font-size: 0.72rem;
   color: var(--color-text-quaternary);
@@ -371,6 +386,35 @@
 
 .hist-table th.col-year {
   text-align: left;
+}
+
+.hist-table th.col-header-unit-col {
+  white-space: normal;
+  vertical-align: bottom;
+  text-align: center;
+}
+
+.col-header-stacked {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  line-height: 1.2;
+  width: 100%;
+}
+
+.col-header-title {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.col-header-unit {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: none;
+  letter-spacing: 0.01em;
+  color: var(--color-table-header-text);
+  opacity: 0.85;
 }
 
 .hist-table td {
@@ -490,11 +534,61 @@
 .mult-cell.neutral { color: var(--color-text-quaternary); font-weight: 400; }
 .mult-cell.loss    { background: var(--color-loss-soft);    color: var(--color-loss-text); border: 1px solid var(--color-error-border); }
 
-/* Подсказка при null-значении: пунктирное подчёркивание и курсор-помощь */
+.mult-cell-text-label {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  padding: 2px 6px;
+}
+
+.mult-cell-center {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+/* Всплывающая подсказка без подчёркивания */
+.mult-cell-tip {
+  cursor: help;
+}
+
+/* Подсказка при «—»: пунктирное подчёркивание */
 .mult-cell.null-hint {
   cursor: help;
   text-decoration: underline dotted currentColor;
   text-underline-offset: 2px;
+}
+
+/* Дивиденды не выплачивались: красная заливка только у квадрата (как mult-cell.bad, но без подложки снаружи) */
+.mult-div-none {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
+}
+
+.mult-div-none-box {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 4px;
+  box-sizing: border-box;
+  border: 1px solid var(--color-error-border);
+  border-radius: var(--radius-xs);
+  background: var(--color-error-soft);
+  color: var(--color-error-text);
+  font-size: 0.83rem;
+  font-weight: 600;
+  line-height: 1;
+  text-decoration: none;
+}
+
+.mult-div-none--card .mult-div-none-box {
+  min-width: 26px;
+  height: 26px;
+  font-size: 1.05rem;
 }
 
 /* Ячейка убытка в таблице истории */

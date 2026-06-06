@@ -14,6 +14,12 @@
     backdrop-filter: blur(4px);
 }
 
+/* Встроенная форма на странице матрицы — без перекрытия экрана */
+.report-form-embedded-root {
+    width: 100%;
+    margin-bottom: 16px;
+}
+
 .report-form-container {
     background: var(--color-bg-overlay);
     color: var(--color-text-primary);
@@ -25,6 +31,13 @@
     max-height: 90vh;
     overflow-y: auto;
     box-shadow: var(--shadow-4);
+}
+
+.report-form-container--embedded {
+    max-width: 100%;
+    max-height: min(72vh, 920px);
+    margin: 0 auto;
+    box-shadow: var(--shadow-2);
 }
 
 .report-form-header {
