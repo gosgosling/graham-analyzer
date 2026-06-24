@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from typing import Optional
 
 from app.routers import companies_router, securities_router, reports_router, dividends_router
-from app.routers import multipliers_router, market_router, bonds_router
+from app.routers import multipliers_router, market_router, bonds_router, admin_router
 from app.schemas import AnalysisResponse, Security, Multipliers
 from app.scheduler import start_scheduler, stop_scheduler
 
@@ -34,6 +34,7 @@ app.include_router(dividends_router.router)
 app.include_router(multipliers_router.router)
 app.include_router(market_router.router)
 app.include_router(bonds_router.router)
+app.include_router(admin_router.router)
 
 
 @app.get('/health')

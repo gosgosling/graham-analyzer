@@ -17,6 +17,9 @@ import ReportForm from '../components/ReportForm';
 import VerificationBadge from '../components/VerificationBadge';
 import AiParsePdfModal from '../components/AiParsePdfModal';
 import { shadeHex, isLightBrandHex, isNeutralBrandForHero } from '../utils/brandColor';
+import { computeNetDebt } from '../utils/netDebt';
+import { resolveSharesForMultipliers, explainSharesCapBasis } from '../utils/shareCounts';
+import SharesCapHover from '../components/SharesCapHover';
 import { getCompanyLogoCandidates } from '../utils/companyLogo';
 import { isMisclassifiedAsPreferred } from '../utils/companyShareClass';
 import './CompanyDetail.css';
@@ -287,8 +290,12 @@ const CompanyDetail: React.FC = () => {
   // Вычисляем базовую статистику (используем рублёвые значения)
   // Финансовые показатели хранятся в МИЛЛИОНАХ ₽ — при отображении делим на 1000 для млрд
   const latestReport = reports && reports.length > 0 ? reports[0] : null;
-  const marketCapMln = latestReport?.price_per_share_rub && latestReport?.shares_outstanding
-    ? (latestReport.price_per_share_rub * latestReport.shares_outstanding) / 1_000_000
+  const latestSharesForCap = latestReport ? resolveSharesForMultipliers(latestReport) : null;
+  const latestCapExplanation = latestReport
+    ? explainSharesCapBasis(latestReport, latestSharesForCap)
+    : null;
+  const marketCapMln = latestReport?.price_per_share_rub && latestSharesForCap
+    ? (latestReport.price_per_share_rub * latestSharesForCap) / 1_000_000
     : null;
 
   /** Форматирует значение в млн ₽ → показывает в млн/млрд/трлн */
@@ -362,7 +369,11 @@ const CompanyDetail: React.FC = () => {
             {marketCapMln && (
               <div className="quick-stat">
                 <span className="stat-label">Капитализация</span>
-                <span className="stat-value">{fmtMln(marketCapMln)}</span>
+                <span className="stat-value">
+                  <SharesCapHover explanation={latestCapExplanation}>
+                    {fmtMln(marketCapMln)}
+                  </SharesCapHover>
+                </span>
                 <span className="stat-date">на {latestReport.report_date}</span>
               </div>
             )}
@@ -901,7 +912,7 @@ const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
           </div>
 
           {/* Рыночные данные */}
-          {(report.price_per_share || report.price_at_filing || report.shares_outstanding) && (
+          {(report.price_per_share || report.price_at_filing || report.shares_issued || report.shares_outstanding || report.shares_weighted_avg) && (
             <div className="detail-section">
               <h3>Рыночные данные</h3>
               <div className="detail-grid">
@@ -924,10 +935,30 @@ const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
                     </span>
                   </div>
                 )}
-                {report.shares_outstanding && (
+                {report.shares_issued != null && (
                   <div className="detail-item">
-                    <span className="detail-label">Акций в обращении:</span>
-                    <span className="detail-value">{report.shares_outstanding.toLocaleString('ru-RU')} шт.</span>
+                    <span className="detail-label">Размещено (общее):</span>
+                    <span className="detail-value">{report.shares_issued.toLocaleString('ru-RU')} шт.</span>
+                  </div>
+                )}
+                {(report.shares_outstanding_effective ?? report.shares_outstanding) != null && (
+                  <div className="detail-item">
+                    <span className="detail-label">Акции в обращении:</span>
+                    <span className="detail-value">
+                      {(report.shares_outstanding_effective ?? report.shares_outstanding)!.toLocaleString('ru-RU')} шт.
+                    </span>
+                  </div>
+                )}
+                {report.shares_weighted_avg != null && (
+                  <div className="detail-item">
+                    <span className="detail-label">Средневзвешенное:</span>
+                    <span className="detail-value">{report.shares_weighted_avg.toLocaleString('ru-RU')} шт.</span>
+                  </div>
+                )}
+                {report.treasury_shares != null && (
+                  <div className="detail-item">
+                    <span className="detail-label">Казначейские:</span>
+                    <span className="detail-value">{report.treasury_shares.toLocaleString('ru-RU')} шт.</span>
                   </div>
                 )}
               </div>
@@ -964,7 +995,11 @@ const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
           )}
 
           {/* Баланс */}
-          {(report.total_assets || report.equity || report.total_liabilities) && (
+          {(report.total_assets ||
+            report.equity ||
+            report.total_liabilities ||
+            report.cash_and_equivalents != null ||
+            report.debt != null) && (
             <div className="detail-section">
               <h3>Балансовые показатели <span className="section-units">(млн {cur})</span></h3>
               <div className="detail-grid">
@@ -978,6 +1013,31 @@ const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
                   <div className="detail-item">
                     <span className="detail-label">Оборотные активы:</span>
                     <span className="detail-value">{fmtMln(report.current_assets)}</span>
+                  </div>
+                )}
+                {report.cash_and_equivalents != null && (
+                  <div className="detail-item">
+                    <span className="detail-label">Наличность (ДС и эквиваленты):</span>
+                    <span className="detail-value">{fmtMln(report.cash_and_equivalents)}</span>
+                  </div>
+                )}
+                {report.debt != null && (
+                  <div className="detail-item">
+                    <span className="detail-label">Долг:</span>
+                    <span className="detail-value">{fmtMln(report.debt)}</span>
+                  </div>
+                )}
+                {(report.net_debt != null ||
+                  computeNetDebt(report.debt, report.cash_and_equivalents) != null) && (
+                  <div className="detail-item">
+                    <span className="detail-label">Чистый долг (Net Debt):</span>
+                    <span className={`detail-value${
+                      (report.net_debt ?? computeNetDebt(report.debt, report.cash_and_equivalents) ?? 0) < 0
+                        ? ' detail-loss'
+                        : ''
+                    }`}>
+                      {fmtMln(report.net_debt ?? computeNetDebt(report.debt, report.cash_and_equivalents))}
+                    </span>
                   </div>
                 )}
                 {report.total_liabilities != null && (

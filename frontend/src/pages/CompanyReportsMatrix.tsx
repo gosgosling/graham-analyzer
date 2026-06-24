@@ -17,6 +17,7 @@ import { detectSectorDisplayKind } from '../utils/sectorDisplayKind';
 import { financialReportToCreatePayload } from '../utils/financialReportPayload';
 import { moexRubPriceToReportFieldValue } from '../utils/moexReportAssist';
 import { computeFcf } from '../utils/fcf';
+import { computeNetDebt } from '../utils/netDebt';
 import ReportForm from '../components/ReportForm';
 import AiParsePdfModal from '../components/AiParsePdfModal';
 import './CompanyReportsMatrix.css';
@@ -28,7 +29,8 @@ interface MatrixRowDef {
     | keyof FinancialReportCreate
     | 'fcf_display'
     | 'adjusted_net_display'
-    | 'adjusted_fcf_display';
+    | 'adjusted_fcf_display'
+    | 'net_debt_display';
   label: string;
   hint?: string;
   kind: CellKind;
@@ -72,7 +74,10 @@ const MATRIX_ROWS: MatrixRowDef[] = [
   { key: 'exchange_rate', label: 'Курс к RUB', kind: 'number', hint: 'Обязателен для USD' },
   { key: 'price_per_share', label: 'Цена акции (на конец периода)', kind: 'number' },
   { key: 'price_at_filing', label: 'Цена на дату публикации', kind: 'number' },
-  { key: 'shares_outstanding', label: 'Акций в обращении', kind: 'int' },
+  { key: 'shares_issued', label: 'Размещено (общее)', kind: 'int' },
+  { key: 'shares_outstanding', label: 'Акции в обращении', kind: 'int' },
+  { key: 'shares_weighted_avg', label: 'Средневзвешенное', kind: 'int' },
+  { key: 'treasury_shares', label: 'Казначейские', kind: 'int' },
   { key: 'revenue', label: 'Выручка / OpIncome', kind: 'number', hint: 'млн валюты отчёта' },
   { key: 'net_income', label: 'Чистая прибыль', kind: 'number', hint: 'млн' },
   {
@@ -84,6 +89,14 @@ const MATRIX_ROWS: MatrixRowDef[] = [
   { key: 'net_income_reported', label: 'Прибыль отчётная', kind: 'number', hint: 'млн' },
   { key: 'total_assets', label: 'Активы всего', kind: 'number', hint: 'млн' },
   { key: 'current_assets', label: 'Оборотные активы', kind: 'number', hint: 'млн', bankOnly: false },
+  { key: 'cash_and_equivalents', label: 'Наличность', kind: 'number', hint: 'ДС и эквиваленты, млн' },
+  { key: 'debt', label: 'Долг', kind: 'number', hint: 'млн' },
+  {
+    key: 'net_debt_display',
+    label: 'Чистый долг',
+    kind: 'readonly',
+    hint: 'Долг − наличность',
+  },
   { key: 'total_liabilities', label: 'Обязательства всего', kind: 'number', hint: 'млн' },
   { key: 'current_liabilities', label: 'Краткоср. обязательства', kind: 'number', hint: 'млн', bankOnly: false },
   { key: 'equity', label: 'Капитал', kind: 'number', hint: 'млн' },
@@ -139,12 +152,17 @@ function initialDraftPayload(company_id: number): FinancialReportCreate {
     filing_date: null,
     price_per_share: null,
     price_at_filing: null,
+    shares_issued: null,
     shares_outstanding: null,
+    shares_weighted_avg: null,
+    treasury_shares: null,
     revenue: null,
     net_income: null,
     net_income_reported: null,
     total_assets: null,
     current_assets: null,
+    cash_and_equivalents: null,
+    debt: null,
     total_liabilities: null,
     current_liabilities: null,
     equity: null,
@@ -252,6 +270,11 @@ function getDisplayValue(r: FinancialReport, row: MatrixRowDef): string {
     if (base == null) return '';
     return String(base - preferredDividendsMln(r));
   }
+  if (row.key === 'net_debt_display') {
+    if (r.net_debt != null && r.net_debt !== undefined) return String(r.net_debt);
+    const nd = computeNetDebt(r.debt, r.cash_and_equivalents);
+    return nd != null ? String(nd) : '';
+  }
   const k = row.key as keyof FinancialReport;
   const v = r[k];
   if (v === null || v === undefined) return '';
@@ -265,7 +288,7 @@ function applyParsedToPayload(
   raw: string,
 ): void {
   const k = row.key;
-  if (k === 'fcf_display' || k === 'adjusted_net_display' || k === 'adjusted_fcf_display') return;
+  if (k === 'fcf_display' || k === 'adjusted_net_display' || k === 'adjusted_fcf_display' || k === 'net_debt_display') return;
 
   const widened = payload as unknown as Record<string, unknown>;
 
@@ -480,7 +503,7 @@ const CompanyReportsMatrix: React.FC = () => {
           const prev = draftRef.current;
           if (!prev) return;
           const result = await getMoexShares(tk);
-          setDraftPayload({ ...prev, shares_outstanding: result.issuesize });
+          setDraftPayload({ ...prev, shares_issued: result.issuesize });
         } catch (e) {
           alert(extractMoexError(e));
         } finally {
@@ -495,7 +518,7 @@ const CompanyReportsMatrix: React.FC = () => {
         const result = await getMoexShares(tk);
         await updateFinancialReport(report.id, {
           ...payload,
-          shares_outstanding: result.issuesize,
+          shares_issued: result.issuesize,
         });
         await invalidateAll();
       } catch (e) {
@@ -1075,7 +1098,7 @@ const MatrixCellEditor: React.FC<MatrixCellEditorProps> = ({
     );
   }
 
-  if (ticker && row.key === 'shares_outstanding' && onMoexShares) {
+  if (ticker && row.key === 'shares_issued' && onMoexShares) {
     return (
       <div className="crm-cell-moex-row">
         {inputEl}

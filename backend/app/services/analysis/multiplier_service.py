@@ -19,6 +19,12 @@ from app.models.multiplier import Multiplier
 from app.models.company import Company
 from app.models.enums import PeriodType
 from app.services.analysis.calc_multipliers import calculate_multipliers
+from app.services.analysis.fcf import compute_fcf
+from app.services.analysis.share_counts import (
+    compute_circulation_shares,
+    resolve_shares_for_multipliers,
+    resolve_shares_cap_basis,
+)
 from app.utils.currency_converter import convert_to_rub
 
 logger = logging.getLogger(__name__)
@@ -203,10 +209,7 @@ def calculate_current_multipliers(
     if price is None:
         logger.warning("Нет текущей цены для компании id=%d (%s)", company_id, company.ticker)
 
-    # Рассчитываем мультипликаторы
-    # Поскольку LTM уже в рублях, передаём нулевой курс (не конвертировать повторно),
-    # используя трюк: передаём значения через override-параметры.
-    # Балансовые данные calc_multipliers конвертирует сам из balance_report.
+    # Кол-во акций для market cap — приоритет: в обращении → средневзв. → размещённые.
     mults = calculate_multipliers(
         report=balance_report,
         override_price=price,
@@ -241,6 +244,8 @@ def calculate_current_multipliers(
     def crub(v):
         return _convert(v, balance_report.currency, rate)
 
+    cap_basis = resolve_shares_cap_basis(balance_report, mults.get("shares_used"))
+
     return {
         **mults,
         "ltm_net_income": ltm["ltm_net_income"],
@@ -255,6 +260,13 @@ def calculate_current_multipliers(
         "company_id": company_id,
         "date": date.today().isoformat(),
         "equity": crub(balance_report.equity),
+        "shares_issued": balance_report.shares_issued,
+        "shares_outstanding_circulation": compute_circulation_shares(
+            balance_report.shares_outstanding,
+            balance_report.shares_issued,
+            balance_report.treasury_shares,
+        ),
+        "shares_cap_explanation": cap_basis["shares_cap_explanation"],
     }
 
 
@@ -430,7 +442,7 @@ def save_report_based_multiplier(
     Теперь мы чистим все прошлые report_based-записи этого report_id и
     пересоздаём/обновляем одну запись на актуальную report_date.
     """
-    if report.price_per_share is None and report.shares_outstanding is None:
+    if report.price_per_share is None and resolve_shares_for_multipliers(report) is None:
         # Мы не можем посчитать мультипликаторы — но «протухшие» записи
         # от предыдущих версий отчёта всё равно нужно вычистить.
         _delete_stale_report_based(db, report.id, keep_date=None)
@@ -513,7 +525,6 @@ def save_report_based_multiplier(
     existing.ltm_net_income = crub(report.net_income)  # type: ignore
     existing.ltm_revenue = crub(report.revenue)  # type: ignore
     existing.ltm_dividends_per_share = crub(report.dividends_per_share)  # type: ignore
-    from app.services.analysis.fcf import compute_fcf
 
     existing.ltm_operating_cash_flow = crub(getattr(report, 'operating_cash_flow', None))  # type: ignore
     ocf_rub = crub(getattr(report, 'operating_cash_flow', None))

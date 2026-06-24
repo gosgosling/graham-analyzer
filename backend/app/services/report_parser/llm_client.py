@@ -104,6 +104,22 @@ def _build_client() -> OpenAI:
         )
     # Для Ollama api_key может быть пустым, но openai SDK требует непустую строку.
     api_key = settings.LLM_API_KEY or "not-needed"
+
+    # API-ключи всегда ASCII. Если в ключе остались не-ASCII символы (например,
+    # кириллическая заглушка «ВСТАВЬ_СЮДА_КЛЮЧ_...» из шаблона .env), httpx при
+    # сборке заголовка Authorization падает с непонятным сообщением
+    # «'ascii' codec can't encode characters...». Ловим заранее с понятным
+    # объяснением, что нужно сделать.
+    try:
+        api_key.encode("ascii")
+    except UnicodeEncodeError as exc:
+        raise LLMNotConfiguredError(
+            "LLM_API_KEY содержит не-ASCII символы — похоже, в .env осталась "
+            "заглушка вместо настоящего ключа. Вставь реальный ключ DashScope "
+            "(формат sk-...) в LLM_API_KEY корневого .env и ПЕРЕЗАПУСТИ backend "
+            "(настройки читаются один раз при старте)."
+        ) from exc
+
     return OpenAI(
         base_url=settings.LLM_BASE_URL,
         api_key=api_key,
@@ -133,9 +149,28 @@ def _extract_json_string(content: str) -> str:
 
 
 def _provider_supports_structured_outputs() -> bool:
-    """OpenAI и OpenRouter поддерживают `response_format=<pydantic-class>`.
-    Ollama — нет (использует json_object)."""
+    """OpenAI и OpenRouter поддерживают `response_format=<pydantic-class>`
+    (полноценные Structured Outputs через json_schema).
+
+    Остальные провайдеры используют путь json_object:
+      * Ollama — поддерживает только {"type": "json_object"};
+      * dashscope (Alibaba Qwen) — поддерживает {"type": "json_object"}, но НЕ
+        json_schema/pydantic. Требует слово «json» в промпте (оно у нас есть)
+        и НЕ-thinking режим (см. `_provider_extra_body`)."""
     return settings.LLM_PROVIDER.lower() in {"openai", "openrouter"}
+
+
+def _provider_extra_body() -> dict[str, Any]:
+    """Доп. параметры запроса, специфичные для провайдера.
+
+    DashScope (Qwen): у qwen3.x «thinking mode» включён по умолчанию, но он
+    НЕсовместим с response_format={"type": "json_object"} (API вернёт ошибку).
+    Отключаем thinking — для механического извлечения цифр из таблиц рассуждения
+    не нужны, а ответ гарантированно остаётся валидным JSON и экономит токены.
+    """
+    if settings.LLM_PROVIDER.lower() == "dashscope":
+        return {"enable_thinking": False}
+    return {}
 
 
 def _build_user_content(
@@ -209,7 +244,9 @@ def _call_with_json_object(
     user_prompt: str,
     images: Optional[list[bytes]] = None,
 ) -> ExtractedReport:
-    """Fallback для провайдеров без structured outputs (Ollama): json_object + ручной парсинг."""
+    """JSON-режим для провайдеров без полноценных structured outputs
+    (Ollama, DashScope/Qwen): response_format=json_object + ручной парсинг."""
+    extra_body = _provider_extra_body()
     try:
         completion: ChatCompletion = client.chat.completions.create(
             model=settings.LLM_MODEL,
@@ -219,6 +256,9 @@ def _call_with_json_object(
                 {"role": "user", "content": _build_user_content(user_prompt, images)},
             ],
             response_format={"type": "json_object"},
+            # DashScope: не задаём max_tokens (обрезка ломает JSON);
+            # передаём enable_thinking=False, чтобы json_object не падал.
+            extra_body=extra_body or None,
         )
     except Exception as exc:
         _raise_as_transient(exc, context="json_object")
