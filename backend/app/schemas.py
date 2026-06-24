@@ -2,6 +2,7 @@ from pydantic import BaseModel, model_validator, computed_field, field_serialize
 from typing import Optional, List, Union
 from datetime import date, datetime
 from app.models.enums import PeriodType, AccountingStandard, ReportSource
+from app.services.analysis.share_counts import compute_circulation_shares
 
 class Security(BaseModel):
     secid: str
@@ -111,7 +112,11 @@ class FinancialReportCreate(BaseModel):
 
     ⚠️ ЕДИНИЦЫ ВВОДА:
       - price_per_share, price_at_filing, dividends_per_share — в полных ₽ или $ (за акцию)
-      - shares_outstanding — количество акций в штуках
+      - shares_* — количество акций в штуках:
+          shares_issued — размещённое (общее), обязательно
+          shares_outstanding — в обращении (опционально; иначе issued − treasury)
+          shares_weighted_avg — средневзвешенное (опционально)
+          treasury_shares — казначейские (опционально)
       - revenue, net_income, net_income_reported, total_assets, current_assets,
         total_liabilities, current_liabilities, equity — в МИЛЛИОНАХ валюты (млн ₽ или млн $)
 
@@ -134,7 +139,10 @@ class FinancialReportCreate(BaseModel):
     # Рыночные данные (полные единицы — ₽/$  за акцию)
     price_per_share: Optional[float] = None
     price_at_filing: Optional[float] = None
+    shares_issued: Optional[int] = None
     shares_outstanding: Optional[int] = None
+    shares_weighted_avg: Optional[int] = None
+    treasury_shares: Optional[int] = None
 
     # Финансовые показатели — в МИЛЛИОНАХ валюты (млн ₽ или млн $)
     revenue: Optional[float] = None
@@ -145,6 +153,8 @@ class FinancialReportCreate(BaseModel):
     total_liabilities: Optional[float] = None
     current_liabilities: Optional[float] = None
     equity: Optional[float] = None
+    cash_and_equivalents: Optional[float] = None  # наличность, млн
+    debt: Optional[float] = None                  # долг, млн
     dividends_per_share: Optional[float] = None  # ₽/$ за акцию (полные единицы)
     dividends_paid: bool = False
     has_preferred_shares: bool = False
@@ -204,7 +214,20 @@ class FinancialReportCreate(BaseModel):
         # Для годовых отчётов квартал должен быть None
         if self.period_type == PeriodType.ANNUAL and self.fiscal_quarter is not None:
             raise ValueError("Для годовых отчётов fiscal_quarter должен быть None")
-        
+
+        if self.shares_issued is None and self.shares_outstanding is None and self.shares_weighted_avg is None:
+            raise ValueError(
+                "Укажите размещённое (общее) количество акций (shares_issued). "
+                "Остальные поля акций — опциональны."
+            )
+
+        if (
+            self.shares_issued is not None
+            and self.treasury_shares is not None
+            and self.treasury_shares > self.shares_issued
+        ):
+            raise ValueError("Казначейские акции не могут превышать размещённое количество")
+
         return self
 
 
@@ -228,7 +251,10 @@ class FinancialReport(BaseModel):
     # Рыночные данные
     price_per_share: Optional[float] = None
     price_at_filing: Optional[float] = None
+    shares_issued: Optional[int] = None
     shares_outstanding: Optional[int] = None
+    shares_weighted_avg: Optional[int] = None
+    treasury_shares: Optional[int] = None
 
     # Финансовые показатели
     revenue: Optional[float] = None
@@ -239,6 +265,8 @@ class FinancialReport(BaseModel):
     total_liabilities: Optional[float] = None
     current_liabilities: Optional[float] = None
     equity: Optional[float] = None
+    cash_and_equivalents: Optional[float] = None  # наличность, млн
+    debt: Optional[float] = None                  # долг, млн
     dividends_per_share: Optional[float] = None
     dividends_paid: bool = False
     has_preferred_shares: bool = False
@@ -321,6 +349,16 @@ class FinancialReport(BaseModel):
 
     @computed_field  # type: ignore
     @property
+    def shares_outstanding_effective(self) -> Optional[int]:
+        """Акции в обращении: явное значение или размещённые − казначейские."""
+        return compute_circulation_shares(
+            self.shares_outstanding,
+            self.shares_issued,
+            self.treasury_shares,
+        )
+
+    @computed_field  # type: ignore
+    @property
     def revenue_rub(self) -> Optional[float]:
         """Выручка в рублях"""
         return self._convert_to_rub(self.revenue)
@@ -366,6 +404,32 @@ class FinancialReport(BaseModel):
     def equity_rub(self) -> Optional[float]:
         """Собственный капитал в рублях"""
         return self._convert_to_rub(self.equity)
+
+    @computed_field  # type: ignore
+    @property
+    def cash_and_equivalents_rub(self) -> Optional[float]:
+        """Денежные средства и эквиваленты в рублях, млн"""
+        return self._convert_to_rub(self.cash_and_equivalents)
+
+    @computed_field  # type: ignore
+    @property
+    def debt_rub(self) -> Optional[float]:
+        """Долг в рублях, млн"""
+        return self._convert_to_rub(self.debt)
+
+    @computed_field  # type: ignore
+    @property
+    def net_debt(self) -> Optional[float]:
+        """Чистый долг = Долг − Наличность, млн валюты отчёта."""
+        from app.services.analysis.net_debt import compute_net_debt
+
+        return compute_net_debt(self.debt, self.cash_and_equivalents)
+
+    @computed_field  # type: ignore
+    @property
+    def net_debt_rub(self) -> Optional[float]:
+        """Чистый долг в рублях, млн"""
+        return self._convert_to_rub(self.net_debt)
 
     @computed_field  # type: ignore
     @property
@@ -473,6 +537,9 @@ class MultiplierResponse(BaseModel):
     # Рыночные данные
     price_used: Optional[float] = None
     shares_used: Optional[int] = None
+    shares_issued: Optional[int] = None
+    shares_outstanding_circulation: Optional[int] = None
+    shares_cap_explanation: Optional[str] = None
     market_cap: Optional[float] = None
 
     # LTM P&L
@@ -530,6 +597,9 @@ class CurrentMultipliersResponse(BaseModel):
     # Расчётные данные
     price_used: Optional[float] = None
     shares_used: Optional[int] = None
+    shares_issued: Optional[int] = None
+    shares_outstanding_circulation: Optional[int] = None
+    shares_cap_explanation: Optional[str] = None
     market_cap: Optional[float] = None
     equity: Optional[float] = None  # собственный капитал, млн ₽ (из балансового отчёта)
 
@@ -590,4 +660,14 @@ class DividendContinuityResult(BaseModel):
     last_payment_year: Optional[int] = None
     gap_years: List[int] = []  # Годы, когда дивиденды не выплачивались
     recommendation: str  # Рекомендация на основе непрерывности
+
+
+class PostgresBackupResponse(BaseModel):
+    """Результат POST /admin/backup/postgres"""
+    status: str = "ok"
+    filename: str
+    path: str
+    size_bytes: int
+    size_human: str
+    message: str
     

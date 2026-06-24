@@ -29,6 +29,7 @@ from app.schemas import (
 )
 from app.services.analysis import multiplier_service
 from app.services.market import tinvest_price_service
+from app.services.analysis.share_counts import explain_shares_cap_basis
 from app.utils.currency_converter import convert_to_rub
 
 router = APIRouter(tags=["multipliers"])
@@ -43,6 +44,9 @@ def _multiplier_to_response(
     filing_date = None
     price_at_filing_rub = None
     rep = report_override if report_override is not None else m.report
+    shares_cap_explanation = None
+    if rep is not None and m.shares_used is not None:
+        shares_cap_explanation = explain_shares_cap_basis(rep, m.shares_used)
     if rep is not None:
         filing_date = rep.filing_date
         if rep.price_at_filing is not None:
@@ -53,6 +57,7 @@ def _multiplier_to_response(
     return base.model_copy(update={
         "filing_date": filing_date,
         "price_at_filing_rub": price_at_filing_rub,
+        "shares_cap_explanation": shares_cap_explanation,
     })
 
 

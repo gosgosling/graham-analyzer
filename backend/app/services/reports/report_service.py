@@ -49,7 +49,10 @@ def create_report(db: Session, report_data: FinancialReportCreate) -> FinancialR
         # Рыночные данные
         price_per_share=report_data.price_per_share,
         price_at_filing=report_data.price_at_filing,
+        shares_issued=report_data.shares_issued,
         shares_outstanding=report_data.shares_outstanding,
+        shares_weighted_avg=report_data.shares_weighted_avg,
+        treasury_shares=report_data.treasury_shares,
         # Финансовые данные
         revenue=report_data.revenue,
         net_income=report_data.net_income,
@@ -59,6 +62,8 @@ def create_report(db: Session, report_data: FinancialReportCreate) -> FinancialR
         total_liabilities=report_data.total_liabilities,
         current_liabilities=report_data.current_liabilities,
         equity=report_data.equity,
+        cash_and_equivalents=report_data.cash_and_equivalents,
+        debt=report_data.debt,
         dividends_per_share=report_data.dividends_per_share,
         dividends_paid=report_data.dividends_paid,
         has_preferred_shares=report_data.has_preferred_shares,
@@ -224,7 +229,10 @@ def update_report(
     # Рыночные данные
     db_report.price_per_share = report_data.price_per_share  # type: ignore
     db_report.price_at_filing = report_data.price_at_filing  # type: ignore
+    db_report.shares_issued = report_data.shares_issued  # type: ignore
     db_report.shares_outstanding = report_data.shares_outstanding  # type: ignore
+    db_report.shares_weighted_avg = report_data.shares_weighted_avg  # type: ignore
+    db_report.treasury_shares = report_data.treasury_shares  # type: ignore
     # Финансовые данные
     db_report.revenue = report_data.revenue  # type: ignore
     db_report.net_income = report_data.net_income  # type: ignore
@@ -234,6 +242,8 @@ def update_report(
     db_report.total_liabilities = report_data.total_liabilities  # type: ignore
     db_report.current_liabilities = report_data.current_liabilities  # type: ignore
     db_report.equity = report_data.equity  # type: ignore
+    db_report.cash_and_equivalents = report_data.cash_and_equivalents  # type: ignore
+    db_report.debt = report_data.debt  # type: ignore
     db_report.dividends_per_share = report_data.dividends_per_share  # type: ignore
     db_report.dividends_paid = report_data.dividends_paid  # type: ignore
     db_report.has_preferred_shares = report_data.has_preferred_shares  # type: ignore

@@ -270,6 +270,24 @@
     font-weight: normal;
 }
 
+.required-mark {
+    color: var(--color-error, #b91c1c);
+}
+
+.shares-fields-hint {
+    margin: 0 0 12px;
+    font-size: 12px;
+    color: var(--color-text-secondary);
+}
+
+.shares-computed-hint {
+    margin: -4px 0 12px;
+    padding: 8px 10px;
+    background: var(--color-bg-subtle);
+    border-radius: var(--radius-md);
+    font-size: 12px;
+}
+
 .section-units-hint {
     display: inline-block;
     margin-left: 10px;

@@ -278,21 +278,43 @@
 .current-card.level-good  .current-card-value { color: var(--color-success-text); }
 .current-card.level-warn  .current-card-value { color: var(--color-warning-text); }
 .current-card.level-bad   .current-card-value { color: var(--color-error-text); }
-.current-card.level-loss  .current-card-value { color: var(--color-loss-text); font-size: 1.25rem; }
+.current-card.level-loss  .current-card-value { color: inherit; }
+
+.card-loss-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: var(--radius-xs);
+  font-size: 0.95rem;
+  font-weight: 600;
+  text-transform: lowercase;
+  letter-spacing: 0.01em;
+  line-height: 1.2;
+  background: var(--color-loss-soft);
+  color: var(--color-loss-text);
+  border: 1px solid var(--color-error-border);
+}
 
 .card-text-label {
   font-size: 0.95rem;
   font-weight: 600;
 }
 
-.card-text-label--loss {
-  font-size: 0.82rem;
-  text-transform: lowercase;
+.current-card-value:has(.mult-div-none--card) {
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
 }
 
-.current-card-value .mult-div-none.mult-div-none--card {
-  font-size: 1rem;
+.mult-div-none--card .mult-div-none-box {
+  min-width: unset;
+  height: unset;
+  padding: 0;
+  border: none;
+  background: none;
+  font-size: 1.85rem;
+  font-weight: 700;
   line-height: 1;
+  color: var(--color-error-text);
 }
 
 .current-card-hint {
@@ -423,6 +445,8 @@
   color: var(--color-text-secondary);
   border-bottom: 1px solid var(--color-table-border);
   white-space: nowrap;
+  vertical-align: middle;
+  line-height: 1.25;
 }
 
 .hist-table td.col-year {
@@ -542,9 +566,11 @@
 }
 
 .mult-cell-center {
-  display: flex;
+  display: inline-flex;
+  align-items: center;
   justify-content: center;
   width: 100%;
+  line-height: 1;
 }
 
 /* Всплывающая подсказка без подчёркивания */
@@ -567,31 +593,53 @@
   vertical-align: middle;
 }
 
+.mult-div-none:not(.mult-div-none--card) {
+  line-height: 0;
+}
+
 .mult-div-none-box {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 22px;
-  height: 22px;
-  padding: 0 4px;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  box-sizing: border-box;
+  border: none;
+  background: transparent;
+  color: var(--color-error-text);
+  font-size: 1.15rem;
+  font-weight: 700;
+  line-height: 1;
+  text-decoration: none;
+  overflow: visible;
+  flex-shrink: 0;
+  z-index: 0;
+}
+
+/* Квадрат рисуем отдельно — не влияет на высоту строки таблицы */
+.mult-div-none-box::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 24px;
+  height: 24px;
+  transform: translate(-50%, -50%);
   box-sizing: border-box;
   border: 1px solid var(--color-error-border);
   border-radius: var(--radius-xs);
   background: var(--color-error-soft);
-  color: var(--color-error-text);
-  font-size: 0.83rem;
-  font-weight: 600;
-  line-height: 1;
-  text-decoration: none;
+  z-index: -1;
 }
 
-.mult-div-none--card .mult-div-none-box {
-  min-width: 26px;
-  height: 26px;
-  font-size: 1.05rem;
+.mult-div-none--card .mult-div-none-box::before {
+  content: none;
+  display: none;
 }
 
-/* Ячейка убытка в таблице истории */
+/* ── Ячейка убытка в таблице истории ── */
 .cell-loss {
   color: var(--color-loss-text);
   font-weight: 600;
