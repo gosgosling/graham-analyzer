@@ -3,16 +3,10 @@ from sqlalchemy.exc import IntegrityError
 from typing import List, Optional
 from app.models.company import Company
 from app.schemas import CompanyCreate
-
-
-def detect_preferred_share(ticker: Optional[str]) -> bool:
-    """Эвристика: MOEX-тикер привилегированных акций оканчивается на «P»
-    (BANEP, TRNFP, SBERP, NKNCP …). Используется при создании компании
-    через синхронизацию из T-Invest; ручной флажок имеет приоритет."""
-    if not ticker:
-        return False
-    t = ticker.strip().upper()
-    return len(t) >= 2 and t.endswith("P")
+from app.services.companies.share_class import (
+    detect_preferred_share,
+    instrument_can_be_preferred,
+)
 
 
 def get_company_by_figi(db: Session, figi: str) -> Optional[Company]:
@@ -67,7 +61,7 @@ def create_company(db: Session, company_data: CompanyCreate) -> Company:
     is_pref = (
         company_data.is_preferred_share
         if company_data.is_preferred_share is not None
-        else detect_preferred_share(company_data.ticker)
+        else detect_preferred_share(company_data.ticker, company_data.name)
     )
 
     db_company = Company(
@@ -129,10 +123,7 @@ def _apply_company_update(db_company: Company, company_data: CompanyCreate, db: 
 
 def _instrument_can_be_preferred(company: Company) -> bool:
     """Тикер/название допускают режим «привилегированные акции»."""
-    if detect_preferred_share(company.ticker):
-        return True
-    name = (company.name or "").lower()
-    return "привилегирован" in name
+    return instrument_can_be_preferred(company.ticker, company.name)
 
 
 def set_preferred_share_flag(

@@ -622,7 +622,7 @@ const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
             </div>
           </div>
 
-          {(report.price_per_share || report.price_at_filing || report.shares_outstanding) && (
+          {(report.price_per_share || report.price_at_filing || report.shares_issued || report.shares_outstanding) && (
             <div className="detail-section">
               <h3>Рыночные данные</h3>
               <div className="detail-grid">
@@ -643,10 +643,18 @@ const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
                     <span className="detail-value">{report.price_at_filing.toLocaleString('ru-RU')} {cur}</span>
                   </div>
                 )}
-                {report.shares_outstanding != null && (
+                {report.shares_issued != null && (
                   <div className="detail-item">
-                    <span className="detail-label">Акций в обращении:</span>
-                    <span className="detail-value">{report.shares_outstanding.toLocaleString('ru-RU')} шт.</span>
+                    <span className="detail-label">Размещено (общее):</span>
+                    <span className="detail-value">{report.shares_issued.toLocaleString('ru-RU')} шт.</span>
+                  </div>
+                )}
+                {(report.shares_outstanding_effective ?? report.shares_outstanding) != null && (
+                  <div className="detail-item">
+                    <span className="detail-label">Акции в обращении:</span>
+                    <span className="detail-value">
+                      {(report.shares_outstanding_effective ?? report.shares_outstanding)!.toLocaleString('ru-RU')} шт.
+                    </span>
                   </div>
                 )}
               </div>

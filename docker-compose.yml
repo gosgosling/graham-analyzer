@@ -10,9 +10,9 @@ services:
     ports:
     - "5432:5432"
     volumes:
-    - postgres_data:/var/lib/postgresql/postgres/
+    - postgres_data:/var/lib/postgresql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U graham_user "]
+      test: ["CMD-SHELL", "pg_isready -U graham_user -d graham_analyzer"]
       interval: 10s
       timeout: 5s
       retries: 5

@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, ReferenceLine,
+  ResponsiveContainer, ReferenceLine, ReferenceDot,
 } from 'recharts';
 import {
   getCompanyCurrentMultipliers,
@@ -12,6 +12,7 @@ import {
 } from '../services';
 import { MultiplierRecord, CurrentMultipliers, Company } from '../types';
 import { useChartColors, ChartColors } from '../contexts/ThemeContext';
+import SharesCapHover from './SharesCapHover';
 import './MultipliersPanel.css';
 
 // ─── Критерии Грэма для цветовой кодировки ───────────────────────────────────
@@ -20,22 +21,35 @@ type Level = 'good' | 'warn' | 'bad' | 'neutral' | 'loss';
 
 function peLevel(v: number | null): Level {
   if (v === null) return 'neutral';
-  if (v < 0) return 'bad';
   if (v <= 15) return 'good';
   if (v <= 25) return 'warn';
   return 'bad';
 }
 
+/** P/E null + убыток → «убыток» в UI. */
+function peLevelContext(pe: number | null, income: number | null): Level {
+  if (pe !== null) return peLevel(pe);
+  if (income !== null && income < 0) return 'loss';
+  return 'neutral';
+}
+
 function pbLevel(v: number | null): Level {
   if (v === null) return 'neutral';
-  if (v < 0) return 'bad';
   if (v <= 1.5) return 'good';
   if (v <= 3) return 'warn';
   return 'bad';
 }
 
+/** P/B null + отрицательный капитал → «убыток» в UI. */
+function pbLevelContext(pb: number | null, equity: number | null): Level {
+  if (pb !== null) return pbLevel(pb);
+  if (equity !== null && equity < 0) return 'loss';
+  return 'neutral';
+}
+
 function roeLevel(v: number | null): Level {
   if (v === null) return 'neutral';
+  if (v < 0) return 'bad';
   if (v >= 15) return 'good';
   if (v >= 10) return 'warn';
   return 'bad';
@@ -53,13 +67,32 @@ function deLevel(v: number | null): Level {
   return 'bad';
 }
 
-/** P/FCF — аналог P/E: те же пороги, в т.ч. отрицательное значение при FCF < 0. */
-function pfcfLevel(v: number | null): Level {
-  if (v === null) return 'neutral';
-  if (v < 0) return 'bad';
-  if (v <= 15) return 'good';
-  if (v <= 25) return 'warn';
-  return 'bad';
+const DE_BANKRUPTCY_TIP =
+  'Отрицательный собственный капитал — компания фактически банкрот. D/E в такой ситуации не имеет смысла.';
+
+function deBadge(
+  de: number | null,
+  equity: number | null,
+  fallbackHint?: string,
+): { value: number | null; level: Level; tip?: string } {
+  const level = deLevel(de);
+  const bankrupt = de !== null && de < 0 && equity !== null && equity < 0;
+  return {
+    value: de,
+    level,
+    tip: bankrupt ? DE_BANKRUPTCY_TIP : fallbackHint,
+  };
+}
+
+/** P/FCF null + отрицательный FCF → «убыток» в UI. */
+function pfcfLevel(v: number | null, fcf: number | null): Level {
+  if (v !== null) {
+    if (v <= 15) return 'good';
+    if (v <= 25) return 'warn';
+    return 'bad';
+  }
+  if (fcf !== null && fcf < 0) return 'loss';
+  return 'neutral';
 }
 
 /**
@@ -78,14 +111,13 @@ function fcfNiLevel(v: number | null): Level {
   return 'loss';  // FCF отрицательный — красный флаг
 }
 
-/** ROE в таблице: капитал ≤ 0 → Н/Д; убыток → «убыток»; ROE > 100% → «Искажено». */
+/** ROE: капитал ≤ 0 → «Н/Д»; ROE > 100% → «Искажено»; иначе число (в т.ч. отрицательное при убытке). */
 function roeBadge(
   roe: number | null | undefined,
-  netIncome: number | null | undefined,
+  _netIncome: number | null | undefined,
   equity: number | null | undefined,
 ): { value: number | null; level: Level; textLabel?: string; nullHint?: string; centered?: boolean } {
   const eq = equity ?? null;
-  const ni = netIncome ?? null;
 
   if (eq !== null && eq <= 0) {
     return {
@@ -94,14 +126,6 @@ function roeBadge(
       textLabel: 'Н/Д',
       nullHint: 'Собственный капитал ≤ 0 — ROE не применим',
       centered: true,
-    };
-  }
-  if (ni !== null && ni < 0) {
-    return {
-      value: null,
-      level: 'loss',
-      textLabel: 'убыток',
-      nullHint: 'Убыток за период — ROE не показывается',
     };
   }
   const v = roe ?? null;
@@ -374,7 +398,7 @@ function dyLevel(v: number | null): Level {
 // ─── Вспомогательные компоненты ──────────────────────────────────────────────
 
 function MetricBadge({
-  value, level, suffix = '', nullHint, textLabel, centered = false,
+  value, level, suffix = '', nullHint, textLabel, centered = false, tip,
 }: {
   value: number | null;
   level: Level;
@@ -382,8 +406,10 @@ function MetricBadge({
   nullHint?: string;
   textLabel?: string;
   centered?: boolean;
+  tip?: string;
 }) {
-  const tipClass = nullHint ? ' mult-cell-tip' : '';
+  const hoverTip = tip ?? nullHint;
+  const tipClass = hoverTip ? ' mult-cell-tip' : '';
 
   const wrap = (node: React.ReactElement) =>
     centered ? <span className="mult-cell-center">{node}</span> : node;
@@ -393,7 +419,7 @@ function MetricBadge({
     return wrap(
       <span
         className={`mult-cell ${level}${isCompact ? ' mult-cell-text-label' : ''}${tipClass}`}
-        title={nullHint}
+        title={hoverTip}
       >
         {textLabel}
       </span>,
@@ -404,7 +430,7 @@ function MetricBadge({
       return wrap(
         <span
           className={`mult-cell loss mult-cell-text-label${tipClass}`}
-          title={nullHint ?? 'Убыток за период — показатель не применим'}
+          title={hoverTip ?? 'Убыток за период — показатель не применим'}
         >
           убыток
         </span>,
@@ -412,17 +438,37 @@ function MetricBadge({
     }
     return (
       <span
-        className={`mult-cell neutral${nullHint ? ' mult-cell-tip' : ''}`}
-        title={nullHint ?? 'Недостаточно данных'}
+        className={`mult-cell neutral${hoverTip ? ' mult-cell-tip' : ''}`}
+        title={hoverTip ?? 'Недостаточно данных'}
       >
         —
       </span>
     );
   }
   return (
-    <span className={`mult-cell ${level}`}>
+    <span className={`mult-cell ${level}${tipClass}`} title={hoverTip}>
       {value.toFixed(2)}{suffix}
     </span>
+  );
+}
+
+function DeMetricBadge({
+  de,
+  equity,
+  fallbackHint,
+}: {
+  de: number | null;
+  equity: number | null | undefined;
+  fallbackHint?: string;
+}) {
+  const ui = deBadge(de, equity ?? null, fallbackHint);
+  return (
+    <MetricBadge
+      value={ui.value}
+      level={ui.level}
+      nullHint={ui.value === null ? ui.tip : undefined}
+      tip={ui.value !== null ? ui.tip : undefined}
+    />
   );
 }
 
@@ -450,19 +496,20 @@ function RoeMetricBadge({
 
 /** Нет дивидендной доходности: выплаты по обыкновенным не указаны или не было выплат */
 function NoDividendYieldMark({ className = '' }: { className?: string }) {
-  return (
-    <span className={`mult-cell-center${className ? ` ${className}` : ''}`}>
-      <span
-        className="mult-div-none mult-div-none--wrap mult-cell-tip"
-        title="Дивиденды по обыкновенным акциям за период не выплачивались или не указаны в отчётах"
-        aria-label="Дивиденды не выплачивались"
-      >
-        <span className="mult-div-none-box" aria-hidden>
-          ×
-        </span>
+  const isCard = className.includes('mult-div-none--card');
+  const mark = (
+    <span
+      className={`mult-div-none mult-div-none--wrap mult-cell-tip${isCard ? ` ${className}` : ''}`}
+      title="Дивиденды по обыкновенным акциям за период не выплачивались или не указаны в отчётах"
+      aria-label="Дивиденды не выплачивались"
+    >
+      <span className="mult-div-none-box" aria-hidden>
+        ×
       </span>
     </span>
   );
+  if (isCard) return mark;
+  return <span className={`mult-cell-center${className ? ` ${className}` : ''}`}>{mark}</span>;
 }
 
 function DividendYieldBadge({
@@ -577,6 +624,7 @@ interface DashboardCard {
   suffix?: string;
   nullHint?: string;
   textLabel?: string;
+  tip?: string;
 }
 
 const CurrentCards: React.FC<CurrentCardsProps> = ({ data, crProfile, isPreferredShare = false }) => {
@@ -595,16 +643,16 @@ const CurrentCards: React.FC<CurrentCardsProps> = ({ data, crProfile, isPreferre
     {
       label: 'P/E',
       value: data.pe_ratio,
-      level: peLevel(data.pe_ratio),
+      level: peLevelContext(data.pe_ratio, income),
       hint: 'Цена / Прибыль',
-      threshold: isLoss ? 'Отрицательный P/E при убытке' : '≤ 15 — хорошо',
+      threshold: isLoss ? 'Убыток — P/E не применим' : '≤ 15 — хорошо',
     },
     {
       label: 'P/B',
       value: data.pb_ratio,
-      level: pbLevel(data.pb_ratio),
+      level: pbLevelContext(data.pb_ratio, data.equity ?? null),
       hint: 'Цена / Балансовая стоимость',
-      threshold: data.pb_ratio !== null && data.pb_ratio < 0 ? 'Отрицательный P/B' : '≤ 1.5 — хорошо',
+      threshold: '≤ 1.5 — хорошо',
     },
     {
       label: 'ROE',
@@ -614,10 +662,10 @@ const CurrentCards: React.FC<CurrentCardsProps> = ({ data, crProfile, isPreferre
       threshold:
         roeUi.textLabel === 'Н/Д'
           ? 'Капитал ≤ 0'
-          : roeUi.textLabel === 'убыток'
-            ? 'Убыток за период'
-            : roeUi.textLabel === 'Искажено'
-              ? 'ROE > 100%'
+          : roeUi.textLabel === 'Искажено'
+            ? 'ROE > 100%'
+            : roeUi.value !== null && roeUi.value < 0
+              ? 'Отрицательный ROE'
               : '≥ 15% — хорошо',
       suffix: '%',
       nullHint: roeUi.nullHint,
@@ -628,9 +676,23 @@ const CurrentCards: React.FC<CurrentCardsProps> = ({ data, crProfile, isPreferre
       value: data.debt_to_equity,
       level: deLevel(data.debt_to_equity),
       hint: 'Total Liabilities / Equity',
-      threshold: data.debt_to_equity !== null && data.debt_to_equity < 0
-        ? 'Отрицательный капитал'
-        : '≤ 0.5 — хорошо',
+      threshold:
+        data.equity !== null &&
+        data.equity !== undefined &&
+        data.equity < 0 &&
+        data.debt_to_equity !== null &&
+        data.debt_to_equity < 0
+          ? 'Отрицательный капитал — банкрот'
+          : data.debt_to_equity !== null && data.debt_to_equity < 0
+            ? 'Отрицательный капитал'
+            : '≤ 0.5 — хорошо',
+      tip:
+        data.debt_to_equity !== null &&
+        data.debt_to_equity < 0 &&
+        data.equity != null &&
+        data.equity < 0
+          ? DE_BANKRUPTCY_TIP
+          : undefined,
     },
     {
       label: 'Current Ratio',
@@ -659,7 +721,7 @@ const CurrentCards: React.FC<CurrentCardsProps> = ({ data, crProfile, isPreferre
           : data.ltm_dividends_per_share === null
             ? isPreferredShare
               ? 'Дивиденды по префам в отчётах не указаны'
-              : 'Нет выплат по обыкновенным в отчётах'
+              : 'Дивиденды не выплачивались'
             : 'Нет цены / данных для расчёта',
       suffix: '%',
     },
@@ -671,9 +733,9 @@ const CurrentCards: React.FC<CurrentCardsProps> = ({ data, crProfile, isPreferre
     {
       label: 'P/FCF',
       value: pfcf ?? null,
-      level: pfcfLevel(pfcf ?? null),
+      level: pfcfLevel(pfcf ?? null, ltmFcf ?? null),
       hint: 'Цена / Свободный денежный поток',
-      threshold: pfcf !== null && pfcf !== undefined && pfcf < 0 ? 'Отрицательный P/FCF' : '≤ 15 — хорошо',
+      threshold: (ltmFcf ?? 0) < 0 ? 'FCF отрицателен' : '≤ 15 — хорошо',
     },
     {
       label: 'FCF/NI',
@@ -701,24 +763,22 @@ const CurrentCards: React.FC<CurrentCardsProps> = ({ data, crProfile, isPreferre
 
   return (
     <div className="current-cards-grid">
-      {cards.map(({ label, value, level, hint, threshold, suffix = '', nullHint, textLabel }) => (
+      {cards.map(({ label, value, level, hint, threshold, suffix = '', nullHint, textLabel, tip }) => (
         <div key={label} className={`current-card level-${level}`}>
           <div className="current-card-label">{label}</div>
-          <div className="current-card-value" title={nullHint}>
+          <div className="current-card-value" title={tip ?? nullHint}>
             {label === 'Div. Yield' && value === null && data.ltm_dividends_per_share === null ? (
               isPreferredShare ? (
                 '—'
               ) : (
                 <NoDividendYieldMark className="mult-div-none--card" />
               )
+            ) : textLabel === 'убыток' || level === 'loss' ? (
+              <span className="card-loss-badge">убыток</span>
             ) : textLabel ? (
-              <span className={textLabel === 'убыток' ? 'card-text-label card-text-label--loss' : 'card-text-label'}>
-                {textLabel}
-              </span>
+              <span className="card-text-label">{textLabel}</span>
             ) : value !== null ? (
               `${fmt(value)}${suffix}`
-            ) : level === 'loss' ? (
-              <span className="card-text-label card-text-label--loss">убыток</span>
             ) : (
               '—'
             )}
@@ -752,7 +812,11 @@ const LtmMeta: React.FC<{ data: CurrentMultipliers }> = ({ data }) => {
       <span className="ltm-meta-item">
         <span className="ltm-meta-icon">📊</span>
         <span className="ltm-meta-label">Капитализация:</span>
-        <span className="ltm-meta-value">{fmtMln(data.market_cap)}</span>
+        <span className="ltm-meta-value">
+          <SharesCapHover explanation={data.shares_cap_explanation}>
+            {fmtMln(data.market_cap)}
+          </SharesCapHover>
+        </span>
       </span>
       <span className="ltm-meta-item">
         <span className="ltm-meta-icon">📈</span>
@@ -906,6 +970,18 @@ const HistPriceCell: React.FC<{ row: MultiplierRecord }> = ({ row }) => {
   );
 };
 
+const HistCapCell: React.FC<{
+  marketCapMln: number | null;
+  explanation: string | null | undefined;
+}> = ({ marketCapMln, explanation }) => {
+  const display = marketCapMln !== null ? (marketCapMln / 1_000).toFixed(2) : '—';
+  return (
+    <SharesCapHover explanation={explanation}>
+      {display}
+    </SharesCapHover>
+  );
+};
+
 const HistTable: React.FC<HistTableProps> = ({ rows, currentRow, crProfile, isPreferredShare = false }) => {
   const [crTooltipVisible, setCrTooltipVisible] = React.useState(false);
   const crThRef = React.useRef<HTMLTableCellElement | null>(null);
@@ -964,9 +1040,26 @@ const HistTable: React.FC<HistTableProps> = ({ rows, currentRow, crProfile, isPr
               <tr className="row-ltm">
                 <td className="col-year"><span className="badge-ltm">LTM</span></td>
                 <td>{currentRow.price_used !== null ? fmt(currentRow.price_used) : '—'}</td>
-                <td>{currentRow.market_cap !== null ? (currentRow.market_cap / 1_000).toFixed(2) : '—'}</td>
-                <td><MetricBadge value={currentRow.pe_ratio} level={peLevel(currentRow.pe_ratio)} /></td>
-                <td><MetricBadge value={currentRow.pb_ratio} level={pbLevel(currentRow.pb_ratio)} /></td>
+                <td>
+                  <HistCapCell
+                    marketCapMln={currentRow.market_cap}
+                    explanation={currentRow.shares_cap_explanation}
+                  />
+                </td>
+                <td><MetricBadge
+                  value={currentRow.pe_ratio}
+                  level={peLevelContext(currentRow.pe_ratio, currentRow.ltm_net_income)}
+                  nullHint={ltmIsLoss ? 'Убыток за период — P/E не рассчитывается' : undefined}
+                /></td>
+                <td><MetricBadge
+                  value={currentRow.pb_ratio}
+                  level={pbLevelContext(currentRow.pb_ratio, currentRow.equity ?? null)}
+                  nullHint={
+                    currentRow.equity !== null && currentRow.equity !== undefined && currentRow.equity < 0
+                      ? 'Отрицательный капитал — P/B не рассчитывается'
+                      : undefined
+                  }
+                /></td>
                 <td>
                   <RoeMetricBadge
                     roe={currentRow.roe}
@@ -974,10 +1067,14 @@ const HistTable: React.FC<HistTableProps> = ({ rows, currentRow, crProfile, isPr
                     equity={currentRow.equity ?? null}
                   />
                 </td>
-                <td><MetricBadge
-                  value={currentRow.debt_to_equity}
-                  level={deLevel(currentRow.debt_to_equity)}
-                  nullHint={currentRow.debt_to_equity !== null && currentRow.debt_to_equity < 0 ? 'Отрицательный капитал' : undefined}
+                <td><DeMetricBadge
+                  de={currentRow.debt_to_equity}
+                  equity={currentRow.equity ?? null}
+                  fallbackHint={
+                    currentRow.debt_to_equity !== null && currentRow.debt_to_equity < 0
+                      ? 'Отрицательный капитал'
+                      : undefined
+                  }
                 /></td>
                 <td><MetricBadge value={currentRow.current_ratio} level={crLevel(currentRow.current_ratio, crProfile)}
                   nullHint={crProfile.notApplicable ? 'CR не применим для данного типа компании' : undefined} /></td>
@@ -989,7 +1086,17 @@ const HistTable: React.FC<HistTableProps> = ({ rows, currentRow, crProfile, isPr
                     isPreferredShare={isPreferredShare}
                   />
                 </td>
-                <td><MetricBadge value={(currentRow as any).price_to_fcf ?? null} level={pfcfLevel((currentRow as any).price_to_fcf ?? null)} /></td>
+                <td><MetricBadge
+                  value={(currentRow as any).price_to_fcf ?? null}
+                  level={pfcfLevel((currentRow as any).price_to_fcf ?? null, (currentRow as any).ltm_fcf ?? null)}
+                  nullHint={
+                    (currentRow as any).ltm_fcf !== null &&
+                    (currentRow as any).ltm_fcf !== undefined &&
+                    (currentRow as any).ltm_fcf < 0
+                      ? 'FCF отрицателен — P/FCF не рассчитывается'
+                      : undefined
+                  }
+                /></td>
                 <td>
                   <MetricBadge
                     value={fcfNiLtm.value}
@@ -1016,13 +1123,15 @@ const HistTable: React.FC<HistTableProps> = ({ rows, currentRow, crProfile, isPr
             const noCurr    = r.current_assets === null || r.current_liabilities === null;
             const fcfNiRow = fcfNiBadge(r.fcf_to_net_income, r.ltm_net_income);
 
-            const peHint = noIncome
-              ? 'Нет данных о чистой прибыли (net_income)'
+            const peHint = isLoss
+              ? 'Убыток за период — P/E не рассчитывается'
+              : noIncome ? 'Нет данных о чистой прибыли (net_income)'
               : noPrice ? 'Нет цены / акций'
               : undefined;
 
-            const pbHint = noEquity
-              ? 'Нет данных о капитале (equity)'
+            const pbHint = negEquity
+              ? 'Отрицательный капитал — P/B не рассчитывается'
+              : noEquity ? 'Нет данных о капитале (equity)'
               : noPrice ? 'Нет цены / акций'
               : undefined;
 
@@ -1038,13 +1147,26 @@ const HistTable: React.FC<HistTableProps> = ({ rows, currentRow, crProfile, isPr
                 <td className="col-price-cell">
                   <HistPriceCell row={r} />
                 </td>
-                <td>{r.market_cap !== null ? (r.market_cap / 1_000).toFixed(2) : '—'}</td>
-                <td><MetricBadge value={r.pe_ratio} level={peLevel(r.pe_ratio)} nullHint={peHint} /></td>
-                <td><MetricBadge value={r.pb_ratio} level={pbLevel(r.pb_ratio)} nullHint={pbHint} /></td>
+                <td>
+                  <HistCapCell
+                    marketCapMln={r.market_cap}
+                    explanation={r.shares_cap_explanation}
+                  />
+                </td>
+                <td><MetricBadge
+                  value={r.pe_ratio}
+                  level={peLevelContext(r.pe_ratio, r.ltm_net_income)}
+                  nullHint={peHint}
+                /></td>
+                <td><MetricBadge
+                  value={r.pb_ratio}
+                  level={pbLevelContext(r.pb_ratio, r.equity)}
+                  nullHint={pbHint}
+                /></td>
                 <td>
                   <RoeMetricBadge roe={r.roe} netIncome={r.ltm_net_income} equity={r.equity} />
                 </td>
-                <td><MetricBadge value={r.debt_to_equity} level={deLevel(r.debt_to_equity)} nullHint={deHint} /></td>
+                <td><DeMetricBadge de={r.debt_to_equity} equity={r.equity} fallbackHint={deHint} /></td>
                 <td><MetricBadge value={r.current_ratio} level={crLevel(r.current_ratio, crProfile)}
                   nullHint={noCurr ? 'Нет оборотных активов или краткосрочных обязательств' : crProfile.notApplicable ? 'CR не применим для данного типа компании' : undefined} /></td>
                 <td>
@@ -1055,7 +1177,15 @@ const HistTable: React.FC<HistTableProps> = ({ rows, currentRow, crProfile, isPr
                     isPreferredShare={isPreferredShare}
                   />
                 </td>
-                <td><MetricBadge value={r.price_to_fcf} level={pfcfLevel(r.price_to_fcf)} /></td>
+                <td><MetricBadge
+                  value={r.price_to_fcf}
+                  level={pfcfLevel(r.price_to_fcf, r.ltm_fcf)}
+                  nullHint={
+                    r.ltm_fcf !== null && r.ltm_fcf < 0
+                      ? 'FCF отрицателен — P/FCF не рассчитывается'
+                      : undefined
+                  }
+                /></td>
                 <td>
                   <MetricBadge
                     value={fcfNiRow.value}
@@ -1086,8 +1216,98 @@ const HistTable: React.FC<HistTableProps> = ({ rows, currentRow, crProfile, isPr
 
 // ─── Графики мультипликаторов ─────────────────────────────────────────────────
 
+interface ChartPoint {
+  year: string;
+  isLtm: boolean;
+  pe_ratio: number | null;
+  pe_loss: boolean;
+  pb_ratio: number | null;
+  roe: number | null;
+  roe_na: boolean;
+  debt_to_equity: number | null;
+  current_ratio: number | null;
+  dividend_yield: number | null;
+  no_dividend: boolean;
+}
+
+type ChartRowInput = Pick<
+  MultiplierRecord,
+  | 'pe_ratio'
+  | 'pb_ratio'
+  | 'roe'
+  | 'debt_to_equity'
+  | 'current_ratio'
+  | 'dividend_yield'
+  | 'ltm_net_income'
+  | 'equity'
+  | 'ltm_dividends_per_share'
+>;
+
+function toChartPoint(r: ChartRowInput, year: string, isLtm: boolean): ChartPoint {
+  const ni = r.ltm_net_income ?? null;
+  const isLoss = ni !== null && ni < 0;
+  const roeUi = roeBadge(r.roe, ni, r.equity ?? null);
+
+  const peOk = r.pe_ratio != null && r.pe_ratio > 0 && !isLoss;
+  const roeOk = !roeUi.textLabel && roeUi.value != null;
+  const hasDividend = r.ltm_dividends_per_share != null && r.ltm_dividends_per_share > 0;
+
+  return {
+    year,
+    isLtm,
+    pe_ratio: peOk ? r.pe_ratio : null,
+    pe_loss: !peOk && isLoss,
+    pb_ratio: r.pb_ratio,
+    roe: roeOk ? roeUi.value : null,
+    roe_na: roeUi.textLabel === 'Н/Д',
+    debt_to_equity: r.debt_to_equity,
+    current_ratio: r.current_ratio,
+    dividend_yield: hasDividend && r.dividend_yield != null ? r.dividend_yield : null,
+    no_dividend: !hasDividend,
+  };
+}
+
+function buildMultiplierChartData(
+  rows: MultiplierRecord[],
+  currentRow?: CurrentMultipliers,
+): ChartPoint[] {
+  const historical = [...rows].reverse();
+  return [
+    ...historical.map((r) => toChartPoint(r, fmtDate(r.date), false)),
+    ...(currentRow ? [toChartPoint(currentRow, 'LTM', true)] : []),
+  ];
+}
+
+function chartMarkerLabel(chartKey: keyof ChartPoint): string | null {
+  if (chartKey === 'pe_ratio') return 'убыток';
+  if (chartKey === 'roe') return 'Н/Д';
+  if (chartKey === 'dividend_yield') return '×';
+  return null;
+}
+
+function chartMarkerFlag(chartKey: keyof ChartPoint, point: ChartPoint): boolean {
+  if (chartKey === 'pe_ratio') return point.pe_loss;
+  if (chartKey === 'roe') return point.roe_na;
+  if (chartKey === 'dividend_yield') return point.no_dividend;
+  return false;
+}
+
+function chartTooltipValue(
+  chartKey: keyof ChartPoint,
+  point: ChartPoint,
+  value: unknown,
+  suffix: string | undefined,
+  label: string,
+): [string, string] {
+  if (chartKey === 'pe_ratio' && point.pe_loss) return ['убыток', label];
+  if (chartKey === 'roe' && point.roe_na) return ['Н/Д', label];
+  if (chartKey === 'dividend_yield' && point.no_dividend) return ['нет выплат', label];
+  if (value == null || typeof value !== 'number') return ['—', label];
+  return [`${fmt(value)}${suffix ?? ''}`, label];
+}
+
 interface ChartConfig {
-  key: keyof MultiplierRecord;
+  key: 'pe_ratio' | 'pb_ratio' | 'roe' | 'debt_to_equity' | 'current_ratio' | 'dividend_yield';
   label: string;
   color: string;
   referenceLines?: { value: number; label: string; color: string }[];
@@ -1170,37 +1390,117 @@ interface MultipliersChartsProps {
   currentRow?: CurrentMultipliers;
 }
 
+interface MetricLineChartProps {
+  data: ChartPoint[];
+  config: ChartConfig;
+  chartColors: ChartColors;
+}
+
+const MetricLineChart: React.FC<MetricLineChartProps> = ({ data, config, chartColors }) => {
+  const { key, label, color, referenceLines, suffix } = config;
+  const dataKey = String(key);
+  const markerLabel = chartMarkerLabel(key);
+  const markerPoints = markerLabel ? data.filter((p) => chartMarkerFlag(key, p)) : [];
+  const showBottomMarkers = markerPoints.length > 0;
+
+  return (
+    <div className="chart-card">
+      <div className="chart-card-title">{label}</div>
+      <ResponsiveContainer width="100%" height={200}>
+        <LineChart data={data} margin={{ top: 8, right: 16, left: 0, bottom: 16 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} />
+          <XAxis dataKey="year" tick={{ fontSize: 11, fill: chartColors.axis }} />
+          <YAxis
+            tick={{ fontSize: 11, fill: chartColors.axis }}
+            tickFormatter={(v) => `${v}${suffix ?? ''}`}
+            width={45}
+            domain={
+              showBottomMarkers
+                ? ([dataMin, dataMax]: readonly [number, number]) => [
+                    Math.min(dataMin, 0),
+                    dataMax === dataMin ? dataMax + 1 : dataMax,
+                  ]
+                : undefined
+            }
+          />
+          <Tooltip
+            formatter={(value: unknown, _name, item) => {
+              const point = (item as { payload?: ChartPoint }).payload;
+              if (!point) return ['—', label];
+              return chartTooltipValue(key, point, value, suffix, label);
+            }}
+            labelStyle={{ color: chartColors.textPrimary, fontWeight: 600 }}
+            contentStyle={{
+              backgroundColor: chartColors.tooltipBg,
+              border: `1px solid ${chartColors.tooltipBorder}`,
+              borderRadius: 8,
+              color: chartColors.textPrimary,
+            }}
+          />
+          {referenceLines?.map((rl) => (
+            <ReferenceLine
+              key={rl.value}
+              y={rl.value}
+              stroke={rl.color}
+              strokeDasharray="6 3"
+              label={{ value: rl.label, position: 'insideTopRight', fontSize: 10, fill: rl.color }}
+            />
+          ))}
+          {markerLabel
+            ? markerPoints.map((p) => (
+                  <ReferenceDot
+                    key={`${dataKey}-mark-${p.year}`}
+                    x={p.year}
+                    y={0}
+                    r={0}
+                    ifOverflow="discard"
+                    label={{
+                      value: markerLabel,
+                      position: 'insideBottomLeft',
+                      fontSize: key === 'dividend_yield' ? 12 : 9,
+                      fill: key === 'dividend_yield' ? chartColors.refBad : 'var(--color-loss-text)',
+                      offset: 8,
+                    }}
+                  />
+                ))
+            : null}
+          <Line
+            type="monotone"
+            dataKey={dataKey}
+            stroke={color}
+            strokeWidth={2}
+            connectNulls
+            dot={(props: { cx?: number; cy?: number; payload?: ChartPoint; value?: number | null }) => {
+              const { cx, cy, payload, value } = props;
+              if (cx == null || cy == null || payload == null || value == null) return null;
+              if (payload.isLtm) {
+                return (
+                  <circle
+                    key={`${dataKey}-ltm`}
+                    cx={cx}
+                    cy={cy}
+                    r={5}
+                    fill={color}
+                    stroke={chartColors.dotStroke}
+                    strokeWidth={2}
+                  />
+                );
+              }
+              return <circle key={`${dataKey}-${payload.year}`} cx={cx} cy={cy} r={3} fill={color} />;
+            }}
+          />
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  );
+};
+
 // Компонент графиков (пока не подключён к панели)
 // eslint-disable-next-line @typescript-eslint/no-unused-vars -- зарезервировано для встраивания графиков
 const MultipliersCharts: React.FC<MultipliersChartsProps> = ({ rows, currentRow }) => {
   const chartColors = useChartColors();
   const charts = buildCharts(chartColors);
-  const historical = [...rows].reverse();
-
-  const chartData = [
-    ...historical.map((r) => ({
-      year: fmtDate(r.date),
-      pe_ratio: r.pe_ratio,
-      pb_ratio: r.pb_ratio,
-      roe: r.roe,
-      debt_to_equity: r.debt_to_equity,
-      current_ratio: r.current_ratio,
-      dividend_yield: r.dividend_yield,
-      isLtm: false,
-    })),
-    ...(currentRow
-      ? [{
-          year: 'LTM',
-          pe_ratio: currentRow.pe_ratio,
-          pb_ratio: currentRow.pb_ratio,
-          roe: currentRow.roe,
-          debt_to_equity: currentRow.debt_to_equity,
-          current_ratio: currentRow.current_ratio,
-          dividend_yield: currentRow.dividend_yield,
-          isLtm: true,
-        }]
-      : []),
-  ];
+  const chartData = buildMultiplierChartData(rows, currentRow);
 
   if (chartData.length === 0) {
     return (
@@ -1212,56 +1512,8 @@ const MultipliersCharts: React.FC<MultipliersChartsProps> = ({ rows, currentRow 
 
   return (
     <div className="charts-grid">
-      {charts.map(({ key, label, color, referenceLines, suffix }) => (
-        <div key={String(key)} className="chart-card">
-          <div className="chart-card-title">{label}</div>
-          <ResponsiveContainer width="100%" height={200}>
-            <LineChart data={chartData} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} />
-              <XAxis
-                dataKey="year"
-                tick={{ fontSize: 11, fill: chartColors.axis }}
-              />
-              <YAxis
-                tick={{ fontSize: 11, fill: chartColors.axis }}
-                tickFormatter={(v) => `${v}${suffix ?? ''}`}
-                width={45}
-              />
-              <Tooltip
-                formatter={(value: any) => [`${fmt(typeof value === 'number' ? value : null)}${suffix ?? ''}`, label]}
-                labelStyle={{ color: chartColors.textPrimary, fontWeight: 600 }}
-                contentStyle={{
-                  backgroundColor: chartColors.tooltipBg,
-                  border: `1px solid ${chartColors.tooltipBorder}`,
-                  borderRadius: 8,
-                  color: chartColors.textPrimary,
-                }}
-              />
-              {referenceLines?.map((rl) => (
-                <ReferenceLine
-                  key={rl.value}
-                  y={rl.value}
-                  stroke={rl.color}
-                  strokeDasharray="6 3"
-                  label={{ value: rl.label, position: 'insideTopRight', fontSize: 10, fill: rl.color }}
-                />
-              ))}
-              <Line
-                type="monotone"
-                dataKey={String(key)}
-                stroke={color}
-                strokeWidth={2}
-                dot={(props: any) => {
-                  const { cx, cy, payload } = props;
-                  return payload.isLtm
-                    ? <circle key="ltm" cx={cx} cy={cy} r={5} fill={color} stroke={chartColors.dotStroke} strokeWidth={2} />
-                    : <circle key={payload.year} cx={cx} cy={cy} r={3} fill={color} />;
-                }}
-                connectNulls
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
+      {charts.map((cfg) => (
+        <MetricLineChart key={String(cfg.key)} data={chartData} config={cfg} chartColors={chartColors} />
       ))}
     </div>
   );
@@ -1283,30 +1535,7 @@ const ChartsPager: React.FC<ChartsPairProps> = ({ rows, currentRow, crProfile })
   const charts = buildCharts(chartColors, crProfile);
   const totalPages = Math.ceil(charts.length / CHART_PAGE_SIZE);
   const visibleCharts = charts.slice(page * CHART_PAGE_SIZE, (page + 1) * CHART_PAGE_SIZE);
-
-  const historical = [...rows].reverse();
-  const chartData = [
-    ...historical.map((r) => ({
-      year: fmtDate(r.date),
-      pe_ratio: r.pe_ratio,
-      pb_ratio: r.pb_ratio,
-      roe: r.roe,
-      debt_to_equity: r.debt_to_equity,
-      current_ratio: r.current_ratio,
-      dividend_yield: r.dividend_yield,
-      isLtm: false,
-    })),
-    ...(currentRow ? [{
-      year: 'LTM',
-      pe_ratio: currentRow.pe_ratio,
-      pb_ratio: currentRow.pb_ratio,
-      roe: currentRow.roe,
-      debt_to_equity: currentRow.debt_to_equity,
-      current_ratio: currentRow.current_ratio,
-      dividend_yield: currentRow.dividend_yield,
-      isLtm: true,
-    }] : []),
-  ];
+  const chartData = buildMultiplierChartData(rows, currentRow);
 
   if (chartData.length === 0) {
     return <div className="charts-empty">Недостаточно данных для построения графиков</div>;
@@ -1330,55 +1559,8 @@ const ChartsPager: React.FC<ChartsPairProps> = ({ rows, currentRow, crProfile })
         >›</button>
       </div>
 
-      {visibleCharts.map(({ key, label, color, referenceLines, suffix }) => (
-        <div key={String(key)} className="chart-card">
-          <div className="chart-card-title">{label}</div>
-          <ResponsiveContainer width="100%" height={200}>
-            <LineChart data={chartData} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} />
-              <XAxis dataKey="year" tick={{ fontSize: 11, fill: chartColors.axis }} />
-              <YAxis
-                tick={{ fontSize: 11, fill: chartColors.axis }}
-                tickFormatter={(v) => `${v}${suffix ?? ''}`}
-                width={45}
-              />
-              <Tooltip
-                formatter={(value: any) => [
-                  `${fmt(typeof value === 'number' ? value : null)}${suffix ?? ''}`, label,
-                ]}
-                labelStyle={{ color: chartColors.textPrimary, fontWeight: 600 }}
-                contentStyle={{
-                  backgroundColor: chartColors.tooltipBg,
-                  border: `1px solid ${chartColors.tooltipBorder}`,
-                  borderRadius: 8,
-                  color: chartColors.textPrimary,
-                }}
-              />
-              {referenceLines?.map((rl) => (
-                <ReferenceLine
-                  key={rl.value}
-                  y={rl.value}
-                  stroke={rl.color}
-                  strokeDasharray="6 3"
-                  label={{ value: rl.label, position: 'insideTopRight', fontSize: 10, fill: rl.color }}
-                />
-              ))}
-              <Line
-                type="monotone"
-                dataKey={String(key)}
-                stroke={color}
-                strokeWidth={2}
-                dot={(props: any) => {
-                  const { cx, cy, payload } = props;
-                  return payload.isLtm
-                    ? <circle key="ltm" cx={cx} cy={cy} r={5} fill={color} stroke={chartColors.dotStroke} strokeWidth={2} />
-                    : <circle key={payload.year} cx={cx} cy={cy} r={3} fill={color} />;
-                }}
-                connectNulls
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
+      {visibleCharts.map((cfg) => (
+        <MetricLineChart key={String(cfg.key)} data={chartData} config={cfg} chartColors={chartColors} />
       ))}
     </div>
   );
@@ -1393,6 +1575,8 @@ interface MultipliersPanelProps {
 const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company }) => {
   const [refreshMsg, setRefreshMsg] = useState<string | null>(null);
   const [autoRefreshing, setAutoRefreshing] = useState(false);
+  /** После первого sync цены с T-Invest можно грузить current-мультипликаторы. */
+  const [initialPriceSynced, setInitialPriceSynced] = useState(false);
   const queryClient = useQueryClient();
   const crProfile = getCrProfile(company.sector);
 
@@ -1401,6 +1585,7 @@ const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company }) => {
   const { data: currentData, isLoading: currentLoading, error: currentError } = useQuery({
     queryKey: ['multipliers-current', companyId],
     queryFn: () => getCompanyCurrentMultipliers(companyId),
+    enabled: initialPriceSynced,
     retry: false,
   });
 
@@ -1421,6 +1606,7 @@ const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company }) => {
       );
       queryClient.invalidateQueries({ queryKey: ['multipliers-current', companyId] });
       queryClient.invalidateQueries({ queryKey: ['multipliers-history', companyId] });
+      queryClient.invalidateQueries({ queryKey: ['company', companyId] });
       setTimeout(() => setRefreshMsg(null), 4000);
     },
     onError: () => {
@@ -1429,29 +1615,31 @@ const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company }) => {
     },
   });
 
-  // Авто-обновление цены при первом заходе на страницу компании.
+  // Авто-обновление цены при заходе на карточку компании.
+  // Сначала тянем цену из T-Invest, затем (через enabled) грузим current-мультипликаторы —
+  // иначе useQuery успевает отрисовать устаревшие P/E, P/B и т.д.
   //
-  // Делаем это ОТДЕЛЬНО от ручной мутации, чтобы:
-  //  1) не блокировать кнопку «Обновить цену» (она остаётся доступной для ручного клика);
-  //  2) при «зависании» бэкенда (T-Invest API долго отвечает) — мягко прерывать
-  //     запрос по таймауту и снимать индикатор, а не оставлять «Обновляем…» вечно.
-  const autoRefreshedFor = useRef<number | null>(null);
+  // Не используем ref «уже обновляли» — в React StrictMode первый запрос
+  // прерывается cleanup, а ref блокировал повтор на втором mount.
+  useEffect(() => {
+    setInitialPriceSynced(false);
+  }, [companyId]);
+
   useEffect(() => {
     if (!companyId) return;
-    if (autoRefreshedFor.current === companyId) return;
-    autoRefreshedFor.current = companyId;
 
+    let disposed = false;
     const controller = new AbortController();
-    // Если за 12 секунд цена не пришла — прекращаем ждать; пользователь
-    // всё равно увидит ранее закэшированные мультипликаторы.
-    const timeoutId = window.setTimeout(() => controller.abort(), 12_000);
+    const timeoutId = window.setTimeout(() => controller.abort(), 20_000);
 
     setAutoRefreshing(true);
 
     refreshCompanyMultipliers(companyId, true, controller.signal)
       .then((res) => {
+        if (disposed) return;
         queryClient.invalidateQueries({ queryKey: ['multipliers-current', companyId] });
         queryClient.invalidateQueries({ queryKey: ['multipliers-history', companyId] });
+        queryClient.invalidateQueries({ queryKey: ['company', companyId] });
         if (res.success && res.price !== null) {
           setRefreshMsg(`✓ Цена актуальна: ${fmt(res.price)} ₽`);
         } else {
@@ -1460,8 +1648,7 @@ const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company }) => {
         setTimeout(() => setRefreshMsg(null), 3500);
       })
       .catch((err) => {
-        // Тихо игнорируем abort и сетевые ошибки — пользователь увидит
-        // последние закэшированные значения. Логируем для отладки.
+        if (disposed) return;
         const isAbort =
           err?.name === 'CanceledError' ||
           err?.code === 'ERR_CANCELED' ||
@@ -1473,10 +1660,14 @@ const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company }) => {
       })
       .finally(() => {
         window.clearTimeout(timeoutId);
-        setAutoRefreshing(false);
+        if (!disposed) {
+          setInitialPriceSynced(true);
+          setAutoRefreshing(false);
+        }
       });
 
     return () => {
+      disposed = true;
       window.clearTimeout(timeoutId);
       controller.abort();
     };
@@ -1518,11 +1709,15 @@ const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company }) => {
 
       {/* Контент */}
       <div className="mult-tab-content">
-        {(currentLoading || histLoading) && (
-          <div className="mult-loading">Загрузка мультипликаторов...</div>
+        {(autoRefreshing || !initialPriceSynced || currentLoading || histLoading) && (
+          <div className="mult-loading">
+            {autoRefreshing || !initialPriceSynced
+              ? 'Обновляем цену и загружаем мультипликаторы…'
+              : 'Загрузка мультипликаторов...'}
+          </div>
         )}
 
-        {!currentLoading && !histLoading && (
+        {initialPriceSynced && !currentLoading && !histLoading && (
           <>
             {/* ── Верхняя строка: текущие (лево) + графики (право) ── */}
             <div className="mult-top-row">
@@ -1567,10 +1762,18 @@ const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company }) => {
                           </span>
                         </div>
                         <div className="ltm-fin-item">
-                          <span className="ltm-fin-label">Кол-во акций</span>
+                          <span className="ltm-fin-label">Размещено (общее)</span>
                           <span className="ltm-fin-value">
-                            {currentData.shares_used !== null
-                              ? currentData.shares_used.toLocaleString('ru-RU')
+                            {currentData.shares_issued !== null
+                              ? currentData.shares_issued.toLocaleString('ru-RU')
+                              : '—'}
+                          </span>
+                        </div>
+                        <div className="ltm-fin-item">
+                          <span className="ltm-fin-label">Акции в обращении</span>
+                          <span className="ltm-fin-value">
+                            {currentData.shares_outstanding_circulation !== null
+                              ? currentData.shares_outstanding_circulation.toLocaleString('ru-RU')
                               : '—'}
                           </span>
                         </div>

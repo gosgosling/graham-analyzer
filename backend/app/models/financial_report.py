@@ -73,10 +73,13 @@ class FinancialReport(Base):
 
     # Рыночные данные
     # price_per_share и dividends_per_share — в ПОЛНЫХ единицах валюты (рублях/долларах за акцию)
-    # shares_outstanding — полное количество акций
+    # Количество акций — в штуках (BigInteger)
     price_per_share: Mapped[Optional[float]] = mapped_column(Numeric(15, 4), nullable=True)  # Цена акции на report_date (₽ или $ за акцию)
     price_at_filing: Mapped[Optional[float]] = mapped_column(Numeric(15, 4), nullable=True)  # Цена акции на filing_date (₽ или $ за акцию)
-    shares_outstanding: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)  # Количество акций в обращении (штук)
+    shares_issued: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)  # Размещённое (общее) количество, шт.
+    shares_outstanding: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)  # Акции в обращении (явное), шт.
+    shares_weighted_avg: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)  # Средневзвешенное для EPS, шт.
+    treasury_shares: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)  # Казначейские акции, шт.
 
     # ⚠️ ЕДИНИЦЫ ХРАНЕНИЯ: все финансовые показатели ниже — в МИЛЛИОНАХ валюты отчёта (млн ₽ или млн $)
     # Пример: выручка 1 459 000 млн ₽ → вводить 1459000
@@ -87,6 +90,12 @@ class FinancialReport(Base):
     current_assets: Mapped[Optional[float]] = mapped_column(Numeric(15, 3), nullable=True)  # Итого оборотные активы, млн
     current_liabilities: Mapped[Optional[float]] = mapped_column(Numeric(15, 3), nullable=True)  # Итого краткосрочные обязательства, млн
     equity: Mapped[Optional[float]] = mapped_column(Numeric(15, 3), nullable=True)  # Итого собственный капитал, млн
+    cash_and_equivalents: Mapped[Optional[float]] = mapped_column(
+        Numeric(15, 3), nullable=True
+    )  # Денежные средства и эквиваленты (наличность), млн
+    debt: Mapped[Optional[float]] = mapped_column(
+        Numeric(15, 3), nullable=True
+    )  # Долг (финансовые обязательства), млн; Net Debt = debt − cash (не хранится)
 
     # Отчёт о прибылях и убытках (млн валюты)
     revenue: Mapped[Optional[float]] = mapped_column(Numeric(15, 3), nullable=True)  # Выручка, млн

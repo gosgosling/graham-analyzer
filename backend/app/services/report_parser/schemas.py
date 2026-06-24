@@ -66,7 +66,13 @@ class ExtractedReport(BaseModel):
     """Структурированный результат извлечения из одного PDF."""
 
     # ─── Идентификация периода ───────────────────────────────────────────────
-    fiscal_year: int = Field(..., description="Отчётный год, например 2023")
+    # fiscal_year и report_date — Optional: ожидаемый год всё равно известен из
+    # формы загрузки и принудительно проставляется в extractor_service. Делаем
+    # их необязательными, чтобы ответ модели не падал на валидации, если она их
+    # не вернула (json_object не гарантирует наличие всех полей).
+    fiscal_year: Optional[int] = Field(
+        None, description="Отчётный год, например 2023"
+    )
     period_type: PeriodTypeLiteral = Field(
         "annual", description="annual для годовых, quarterly для квартальных"
     )
@@ -77,8 +83,8 @@ class ExtractedReport(BaseModel):
         "IFRS", description="Стандарт отчётности: МСФО → IFRS, РСБУ → RAS"
     )
     consolidated: bool = Field(True, description="Консолидированная ли отчётность")
-    report_date: str = Field(
-        ...,
+    report_date: Optional[str] = Field(
+        None,
         description="Дата окончания отчётного периода в формате YYYY-MM-DD "
                     "(обычно 31.12.{fiscal_year})",
     )
@@ -151,6 +157,82 @@ class ExtractedReport(BaseModel):
     equity: Optional[float] = Field(
         None,
         description="Итого капитал (акционеров материнской компании), в ИСХОДНЫХ единицах",
+    )
+    cash_and_equivalents: Optional[float] = Field(
+        None,
+        description=(
+            "Денежные средства и их эквиваленты на конец периода — строка из "
+            "АКТИВОВ баланса (раздел оборотных активов). СИНОНИМЫ: 'Денежные "
+            "средства и их эквиваленты', 'Денежные средства и краткосрочные "
+            "депозиты', 'Cash and cash equivalents'. Бери значение на конец "
+            "отчётного периода. НЕ путай с 'денежными средствами с ограничением "
+            "к использованию' (restricted cash) — их не включай. В ИСХОДНЫХ единицах."
+        ),
+    )
+    debt: Optional[float] = Field(
+        None,
+        description=(
+            "Суммарный процентный ДОЛГ (только кредиты и займы!) = краткосрочные "
+            "кредиты и займы + долгосрочные кредиты и займы. СИНОНИМЫ строк: "
+            "'Кредиты и займы', 'Краткосрочные кредиты и займы', 'Долгосрочные "
+            "кредиты и займы', 'Заёмные средства', 'Облигации', 'Borrowings', "
+            "'Loans and borrowings'. "
+            "ВКЛЮЧАЙ обязательства по аренде (лизингу), если они стоят в строке "
+            "кредитов; иначе аренду НЕ добавляй. "
+            "НЕ включай: торговую/прочую кредиторскую задолженность, налоги, "
+            "резервы, отложенные налоговые обязательства, авансы — это НЕ долг. "
+            "Сложи краткосрочную и долгосрочную части и укажи разбивку в "
+            "extraction_notes. В ИСХОДНЫХ единицах отчёта."
+        ),
+    )
+
+    # ─── Отчёт о движении денежных средств (ОДДС / Cash Flow Statement) ──────
+    operating_cash_flow: Optional[float] = Field(
+        None,
+        description=(
+            "Чистый денежный поток от ОПЕРАЦИОННОЙ деятельности (OCF) за отчётный "
+            "год. СИНОНИМЫ: 'Чистые денежные средства от операционной "
+            "деятельности', 'Денежные потоки от операционной деятельности — "
+            "итого', 'Net cash from operating activities', 'Net cash generated "
+            "by operating activities'. Бери ИТОГОВУЮ строку раздела операционной "
+            "деятельности. Может быть отрицательным. В ИСХОДНЫХ единицах."
+        ),
+    )
+    capex: Optional[float] = Field(
+        None,
+        description=(
+            "Капитальные затраты (CAPEX) из раздела ИНВЕСТИЦИОННОЙ деятельности "
+            "ОДДС. СИНОНИМЫ: 'Приобретение основных средств', 'Приобретение "
+            "основных средств и нематериальных активов', 'Покупка основных "
+            "средств', 'Purchase of property, plant and equipment', 'Capital "
+            "expenditures'. Если приобретение ОС и НМА указаны раздельно — сложи "
+            "их. Записывай ПОЛОЖИТЕЛЬНЫМ числом (абсолютная величина оттока), "
+            "даже если в отчёте оно в скобках/со знаком минус. В ИСХОДНЫХ единицах."
+        ),
+    )
+    lease_principal: Optional[float] = Field(
+        None,
+        description=(
+            "Погашение ТЕЛА обязательств по аренде (лизингу) из раздела "
+            "ФИНАНСОВОЙ деятельности ОДДС. СИНОНИМЫ: 'Погашение обязательств по "
+            "аренде', 'Выплаты основной суммы обязательств по аренде', "
+            "'Payment of lease liabilities', 'Principal elements of lease "
+            "payments'. ПОЛОЖИТЕЛЬНОЕ число (величина оттока). Если проценты по "
+            "аренде включены в эту же строку — раздели по возможности и отметь в "
+            "extraction_notes. В ИСХОДНЫХ единицах."
+        ),
+    )
+    lease_interest: Optional[float] = Field(
+        None,
+        description=(
+            "ПРОЦЕНТЫ, уплаченные по обязательствам аренды (лизинга). СИНОНИМЫ: "
+            "'Проценты по аренде уплаченные', 'Процентная составляющая платежей "
+            "по аренде', 'Interest on lease liabilities', 'Interest portion of "
+            "lease payments'. Часто указаны в разделе финансовой/операционной "
+            "деятельности ОДДС либо в примечании про аренду. ПОЛОЖИТЕЛЬНОЕ число. "
+            "Если отдельно не выделены — оставь null и отметь это в "
+            "extraction_notes. В ИСХОДНЫХ единицах."
+        ),
     )
 
     # ─── Отчёт о прибылях и убытках ──────────────────────────────────────────
@@ -239,6 +321,17 @@ class ExtractedReport(BaseModel):
         ),
     )
 
+    @field_validator("extraction_notes", mode="before")
+    @classmethod
+    def _coerce_notes_to_string(cls, v):
+        """Модель в json_object-режиме иногда отдаёт extraction_notes списком
+        строк (по пунктам). Склеиваем в единый текст, чтобы пройти валидацию."""
+        if v is None or isinstance(v, str):
+            return v
+        if isinstance(v, (list, tuple)):
+            return "\n".join(str(item).strip() for item in v if str(item).strip())
+        return str(v)
+
     confidence: Optional[Literal["low", "medium", "high"]] = Field(
         None, description="Общая уверенность модели в извлечённых данных"
     )
@@ -260,6 +353,8 @@ _MONETARY_FIELDS_IN_MILLIONS: tuple[str, ...] = (
     "current_assets",
     "current_liabilities",
     "equity",
+    "cash_and_equivalents",
+    "debt",
     "revenue",
     "net_income",
     "net_income_reported",
@@ -267,6 +362,11 @@ _MONETARY_FIELDS_IN_MILLIONS: tuple[str, ...] = (
     "fee_commission_income",
     "operating_expenses",
     "provisions",
+    # ОДДС
+    "operating_cash_flow",
+    "capex",
+    "lease_principal",
+    "lease_interest",
 )
 
 

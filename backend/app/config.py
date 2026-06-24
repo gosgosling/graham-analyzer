@@ -27,11 +27,19 @@ class Settings(BaseSettings):
     TINKOFF_TOKEN: str = "your_token_here"
 
     # ─── LLM для AI-парсера финансовых отчётов ───
-    # Один OpenAI-совместимый API работает с OpenAI / Ollama / OpenRouter.
-    LLM_PROVIDER: str = "openai"  # openai | ollama | openrouter
-    LLM_BASE_URL: str = "https://api.openai.com/v1"
+    # Один OpenAI-совместимый API работает с несколькими провайдерами:
+    #   * dashscope — Alibaba Qwen (DashScope OpenAI-compatible mode).
+    #                 Базовый URL (Сингапур/intl):
+    #                 https://dashscope-intl.aliyuncs.com/compatible-mode/v1
+    #                 Модель по умолчанию: qwen3.7-plus (мультимодальная —
+    #                 умеет читать сканы отчётов через vision).
+    #   * openai     — OpenAI (gpt-4o-mini и т.п.).
+    #   * openrouter — OpenRouter (любые модели).
+    #   * ollama     — локальная Ollama (api_key не нужен).
+    LLM_PROVIDER: str = "dashscope"  # dashscope | openai | openrouter | ollama
+    LLM_BASE_URL: str = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
     LLM_API_KEY: str = ""
-    LLM_MODEL: str = "gpt-4o-mini"
+    LLM_MODEL: str = "qwen3.7-plus"
     LLM_TEMPERATURE: float = 0.0
     LLM_REQUEST_TIMEOUT: int = 600
 

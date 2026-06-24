@@ -70,6 +70,7 @@ export interface MultiplierRecord {
     // Рыночные данные
     price_used: number | null;
     shares_used: number | null;
+    shares_cap_explanation?: string | null;
     market_cap: number | null;
 
     // LTM P&L
@@ -96,7 +97,7 @@ export interface MultiplierRecord {
     // Денежные потоки LTM (NULL для банков)
     ltm_fcf: number | null;
     ltm_operating_cash_flow: number | null;
-    /** P/FCF = Market Cap / LTM FCF, NULL для банков и FCF = 0 */
+    /** P/FCF = Market Cap / LTM FCF, NULL для банков и FCF ≤ 0 */
     price_to_fcf: number | null;
     /** FCF/NI = LTM FCF / LTM Net Income × 100%, детектор качества прибыли */
     fcf_to_net_income: number | null;
@@ -125,6 +126,11 @@ export interface CurrentMultipliers {
 
     price_used: number | null;
     shares_used: number | null;
+    /** Размещённое (общее) количество из балансового отчёта */
+    shares_issued: number | null;
+    /** Акции в обращении (явные или issued − treasury) */
+    shares_outstanding_circulation: number | null;
+    shares_cap_explanation?: string | null;
     market_cap: number | null;
     /** Собственный капитал, млн ₽ (из балансового отчёта) */
     equity: number | null;
@@ -208,7 +214,14 @@ export interface FinancialReportCreate {
     // Рыночные данные
     price_per_share?: number | null;  // Цена на дату окончания периода (report_date) - для расчёта мультипликаторов
     price_at_filing?: number | null;  // Цена на дату публикации (filing_date) - для анализа реакции рынка
+    /** Размещённое (общее) количество акций, шт. — обязательно */
+    shares_issued?: number | null;
+    /** Акции в обращении, шт. — опционально */
     shares_outstanding?: number | null;
+    /** Средневзвешенное количество акций (для EPS), шт. — опционально */
+    shares_weighted_avg?: number | null;
+    /** Казначейские акции, шт. — опционально */
+    treasury_shares?: number | null;
     
     // Финансовые показатели
     revenue?: number | null;
@@ -220,6 +233,10 @@ export interface FinancialReportCreate {
     total_liabilities?: number | null;
     current_liabilities?: number | null;
     equity?: number | null;
+    /** Денежные средства и эквиваленты (наличность), млн */
+    cash_and_equivalents?: number | null;
+    /** Финансовый долг, млн */
+    debt?: number | null;
     dividends_per_share?: number | null;
     dividends_paid: boolean;
     /** Есть привилегированные акции — для корректировки прибыли и FCF на обыкновенные */
@@ -275,7 +292,14 @@ export interface FinancialReport extends FinancialReportCreate {
     total_liabilities_rub?: number | null;
     current_liabilities_rub?: number | null;
     equity_rub?: number | null;
+    cash_and_equivalents_rub?: number | null;
+    debt_rub?: number | null;
+    /** Чистый долг = debt − cash (computed) */
+    net_debt?: number | null;
+    net_debt_rub?: number | null;
     dividends_per_share_rub?: number | null;
+    /** Акции в обращении (вычислено на backend) */
+    shares_outstanding_effective?: number | null;
     /** FCF = OCF − CAPEX − аренда − % аренды − тело долга (computed) */
     fcf?: number | null;
     /** Чистая прибыль для обыкновенных: net_income − pref dividends (computed) */

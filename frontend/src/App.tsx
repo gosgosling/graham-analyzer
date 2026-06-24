@@ -10,6 +10,7 @@ import CompanyReportsMatrix from './pages/CompanyReportsMatrix';
 import BondsList from './pages/BondsList';
 import BondDetail from './pages/BondDetail';
 import ThemeToggle from './components/ThemeToggle';
+import DbBackupButton from './components/DbBackupButton';
 import { useTheme } from './contexts/ThemeContext';
 
 type NavSection = 'securities' | 'companies' | 'bonds';
@@ -42,6 +43,7 @@ function Navigation() {
           {navBtn('bonds', '/bonds', '📄 Облигации')}
         </div>
         <div className="app-nav-actions">
+          <DbBackupButton />
           <ThemeToggle />
         </div>
       </div>

@@ -1,4 +1,5 @@
 from app.models.financial_report import FinancialReport
+from app.services.analysis.share_counts import resolve_shares_for_multipliers
 from app.services.analysis.fcf import compute_fcf
 from app.utils.currency_converter import convert_to_rub
 from typing import Dict, Optional
@@ -69,7 +70,7 @@ def calculate_multipliers(
     # Цена и количество акций (полные единицы)
     price_raw = override_price if override_price is not None else report.price_per_share
     price_rub = to_rub_full(price_raw)
-    shares = override_shares if override_shares is not None else report.shares_outstanding
+    shares = override_shares if override_shares is not None else resolve_shares_for_multipliers(report)
 
     # P&L (в млн валюты → млн рублей)
     net_income_mln = (
@@ -100,15 +101,13 @@ def calculate_multipliers(
         market_cap_mln = round(market_cap_full / MILLION, 3)
 
     # P/E = Market Cap (полн. руб.) / Net Income (полн. руб.)
-    # Считаем и при отрицательной прибыли (отрицательный P/E).
     pe_ratio: Optional[float] = None
-    if market_cap_full and net_income_mln is not None and net_income_mln != 0:
+    if market_cap_full and net_income_mln and net_income_mln > 0:
         pe_ratio = round(market_cap_full / (net_income_mln * MILLION), 2)
 
     # P/B = Market Cap (полн.) / Equity (полн.)
-    # Считаем и при отрицательном капитале (отрицательный P/B).
     pb_ratio: Optional[float] = None
-    if market_cap_full and equity_mln is not None and equity_mln != 0:
+    if market_cap_full and equity_mln and equity_mln > 0:
         pb_ratio = round(market_cap_full / (equity_mln * MILLION), 2)
 
     # ROE = Net Income / Equity × 100%  (миллионы сокращаются)
@@ -181,8 +180,8 @@ def calculate_multipliers(
                 ltm_ocf_mln, cap_mln, lease_p_mln, lease_i_mln, debt_p_mln
             )
 
-        # P/FCF = Market Cap / LTM FCF (в т.ч. отрицательный при FCF < 0)
-        if market_cap_full and ltm_fcf_mln is not None and ltm_fcf_mln != 0:
+        # P/FCF = Market Cap / LTM FCF  (только если FCF > 0)
+        if market_cap_full and ltm_fcf_mln is not None and ltm_fcf_mln > 0:
             price_to_fcf = round(market_cap_full / (ltm_fcf_mln * MILLION), 2)
 
         # FCF / Net Income × 100% — детектор качества прибыли (только при NI > 0).

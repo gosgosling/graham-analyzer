@@ -5,6 +5,7 @@ import dayjs, { Dayjs } from 'dayjs';
 import 'dayjs/locale/ru';
 import { FinancialReportCreate } from '../types';
 import { detectSectorDisplayKind } from '../utils/sectorDisplayKind';
+import { computeCirculationShares, isShareIntField } from '../utils/shareCounts';
 import {
     getMoexPrice,
     getMoexShares,
@@ -16,6 +17,7 @@ import {
     FxRateResult,
 } from '../services';
 import { computeFcf } from '../utils/fcf';
+import { computeNetDebt } from '../utils/netDebt';
 import './ReportForm.css';
 
 dayjs.locale('ru');
@@ -77,7 +79,7 @@ function formatNumberWithSpaces(value: number | null | undefined): string {
 function parseFormattedNumberInput(raw: string, field: string): number | null {
     let t = raw.replace(/\s/g, '').replace(',', '.');
     if (t === '' || t === '-' || t === '.') return null;
-    if (field === 'shares_outstanding') {
+    if (isShareIntField(field)) {
         const n = parseInt(t.split('.')[0], 10);
         return Number.isNaN(n) ? null : n;
     }
@@ -531,7 +533,10 @@ const ReportForm: React.FC<ReportFormProps> = ({
         filing_date: null,
         price_per_share: null,
         price_at_filing: null,
+        shares_issued: null,
         shares_outstanding: null,
+        shares_weighted_avg: null,
+        treasury_shares: null,
         revenue: null,
         net_income: null,
         net_income_reported: null,
@@ -540,6 +545,8 @@ const ReportForm: React.FC<ReportFormProps> = ({
         total_liabilities: null,
         current_liabilities: null,
         equity: null,
+        cash_and_equivalents: null,
+        debt: null,
         dividends_per_share: null,
         dividends_paid: false,
         has_preferred_shares: false,
@@ -576,16 +583,15 @@ const ReportForm: React.FC<ReportFormProps> = ({
         try {
             const result = await getMoexShares(ticker);
             setFormData(prev => {
-                const shouldApply = forceOverwrite || prev.shares_outstanding === null || prev.shares_outstanding === undefined;
-                const nextValue = shouldApply ? result.issuesize : prev.shares_outstanding;
-                // applied — именно применили ли значение сейчас (а не просто имеем совпадение).
+                const shouldApply = forceOverwrite || prev.shares_issued === null || prev.shares_issued === undefined;
+                const nextValue = shouldApply ? result.issuesize : prev.shares_issued;
                 setSharesState({
                     loading: false,
                     result,
                     error: null,
                     applied: shouldApply,
                 });
-                return { ...prev, shares_outstanding: nextValue };
+                return { ...prev, shares_issued: nextValue };
             });
         } catch (err: any) {
             const msg = formatApiErrorMessage(err, 'Не удалось получить данные из Мосбиржи');
@@ -875,6 +881,20 @@ const ReportForm: React.FC<ReportFormProps> = ({
         
         if (formData.period_type === 'quarterly' && !formData.fiscal_quarter) {
             setError('Для квартальных отчётов необходимо указать квартал (1-4)');
+            return;
+        }
+
+        if (formData.shares_issued == null) {
+            setError('Укажите размещённое (общее) количество акций');
+            return;
+        }
+
+        if (
+            formData.treasury_shares != null
+            && formData.shares_issued != null
+            && formData.treasury_shares > formData.shares_issued
+        ) {
+            setError('Казначейские акции не могут превышать размещённое количество');
             return;
         }
         
@@ -1184,35 +1204,103 @@ const ReportForm: React.FC<ReportFormProps> = ({
                             </div>
                         </div>
                         
-                        <div className="form-row">
-                            <div className="form-label">
-                                <div className="price-label-row">
-                                    <span>Количество акций в обращении, шт.:</span>
-                                    {ticker && (
-                                        <button
-                                            type="button"
-                                            className="btn-fetch-price"
-                                            disabled={sharesState.loading}
-                                            onClick={applyMoexShares}
-                                            title="Принудительно заменить значение на актуальное из реестра MOEX"
-                                        >
-                                            {sharesState.loading ? '⟳' : '↺ MOEX'}
-                                        </button>
-                                    )}
+                        <div className="form-section">
+                            <h3>
+                                Количество акций
+                                <span className="section-units-hint">шт.</span>
+                            </h3>
+                            <p className="field-hint shares-fields-hint">
+                                Для капитализации и P/E: в приоритете «в обращении», затем средневзвешенное,
+                                затем размещённое. MOEX подставляет размещённое (ISSUESIZE), не free float.
+                            </p>
+
+                            <div className="form-row">
+                                <div className="form-label">
+                                    <div className="price-label-row">
+                                        <span>Размещённое (общее) кол-во акций, шт. <span className="required-mark">*</span></span>
+                                        {ticker && (
+                                            <button
+                                                type="button"
+                                                className="btn-fetch-price"
+                                                disabled={sharesState.loading}
+                                                onClick={applyMoexShares}
+                                                title="Подставить ISSUESIZE из реестра MOEX (размещённые акции)"
+                                            >
+                                                {sharesState.loading ? '⟳' : '↺ MOEX'}
+                                            </button>
+                                        )}
+                                    </div>
+                                    <FormattedInput
+                                        name="shares_issued"
+                                        numericValue={formData.shares_issued}
+                                        onNumericChange={handleNumericChange}
+                                        isInt
+                                        placeholder={sharesState.loading ? 'Загрузка...' : 'напр. 850 000 000'}
+                                        className={`form-input form-input-thousands ${sharesState.loading ? 'input-loading' : ''}`}
+                                    />
+                                    <SharesFetchBadge
+                                        state={sharesState}
+                                        fieldValue={formData.shares_issued}
+                                        onApplyMoex={applyMoexShares}
+                                    />
                                 </div>
-                                <FormattedInput
-                                    name="shares_outstanding"
-                                    numericValue={formData.shares_outstanding}
-                                    onNumericChange={handleNumericChange}
-                                    isInt
-                                    placeholder={sharesState.loading ? 'Загрузка...' : 'напр. 15 000 000 000'}
-                                    className={`form-input form-input-thousands ${sharesState.loading ? 'input-loading' : ''}`}
-                                />
-                                <SharesFetchBadge
-                                    state={sharesState}
-                                    fieldValue={formData.shares_outstanding}
-                                    onApplyMoex={applyMoexShares}
-                                />
+                            </div>
+
+                            <div className="form-row">
+                                <label className="form-label">
+                                    Акции в обращении, шт.:
+                                    <FormattedInput
+                                        name="shares_outstanding"
+                                        numericValue={formData.shares_outstanding}
+                                        onNumericChange={handleNumericChange}
+                                        isInt
+                                        placeholder="если известно — иначе общее − казначейские"
+                                        className="form-input form-input-thousands"
+                                    />
+                                    <small className="field-hint">Опционально. База для капитализации, если указано.</small>
+                                </label>
+                            </div>
+
+                            {formData.shares_outstanding == null
+                                && formData.shares_issued != null
+                                && formData.treasury_shares != null && (
+                                <p className="field-hint shares-computed-hint">
+                                    ≈ в обращении:{' '}
+                                    <strong>
+                                        {computeCirculationShares(formData)?.toLocaleString('ru-RU') ?? '—'}
+                                    </strong>{' '}
+                                    шт. (размещённые − казначейские)
+                                </p>
+                            )}
+
+                            <div className="form-row">
+                                <label className="form-label">
+                                    Средневзвешенное кол-во акций, шт.:
+                                    <FormattedInput
+                                        name="shares_weighted_avg"
+                                        numericValue={formData.shares_weighted_avg}
+                                        onNumericChange={handleNumericChange}
+                                        isInt
+                                        placeholder="из примечаний к EPS в отчёте"
+                                        className="form-input form-input-thousands"
+                                    />
+                                    <small className="field-hint">Опционально. Используется, если нет «в обращении».</small>
+                                </label>
+                            </div>
+
+                            <div className="form-row">
+                                <label className="form-label">
+                                    Казначейские акции, шт.:
+                                    <FormattedInput
+                                        name="treasury_shares"
+                                        numericValue={formData.treasury_shares}
+                                        onNumericChange={handleNumericChange}
+                                        isInt
+                                        placeholder="если раскрыты в отчёте"
+                                        className="form-input form-input-thousands"
+                                    />
+                                    <small className="field-hint">Опционально. Для расчёта «в обращении» = общее − казначейские.</small>
+                                </label>
                             </div>
                         </div>
                     </div>
@@ -1591,6 +1679,57 @@ const ReportForm: React.FC<ReportFormProps> = ({
                                 </label>
                             )}
                         </div>
+
+                        <div className="form-row">
+                            {!isBank && (
+                                <>
+                                    <label className="form-label">
+                                        Наличность (денежные средства и эквиваленты), млн {formData.currency}:
+                                        <FormattedInput
+                                            name="cash_and_equivalents"
+                                            numericValue={formData.cash_and_equivalents}
+                                            onNumericChange={handleNumericChange}
+                                            placeholder="например: 30 000"
+                                            className="form-input form-input-thousands"
+                                        />
+                                        <small className="field-hint">
+                                            Строка баланса «Денежные средства и их эквиваленты».
+                                        </small>
+                                    </label>
+
+                                    <label className="form-label">
+                                        Долг, млн {formData.currency}:
+                                        <FormattedInput
+                                            name="debt"
+                                            numericValue={formData.debt}
+                                            onNumericChange={handleNumericChange}
+                                            placeholder="например: 120 000"
+                                            className="form-input form-input-thousands"
+                                        />
+                                        <small className="field-hint">
+                                            Финансовые обязательства (заёмные средства). Не путать с «телом долга» в ОДДС.
+                                        </small>
+                                    </label>
+                                </>
+                            )}
+                        </div>
+
+                        {!isBank && formData.debt != null && formData.cash_and_equivalents != null && (
+                            <div className="cashflow-fcf-preview balance-net-debt-preview">
+                                <span className="cashflow-fcf-label">Чистый долг (Net Debt):</span>
+                                <span className={`cashflow-fcf-value${
+                                    (computeNetDebt(formData.debt, formData.cash_and_equivalents) ?? 0) < 0
+                                        ? ' negative'
+                                        : ''
+                                }`}>
+                                    {(computeNetDebt(formData.debt, formData.cash_and_equivalents) ?? 0).toLocaleString('ru-RU', { maximumFractionDigits: 0 })}{' '}
+                                    млн {formData.currency}
+                                </span>
+                                <small className="field-hint" style={{ display: 'block', marginTop: 6 }}>
+                                    Долг − Наличность. В мультипликаторы пока не входит.
+                                </small>
+                            </div>
+                        )}
                         
                         <div className="form-row">
                             <label className="form-label">

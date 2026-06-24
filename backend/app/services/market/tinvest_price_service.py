@@ -60,7 +60,11 @@ def get_last_prices(figis: List[str]) -> Dict[str, Optional[float]]:
     payload = {"figi": figis}
 
     try:
-        response = requests.post(url, json=payload, headers=headers, timeout=15)
+        # Явно обходим системный прокси (HTTPS_PROXY / HTTP_PROXY из окружения):
+        # requests.Session с trust_env=False игнорирует все env-переменные прокси.
+        _session = requests.Session()
+        _session.trust_env = False
+        response = _session.post(url, json=payload, headers=headers, timeout=15)
         response.raise_for_status()
         data = response.json()
 
@@ -108,11 +112,9 @@ def update_company_price(db: Session, company: Company) -> Optional[float]:
     now = datetime.now(timezone.utc)
     today = now.date()
 
-    # Обновляем поля в модели Company
     company.current_price = price  # type: ignore
     company.price_updated_at = now  # type: ignore
 
-    # Upsert в stock_prices (один раз в день)
     _upsert_stock_price(db, company_id=company.id, price_date=today, price=price)
 
     db.commit()

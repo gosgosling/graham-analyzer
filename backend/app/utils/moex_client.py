@@ -1,6 +1,22 @@
+import logging
 import requests
 from datetime import date, timedelta
 from typing import List, Dict, Optional, Tuple
+
+logger = logging.getLogger(__name__)
+
+# MOEX ISS доступен напрямую; системный HTTPS_PROXY (xray/outline) часто ломает запросы.
+_moex_session: Optional[requests.Session] = None
+
+
+def _moex_get(url: str, **kwargs) -> requests.Response:
+    """GET к MOEX ISS, игнорируя HTTPS_PROXY / HTTP_PROXY из окружения."""
+    global _moex_session  # noqa: PLW0603
+    if _moex_session is None:
+        _moex_session = requests.Session()
+        _moex_session.trust_env = False
+    timeout = kwargs.pop("timeout", 15)
+    return _moex_session.get(url, timeout=timeout, **kwargs)
 
 
 # ─── Список активных инструментов ─────────────────────────────────────────────
@@ -13,7 +29,7 @@ def get_moex_securities() -> List[Dict]:
     url = "https://iss.moex.com/iss/engines/stock/markets/shares/securities.json"
 
     try:
-        response = requests.get(url, timeout=15)
+        response = _moex_get(url, timeout=15)
         response.raise_for_status()
 
         data = response.json()
@@ -43,7 +59,7 @@ def get_moex_securities() -> List[Dict]:
         return companies
 
     except requests.exceptions.RequestException as e:
-        print(f"Ошибка при запросе к MOEX API: {e}")
+        logger.warning("Ошибка при запросе к MOEX API: %s", e)
         return []
 
 
@@ -113,7 +129,7 @@ def get_dividends_for_period(
 
     url = f"https://iss.moex.com/iss/securities/{ticker}/dividends.json"
     try:
-        resp = requests.get(url, params={"iss.meta": "off"}, timeout=10)
+        resp = _moex_get(url, params={"iss.meta": "off"}, timeout=10)
         resp.raise_for_status()
         data = resp.json()
     except requests.exceptions.RequestException:
@@ -169,11 +185,10 @@ def get_dividends_for_period(
 
 def get_shares_outstanding(ticker: str) -> Optional[Dict]:
     """
-    Возвращает количество выпущенных акций (ISSUESIZE) из реестра Мосбиржи.
+    Возвращает объём выпуска (ISSUESIZE) из реестра Мосбиржи.
 
-    ⚠️ Это текущее значение из реестра MOEX, не историческое.
-    Для большинства компаний меняется редко, поэтому подходит для заполнения
-    поля при вводе отчёта. Если данные недоступны — возвращает None.
+    ⚠️ ISSUESIZE — размещённые акции (включая казначейские), не «в обращении».
+    Текущее значение, не историческое. Меняется редко.
 
     Args:
         ticker: Тикер (SECID) на Мосбирже, например "SBER"
@@ -193,7 +208,7 @@ def get_shares_outstanding(ticker: str) -> Optional[Dict]:
             "securities.columns": "SECID,ISSUESIZE,SECNAME,LOTSIZE",
         }
         try:
-            resp = requests.get(url, params=params, timeout=10)
+            resp = _moex_get(url, params=params, timeout=10)
             resp.raise_for_status()
             data = resp.json()
 
@@ -252,7 +267,7 @@ def _fetch_history(ticker: str, from_date: date, till_date: date, board: str) ->
     }
 
     try:
-        resp = requests.get(url, params=params, timeout=10)
+        resp = _moex_get(url, params=params, timeout=10)
         resp.raise_for_status()
         data = resp.json()
     except requests.exceptions.RequestException:
@@ -337,7 +352,7 @@ def get_closing_price_on_or_before(
             "limit": 20,
             "iss.meta": "off",
         }
-        resp = requests.get(url, params=params, timeout=10)
+        resp = _moex_get(url, params=params, timeout=10)
         resp.raise_for_status()
         data = resp.json()
 
@@ -407,7 +422,7 @@ def _fetch_fx_history(secid: str, from_date: date, till_date: date) -> List[Dict
         "iss.meta": "off",
     }
     try:
-        resp = requests.get(url, params=params, timeout=10)
+        resp = _moex_get(url, params=params, timeout=10)
         resp.raise_for_status()
         data = resp.json()
     except requests.exceptions.RequestException:
@@ -476,7 +491,7 @@ def _fetch_cbr_rate(currency: str, target_date: date) -> Optional[Dict]:
     # ЦБ принимает дату в формате DD/MM/YYYY.
     params = {"date_req": target_date.strftime("%d/%m/%Y")}
     try:
-        resp = requests.get(_CBR_DAILY_URL, params=params, timeout=10)
+        resp = _moex_get(_CBR_DAILY_URL, params=params, timeout=10)
         resp.raise_for_status()
     except requests.exceptions.RequestException:
         return None
@@ -627,7 +642,7 @@ def get_price_history(
 
     result = []
     try:
-        resp = requests.get(url, params=params, timeout=15)
+        resp = _moex_get(url, params=params, timeout=15)
         resp.raise_for_status()
         data = resp.json()
 
