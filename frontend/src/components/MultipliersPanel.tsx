@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -13,6 +13,14 @@ import {
 import { MultiplierRecord, CurrentMultipliers, Company } from '../types';
 import { useChartColors, ChartColors } from '../contexts/ThemeContext';
 import SharesCapHover from './SharesCapHover';
+import {
+  computeHistRowYoY,
+  snapshotFromCurrent,
+  snapshotFromRecord,
+  YOY_NA,
+  type HistRowYoY,
+  type YoYDisplay,
+} from '../utils/histTableYoY';
 import './MultipliersPanel.css';
 
 // ─── Критерии Грэма для цветовой кодировки ───────────────────────────────────
@@ -1211,13 +1219,216 @@ const HistPfcfCell: React.FC<{
   );
 };
 
-const HistTable: React.FC<HistTableProps> = ({ rows, currentRow, crProfile, isPreferredShare = false }) => {
+const HistChangeCell: React.FC<{ change: YoYDisplay }> = ({ change }) => (
+  <span
+    className={`hist-change hist-change-${change.level}${change.tip ? ' hist-change-tip' : ''}`}
+    title={change.tip}
+  >
+    {change.text}
+  </span>
+);
+
+function histYoYCell(
+  pctMode: boolean,
+  change: YoYDisplay | null | undefined,
+  content: React.ReactNode,
+  className?: string,
+): React.ReactNode {
+  if (pctMode) {
+    return (
+      <td className={className}>
+        <HistChangeCell change={change ?? YOY_NA} />
+      </td>
+    );
+  }
+  return <td className={className}>{content}</td>;
+}
+
+interface HistTableRowProps {
+  periodCell: React.ReactNode;
+  rowClassName?: string;
+  record?: MultiplierRecord;
+  snapshot: ReturnType<typeof snapshotFromRecord>;
+  dividendYield?: number | null;
+  yoy: HistRowYoY | null;
+  pctMode: boolean;
+  pfcfColMode: PfcfColMode;
+  crProfile: CrProfile;
+  isPreferredShare: boolean;
+}
+
+const HistTableRow: React.FC<HistTableRowProps> = ({
+  periodCell,
+  rowClassName,
+  record,
+  snapshot,
+  dividendYield,
+  yoy,
+  pctMode,
+  pfcfColMode,
+  crProfile,
+  isPreferredShare,
+}) => {
+  const income = snapshot.ltm_net_income;
+  const isLoss = income !== null && income < 0;
+  const negEquity = snapshot.equity !== null && snapshot.equity < 0;
+  const fcfNiRow = fcfNiBadge(snapshot.fcf_to_net_income, income);
+
+  const noPrice = snapshot.price_used === null || (record != null && record.shares_used === null);
+  const noIncome = income === null;
+  const noEquity = snapshot.equity === null;
+  const noLiab = record != null && record.total_liabilities === null;
+  const noCurr = record != null && (
+    record.current_assets === null || record.current_liabilities === null
+  );
+
+  const peHint = isLoss
+    ? 'Убыток за период — P/E не рассчитывается'
+    : noIncome ? 'Нет данных о чистой прибыли (net_income)'
+    : noPrice ? 'Нет цены / акций'
+    : undefined;
+
+  const pbHint = negEquity
+    ? 'Отрицательный капитал — P/B не рассчитывается'
+    : noEquity ? 'Нет данных о капитале (equity)'
+    : noPrice ? 'Нет цены / акций'
+    : undefined;
+
+  const deHint = negEquity
+    ? 'Отрицательный капитал: формула даёт отрицательный результат'
+    : noLiab ? 'Нет данных об обязательствах (total_liabilities)'
+    : noEquity ? 'Нет данных о капитале (equity)'
+    : undefined;
+
+  const priceContent = record
+    ? <HistPriceCell row={record} />
+    : (snapshot.price_used !== null ? fmt(snapshot.price_used) : '—');
+
+  return (
+    <tr className={rowClassName}>
+      <td className="col-year">{periodCell}</td>
+      {histYoYCell(pctMode, yoy?.price, priceContent, !pctMode && record ? 'col-price-cell' : undefined)}
+      {histYoYCell(
+        pctMode,
+        yoy?.cap,
+        <HistCapCell
+          marketCapMln={snapshot.market_cap}
+          explanation={record?.shares_cap_explanation}
+        />,
+      )}
+      {histYoYCell(
+        pctMode,
+        yoy?.pe,
+        <MetricBadge
+          value={snapshot.pe_ratio}
+          level={peLevelContext(snapshot.pe_ratio, income)}
+          nullHint={peHint}
+        />,
+      )}
+      {histYoYCell(
+        pctMode,
+        yoy?.pb,
+        <MetricBadge
+          value={snapshot.pb_ratio}
+          level={pbLevelContext(snapshot.pb_ratio, snapshot.equity)}
+          nullHint={pbHint}
+        />,
+      )}
+      {histYoYCell(
+        pctMode,
+        yoy?.roe,
+        <RoeMetricBadge roe={snapshot.roe} netIncome={income} equity={snapshot.equity} />,
+      )}
+      {histYoYCell(
+        pctMode,
+        yoy?.de,
+        <DeMetricBadge de={snapshot.debt_to_equity} equity={snapshot.equity} fallbackHint={deHint} />,
+      )}
+      {histYoYCell(
+        pctMode,
+        yoy?.cr,
+        <MetricBadge
+          value={snapshot.current_ratio}
+          level={crLevel(snapshot.current_ratio, crProfile)}
+          nullHint={
+            noCurr
+              ? 'Нет оборотных активов или краткосрочных обязательств'
+              : crProfile.notApplicable
+                ? 'CR не применим для данного типа компании'
+                : undefined
+          }
+        />,
+      )}
+      {histYoYCell(
+        pctMode,
+        yoy?.div,
+        <DividendYieldBadge
+          dividendYield={dividendYield ?? record?.dividend_yield ?? null}
+          ltmDividendsPerShare={snapshot.ltm_dividends_per_share}
+          priceUsed={snapshot.price_used}
+          isPreferredShare={isPreferredShare}
+        />,
+      )}
+      {histYoYCell(
+        pctMode,
+        yoy?.pfcf,
+        <HistPfcfCell mode={pfcfColMode} pfcf={snapshot.price_to_fcf} fcf={snapshot.ltm_fcf} />,
+      )}
+      {histYoYCell(
+        pctMode,
+        yoy?.fcfNi,
+        <MetricBadge
+          value={fcfNiRow.value}
+          level={fcfNiRow.level}
+          suffix="%"
+          nullHint={fcfNiRow.nullHint}
+        />,
+      )}
+      {histYoYCell(
+        pctMode,
+        yoy?.ndFcf,
+        <HistNetDebtFcfCell
+          ratio={snapshot.net_debt_to_fcf}
+          netDebt={snapshot.net_debt}
+          fcf={snapshot.ltm_fcf}
+        />,
+      )}
+      {histYoYCell(
+        pctMode,
+        yoy?.netDebt,
+        <HistNetDebtCell netDebtMln={snapshot.net_debt} />,
+        'col-compact',
+      )}
+      {histYoYCell(
+        pctMode,
+        yoy?.fcf,
+        fmtMlnBln(snapshot.ltm_fcf),
+        snapshot.ltm_fcf !== null && snapshot.ltm_fcf < 0 ? 'cell-loss' : undefined,
+      )}
+      {histYoYCell(pctMode, yoy?.revenue, fmtMlnBln(snapshot.ltm_revenue))}
+      {histYoYCell(
+        pctMode,
+        yoy?.profit,
+        fmtMlnBln(snapshot.ltm_net_income),
+        isLoss ? 'cell-loss' : undefined,
+      )}
+    </tr>
+  );
+};
+
+const HistTable: React.FC<HistTableProps & { pctMode: boolean }> = ({
+  rows,
+  currentRow,
+  crProfile,
+  isPreferredShare = false,
+  pctMode,
+}) => {
   const [crTooltipVisible, setCrTooltipVisible] = React.useState(false);
   const [pfcfColMode, setPfcfColMode] = React.useState<PfcfColMode>('pfcf');
   const crThRef = React.useRef<HTMLTableCellElement | null>(null);
 
   return (
-    <div className="hist-table-wrapper">
+    <div className={`hist-table-wrapper${pctMode ? ' hist-table-wrapper--pct' : ''}`}>
       <table className="hist-table">
         <thead>
           <tr>
@@ -1269,168 +1480,50 @@ const HistTable: React.FC<HistTableProps> = ({ rows, currentRow, crProfile, isPr
           </tr>
         </thead>
         <tbody>
-          {/* LTM-строка (актуальные данные) */}
-          {currentRow && (() => {
-            const ltmIsLoss = currentRow.ltm_net_income !== null && currentRow.ltm_net_income < 0;
-            const fcfNiLtm = fcfNiBadge(currentRow.fcf_to_net_income, currentRow.ltm_net_income);
-            return (
-              <tr className="row-ltm">
-                <td className="col-year"><span className="badge-ltm">LTM</span></td>
-                <td>{currentRow.price_used !== null ? fmt(currentRow.price_used) : '—'}</td>
-                <td>
-                  <HistCapCell
-                    marketCapMln={currentRow.market_cap}
-                    explanation={currentRow.shares_cap_explanation}
-                  />
-                </td>
-                <td><MetricBadge
-                  value={currentRow.pe_ratio}
-                  level={peLevelContext(currentRow.pe_ratio, currentRow.ltm_net_income)}
-                  nullHint={ltmIsLoss ? 'Убыток за период — P/E не рассчитывается' : undefined}
-                /></td>
-                <td><MetricBadge
-                  value={currentRow.pb_ratio}
-                  level={pbLevelContext(currentRow.pb_ratio, currentRow.equity ?? null)}
-                  nullHint={
-                    currentRow.equity !== null && currentRow.equity !== undefined && currentRow.equity < 0
-                      ? 'Отрицательный капитал — P/B не рассчитывается'
-                      : undefined
-                  }
-                /></td>
-                <td>
-                  <RoeMetricBadge
-                    roe={currentRow.roe}
-                    netIncome={currentRow.ltm_net_income}
-                    equity={currentRow.equity ?? null}
-                  />
-                </td>
-                <td><DeMetricBadge
-                  de={currentRow.debt_to_equity}
-                  equity={currentRow.equity ?? null}
-                  fallbackHint={
-                    currentRow.debt_to_equity !== null && currentRow.debt_to_equity < 0
-                      ? 'Отрицательный капитал'
-                      : undefined
-                  }
-                /></td>
-                <td><MetricBadge value={currentRow.current_ratio} level={crLevel(currentRow.current_ratio, crProfile)}
-                  nullHint={crProfile.notApplicable ? 'CR не применим для данного типа компании' : undefined} /></td>
-                <td>
-                  <DividendYieldBadge
-                    dividendYield={currentRow.dividend_yield}
-                    ltmDividendsPerShare={currentRow.ltm_dividends_per_share}
-                    priceUsed={currentRow.price_used}
-                    isPreferredShare={isPreferredShare}
-                  />
-                </td>
-                <td><HistPfcfCell
-                  mode={pfcfColMode}
-                  pfcf={currentRow.price_to_fcf}
-                  fcf={currentRow.ltm_fcf}
-                /></td>
-                <td>
-                  <MetricBadge
-                    value={fcfNiLtm.value}
-                    level={fcfNiLtm.level}
-                    suffix="%"
-                    nullHint={fcfNiLtm.nullHint}
-                  />
-                </td>
-                <td><HistNetDebtFcfCell
-                  ratio={currentRow.net_debt_to_fcf}
-                  netDebt={currentRow.net_debt}
-                  fcf={currentRow.ltm_fcf}
-                /></td>
-                <td className="col-compact"><HistNetDebtCell netDebtMln={currentRow.net_debt} /></td>
-                <td className={(currentRow.ltm_fcf !== null && currentRow.ltm_fcf < 0) ? 'cell-loss' : ''}>{fmtMlnBln(currentRow.ltm_fcf)}</td>
-                <td>{fmtMlnBln(currentRow.ltm_revenue)}</td>
-                <td className={ltmIsLoss ? 'cell-loss' : ''}>{fmtMlnBln(currentRow.ltm_net_income)}</td>
-              </tr>
-            );
-          })()}
+          {currentRow && (
+            <HistTableRow
+              rowClassName="row-ltm"
+              periodCell={<span className="badge-ltm">LTM</span>}
+              snapshot={snapshotFromCurrent(currentRow)}
+              dividendYield={currentRow.dividend_yield}
+              yoy={
+                pctMode && rows.length > 0
+                  ? computeHistRowYoY(
+                      snapshotFromCurrent(currentRow),
+                      snapshotFromRecord(rows[0]),
+                      pfcfColMode,
+                    )
+                  : null
+              }
+              pctMode={pctMode}
+              pfcfColMode={pfcfColMode}
+              crProfile={crProfile}
+              isPreferredShare={isPreferredShare}
+            />
+          )}
 
-          {/* Исторические строки */}
-          {rows.map((r) => {
-            const noPrice   = r.price_used === null || r.shares_used === null;
-            const noIncome  = r.ltm_net_income === null;
-            const isLoss    = r.ltm_net_income !== null && r.ltm_net_income < 0;
-            const noEquity  = r.equity === null;
-            const negEquity = r.equity !== null && r.equity < 0;
-            const noLiab    = r.total_liabilities === null;
-            const noCurr    = r.current_assets === null || r.current_liabilities === null;
-            const fcfNiRow = fcfNiBadge(r.fcf_to_net_income, r.ltm_net_income);
-
-            const peHint = isLoss
-              ? 'Убыток за период — P/E не рассчитывается'
-              : noIncome ? 'Нет данных о чистой прибыли (net_income)'
-              : noPrice ? 'Нет цены / акций'
-              : undefined;
-
-            const pbHint = negEquity
-              ? 'Отрицательный капитал — P/B не рассчитывается'
-              : noEquity ? 'Нет данных о капитале (equity)'
-              : noPrice ? 'Нет цены / акций'
-              : undefined;
-
-            const deHint = negEquity
-              ? 'Отрицательный капитал: формула даёт отрицательный результат'
-              : noLiab  ? 'Нет данных об обязательствах (total_liabilities)'
-              : noEquity ? 'Нет данных о капитале (equity)'
-              : undefined;
-
-            return (
-              <tr key={r.id} className="row-hist">
-                <td className="col-year">{fmtDate(r.date)}</td>
-                <td className="col-price-cell">
-                  <HistPriceCell row={r} />
-                </td>
-                <td>
-                  <HistCapCell
-                    marketCapMln={r.market_cap}
-                    explanation={r.shares_cap_explanation}
-                  />
-                </td>
-                <td><MetricBadge
-                  value={r.pe_ratio}
-                  level={peLevelContext(r.pe_ratio, r.ltm_net_income)}
-                  nullHint={peHint}
-                /></td>
-                <td><MetricBadge
-                  value={r.pb_ratio}
-                  level={pbLevelContext(r.pb_ratio, r.equity)}
-                  nullHint={pbHint}
-                /></td>
-                <td>
-                  <RoeMetricBadge roe={r.roe} netIncome={r.ltm_net_income} equity={r.equity} />
-                </td>
-                <td><DeMetricBadge de={r.debt_to_equity} equity={r.equity} fallbackHint={deHint} /></td>
-                <td><MetricBadge value={r.current_ratio} level={crLevel(r.current_ratio, crProfile)}
-                  nullHint={noCurr ? 'Нет оборотных активов или краткосрочных обязательств' : crProfile.notApplicable ? 'CR не применим для данного типа компании' : undefined} /></td>
-                <td>
-                  <DividendYieldBadge
-                    dividendYield={r.dividend_yield}
-                    ltmDividendsPerShare={r.ltm_dividends_per_share}
-                    priceUsed={r.price_used}
-                    isPreferredShare={isPreferredShare}
-                  />
-                </td>
-                <td><HistPfcfCell mode={pfcfColMode} pfcf={r.price_to_fcf} fcf={r.ltm_fcf} /></td>
-                <td>
-                  <MetricBadge
-                    value={fcfNiRow.value}
-                    level={fcfNiRow.level}
-                    suffix="%"
-                    nullHint={fcfNiRow.nullHint}
-                  />
-                </td>
-                <td><HistNetDebtFcfCell ratio={r.net_debt_to_fcf} netDebt={r.net_debt} fcf={r.ltm_fcf} /></td>
-                <td className="col-compact"><HistNetDebtCell netDebtMln={r.net_debt} /></td>
-                <td className={r.ltm_fcf !== null && r.ltm_fcf < 0 ? 'cell-loss' : ''}>{fmtMlnBln(r.ltm_fcf)}</td>
-                <td>{fmtMlnBln(r.ltm_revenue)}</td>
-                <td className={isLoss ? 'cell-loss' : ''}>{fmtMlnBln(r.ltm_net_income)}</td>
-              </tr>
-            );
-          })}
+          {rows.map((r, index) => (
+            <HistTableRow
+              key={r.id}
+              rowClassName="row-hist"
+              periodCell={fmtDate(r.date)}
+              record={r}
+              snapshot={snapshotFromRecord(r)}
+              yoy={
+                pctMode && index + 1 < rows.length
+                  ? computeHistRowYoY(
+                      snapshotFromRecord(r),
+                      snapshotFromRecord(rows[index + 1]),
+                      pfcfColMode,
+                    )
+                  : null
+              }
+              pctMode={pctMode}
+              pfcfColMode={pfcfColMode}
+              crProfile={crProfile}
+              isPreferredShare={isPreferredShare}
+            />
+          ))}
 
           {rows.length === 0 && !currentRow && (
             <tr>
@@ -1806,6 +1899,7 @@ interface MultipliersPanelProps {
 const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company }) => {
   const [refreshMsg, setRefreshMsg] = useState<string | null>(null);
   const [autoRefreshing, setAutoRefreshing] = useState(false);
+  const [histPctMode, setHistPctMode] = useState(false);
   /** После первого sync цены с T-Invest можно грузить current-мультипликаторы. */
   const [initialPriceSynced, setInitialPriceSynced] = useState(false);
   const queryClient = useQueryClient();
@@ -2023,12 +2117,30 @@ const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company }) => {
             {/* ── Нижняя строка: история на всю ширину ── */}
             {(rows.length > 0 || currentData) && (
               <div className="mult-history-row">
-                <div className="mult-history-label">История мультипликаторов</div>
+                <div className="mult-history-header">
+                  <div className="mult-history-label">
+                    История мультипликаторов
+                    {histPctMode && (
+                      <span className="mult-history-mode-hint"> · Δ к прошлому году</span>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    className={`hist-pct-toggle${histPctMode ? ' hist-pct-toggle--active' : ''}`}
+                    onClick={() => setHistPctMode((v) => !v)}
+                    aria-pressed={histPctMode}
+                    aria-label={histPctMode ? 'Показать абсолютные значения' : 'Показать изменение к прошлому году'}
+                    title={histPctMode ? 'Абсолютные значения' : 'Изменение к прошлому году (%)'}
+                  >
+                    %
+                  </button>
+                </div>
                 <HistTable
                   rows={rows}
                   currentRow={currentData ?? undefined}
                   crProfile={crProfile}
                   isPreferredShare={!!company.is_preferred_share}
+                  pctMode={histPctMode}
                 />
               </div>
             )}
