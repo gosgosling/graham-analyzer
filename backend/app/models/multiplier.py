@@ -80,6 +80,10 @@ class Multiplier(Base):
     # FCF/Net Income = LTM FCF / LTM Net Income × 100%  (детектор качества прибыли)
     fcf_to_net_income: Mapped[Optional[float]] = mapped_column(Numeric(12, 4), nullable=True)
 
+    # Чистый долг (млн ₽) и отношение Net Debt / LTM FCF (non-bank, FCF > 0)
+    net_debt: Mapped[Optional[float]] = mapped_column(Numeric(20, 2), nullable=True)
+    net_debt_to_fcf: Mapped[Optional[float]] = mapped_column(Numeric(12, 4), nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

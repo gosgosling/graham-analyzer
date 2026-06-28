@@ -884,11 +884,6 @@ const ReportForm: React.FC<ReportFormProps> = ({
             return;
         }
 
-        if (formData.shares_issued == null) {
-            setError('Укажите размещённое (общее) количество акций');
-            return;
-        }
-
         if (
             formData.treasury_shares != null
             && formData.shares_issued != null
@@ -1217,7 +1212,7 @@ const ReportForm: React.FC<ReportFormProps> = ({
                             <div className="form-row">
                                 <div className="form-label">
                                     <div className="price-label-row">
-                                        <span>Размещённое (общее) кол-во акций, шт. <span className="required-mark">*</span></span>
+                                        <span>Размещённое (общее) кол-во акций, шт.</span>
                                         {ticker && (
                                             <button
                                                 type="button"

@@ -15,6 +15,7 @@ import {
 import type { FinancialReport, FinancialReportCreate } from '../types';
 import { detectSectorDisplayKind } from '../utils/sectorDisplayKind';
 import { financialReportToCreatePayload } from '../utils/financialReportPayload';
+import { formatApiErrorMessage } from '../utils/apiErrors';
 import { moexRubPriceToReportFieldValue } from '../utils/moexReportAssist';
 import { computeFcf } from '../utils/fcf';
 import { computeNetDebt } from '../utils/netDebt';
@@ -566,8 +567,7 @@ const CompanyReportsMatrix: React.FC = () => {
       setDraftPayload(null);
       await invalidateAll();
     } catch (e: unknown) {
-      const d = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-      alert(typeof d === 'string' ? d : 'Не удалось создать отчёт');
+      alert(formatApiErrorMessage(e, 'Не удалось создать отчёт'));
     } finally {
       setSavingKey(null);
     }

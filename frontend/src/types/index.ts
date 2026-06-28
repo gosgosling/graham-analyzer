@@ -101,6 +101,10 @@ export interface MultiplierRecord {
     price_to_fcf: number | null;
     /** FCF/NI = LTM FCF / LTM Net Income × 100%, детектор качества прибыли */
     fcf_to_net_income: number | null;
+    /** Чистый долг, млн ₽ */
+    net_debt: number | null;
+    /** Net Debt / LTM FCF (non-bank, FCF > 0) */
+    net_debt_to_fcf: number | null;
 
     created_at?: string;
     updated_at?: string | null;
@@ -148,6 +152,8 @@ export interface CurrentMultipliers {
     ltm_operating_cash_flow: number | null;
     price_to_fcf: number | null;
     fcf_to_net_income: number | null;
+    net_debt: number | null;
+    net_debt_to_fcf: number | null;
 }
 
 /** GET /companies/sync/status */
@@ -214,7 +220,7 @@ export interface FinancialReportCreate {
     // Рыночные данные
     price_per_share?: number | null;  // Цена на дату окончания периода (report_date) - для расчёта мультипликаторов
     price_at_filing?: number | null;  // Цена на дату публикации (filing_date) - для анализа реакции рынка
-    /** Размещённое (общее) количество акций, шт. — обязательно */
+    /** Размещённое (общее) количество акций, шт. */
     shares_issued?: number | null;
     /** Акции в обращении, шт. — опционально */
     shares_outstanding?: number | null;
