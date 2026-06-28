@@ -1,6 +1,7 @@
 from app.models.financial_report import FinancialReport
 from app.services.analysis.share_counts import resolve_shares_for_multipliers
 from app.services.analysis.fcf import compute_fcf
+from app.services.analysis.net_debt import compute_net_debt
 from app.utils.currency_converter import convert_to_rub
 from typing import Dict, Optional
 
@@ -128,6 +129,12 @@ def calculate_multipliers(
     ltm_ocf_mln: Optional[float] = None
     price_to_fcf: Optional[float] = None
     fcf_to_net_income: Optional[float] = None
+    net_debt_mln: Optional[float] = None
+    net_debt_to_fcf: Optional[float] = None
+
+    debt_mln = to_rub_mln(report.debt)
+    cash_mln = to_rub_mln(report.cash_and_equivalents)
+    net_debt_mln = compute_net_debt(debt_mln, cash_mln)
 
     if is_bank:
         # Для банков D/E и Current Ratio не применяются:
@@ -189,6 +196,13 @@ def calculate_multipliers(
         if ltm_fcf_mln is not None and net_income_mln is not None and net_income_mln > 0:
             fcf_to_net_income = round(ltm_fcf_mln / net_income_mln * 100, 2)
 
+        if (
+            net_debt_mln is not None
+            and ltm_fcf_mln is not None
+            and ltm_fcf_mln != 0
+        ):
+            net_debt_to_fcf = round(net_debt_mln / ltm_fcf_mln, 2)
+
     return {
         "pe_ratio": pe_ratio,
         "pb_ratio": pb_ratio,
@@ -205,4 +219,6 @@ def calculate_multipliers(
         "ltm_operating_cash_flow": ltm_ocf_mln,
         "price_to_fcf": price_to_fcf,
         "fcf_to_net_income": fcf_to_net_income,
+        "net_debt": net_debt_mln,
+        "net_debt_to_fcf": net_debt_to_fcf,
     }

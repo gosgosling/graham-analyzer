@@ -258,6 +258,43 @@
   border-color: var(--color-border-subtle);
 }
 
+.current-card--toggleable {
+  position: relative;
+}
+
+.current-card-toggle {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--color-text-quaternary);
+  cursor: pointer;
+  opacity: 0.5;
+  transition: opacity var(--transition-fast), color var(--transition-fast), background var(--transition-fast);
+}
+
+.current-card:hover .current-card-toggle,
+.current-card-toggle:hover,
+.current-card-toggle:focus-visible {
+  opacity: 1;
+  color: var(--color-text-secondary);
+  background: rgba(255, 255, 255, 0.06);
+  outline: none;
+}
+
+.current-card-toggle-icon {
+  display: block;
+  flex-shrink: 0;
+}
+
 .current-card-label {
   font-size: 0.75rem;
   font-weight: 600;
@@ -430,6 +467,19 @@
   letter-spacing: 0.04em;
 }
 
+.col-header-title-plain {
+  letter-spacing: 0.02em;
+  text-transform: none;
+}
+
+.col-header-stacked-right {
+  align-items: flex-end;
+}
+
+.hist-table th.col-net-debt-header {
+  text-align: right;
+}
+
 .col-header-unit {
   font-size: 0.7rem;
   font-weight: 700;
@@ -457,6 +507,10 @@
 
 .hist-table td.col-price-cell {
   position: relative;
+}
+
+.hist-plain-value {
+  cursor: help;
 }
 
 .mult-price-with-tip {
@@ -779,6 +833,51 @@
   .current-cards-grid {
     grid-template-columns: repeat(2, 1fr);
   }
+}
+
+.hist-table th.col-compact,
+.hist-table td.col-compact {
+  padding-left: 6px;
+  padding-right: 6px;
+}
+
+/* ─── P/FCF ↔ FCF yield ─────────────────────────────────────────────────── */
+
+.col-pfcf-header {
+  position: relative;
+  text-align: center;
+  white-space: normal;
+  vertical-align: bottom;
+}
+
+.col-pfcf-header .col-header-stacked {
+  gap: 2px;
+}
+
+.col-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 0;
+  padding: 0 4px;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: inherit;
+  font-size: 11px;
+  line-height: 1;
+  opacity: 0.55;
+  cursor: pointer;
+  vertical-align: middle;
+  transition: opacity 0.15s ease, background 0.15s ease;
+}
+
+.col-pfcf-header:hover .col-toggle-btn,
+.col-toggle-btn:hover,
+.col-toggle-btn:focus-visible {
+  opacity: 1;
+  background: var(--color-table-header-hover, rgba(52, 152, 219, 0.12));
+  outline: none;
 }
 
 /* ─── Заголовок CR с иконкой-подсказкой ─────────────────────────────────── */

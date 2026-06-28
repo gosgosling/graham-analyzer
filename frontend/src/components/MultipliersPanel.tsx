@@ -95,6 +95,101 @@ function pfcfLevel(v: number | null, fcf: number | null): Level {
   return 'neutral';
 }
 
+/** FCF yield = 100 / P/FCF (%). Пороги — обратные к P/FCF. */
+function fcfYieldLevel(yieldPct: number | null, fcf: number | null): Level {
+  if (yieldPct !== null) {
+    if (yieldPct >= 6.67) return 'good';
+    if (yieldPct >= 4) return 'warn';
+    return 'bad';
+  }
+  if (fcf !== null && fcf < 0) return 'loss';
+  return 'neutral';
+}
+
+function pfcfToFcfYield(pfcf: number | null): number | null {
+  if (pfcf === null || pfcf <= 0) return null;
+  return Math.round((100 / pfcf) * 100) / 100;
+}
+
+/** Net Debt/FCF — лет погашения; цвет зависит от знака FCF и Net Debt. */
+function computeNetDebtToFcf(
+  ratio: number | null | undefined,
+  netDebt: number | null | undefined,
+  fcf: number | null | undefined,
+): number | null {
+  if (ratio != null) return ratio;
+  if (netDebt == null || fcf == null || fcf === 0) return null;
+  return Math.round((netDebt / fcf) * 100) / 100;
+}
+
+function netDebtFcfBadge(
+  ratio: number | null | undefined,
+  netDebt: number | null | undefined,
+  fcf: number | null | undefined,
+): { value: number | null; level: Level; tip?: string } {
+  const f = fcf ?? null;
+  const nd = netDebt ?? null;
+  const v = computeNetDebtToFcf(ratio, nd, f);
+
+  if (v === null) {
+    if (f === 0) {
+      return { value: null, level: 'neutral', tip: 'FCF = 0 — ND/FCF не определён' };
+    }
+    return { value: null, level: 'neutral', tip: 'Недостаточно данных для ND/FCF' };
+  }
+
+  if (f !== null && f < 0) {
+    return {
+      value: v,
+      level: 'loss',
+      tip: nd !== null && nd > 0
+        ? 'FCF отрицателен при положительном чистом долге — компания сжигает деньги; отрицательное ND/FCF сигнализирует о росте долговой нагрузки'
+        : 'FCF отрицателен — свободный денежный поток отрицателен; показатель отражает сжигание cash flow',
+    };
+  }
+
+  if (nd !== null && nd < 0) {
+    return {
+      value: v,
+      level: 'good',
+      tip: 'Net Debt отрицателен (чистый денежный запас): наличность превышает долг — отрицательное ND/FCF отражает запас ликвидности',
+    };
+  }
+
+  if (v <= 3) {
+    return { value: v, level: 'good', tip: 'Низкая нагрузка: чистый долг покрывается за ≤ 3 года FCF' };
+  }
+  if (v <= 5) {
+    return { value: v, level: 'warn', tip: 'Умеренная нагрузка: на погашение чистого долга потребуется 3–5 лет FCF' };
+  }
+  return { value: v, level: 'bad', tip: 'Высокая нагрузка: погашение чистого долга займёт более 5 лет FCF' };
+}
+
+function netDebtValueUi(netDebtMln: number | null): {
+  display: string;
+  level: Level;
+  tip?: string;
+} {
+  if (netDebtMln === null) {
+    return { display: '—', level: 'neutral', tip: 'Нет данных о долге и наличности' };
+  }
+  const display = (netDebtMln / 1_000).toFixed(2);
+  if (netDebtMln < 0) {
+    return {
+      display,
+      level: 'good',
+      tip: 'Net Debt отрицателен: денежные средства и эквиваленты превышают долг (чистый денежный запас)',
+    };
+  }
+  return {
+    display,
+    level: 'neutral',
+    tip: 'Положительный чистый долг: заёмные средства превышают наличность и эквиваленты',
+  };
+}
+
+type PfcfColMode = 'pfcf' | 'yield';
+
 /**
  * FCF/Net Income (конверсия) — детектор качества прибыли при положительном NI.
  * Использовать только когда LTM net income > 0 (см. `fcfNiBadge`).
@@ -566,10 +661,20 @@ function fmt(n: number | null, decimals = 2): string {
 }
 
 /** Заголовок колонки: название + единица измерения меньшим шрифтом снизу. */
-function ColHeaderWithUnit({ title, unit = 'млрд ₽' }: { title: string; unit?: string }) {
+function ColHeaderWithUnit({
+  title,
+  unit = 'млрд ₽',
+  uppercase = true,
+  align = 'center',
+}: {
+  title: string;
+  unit?: string;
+  uppercase?: boolean;
+  align?: 'center' | 'right';
+}) {
   return (
-    <span className="col-header-stacked">
-      <span className="col-header-title">{title}</span>
+    <span className={`col-header-stacked${align === 'right' ? ' col-header-stacked-right' : ''}`}>
+      <span className={uppercase ? 'col-header-title' : 'col-header-title-plain'}>{title}</span>
       <span className="col-header-unit">{unit}</span>
     </span>
   );
@@ -625,9 +730,30 @@ interface DashboardCard {
   nullHint?: string;
   textLabel?: string;
   tip?: string;
+  toggleable?: boolean;
 }
 
+const PfcfCardToggleIcon: React.FC = () => (
+  <svg className="current-card-toggle-icon" width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
+    <path
+      d="M2 4.5h8M9 2.5l1.5 2-1.5 2"
+      stroke="currentColor"
+      strokeWidth="1.2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <path
+      d="M12 9.5H4M5 11.5L3.5 9.5 5 7.5"
+      stroke="currentColor"
+      strokeWidth="1.2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+
 const CurrentCards: React.FC<CurrentCardsProps> = ({ data, crProfile, isPreferredShare = false }) => {
+  const [pfcfCardMode, setPfcfCardMode] = React.useState<PfcfColMode>('pfcf');
   const income = data.ltm_net_income;
   const isLoss = income !== null && income < 0;
   const roeUi = roeBadge(data.roe, income, data.equity ?? null);
@@ -729,14 +855,28 @@ const CurrentCards: React.FC<CurrentCardsProps> = ({ data, crProfile, isPreferre
 
   // FCF-карточки только для non-bank и только если есть данные ОДДС
   const hasFcfData = ltmFcf !== undefined && ltmFcf !== null;
+  const pfcfYield = pfcfToFcfYield(pfcf ?? null);
+  const pfcfCard: DashboardCard = pfcfCardMode === 'yield'
+    ? {
+        label: 'FCF yld',
+        value: pfcfYield,
+        level: fcfYieldLevel(pfcfYield, ltmFcf ?? null),
+        hint: 'Доходность FCF = 100 / P/FCF',
+        threshold: (ltmFcf ?? 0) < 0 ? 'FCF отрицателен' : '≥ 6.7% — хорошо',
+        suffix: '%',
+        toggleable: true,
+      }
+    : {
+        label: 'P/FCF',
+        value: pfcf ?? null,
+        level: pfcfLevel(pfcf ?? null, ltmFcf ?? null),
+        hint: 'Цена / Свободный денежный поток',
+        threshold: (ltmFcf ?? 0) < 0 ? 'FCF отрицателен' : '≤ 15 — хорошо',
+        toggleable: true,
+      };
+
   const fcfCards = (!isBank && hasFcfData) ? [
-    {
-      label: 'P/FCF',
-      value: pfcf ?? null,
-      level: pfcfLevel(pfcf ?? null, ltmFcf ?? null),
-      hint: 'Цена / Свободный денежный поток',
-      threshold: (ltmFcf ?? 0) < 0 ? 'FCF отрицателен' : '≤ 15 — хорошо',
-    },
+    pfcfCard,
     {
       label: 'FCF/NI',
       value: fcfNiUi.value,
@@ -763,8 +903,22 @@ const CurrentCards: React.FC<CurrentCardsProps> = ({ data, crProfile, isPreferre
 
   return (
     <div className="current-cards-grid">
-      {cards.map(({ label, value, level, hint, threshold, suffix = '', nullHint, textLabel, tip }) => (
-        <div key={label} className={`current-card level-${level}`}>
+      {cards.map(({ label, value, level, hint, threshold, suffix = '', nullHint, textLabel, tip, toggleable }) => (
+        <div
+          key={toggleable ? 'pfcf-toggle' : label}
+          className={`current-card level-${level}${toggleable ? ' current-card--toggleable' : ''}`}
+        >
+          {toggleable && (
+            <button
+              type="button"
+              className="current-card-toggle"
+              onClick={() => setPfcfCardMode((m) => (m === 'pfcf' ? 'yield' : 'pfcf'))}
+              aria-label={pfcfCardMode === 'pfcf' ? 'Показать FCF yield' : 'Показать P/FCF'}
+              title="Переключить P/FCF ↔ FCF yield"
+            >
+              <PfcfCardToggleIcon />
+            </button>
+          )}
           <div className="current-card-label">{label}</div>
           <div className="current-card-value" title={tip ?? nullHint}>
             {label === 'Div. Yield' && value === null && data.ltm_dividends_per_share === null ? (
@@ -982,8 +1136,84 @@ const HistCapCell: React.FC<{
   );
 };
 
+const HistPfcfHeader: React.FC<{
+  mode: PfcfColMode;
+  onToggle: () => void;
+}> = ({ mode, onToggle }) => (
+  <th className="col-mult col-compact col-pfcf-header col-header-unit-col">
+    <span className="col-header-stacked">
+      <span className="col-header-title">{mode === 'pfcf' ? 'P/FCF' : 'FCF yld'}</span>
+      <button
+        type="button"
+        className="col-toggle-btn"
+        onClick={onToggle}
+        aria-label={mode === 'pfcf' ? 'Показать FCF yield' : 'Показать P/FCF'}
+        title="Переключить P/FCF ↔ FCF yield"
+      >
+        ⇄
+      </button>
+    </span>
+  </th>
+);
+
+const HistNetDebtFcfCell: React.FC<{
+  ratio: number | null;
+  netDebt: number | null;
+  fcf: number | null;
+}> = ({ ratio, netDebt, fcf }) => {
+  const ui = netDebtFcfBadge(ratio, netDebt, fcf);
+  return (
+    <MetricBadge
+      value={ui.value}
+      level={ui.level}
+      tip={ui.value !== null ? ui.tip : undefined}
+      nullHint={ui.value === null ? ui.tip : undefined}
+    />
+  );
+};
+
+const HistNetDebtCell: React.FC<{ netDebtMln: number | null }> = ({ netDebtMln }) => {
+  const ui = netDebtValueUi(netDebtMln);
+  return (
+    <span className="hist-plain-value" title={ui.tip}>
+      {ui.display}
+    </span>
+  );
+};
+
+const HistPfcfCell: React.FC<{
+  mode: PfcfColMode;
+  pfcf: number | null;
+  fcf: number | null;
+}> = ({ mode, pfcf, fcf }) => {
+  const fcfLossHint = fcf !== null && fcf < 0
+    ? (mode === 'pfcf' ? 'FCF отрицателен — P/FCF не рассчитывается' : 'FCF отрицателен — yield не рассчитывается')
+    : undefined;
+
+  if (mode === 'yield') {
+    const yld = pfcfToFcfYield(pfcf);
+    return (
+      <MetricBadge
+        value={yld}
+        level={fcfYieldLevel(yld, fcf)}
+        suffix="%"
+        nullHint={fcfLossHint}
+      />
+    );
+  }
+
+  return (
+    <MetricBadge
+      value={pfcf}
+      level={pfcfLevel(pfcf, fcf)}
+      nullHint={fcfLossHint}
+    />
+  );
+};
+
 const HistTable: React.FC<HistTableProps> = ({ rows, currentRow, crProfile, isPreferredShare = false }) => {
   const [crTooltipVisible, setCrTooltipVisible] = React.useState(false);
+  const [pfcfColMode, setPfcfColMode] = React.useState<PfcfColMode>('pfcf');
   const crThRef = React.useRef<HTMLTableCellElement | null>(null);
 
   return (
@@ -1018,8 +1248,15 @@ const HistTable: React.FC<HistTableProps> = ({ rows, currentRow, crProfile, isPr
               )}
             </th>
             <th className="col-mult">Div, %</th>
-            <th className="col-mult" title="Price / Free Cash Flow (только для non-bank)">P/FCF</th>
-            <th className="col-mult" title="FCF / Net Income × 100% — качество прибыли">FCF/NI, %</th>
+            <HistPfcfHeader
+              mode={pfcfColMode}
+              onToggle={() => setPfcfColMode((m) => (m === 'pfcf' ? 'yield' : 'pfcf'))}
+            />
+            <th className="col-mult col-compact" title="FCF / Net Income × 100% — качество прибыли">FCF/NI, %</th>
+            <th className="col-mult col-compact" title="Net Debt / LTM FCF — лет погашения">ND/FCF</th>
+            <th className="col-rev col-compact col-net-debt-header col-header-unit-col" title="Чистый долг = Долг − Наличность">
+              <ColHeaderWithUnit title="Net Debt" uppercase={false} align="right" />
+            </th>
             <th className="col-rev col-header-unit-col" title="FCF = Операционный поток − CAPEX">
               <ColHeaderWithUnit title="FCF" />
             </th>
@@ -1035,7 +1272,7 @@ const HistTable: React.FC<HistTableProps> = ({ rows, currentRow, crProfile, isPr
           {/* LTM-строка (актуальные данные) */}
           {currentRow && (() => {
             const ltmIsLoss = currentRow.ltm_net_income !== null && currentRow.ltm_net_income < 0;
-            const fcfNiLtm = fcfNiBadge((currentRow as any).fcf_to_net_income, currentRow.ltm_net_income);
+            const fcfNiLtm = fcfNiBadge(currentRow.fcf_to_net_income, currentRow.ltm_net_income);
             return (
               <tr className="row-ltm">
                 <td className="col-year"><span className="badge-ltm">LTM</span></td>
@@ -1086,16 +1323,10 @@ const HistTable: React.FC<HistTableProps> = ({ rows, currentRow, crProfile, isPr
                     isPreferredShare={isPreferredShare}
                   />
                 </td>
-                <td><MetricBadge
-                  value={(currentRow as any).price_to_fcf ?? null}
-                  level={pfcfLevel((currentRow as any).price_to_fcf ?? null, (currentRow as any).ltm_fcf ?? null)}
-                  nullHint={
-                    (currentRow as any).ltm_fcf !== null &&
-                    (currentRow as any).ltm_fcf !== undefined &&
-                    (currentRow as any).ltm_fcf < 0
-                      ? 'FCF отрицателен — P/FCF не рассчитывается'
-                      : undefined
-                  }
+                <td><HistPfcfCell
+                  mode={pfcfColMode}
+                  pfcf={currentRow.price_to_fcf}
+                  fcf={currentRow.ltm_fcf}
                 /></td>
                 <td>
                   <MetricBadge
@@ -1105,7 +1336,13 @@ const HistTable: React.FC<HistTableProps> = ({ rows, currentRow, crProfile, isPr
                     nullHint={fcfNiLtm.nullHint}
                   />
                 </td>
-                <td className={(currentRow as any).ltm_fcf !== null && (currentRow as any).ltm_fcf !== undefined && (currentRow as any).ltm_fcf < 0 ? 'cell-loss' : ''}>{fmtMlnBln((currentRow as any).ltm_fcf ?? null)}</td>
+                <td><HistNetDebtFcfCell
+                  ratio={currentRow.net_debt_to_fcf}
+                  netDebt={currentRow.net_debt}
+                  fcf={currentRow.ltm_fcf}
+                /></td>
+                <td className="col-compact"><HistNetDebtCell netDebtMln={currentRow.net_debt} /></td>
+                <td className={(currentRow.ltm_fcf !== null && currentRow.ltm_fcf < 0) ? 'cell-loss' : ''}>{fmtMlnBln(currentRow.ltm_fcf)}</td>
                 <td>{fmtMlnBln(currentRow.ltm_revenue)}</td>
                 <td className={ltmIsLoss ? 'cell-loss' : ''}>{fmtMlnBln(currentRow.ltm_net_income)}</td>
               </tr>
@@ -1177,15 +1414,7 @@ const HistTable: React.FC<HistTableProps> = ({ rows, currentRow, crProfile, isPr
                     isPreferredShare={isPreferredShare}
                   />
                 </td>
-                <td><MetricBadge
-                  value={r.price_to_fcf}
-                  level={pfcfLevel(r.price_to_fcf, r.ltm_fcf)}
-                  nullHint={
-                    r.ltm_fcf !== null && r.ltm_fcf < 0
-                      ? 'FCF отрицателен — P/FCF не рассчитывается'
-                      : undefined
-                  }
-                /></td>
+                <td><HistPfcfCell mode={pfcfColMode} pfcf={r.price_to_fcf} fcf={r.ltm_fcf} /></td>
                 <td>
                   <MetricBadge
                     value={fcfNiRow.value}
@@ -1194,6 +1423,8 @@ const HistTable: React.FC<HistTableProps> = ({ rows, currentRow, crProfile, isPr
                     nullHint={fcfNiRow.nullHint}
                   />
                 </td>
+                <td><HistNetDebtFcfCell ratio={r.net_debt_to_fcf} netDebt={r.net_debt} fcf={r.ltm_fcf} /></td>
+                <td className="col-compact"><HistNetDebtCell netDebtMln={r.net_debt} /></td>
                 <td className={r.ltm_fcf !== null && r.ltm_fcf < 0 ? 'cell-loss' : ''}>{fmtMlnBln(r.ltm_fcf)}</td>
                 <td>{fmtMlnBln(r.ltm_revenue)}</td>
                 <td className={isLoss ? 'cell-loss' : ''}>{fmtMlnBln(r.ltm_net_income)}</td>
@@ -1203,7 +1434,7 @@ const HistTable: React.FC<HistTableProps> = ({ rows, currentRow, crProfile, isPr
 
           {rows.length === 0 && !currentRow && (
             <tr>
-              <td colSpan={14} className="table-empty">
+              <td colSpan={16} className="table-empty">
                 Нет данных. Добавьте годовые отчёты и нажмите «Обновить цену».
               </td>
             </tr>
