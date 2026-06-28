@@ -805,13 +805,87 @@
   border-top: 1px solid var(--color-border-subtle);
 }
 
+.mult-history-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
 .mult-history-label {
   font-size: 0.78rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--color-text-quaternary);
-  margin-bottom: 12px;
+}
+
+.mult-history-mode-hint {
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 500;
+  opacity: 0.85;
+}
+
+.hist-pct-toggle {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-subtle);
+  color: var(--color-text-tertiary);
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0.75;
+  transition: opacity var(--transition-fast), color var(--transition-fast),
+    border-color var(--transition-fast), background var(--transition-fast);
+}
+
+.hist-pct-toggle:hover,
+.hist-pct-toggle:focus-visible {
+  opacity: 1;
+  color: var(--color-text-secondary);
+  border-color: var(--color-border-strong);
+  outline: none;
+}
+
+.hist-pct-toggle--active {
+  opacity: 1;
+  color: var(--color-text-primary);
+  background: rgba(52, 152, 219, 0.12);
+  border-color: rgba(52, 152, 219, 0.35);
+}
+
+.hist-change {
+  display: inline-block;
+  font-weight: 600;
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
+.hist-change-tip {
+  cursor: help;
+}
+
+.hist-change-good {
+  color: var(--color-success-text);
+}
+
+.hist-change-bad {
+  color: var(--color-error-text);
+}
+
+.hist-change-neutral {
+  color: var(--color-text-quaternary);
+  font-weight: 500;
 }
 
 /* ── Адаптивность ────────────────────────────────────────────────────────── */
