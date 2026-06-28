@@ -112,11 +112,11 @@ class FinancialReportCreate(BaseModel):
 
     ⚠️ ЕДИНИЦЫ ВВОДА:
       - price_per_share, price_at_filing, dividends_per_share — в полных ₽ или $ (за акцию)
-      - shares_* — количество акций в штуках:
-          shares_issued — размещённое (общее), обязательно
-          shares_outstanding — в обращении (опционально; иначе issued − treasury)
-          shares_weighted_avg — средневзвешенное (опционально)
-          treasury_shares — казначейские (опционально)
+      - shares_* — количество акций в штуках (все опциональны при создании черновика):
+          shares_issued — размещённое (общее)
+          shares_outstanding — в обращении (иначе issued − treasury)
+          shares_weighted_avg — средневзвешенное
+          treasury_shares — казначейские
       - revenue, net_income, net_income_reported, total_assets, current_assets,
         total_liabilities, current_liabilities, equity — в МИЛЛИОНАХ валюты (млн ₽ или млн $)
 
@@ -214,12 +214,6 @@ class FinancialReportCreate(BaseModel):
         # Для годовых отчётов квартал должен быть None
         if self.period_type == PeriodType.ANNUAL and self.fiscal_quarter is not None:
             raise ValueError("Для годовых отчётов fiscal_quarter должен быть None")
-
-        if self.shares_issued is None and self.shares_outstanding is None and self.shares_weighted_avg is None:
-            raise ValueError(
-                "Укажите размещённое (общее) количество акций (shares_issued). "
-                "Остальные поля акций — опциональны."
-            )
 
         if (
             self.shares_issued is not None
@@ -568,6 +562,8 @@ class MultiplierResponse(BaseModel):
     # Мультипликаторы FCF (NULL для банков)
     price_to_fcf: Optional[float] = None
     fcf_to_net_income: Optional[float] = None  # %, детектор качества прибыли
+    net_debt: Optional[float] = None  # млн ₽
+    net_debt_to_fcf: Optional[float] = None  # Net Debt / LTM FCF
 
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
@@ -618,6 +614,8 @@ class CurrentMultipliersResponse(BaseModel):
     # Мультипликаторы FCF (NULL для банков)
     price_to_fcf: Optional[float] = None
     fcf_to_net_income: Optional[float] = None  # %, детектор качества прибыли
+    net_debt: Optional[float] = None  # млн ₽
+    net_debt_to_fcf: Optional[float] = None  # Net Debt / LTM FCF
 
 
 class PriceUpdateResponse(BaseModel):

@@ -337,6 +337,8 @@ def save_current_multiplier(
     existing.ltm_operating_cash_flow = mults.get("ltm_operating_cash_flow")  # type: ignore
     existing.price_to_fcf = mults.get("price_to_fcf")  # type: ignore
     existing.fcf_to_net_income = mults.get("fcf_to_net_income")  # type: ignore
+    existing.net_debt = mults.get("net_debt")  # type: ignore
+    existing.net_debt_to_fcf = mults.get("net_debt_to_fcf")  # type: ignore
 
     # Балансовые данные из отчёта (в рублях)
     balance_report_id = mults.get("balance_report_id")
@@ -516,6 +518,8 @@ def save_report_based_multiplier(
     existing.ltm_operating_cash_flow = mults.get("ltm_operating_cash_flow")  # type: ignore
     existing.price_to_fcf = mults.get("price_to_fcf")  # type: ignore
     existing.fcf_to_net_income = mults.get("fcf_to_net_income")  # type: ignore
+    existing.net_debt = mults.get("net_debt")  # type: ignore
+    existing.net_debt_to_fcf = mults.get("net_debt_to_fcf")  # type: ignore
 
     rate = _to_float(report.exchange_rate)
 
