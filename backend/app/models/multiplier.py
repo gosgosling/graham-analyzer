@@ -74,6 +74,7 @@ class Multiplier(Base):
     # ─── Денежные потоки LTM (NULL для банков) ────────────────────────────────
     ltm_fcf: Mapped[Optional[float]] = mapped_column(Numeric(20, 2), nullable=True)
     ltm_operating_cash_flow: Mapped[Optional[float]] = mapped_column(Numeric(20, 2), nullable=True)
+    ltm_capex: Mapped[Optional[float]] = mapped_column(Numeric(20, 2), nullable=True)
 
     # P/FCF = Market Cap / LTM FCF  (только для non-bank и FCF > 0)
     price_to_fcf: Mapped[Optional[float]] = mapped_column(Numeric(12, 4), nullable=True)

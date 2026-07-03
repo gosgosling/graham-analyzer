@@ -94,6 +94,7 @@ const AiParsePdfModal: React.FC<AiParsePdfModalProps> = ({
       queryClient.invalidateQueries({ queryKey: ['reports', String(companyId)] });
       queryClient.invalidateQueries({ queryKey: ['reports-counts-by-company'] });
       queryClient.invalidateQueries({ queryKey: ['reports-unverified-counts'] });
+      queryClient.invalidateQueries({ queryKey: ['company', String(companyId)] });
       await refreshCompanyMultipliers(companyId, true).catch(() => {});
       queryClient.invalidateQueries({ queryKey: ['multipliers', String(companyId)] });
       onSuccess?.(response);
@@ -898,6 +899,7 @@ const BatchParsePanel: React.FC<BatchParsePanelProps> = ({
       queryClient.invalidateQueries({ queryKey: ['reports', String(companyId)] });
       queryClient.invalidateQueries({ queryKey: ['reports-counts-by-company'] });
       queryClient.invalidateQueries({ queryKey: ['reports-unverified-counts'] });
+      queryClient.invalidateQueries({ queryKey: ['company', String(companyId)] });
       await refreshCompanyMultipliers(companyId, true).catch(() => {});
       queryClient.invalidateQueries({ queryKey: ['multipliers', String(companyId)] });
     }

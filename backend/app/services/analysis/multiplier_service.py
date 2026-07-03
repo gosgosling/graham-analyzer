@@ -335,6 +335,7 @@ def save_current_multiplier(
     existing.cost_to_income = mults.get("cost_to_income")  # type: ignore
     existing.ltm_fcf = mults.get("ltm_fcf")  # type: ignore
     existing.ltm_operating_cash_flow = mults.get("ltm_operating_cash_flow")  # type: ignore
+    existing.ltm_capex = mults.get("ltm_capex")  # type: ignore
     existing.price_to_fcf = mults.get("price_to_fcf")  # type: ignore
     existing.fcf_to_net_income = mults.get("fcf_to_net_income")  # type: ignore
     existing.net_debt = mults.get("net_debt")  # type: ignore
@@ -516,6 +517,7 @@ def save_report_based_multiplier(
     existing.cost_to_income = mults.get("cost_to_income")  # type: ignore
     existing.ltm_fcf = mults.get("ltm_fcf")  # type: ignore
     existing.ltm_operating_cash_flow = mults.get("ltm_operating_cash_flow")  # type: ignore
+    existing.ltm_capex = mults.get("ltm_capex")  # type: ignore
     existing.price_to_fcf = mults.get("price_to_fcf")  # type: ignore
     existing.fcf_to_net_income = mults.get("fcf_to_net_income")  # type: ignore
     existing.net_debt = mults.get("net_debt")  # type: ignore
@@ -531,6 +533,7 @@ def save_report_based_multiplier(
     existing.ltm_dividends_per_share = crub(report.dividends_per_share)  # type: ignore
 
     existing.ltm_operating_cash_flow = crub(getattr(report, 'operating_cash_flow', None))  # type: ignore
+    existing.ltm_capex = mults.get("ltm_capex") if mults.get("ltm_capex") is not None else crub(getattr(report, 'capex', None))  # type: ignore
     ocf_rub = crub(getattr(report, 'operating_cash_flow', None))
     cap_rub = crub(getattr(report, 'capex', None))
     existing.ltm_fcf = compute_fcf(

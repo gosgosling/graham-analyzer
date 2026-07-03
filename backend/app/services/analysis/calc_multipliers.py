@@ -127,6 +127,7 @@ def calculate_multipliers(
     cost_to_income: Optional[float] = None
     ltm_fcf_mln: Optional[float] = None
     ltm_ocf_mln: Optional[float] = None
+    ltm_capex_mln: Optional[float] = None
     price_to_fcf: Optional[float] = None
     fcf_to_net_income: Optional[float] = None
     net_debt_mln: Optional[float] = None
@@ -178,6 +179,7 @@ def calculate_multipliers(
 
         ltm_ocf_mln = to_rub_mln(ocf_raw)
         cap_mln = to_rub_mln(cap_raw)
+        ltm_capex_mln = cap_mln
         lease_p_mln = to_rub_mln(lease_p_raw) if lease_p_raw is not None else None
         lease_i_mln = to_rub_mln(lease_i_raw) if lease_i_raw is not None else None
         debt_p_mln = to_rub_mln(debt_p_raw) if debt_p_raw is not None else None
@@ -191,10 +193,10 @@ def calculate_multipliers(
         if market_cap_full and ltm_fcf_mln is not None and ltm_fcf_mln > 0:
             price_to_fcf = round(market_cap_full / (ltm_fcf_mln * MILLION), 2)
 
-        # FCF / Net Income × 100% — детектор качества прибыли (только при NI > 0).
-        # При NI ≤ 0 отношение не считаем: два отрицательных числа дали бы положительный % — вводит в заблуждение.
+        # FCF / Net Income — детектор качества прибыли (только при NI > 0).
+        # Безразмерное соотношение: 1.0 = FCF равен прибыли, 1.25 = FCF на 25% выше NI.
         if ltm_fcf_mln is not None and net_income_mln is not None and net_income_mln > 0:
-            fcf_to_net_income = round(ltm_fcf_mln / net_income_mln * 100, 2)
+            fcf_to_net_income = round(ltm_fcf_mln / net_income_mln, 4)
 
         if (
             net_debt_mln is not None
@@ -217,6 +219,7 @@ def calculate_multipliers(
         # FCF (None для банков)
         "ltm_fcf": ltm_fcf_mln,
         "ltm_operating_cash_flow": ltm_ocf_mln,
+        "ltm_capex": ltm_capex_mln,
         "price_to_fcf": price_to_fcf,
         "fcf_to_net_income": fcf_to_net_income,
         "net_debt": net_debt_mln,

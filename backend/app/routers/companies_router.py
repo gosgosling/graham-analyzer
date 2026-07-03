@@ -3,12 +3,13 @@ import os
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from app.schemas import Company
+from app.schemas import Company, CompanyDescriptionUpdate
 from typing import List
 from app.database import get_db
 from app.services.companies.company_service import (
     get_all_companies,
     get_company_by_id,
+    set_business_description_manual,
     set_preferred_share_flag,
 )
 from app.services.companies.sync_service import sync_companies_from_tinkoff
@@ -135,6 +136,24 @@ def update_preferred_share_flag(
     на следующей синхронизации с T-Invest.
     """
     company = set_preferred_share_flag(db, company_id, payload.is_preferred_share)
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+    return company
+
+
+@router.patch("/{company_id}/description", response_model=Company)
+def update_company_description(
+    company_id: int,
+    payload: CompanyDescriptionUpdate,
+    db: Session = Depends(get_db),
+):
+    """
+    Ручное описание деятельности компании аналитиком.
+    Имеет приоритет над автоматическим извлечением из отчётов (LLM).
+    """
+    company = set_business_description_manual(
+        db, company_id, payload.business_description
+    )
     if not company:
         raise HTTPException(status_code=404, detail="Company not found")
     return company
