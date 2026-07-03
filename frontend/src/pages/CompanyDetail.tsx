@@ -10,6 +10,7 @@ import {
   refreshCompanyMultipliers,
   verifyReport,
   updateCompanyPreferredShare,
+  updateCompanyDescription,
 } from '../services';
 import { FinancialReport, FinancialReportCreate } from '../types';
 import MultipliersPanel from '../components/MultipliersPanel';
@@ -39,6 +40,8 @@ const CompanyDetail: React.FC = () => {
   const [reportPeriodFilter, setReportPeriodFilter] = useState<ReportPeriodFilter>('annual');
   const [reportStandardFilter, setReportStandardFilter] = useState<string>('all');
   const [showAllReports, setShowAllReports] = useState(false);
+  const [editingDescription, setEditingDescription] = useState(false);
+  const [descriptionDraft, setDescriptionDraft] = useState('');
 
   const createReportMutation = useMutation({
     mutationFn: createFinancialReport,
@@ -113,6 +116,19 @@ const CompanyDetail: React.FC = () => {
     onError: (err: any) => {
       const d = err?.response?.data?.detail;
       alert(typeof d === 'string' ? d : 'Не удалось обновить тип акций');
+    },
+  });
+
+  const descriptionMutation = useMutation({
+    mutationFn: ({ id, text }: { id: number; text: string | null }) =>
+      updateCompanyDescription(id, text),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['company', companyId] });
+      setEditingDescription(false);
+    },
+    onError: (err: any) => {
+      const d = err?.response?.data?.detail;
+      alert(typeof d === 'string' ? d : 'Не удалось сохранить описание');
     },
   });
 
@@ -420,16 +436,84 @@ const CompanyDetail: React.FC = () => {
             </div>
           </section>
 
-          {/* Описание бизнеса - заглушка */}
-          <section className="info-card">
-            <h2 className="card-title">🏢 О компании</h2>
-            <div className="placeholder-content">
-              <p>Подробное описание бизнеса компании будет добавлено позже.</p>
-              <p className="placeholder-hint">
-                Здесь будет информация о деятельности компании, основных направлениях бизнеса, 
-                истории развития и ключевых достижениях.
-              </p>
+          {/* Описание бизнеса */}
+          <section className="info-card company-description-card">
+            <div className="company-description-header">
+              <h2 className="card-title" style={{ margin: 0, paddingBottom: 0, borderBottom: 'none' }}>
+                🏢 О компании
+              </h2>
+              <div className="company-description-actions">
+                {company.business_description_source && !editingDescription && (
+                  <span
+                    className={`company-description-source company-description-source--${company.business_description_source}`}
+                    title={
+                      company.business_description_updated_at
+                        ? `Обновлено: ${new Date(company.business_description_updated_at).toLocaleString('ru-RU')}`
+                        : undefined
+                    }
+                  >
+                    {company.business_description_source === 'manual' ? '✏️ Вручную' : '🤖 Из отчёта'}
+                  </span>
+                )}
+                {!editingDescription ? (
+                  <button
+                    type="button"
+                    className="company-description-btn company-description-btn--secondary"
+                    onClick={() => {
+                      setDescriptionDraft(company.business_description || '');
+                      setEditingDescription(true);
+                    }}
+                  >
+                    {company.business_description ? 'Редактировать' : 'Добавить'}
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      className="company-description-btn company-description-btn--secondary"
+                      onClick={() => setEditingDescription(false)}
+                      disabled={descriptionMutation.isPending}
+                    >
+                      Отмена
+                    </button>
+                    <button
+                      type="button"
+                      className="company-description-btn company-description-btn--primary"
+                      disabled={descriptionMutation.isPending}
+                      onClick={() => {
+                        if (!company.id) return;
+                        const trimmed = descriptionDraft.trim();
+                        descriptionMutation.mutate({
+                          id: company.id,
+                          text: trimmed || null,
+                        });
+                      }}
+                    >
+                      {descriptionMutation.isPending ? 'Сохранение…' : 'Сохранить'}
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
+            {editingDescription ? (
+              <textarea
+                className="company-description-editor"
+                value={descriptionDraft}
+                onChange={(e) => setDescriptionDraft(e.target.value)}
+                placeholder="Опишите деятельность компании: основные направления бизнеса, география, ключевые продукты…"
+                rows={8}
+              />
+            ) : company.business_description ? (
+              <div className="company-description-text">{company.business_description}</div>
+            ) : (
+              <div className="placeholder-content company-description-empty">
+                <p>Описание пока не заполнено.</p>
+                <p className="placeholder-hint">
+                  Добавьте вручную или загрузите отчёт через AI-парсер — описание подтянется
+                  из раздела примечаний «1. Информация о компании».
+                </p>
+              </div>
+            )}
           </section>
 
           {/* График цены - заглушка */}

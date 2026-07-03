@@ -84,9 +84,27 @@ class Company(BaseModel):
     brand_color: Optional[str] = None  # Основной цвет бренда (#RRGGBB)
     # Тикер представляет привилегированные акции (см. модель Company)
     is_preferred_share: bool = False
+    business_description: Optional[str] = None
+    business_description_source: Optional[str] = None  # manual | llm
+    business_description_updated_at: Optional[Union[datetime, str]] = None
 
     class Config:
         from_attributes = True  # Для SQLAlchemy моделей
+
+    @field_serializer('business_description_updated_at')
+    def serialize_business_description_updated_at(
+        self, v: Optional[Union[datetime, str]]
+    ) -> Optional[str]:
+        if v is None:
+            return None
+        if isinstance(v, datetime):
+            return v.isoformat()
+        return str(v)
+
+
+class CompanyDescriptionUpdate(BaseModel):
+    """Тело PATCH /companies/{id}/description — ручное описание аналитиком."""
+    business_description: Optional[str] = None
 
 
 class CompanyCreate(BaseModel):
@@ -559,9 +577,10 @@ class MultiplierResponse(BaseModel):
     # Денежные потоки LTM (NULL для банков)
     ltm_fcf: Optional[float] = None
     ltm_operating_cash_flow: Optional[float] = None
+    ltm_capex: Optional[float] = None
     # Мультипликаторы FCF (NULL для банков)
     price_to_fcf: Optional[float] = None
-    fcf_to_net_income: Optional[float] = None  # %, детектор качества прибыли
+    fcf_to_net_income: Optional[float] = None  # FCF/NI, безразмерное соотношение
     net_debt: Optional[float] = None  # млн ₽
     net_debt_to_fcf: Optional[float] = None  # Net Debt / LTM FCF
 
@@ -611,9 +630,10 @@ class CurrentMultipliersResponse(BaseModel):
     # Денежные потоки LTM (NULL для банков)
     ltm_fcf: Optional[float] = None
     ltm_operating_cash_flow: Optional[float] = None
+    ltm_capex: Optional[float] = None
     # Мультипликаторы FCF (NULL для банков)
     price_to_fcf: Optional[float] = None
-    fcf_to_net_income: Optional[float] = None  # %, детектор качества прибыли
+    fcf_to_net_income: Optional[float] = None  # FCF/NI, безразмерное соотношение
     net_debt: Optional[float] = None  # млн ₽
     net_debt_to_fcf: Optional[float] = None  # Net Debt / LTM FCF
 

@@ -1,6 +1,7 @@
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from typing import List, Optional
+from datetime import datetime, timezone
 from app.models.company import Company
 from app.schemas import CompanyCreate
 from app.services.companies.share_class import (
@@ -142,6 +143,48 @@ def set_preferred_share_flag(
     db.commit()
     db.refresh(db_company)
     return db_company
+
+
+def set_business_description_manual(
+    db: Session, company_id: int, description: Optional[str]
+) -> Optional[Company]:
+    """Ручное описание компании аналитиком (источник manual)."""
+    db_company = get_company_by_id(db, company_id)
+    if not db_company:
+        return None
+    cleaned = (description or "").strip()
+    if cleaned:
+        db_company.business_description = cleaned  # type: ignore[assignment]
+        db_company.business_description_source = "manual"  # type: ignore[assignment]
+    else:
+        db_company.business_description = None  # type: ignore[assignment]
+        db_company.business_description_source = None  # type: ignore[assignment]
+    db_company.business_description_updated_at = datetime.now(timezone.utc)  # type: ignore[assignment]
+    db.commit()
+    db.refresh(db_company)
+    return db_company
+
+
+def apply_business_description_from_llm(
+    db: Session, company_id: int, description: str
+) -> bool:
+    """Обновить описание из LLM при парсинге отчёта.
+
+    Не перезаписывает описание, если аналитик уже сохранил его вручную.
+    """
+    db_company = get_company_by_id(db, company_id)
+    if not db_company:
+        return False
+    if db_company.business_description_source == "manual":
+        return False
+    cleaned = description.strip()
+    if not cleaned:
+        return False
+    db_company.business_description = cleaned  # type: ignore[assignment]
+    db_company.business_description_source = "llm"  # type: ignore[assignment]
+    db_company.business_description_updated_at = datetime.now(timezone.utc)  # type: ignore[assignment]
+    db.commit()
+    return True
 
 
 def get_all_companies(db: Session, skip: int = 0, limit: int = 200) -> List[Company]:

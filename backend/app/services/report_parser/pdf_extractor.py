@@ -13,7 +13,7 @@ import logging
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, Union
+from typing import Iterable, Optional, Union
 
 import pymupdf  # type: ignore[import-not-found]
 
@@ -335,6 +335,124 @@ def extract_financial_pages(
         raise RuntimeError(
             f"В PDF {label} не найдено страниц с финансовыми таблицами "
             f"(по ключевым фразам). Проверь отчёт вручную."
+        )
+    finally:
+        doc.close()
+
+
+# ─── Раздел примечаний «1. Информация о компании» ───────────────────────────
+
+COMPANY_INFO_START_PHRASES: tuple[str, ...] = (
+    "информация о компании",
+    "информация о группе",
+    "information about the company",
+    "information about the group",
+    "information about the issuer",
+    "company information",
+    "group information",
+)
+
+# Следующий нумерованный раздел примечаний (2. …) — граница секции.
+_NEXT_NOTES_SECTION_RE = re.compile(
+    r"(?:^|\n)\s*2\.\s+[A-Za-zА-Яа-яЁё]",
+    re.MULTILINE,
+)
+
+_MAX_COMPANY_INFO_PAGES = 8
+
+
+@dataclass
+class CompanyInfoExtractionResult:
+    """Фрагмент PDF с описанием компании из примечаний."""
+    selected_pages: list[int]
+    text: str
+    is_scanned: bool = False
+    page_images: list[bytes] = None  # type: ignore[assignment]
+
+    def __post_init__(self) -> None:
+        if self.page_images is None:
+            self.page_images = []
+
+
+def _page_has_company_info_start(page_text_norm: str) -> bool:
+    return any(phrase in page_text_norm for phrase in COMPANY_INFO_START_PHRASES)
+
+
+def _truncate_at_next_notes_section(text: str) -> str:
+    m = _NEXT_NOTES_SECTION_RE.search(text)
+    if m:
+        return text[: m.start()].strip()
+    return text.strip()
+
+
+def extract_company_info_pages(
+    pdf_source: Union[Path, bytes],
+    *,
+    pdf_label: str = "in-memory PDF",
+    max_pages: int = _MAX_COMPANY_INFO_PAGES,
+) -> Optional[CompanyInfoExtractionResult]:
+    """Выбрать страницы с разделом «1. Информация о компании» из примечаний.
+
+    Returns:
+        CompanyInfoExtractionResult или None, если раздел не найден.
+    """
+    if isinstance(pdf_source, Path):
+        if not pdf_source.exists():
+            raise FileNotFoundError(f"PDF не найден: {pdf_source}")
+        doc = pymupdf.open(str(pdf_source))
+        label = pdf_source.name
+    else:
+        doc = pymupdf.open(stream=pdf_source, filetype="pdf")
+        label = pdf_label
+
+    try:
+        total_pages = doc.page_count
+        page_texts: list[str] = []
+        for page in doc:
+            page_texts.append(page.get_text("text") or "")
+
+        start_idx: Optional[int] = None
+        for idx, raw in enumerate(page_texts):
+            if _page_has_company_info_start(_normalize(raw)):
+                start_idx = idx
+                break
+
+        if start_idx is None:
+            logger.info("PDF=%s: раздел «Информация о компании» не найден.", label)
+            return None
+
+        selected: list[int] = [start_idx]
+        combined = page_texts[start_idx]
+
+        for idx in range(start_idx + 1, min(total_pages, start_idx + max_pages)):
+            chunk = page_texts[idx]
+            if _NEXT_NOTES_SECTION_RE.search(_normalize(chunk)):
+                break
+            selected.append(idx)
+            combined += "\n\n" + chunk
+
+        text = _truncate_at_next_notes_section(combined.strip())
+        if not text:
+            return None
+
+        is_scan = len(text.strip()) < _SCAN_PAGE_TEXT_THRESHOLD
+        page_images: list[bytes] = []
+        if is_scan:
+            for idx in selected:
+                page_images.append(_render_page_png(doc[idx]))
+
+        logger.info(
+            "PDF=%s: раздел «Информация о компании» — страницы %s (скан=%s).",
+            label,
+            [p + 1 for p in selected],
+            is_scan,
+        )
+
+        return CompanyInfoExtractionResult(
+            selected_pages=selected,
+            text=text,
+            is_scanned=is_scan and bool(page_images),
+            page_images=page_images,
         )
     finally:
         doc.close()

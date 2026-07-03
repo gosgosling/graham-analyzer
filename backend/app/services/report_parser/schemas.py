@@ -411,3 +411,15 @@ def rescale_to_millions(report: ExtractedReport) -> ExtractedReport:
         data["shares_units_scale"] = "units"
 
     return ExtractedReport.model_validate(data)
+
+
+class ExtractedCompanyDescription(BaseModel):
+    """Результат LLM-извлечения описания компании из примечаний отчёта."""
+
+    description: Optional[str] = Field(
+        None,
+        description=(
+            "Сжатое описание деятельности компании из раздела "
+            "«1. Информация о компании». null, если раздел пуст или не найден."
+        ),
+    )

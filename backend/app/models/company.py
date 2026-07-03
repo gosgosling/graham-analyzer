@@ -1,4 +1,4 @@
-from sqlalchemy import Integer, String, Boolean, DateTime, Numeric
+from sqlalchemy import Integer, String, Boolean, DateTime, Numeric, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship 
 from sqlalchemy.sql import func
 from typing import Optional, List, TYPE_CHECKING
@@ -35,6 +35,14 @@ class Company(Base):
     # скрытие чекбокса «Есть привилегированные акции» в форме отчёта
     # и расчёт скорректированной прибыли/FCF.
     is_preferred_share: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
+    # Описание деятельности: ввод аналитиком или извлечение LLM из раздела
+    # примечаний «1. Информация о компании» при парсинге отчёта.
+    business_description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    business_description_source: Mapped[Optional[str]] = mapped_column(String(16), nullable=True)
+    business_description_updated_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     # Текущая цена акции (обновляется из T-Invest API раз в день)
     current_price: Mapped[Optional[float]] = mapped_column(Numeric(15, 4), nullable=True)

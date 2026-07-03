@@ -20,7 +20,7 @@ from tenacity import (
 )
 
 from app.config import settings
-from app.services.report_parser.schemas import ExtractedReport
+from app.services.report_parser.schemas import ExtractedReport, ExtractedCompanyDescription
 
 logger = logging.getLogger(__name__)
 
@@ -345,4 +345,102 @@ def extract_report_via_llm(
     return _call_with_json_object(
         client, system_prompt=system_prompt, user_prompt=user_prompt,
         images=images,
+    )
+
+
+def _call_company_description_structured(
+    client: OpenAI,
+    *,
+    system_prompt: str,
+    user_prompt: str,
+    images: Optional[list[bytes]] = None,
+) -> ExtractedCompanyDescription:
+    try:
+        completion = client.beta.chat.completions.parse(
+            model=settings.LLM_MODEL,
+            temperature=settings.LLM_TEMPERATURE,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": _build_user_content(user_prompt, images)},
+            ],
+            response_format=ExtractedCompanyDescription,
+        )
+    except Exception as exc:
+        _raise_as_transient(exc, context="company_description_structured")
+
+    if not completion.choices:
+        raise LLMTransientError("LLM вернул пустой список choices")
+    parsed = completion.choices[0].message.parsed
+    if parsed is None:
+        refusal = completion.choices[0].message.refusal
+        raise LLMParseError(
+            f"LLM не вернул parsed-ответ. Refusal: {refusal or 'нет'}"
+        )
+    return parsed
+
+
+def _call_company_description_json(
+    client: OpenAI,
+    *,
+    system_prompt: str,
+    user_prompt: str,
+    images: Optional[list[bytes]] = None,
+) -> ExtractedCompanyDescription:
+    extra_body = _provider_extra_body()
+    try:
+        completion: ChatCompletion = client.chat.completions.create(
+            model=settings.LLM_MODEL,
+            temperature=settings.LLM_TEMPERATURE,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": _build_user_content(user_prompt, images)},
+            ],
+            response_format={"type": "json_object"},
+            extra_body=extra_body or None,
+        )
+    except Exception as exc:
+        _raise_as_transient(exc, context="company_description_json")
+
+    if not completion.choices:
+        raise LLMTransientError("LLM вернул пустой список choices")
+
+    content = (completion.choices[0].message.content or "").strip()
+    if not content:
+        raise LLMTransientError("LLM вернул пустое сообщение")
+
+    json_str = _extract_json_string(content)
+    try:
+        payload: dict[str, Any] = json.loads(json_str)
+    except json.JSONDecodeError as exc:
+        logger.error("LLM вернул невалидный JSON (описание). Сырой ответ:\n%s", content)
+        raise LLMParseError(f"Невалидный JSON: {exc}") from exc
+
+    try:
+        return ExtractedCompanyDescription.model_validate(payload)
+    except ValidationError as exc:
+        raise LLMParseError(
+            f"Ошибка валидации ExtractedCompanyDescription: {exc}"
+        ) from exc
+
+
+@retry(
+    retry=retry_if_exception_type(LLMTransientError),
+    stop=stop_after_attempt(5),
+    wait=_wait_strategy,
+    reraise=True,
+)
+def extract_company_description_via_llm(
+    *,
+    system_prompt: str,
+    user_prompt: str,
+    images: Optional[list[bytes]] = None,
+) -> ExtractedCompanyDescription:
+    """Извлечь описание компании из раздела примечаний отчёта."""
+    client = _build_client()
+    if _provider_supports_structured_outputs():
+        return _call_company_description_structured(
+            client, system_prompt=system_prompt, user_prompt=user_prompt, images=images,
+        )
+    return _call_company_description_json(
+        client, system_prompt=system_prompt, user_prompt=user_prompt, images=images,
     )

@@ -62,3 +62,15 @@ export const updateCompanyPreferredShare = async (
     );
     return response.data;
 };
+
+/** Ручное описание деятельности компании (имеет приоритет над LLM). */
+export const updateCompanyDescription = async (
+    companyId: number,
+    businessDescription: string | null,
+): Promise<Company> => {
+    const response = await api.patch<Company>(
+        `/companies/${companyId}/description`,
+        { business_description: businessDescription },
+    );
+    return response.data;
+};
