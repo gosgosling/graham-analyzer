@@ -201,15 +201,15 @@ type PfcfColMode = 'pfcf' | 'yield';
 /**
  * FCF/Net Income (конверсия) — детектор качества прибыли при положительном NI.
  * Использовать только когда LTM net income > 0 (см. `fcfNiBadge`).
- *  ≥ 100%: FCF превышает прибыль → high-quality earnings ('good')
- *  70–99%: норма ('warn')
- *  0–69%: сомнительное качество ('bad')
+ *  ≥ 1.0: FCF превышает или равен прибыли → high-quality earnings ('good')
+ *  0.7–0.99: норма ('warn')
+ *  0–0.69: сомнительное качество ('bad')
  *  < 0:    отрицательный FCF при положительной прибыли → красный флаг ('loss')
  */
 function fcfNiLevel(v: number | null): Level {
   if (v === null) return 'neutral';
-  if (v >= 100) return 'good';
-  if (v >= 70) return 'warn';
+  if (v >= 1) return 'good';
+  if (v >= 0.7) return 'warn';
   if (v >= 0) return 'bad';
   return 'loss';  // FCF отрицательный — красный флаг
 }
@@ -897,12 +897,11 @@ const CurrentCards: React.FC<CurrentCardsProps> = ({ data, crProfile, isPreferre
             ? 'Недостаточно данных'
             : fcfNiUi.value < 0
               ? '⚠ Красный флаг: FCF < 0'
-              : fcfNiUi.value >= 100
-                ? 'FCF > прибыли — отлично'
-                : fcfNiUi.value >= 70
-                  ? '70–100% — норма'
-                  : '< 70% — сомнительно',
-      suffix: '%',
+              : fcfNiUi.value >= 1
+                ? 'FCF ≥ прибыли — отлично'
+                : fcfNiUi.value >= 0.7
+                  ? '0.7–1.0 — норма'
+                  : '< 0.7 — сомнительно',
       nullHint: fcfNiUi.nullHint,
     },
   ] : [];
@@ -1380,7 +1379,6 @@ const HistTableRow: React.FC<HistTableRowProps> = ({
         <MetricBadge
           value={fcfNiRow.value}
           level={fcfNiRow.level}
-          suffix="%"
           nullHint={fcfNiRow.nullHint}
         />,
       )}
@@ -1404,6 +1402,12 @@ const HistTableRow: React.FC<HistTableRowProps> = ({
         yoy?.fcf,
         fmtMlnBln(snapshot.ltm_fcf),
         snapshot.ltm_fcf !== null && snapshot.ltm_fcf < 0 ? 'cell-loss' : undefined,
+      )}
+      {histYoYCell(
+        pctMode,
+        yoy?.capex,
+        fmtMlnBln(snapshot.ltm_capex),
+        'col-compact',
       )}
       {histYoYCell(pctMode, yoy?.revenue, fmtMlnBln(snapshot.ltm_revenue))}
       {histYoYCell(
@@ -1463,13 +1467,16 @@ const HistTable: React.FC<HistTableProps & { pctMode: boolean }> = ({
               mode={pfcfColMode}
               onToggle={() => setPfcfColMode((m) => (m === 'pfcf' ? 'yield' : 'pfcf'))}
             />
-            <th className="col-mult col-compact" title="FCF / Net Income × 100% — качество прибыли">FCF/NI, %</th>
+            <th className="col-mult col-compact" title="FCF / Net Income — качество прибыли (безразмерное соотношение)">FCF/NI</th>
             <th className="col-mult col-compact" title="Net Debt / LTM FCF — лет погашения">ND/FCF</th>
             <th className="col-rev col-compact col-net-debt-header col-header-unit-col" title="Чистый долг = Долг − Наличность">
               <ColHeaderWithUnit title="Net Debt" uppercase={false} align="right" />
             </th>
             <th className="col-rev col-header-unit-col" title="FCF = Операционный поток − CAPEX">
               <ColHeaderWithUnit title="FCF" />
+            </th>
+            <th className="col-rev col-compact col-header-unit-col" title="Капитальные затраты (положительное число)">
+              <ColHeaderWithUnit title="CAPEX" />
             </th>
             <th className="col-rev col-header-unit-col">
               <ColHeaderWithUnit title="Выручка" />
@@ -1527,7 +1534,7 @@ const HistTable: React.FC<HistTableProps & { pctMode: boolean }> = ({
 
           {rows.length === 0 && !currentRow && (
             <tr>
-              <td colSpan={16} className="table-empty">
+              <td colSpan={17} className="table-empty">
                 Нет данных. Добавьте годовые отчёты и нажмите «Обновить цену».
               </td>
             </tr>

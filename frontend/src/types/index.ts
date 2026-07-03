@@ -97,9 +97,11 @@ export interface MultiplierRecord {
     // Денежные потоки LTM (NULL для банков)
     ltm_fcf: number | null;
     ltm_operating_cash_flow: number | null;
+    /** LTM CAPEX, млн ₽ (положительное число) */
+    ltm_capex: number | null;
     /** P/FCF = Market Cap / LTM FCF, NULL для банков и FCF ≤ 0 */
     price_to_fcf: number | null;
-    /** FCF/NI = LTM FCF / LTM Net Income × 100%, детектор качества прибыли */
+    /** FCF/NI = LTM FCF / LTM Net Income (безразмерное соотношение, напр. 0.85 или 1.25) */
     fcf_to_net_income: number | null;
     /** Чистый долг, млн ₽ */
     net_debt: number | null;
@@ -150,6 +152,8 @@ export interface CurrentMultipliers {
     // Денежные потоки LTM (NULL для банков)
     ltm_fcf: number | null;
     ltm_operating_cash_flow: number | null;
+    /** LTM CAPEX, млн ₽ (положительное число) */
+    ltm_capex: number | null;
     price_to_fcf: number | null;
     fcf_to_net_income: number | null;
     net_debt: number | null;
@@ -200,6 +204,11 @@ export interface Company {
      * и на отображение/расчёт скорректированных метрик.
      */
     is_preferred_share?: boolean;
+    /** Описание деятельности компании */
+    business_description?: string | null;
+    /** Источник описания: manual — аналитик, llm — из отчёта */
+    business_description_source?: 'manual' | 'llm' | null;
+    business_description_updated_at?: string | null;
 }
 
 export interface FinancialReportCreate {

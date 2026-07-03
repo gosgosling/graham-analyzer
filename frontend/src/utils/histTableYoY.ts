@@ -21,6 +21,7 @@ export interface HistRowSnapshot {
   ltm_dividends_per_share: number | null;
   price_to_fcf: number | null;
   ltm_fcf: number | null;
+  ltm_capex: number | null;
   fcf_to_net_income: number | null;
   net_debt_to_fcf: number | null;
   net_debt: number | null;
@@ -43,6 +44,7 @@ export interface HistRowYoY {
   ndFcf: YoYDisplay;
   netDebt: YoYDisplay;
   fcf: YoYDisplay;
+  capex: YoYDisplay;
   revenue: YoYDisplay;
   profit: YoYDisplay;
 }
@@ -198,10 +200,11 @@ export function computeHistRowYoY(
     cr: metricPp(current.current_ratio, previous.current_ratio, 'higher_better', 'Current Ratio'),
     div: divDpsChange(current.ltm_dividends_per_share, previous.ltm_dividends_per_share),
     pfcf: pfcfColumnChange(current, previous, pfcfMode),
-    fcfNi: metricPp(current.fcf_to_net_income, previous.fcf_to_net_income, 'higher_better', 'FCF/NI'),
+    fcfNi: metricPct(current.fcf_to_net_income, previous.fcf_to_net_income, 'higher_better', 'FCF/NI'),
     ndFcf: metricPct(curNdFcf, prevNdFcf, 'lower_better', 'Net Debt/FCF'),
     netDebt: metricPct(current.net_debt, previous.net_debt, 'lower_better', 'Net Debt'),
     fcf: metricPct(current.ltm_fcf, previous.ltm_fcf, 'higher_better', 'FCF'),
+    capex: metricPct(current.ltm_capex, previous.ltm_capex, 'lower_better', 'CAPEX'),
     revenue: metricPct(current.ltm_revenue, previous.ltm_revenue, 'higher_better', 'Выручка'),
     profit: profitChange(current.ltm_net_income, previous.ltm_net_income),
   };
@@ -219,6 +222,7 @@ export function snapshotFromRecord(r: MultiplierRecord): HistRowSnapshot {
     ltm_dividends_per_share: r.ltm_dividends_per_share,
     price_to_fcf: r.price_to_fcf,
     ltm_fcf: r.ltm_fcf,
+    ltm_capex: r.ltm_capex,
     fcf_to_net_income: r.fcf_to_net_income,
     net_debt_to_fcf: r.net_debt_to_fcf,
     net_debt: r.net_debt,
@@ -240,6 +244,7 @@ export function snapshotFromCurrent(r: CurrentMultipliers): HistRowSnapshot {
     ltm_dividends_per_share: r.ltm_dividends_per_share,
     price_to_fcf: r.price_to_fcf,
     ltm_fcf: r.ltm_fcf,
+    ltm_capex: r.ltm_capex,
     fcf_to_net_income: r.fcf_to_net_income,
     net_debt_to_fcf: r.net_debt_to_fcf,
     net_debt: r.net_debt,

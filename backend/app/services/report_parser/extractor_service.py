@@ -26,14 +26,22 @@ from app.services.report_parser.llm_client import (
     LLMNotConfiguredError,
     LLMParseError,
     LLMTransientError,
+    extract_company_description_via_llm,
     extract_report_via_llm,
 )
 from app.services.report_parser.pdf_extractor import (
     PdfExtractionResult,
+    extract_company_info_pages,
     extract_financial_pages,
 )
-from app.services.report_parser.prompts import build_system_prompt, build_user_prompt
+from app.services.report_parser.prompts import (
+    SYSTEM_PROMPT_COMPANY_DESCRIPTION,
+    build_company_description_user_prompt,
+    build_system_prompt,
+    build_user_prompt,
+)
 from app.services.report_parser.schemas import ExtractedReport, rescale_to_millions
+from app.services.companies.company_service import apply_business_description_from_llm
 from app.utils.moex_client import (
     get_closing_price_on_or_before,
     get_fx_rate_on_or_before,
@@ -662,6 +670,47 @@ def _find_existing_report(
     return q.first()
 
 
+def _try_update_company_description_from_pdf(
+    db: Session,
+    *,
+    pdf_source: Union[Path, bytes],
+    company: Company,
+    pdf_label: str,
+) -> None:
+    """Best-effort: описание компании из раздела «1. Информация о компании»."""
+    if not settings.llm_configured:
+        return
+    try:
+        info = extract_company_info_pages(pdf_source, pdf_label=pdf_label)
+        if info is None:
+            return
+        user_prompt = build_company_description_user_prompt(
+            ticker=company.ticker,  # type: ignore[arg-type]
+            company_name=company.name,  # type: ignore[arg-type]
+            pdf_text=info.text,
+            is_scanned=info.is_scanned,
+        )
+        extracted = extract_company_description_via_llm(
+            system_prompt=SYSTEM_PROMPT_COMPANY_DESCRIPTION,
+            user_prompt=user_prompt,
+            images=info.page_images if info.is_scanned else None,
+        )
+        if extracted.description and apply_business_description_from_llm(
+            db, company.id, extracted.description  # type: ignore[arg-type]
+        ):
+            logger.info(
+                "[%s] Описание компании обновлено из LLM (%d символов).",
+                company.ticker,
+                len(extracted.description),
+            )
+    except Exception as exc:  # noqa: BLE001 — не ломаем сохранение отчёта
+        logger.warning(
+            "[%s] Не удалось извлечь описание компании из PDF: %s",
+            company.ticker,
+            exc,
+        )
+
+
 # ─── Основной пайплайн для одного PDF ────────────────────────────────────────
 
 
@@ -954,6 +1003,12 @@ def parse_pdf_to_report(
         company.ticker, fiscal_year,
         "Обновлён" if (existing and force) else "Создан",
         created.id,
+    )
+    _try_update_company_description_from_pdf(
+        db,
+        pdf_source=pdf_source,
+        company=company,
+        pdf_label=label,
     )
     return outcome
 

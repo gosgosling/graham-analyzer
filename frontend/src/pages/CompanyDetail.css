@@ -325,6 +325,112 @@
   font-style: italic;
 }
 
+/* Описание компании */
+.company-description-card .card-title {
+  margin-bottom: 0;
+}
+
+.company-description-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.company-description-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.company-description-source {
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--color-bg-subtle);
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-border-subtle);
+}
+
+.company-description-source--manual {
+  background: var(--color-info-soft, rgba(59, 130, 246, 0.12));
+}
+
+.company-description-source--llm {
+  background: var(--color-warning-soft, rgba(245, 158, 11, 0.12));
+}
+
+.company-description-text {
+  white-space: pre-wrap;
+  line-height: 1.6;
+  color: var(--color-text-primary);
+  font-size: 14px;
+}
+
+.company-description-editor {
+  width: 100%;
+  min-height: 180px;
+  padding: 12px 14px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.5;
+  resize: vertical;
+  background: var(--color-bg-base);
+  color: var(--color-text-primary);
+}
+
+.company-description-editor:focus {
+  outline: none;
+  border-color: var(--color-accent, #3b82f6);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+}
+
+.company-description-empty {
+  text-align: left;
+}
+
+.company-description-btn {
+  border: none;
+  padding: 6px 14px;
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--transition-fast), opacity var(--transition-fast);
+}
+
+.company-description-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.company-description-btn--secondary {
+  background: var(--color-bg-subtle);
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-border-strong);
+}
+
+.company-description-btn--secondary:hover:not(:disabled) {
+  background: var(--color-border-subtle);
+}
+
+.company-description-btn--primary {
+  background: var(--gradient-cta);
+  color: var(--color-text-on-accent);
+  box-shadow: var(--shadow-1);
+}
+
+.company-description-btn--primary:hover:not(:disabled) {
+  filter: brightness(1.06);
+}
+
 .placeholder-chart {
   height: 300px;
   display: flex;
