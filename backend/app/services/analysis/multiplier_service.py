@@ -1,12 +1,16 @@
 """
 Сервис расчёта и кэширования мультипликаторов.
 
-Логика LTM (Last Twelve Months):
-- Показатели P&L (выручка, чистая прибыль, дивиденды):
-    * Если есть 4 квартальных отчёта — суммируем их (TTM/LTM)
-    * Если квартальных не хватает — используем последний годовой отчёт
-- Балансовые данные (активы, капитал, обязательства):
-    * Берём из самого свежего отчёта (квартального или годового)
+Логика LTM (Last Twelve Months) для потоковых показателей (P&L, Cash Flow):
+    1. Последний отчёт — годовой → LTM = этот год (FY).
+    2. Последний отчёт — промежуточный (полугодовой / квартальный, YTD):
+       LTM = FY_{N-1} + YTD_N − YTD_{N-1}
+       (напр. H1_2026 + FY2025 − H1_2025 → июль 2025 – июнь 2026).
+    3. Иначе, если есть 4 квартальных отчёта — суммируем их.
+    4. Иначе — последний годовой отчёт или частичная сумма кварталов.
+
+Балансовые показатели (активы, капитал, долг, cash) — всегда из самого
+свежего отчёта (latest), без LTM-агрегации.
 """
 import logging
 from datetime import date, datetime, timezone
@@ -42,6 +46,156 @@ def _convert(value, currency: str, rate: Optional[float]) -> Optional[float]:
     return convert_to_rub(_to_float(value), currency, rate)
 
 
+_LTM_FLOW_ATTRS: Tuple[str, ...] = (
+    "net_income",
+    "revenue",
+    "dividends_per_share",
+    "operating_cash_flow",
+    "capex",
+    "lease_principal",
+    "lease_interest",
+    "debt_principal",
+)
+_LTM_BANK_ATTRS: Tuple[str, ...] = ("net_interest_income", "fee_commission_income")
+
+
+def _field_rub(report: FinancialReport, attr: str) -> Optional[float]:
+    if attr == "dividends_per_share" and not getattr(report, "dividends_paid", False):
+        return None
+    val = getattr(report, attr, None)
+    if val is None:
+        return None
+    return _convert(val, report.currency, _to_float(report.exchange_rate))
+
+
+def _sum_rub(reports: List[FinancialReport], attr: str) -> Optional[float]:
+    """Суммирует поле по отчётам, конвертируя каждый в рубли."""
+    total = 0.0
+    has_any = False
+    for report in reports:
+        converted = _field_rub(report, attr)
+        if converted is not None:
+            total += converted
+            has_any = True
+    return round(total, 2) if has_any else None
+
+
+def _annual_fields_rub(annual: FinancialReport) -> Dict[str, Optional[float]]:
+    return {attr: _field_rub(annual, attr) for attr in _LTM_FLOW_ATTRS}
+
+
+def _ltm_formula_field(
+    current: FinancialReport,
+    prior_fy: FinancialReport,
+    prior_ytd: FinancialReport,
+    attr: str,
+) -> Optional[float]:
+    cur = _field_rub(current, attr)
+    fy = _field_rub(prior_fy, attr)
+    ytd = _field_rub(prior_ytd, attr)
+    if cur is None or fy is None or ytd is None:
+        return None
+    return round(cur + fy - ytd, 2)
+
+
+def _ltm_from_interim_formula(
+    current: FinancialReport,
+    prior_fy: FinancialReport,
+    prior_ytd: FinancialReport,
+    attrs: Tuple[str, ...],
+) -> Dict[str, Optional[float]]:
+    return {
+        attr: _ltm_formula_field(current, prior_fy, prior_ytd, attr)
+        for attr in attrs
+    }
+
+
+def _find_matching_report(
+    db: Session,
+    company_id: int,
+    *,
+    period_type: PeriodType,
+    fiscal_year: int,
+    fiscal_quarter: Optional[int],
+    anchor: FinancialReport,
+) -> Optional[FinancialReport]:
+    q = (
+        db.query(FinancialReport)
+        .filter(
+            FinancialReport.company_id == company_id,
+            FinancialReport.period_type == period_type,
+            FinancialReport.fiscal_year == fiscal_year,
+            FinancialReport.accounting_standard == anchor.accounting_standard,
+            FinancialReport.consolidated == anchor.consolidated,
+        )
+    )
+    if fiscal_quarter is None:
+        q = q.filter(FinancialReport.fiscal_quarter.is_(None))
+    else:
+        q = q.filter(FinancialReport.fiscal_quarter == fiscal_quarter)
+    return q.first()
+
+
+def _interim_ltm_source_label(report: FinancialReport) -> str:
+    if report.period_type == PeriodType.SEMI_ANNUAL:
+        return "semi_annual_derived"
+    if report.period_type == PeriodType.QUARTERLY and report.fiscal_quarter:
+        return f"quarterly_{report.fiscal_quarter}_derived"
+    return "interim_derived"
+
+
+def _try_interim_ltm(
+    db: Session,
+    company_id: int,
+    latest: FinancialReport,
+) -> Optional[Tuple[Dict[str, Optional[float]], str]]:
+    """LTM = prior FY + current YTD − prior-year same YTD (если все три отчёта есть)."""
+    if latest.period_type == PeriodType.ANNUAL:
+        return None
+
+    prior_fy = _find_matching_report(
+        db,
+        company_id,
+        period_type=PeriodType.ANNUAL,
+        fiscal_year=latest.fiscal_year - 1,
+        fiscal_quarter=None,
+        anchor=latest,
+    )
+    prior_ytd = _find_matching_report(
+        db,
+        company_id,
+        period_type=PeriodType(latest.period_type),
+        fiscal_year=latest.fiscal_year - 1,
+        fiscal_quarter=latest.fiscal_quarter,
+        anchor=latest,
+    )
+    if prior_fy is None or prior_ytd is None:
+        return None
+
+    flow = _ltm_from_interim_formula(latest, prior_fy, prior_ytd, _LTM_FLOW_ATTRS)
+    is_bank = getattr(latest, "report_type", "general") == "bank"
+    if is_bank:
+        bank = _ltm_from_interim_formula(latest, prior_fy, prior_ytd, _LTM_BANK_ATTRS)
+        flow.update(bank)
+
+    return flow, _interim_ltm_source_label(latest)
+
+
+def _flow_to_ltm_payload(flow: Dict[str, Optional[float]]) -> Dict[str, Optional[float]]:
+    return {
+        "ltm_net_income": flow.get("net_income"),
+        "ltm_revenue": flow.get("revenue"),
+        "ltm_dividends_per_share": flow.get("dividends_per_share"),
+        "ltm_operating_cash_flow": flow.get("operating_cash_flow"),
+        "ltm_capex": flow.get("capex"),
+        "ltm_lease_principal": flow.get("lease_principal"),
+        "ltm_lease_interest": flow.get("lease_interest"),
+        "ltm_debt_principal": flow.get("debt_principal"),
+        "ltm_net_interest_income": flow.get("net_interest_income"),
+        "ltm_fee_commission_income": flow.get("fee_commission_income"),
+    }
+
+
 def get_ltm_data(db: Session, company_id: int) -> Optional[Dict]:
     """
     Вычисляет LTM финансовые данные для компании.
@@ -51,9 +205,12 @@ def get_ltm_data(db: Session, company_id: int) -> Optional[Dict]:
         ltm_revenue          — выручка LTM
         ltm_dividends_per_share — дивиденды на акцию LTM
         balance_report       — последний отчёт с балансовыми данными (объект FinancialReport)
-        source               — "quarterly_4" | "annual" | None
+        source               — "annual" | "semi_annual_derived" | "quarterly_4" | ...
     Все суммы в рублях (после конвертации).
     Если данных нет — возвращает None.
+
+    ⚠️ Промежуточные отчёты должны содержать накопительные (YTD) значения
+    за период с начала года — как в публикуемой отчётности эмитента.
     """
     # Последние 4 квартальных отчёта (по дате, убывание)
     quarterly: List[FinancialReport] = (
@@ -89,83 +246,43 @@ def get_ltm_data(db: Session, company_id: int) -> Optional[Dict]:
     if latest is None:
         return None
 
-    def sum_rub(reports: List[FinancialReport], attr: str) -> Optional[float]:
-        """Суммирует поле по отчётам, конвертируя каждый в рубли.
+    is_bank = getattr(latest, "report_type", "general") == "bank"
+    source: str
+    flow: Dict[str, Optional[float]]
 
-        Для поля dividends_per_share пропускаем отчёты, в которых
-        dividends_paid=False — иначе застрявшее в поле значение (например,
-        дивиденды по префам, введённые ошибочно) даёт фантомную доходность.
-        """
-        total = 0.0
-        has_any = False
-        for r in reports:
-            if attr == "dividends_per_share" and not getattr(r, "dividends_paid", False):
-                continue
-            val = getattr(r, attr, None)
-            if val is not None:
-                rate = _to_float(r.exchange_rate)
-                converted = _convert(val, r.currency, rate)
-                if converted is not None:
-                    total += converted
-                    has_any = True
-        return round(total, 2) if has_any else None
-
-    # Используем 4 квартала, если доступны
-    if len(quarterly) == 4:
-        ltm_net_income = sum_rub(quarterly, "net_income")
-        ltm_revenue = sum_rub(quarterly, "revenue")
-        ltm_dividends = sum_rub(quarterly, "dividends_per_share")
-        ltm_operating_cash_flow = sum_rub(quarterly, "operating_cash_flow")
-        ltm_capex = sum_rub(quarterly, "capex")
-        ltm_lease_principal = sum_rub(quarterly, "lease_principal")
-        ltm_lease_interest = sum_rub(quarterly, "lease_interest")
-        ltm_debt_principal = sum_rub(quarterly, "debt_principal")
-        source = "quarterly_4"
-    elif annual:
-        rate = _to_float(annual.exchange_rate)
-        ltm_net_income = _convert(annual.net_income, annual.currency, rate)
-        ltm_revenue = _convert(annual.revenue, annual.currency, rate)
-        # Дивиденды учитываем только если в этом отчёте они реально выплачивались
-        _annual_dps = annual.dividends_per_share if getattr(annual, "dividends_paid", False) else None
-        ltm_dividends = _convert(_annual_dps, annual.currency, rate)
-        ltm_operating_cash_flow = _convert(annual.operating_cash_flow, annual.currency, rate)
-        ltm_capex = _convert(annual.capex, annual.currency, rate)
-        ltm_lease_principal = _convert(annual.lease_principal, annual.currency, rate)
-        ltm_lease_interest = _convert(annual.lease_interest, annual.currency, rate)
-        ltm_debt_principal = _convert(annual.debt_principal, annual.currency, rate)
+    if latest.period_type == PeriodType.ANNUAL:
+        flow = _annual_fields_rub(latest)
+        if is_bank:
+            flow.update({attr: _field_rub(latest, attr) for attr in _LTM_BANK_ATTRS})
         source = "annual"
     else:
-        # Только квартальный(е) без полного года — берём что есть
-        reports_available = quarterly if quarterly else []
-        ltm_net_income = sum_rub(reports_available, "net_income")
-        ltm_revenue = sum_rub(reports_available, "revenue")
-        ltm_dividends = sum_rub(reports_available, "dividends_per_share")
-        ltm_operating_cash_flow = sum_rub(reports_available, "operating_cash_flow")
-        ltm_capex = sum_rub(reports_available, "capex")
-        source = f"quarterly_{len(reports_available)}"
+        interim = _try_interim_ltm(db, company_id, latest)
+        if interim is not None:
+            flow, source = interim
+        elif len(quarterly) == 4:
+            flow = {attr: _sum_rub(quarterly, attr) for attr in _LTM_FLOW_ATTRS}
+            if is_bank:
+                flow.update(
+                    {attr: _sum_rub(quarterly, attr) for attr in _LTM_BANK_ATTRS}
+                )
+            source = "quarterly_4"
+        elif annual is not None:
+            flow = _annual_fields_rub(annual)
+            if is_bank:
+                flow.update({attr: _field_rub(annual, attr) for attr in _LTM_BANK_ATTRS})
+            source = "annual"
+        else:
+            reports_available = quarterly if quarterly else []
+            flow = {attr: _sum_rub(reports_available, attr) for attr in _LTM_FLOW_ATTRS}
+            if is_bank and reports_available:
+                flow.update(
+                    {attr: _sum_rub(reports_available, attr) for attr in _LTM_BANK_ATTRS}
+                )
+            source = f"quarterly_{len(reports_available)}"
 
-    # Дополнительные банковские LTM-показатели (суммируем если report_type = "bank")
-    is_bank = getattr(latest, "report_type", "general") == "bank"
-    ltm_net_interest_income = None
-    ltm_fee_commission_income = None
-    if is_bank:
-        reports_for_bank = quarterly if len(quarterly) == 4 else (
-            [annual] if annual else (quarterly if quarterly else [])
-        )
-        ltm_net_interest_income = sum_rub(reports_for_bank, "net_interest_income")
-        ltm_fee_commission_income = sum_rub(reports_for_bank, "fee_commission_income")
-
+    payload = _flow_to_ltm_payload(flow)
     return {
-        "ltm_net_income": ltm_net_income,
-        "ltm_revenue": ltm_revenue,
-        "ltm_dividends_per_share": ltm_dividends,
-        "ltm_operating_cash_flow": ltm_operating_cash_flow,
-        "ltm_capex": ltm_capex,
-        "ltm_lease_principal": ltm_lease_principal,
-        "ltm_lease_interest": ltm_lease_interest,
-        "ltm_debt_principal": ltm_debt_principal,
-        "ltm_net_interest_income": ltm_net_interest_income,
-        "ltm_fee_commission_income": ltm_fee_commission_income,
+        **payload,
         "balance_report": latest,
         "source": source,
     }
@@ -444,7 +561,15 @@ def save_report_based_multiplier(
     shares_used/market_cap. В «Истории мультипликаторов» появлялись дубли.
     Теперь мы чистим все прошлые report_based-записи этого report_id и
     пересоздаём/обновляем одну запись на актуальную report_date.
+
+    Промежуточные отчёты (полугодовые/квартальные) в историю не попадают —
+    для них кэш report_based не создаётся (см. LTM в calculate_current_multipliers).
     """
+    if report.period_type != PeriodType.ANNUAL:
+        delete_multipliers_for_report(db, report.id)
+        db.commit()
+        return None
+
     if report.price_per_share is None and resolve_shares_for_multipliers(report) is None:
         # Мы не можем посчитать мультипликаторы — но «протухшие» записи
         # от предыдущих версий отчёта всё равно нужно вычистить.
@@ -560,7 +685,8 @@ def backfill_report_based_multipliers(
     company_id: int,
 ) -> dict[str, int]:
     """
-    Пересчитывает report_based-мультипликаторы для всех отчётов компании.
+    Пересчитывает report_based-мультипликаторы для **годовых** отчётов компании.
+    Промежуточные отчёты пропускаются; их кэш report_based удаляется.
 
     Нужно после массового импорта или прямой SQL-вставки отчётов, когда
     create_report / update_report не вызывались и кэш истории пуст.
@@ -574,11 +700,16 @@ def backfill_report_based_multipliers(
     saved = 0
     skipped = 0
     for report in reports:
+        if report.period_type != PeriodType.ANNUAL:
+            delete_multipliers_for_report(db, report.id)
+            skipped += 1
+            continue
         result = save_report_based_multiplier(db, report)
         if result is not None:
             saved += 1
         else:
             skipped += 1
+    db.commit()
     return {
         "total_reports": len(reports),
         "saved": saved,
@@ -599,6 +730,10 @@ def get_multipliers_history(
         company_id: ID компании
         mult_type: Фильтр по типу ("report_based" | "current" | "daily")
         limit: Максимальное количество записей
+
+    Для type=report_based в историю попадают только годовые отчёты —
+    промежуточные (полугодовые/квартальные) используются лишь для расчёта
+    актуального LTM, но не как отдельные строки таблицы.
     """
     q = (
         db.query(Multiplier)
@@ -607,6 +742,11 @@ def get_multipliers_history(
     )
     if mult_type:
         q = q.filter(Multiplier.type == mult_type)
+    if mult_type == "report_based":
+        q = q.join(
+            FinancialReport,
+            Multiplier.report_id == FinancialReport.id,
+        ).filter(FinancialReport.period_type == PeriodType.ANNUAL)
     return q.order_by(Multiplier.date.desc()).limit(limit).all()
 
 
