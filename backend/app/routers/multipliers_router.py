@@ -159,7 +159,11 @@ def refresh_multipliers(
     "/companies/{company_id}/multipliers/history",
     response_model=List[MultiplierResponse],
     summary="История мультипликаторов компании",
-    description="Возвращает кэшированные мультипликаторы для построения графиков.",
+    description=(
+        "Возвращает кэшированные мультипликаторы для построения графиков. "
+        "Для type=report_based — только годовые отчёты (12 мес.); "
+        "актуальный LTM — в /multipliers/current."
+    ),
 )
 def get_multipliers_history(
     company_id: int,

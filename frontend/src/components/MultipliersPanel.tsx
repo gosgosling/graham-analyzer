@@ -958,8 +958,15 @@ const LtmMeta: React.FC<{ data: CurrentMultipliers }> = ({ data }) => {
   const sourceLabel: Record<string, string> = {
     quarterly_4: '4 квартала',
     annual: 'Годовой отчёт',
+    semi_annual_derived: 'LTM: FY + H1 − H1 прошл. года',
+    interim_derived: 'LTM: FY + YTD − YTD прошл. года',
   };
-  const src = data.ltm_source ? sourceLabel[data.ltm_source] ?? data.ltm_source : '—';
+  const src = data.ltm_source
+    ? sourceLabel[data.ltm_source]
+      ?? (data.ltm_source.endsWith('_derived')
+        ? 'LTM: FY + YTD − YTD прошл. года'
+        : data.ltm_source)
+    : '—';
 
   return (
     <div className="ltm-meta-bar">
@@ -2127,6 +2134,7 @@ const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company }) => {
                 <div className="mult-history-header">
                   <div className="mult-history-label">
                     История мультипликаторов
+                    <span className="mult-history-mode-hint"> · годовые + LTM</span>
                     {histPctMode && (
                       <span className="mult-history-mode-hint"> · Δ к прошлому году</span>
                     )}
