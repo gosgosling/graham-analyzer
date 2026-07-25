@@ -73,6 +73,34 @@ SECTION_KEYWORDS: tuple[tuple[str, ...], ...] = (
         "net cash from operating activities",
         "purchase of property, plant and equipment",
         "payment of lease liabilities",
+        "погашение кредитов и займов",
+        "repayment of borrowings",
+    ),
+    # Амортизация: нужна для сравнения с CAPEX и расчёта owner earnings.
+    # Чаще всего живёт в корректировках ОДДС, но у части эмитентов — только
+    # в примечании о себестоимости или об основных средствах.
+    (
+        "износ и амортизация",
+        "амортизация основных средств",
+        "амортизация нематериальных активов",
+        "амортизация права пользования",
+        "расходы на амортизацию",
+        "depreciation and amortisation",
+        "depreciation and amortization",
+        "depreciation, depletion and amortisation",
+        "depreciation of right-of-use assets",
+    ),
+    # Примечание о дивидендах: только там пишут, что выплата разовая —
+    # «специальный дивиденд», «доплата за прошлый год».
+    (
+        "специальный дивиденд",
+        "специальные дивиденды",
+        "дивиденды на акцию",
+        "объявленные дивиденды",
+        "дивиденды объявлены",
+        "special dividend",
+        "dividend per share",
+        "dividends per ordinary share",
     ),
     # Строки долга и денег в балансе — чтобы страница с ними точно попала.
     (
@@ -138,13 +166,67 @@ def _normalize(text: str) -> str:
     return text
 
 
-def _find_matches(page_text_norm: str) -> list[str]:
+def _find_matches(page_text_norm: str) -> tuple[list[str], dict[int, int]]:
+    """
+    Совпадения ключевых фраз на странице.
+
+    Возвращает список найденных фраз и число попаданий по каждой тематической
+    группе — по группам потом распределяется квота страниц, чтобы при
+    переполнении не потерять целый раздел.
+    """
     matches: list[str] = []
-    for group in SECTION_KEYWORDS:
+    hits_by_group: dict[int, int] = {}
+    for group_index, group in enumerate(SECTION_KEYWORDS):
         for phrase in group:
             if phrase in page_text_norm:
                 matches.append(phrase)
-    return matches
+                hits_by_group[group_index] = hits_by_group.get(group_index, 0) + 1
+    return matches, hits_by_group
+
+
+def _prioritized_pages(
+    matched_sections: dict[int, list[str]],
+    hits_by_page: dict[int, dict[int, int]],
+    limit: int,
+) -> list[int]:
+    """
+    Отобрать страницы при переполнении лимита.
+
+    Сначала берём по одной лучшей странице на каждую тематическую группу:
+    иначе сортировка по общему числу совпадений всегда выигрывает в пользу
+    баланса (там десятки строк «Итого …»), и страница с амортизацией или
+    примечанием о дивидендах вылетает из контекста именно на толстых отчётах.
+    Остаток квоты добираем по общему числу совпадений.
+    """
+    chosen: list[int] = []
+    used: set[int] = set()
+
+    for group_index in range(len(SECTION_KEYWORDS)):
+        candidates = [
+            (hits.get(group_index, 0), page)
+            for page, hits in hits_by_page.items()
+            if hits.get(group_index)
+        ]
+        if not candidates:
+            continue
+        _, page = max(candidates)
+        if page not in used:
+            used.add(page)
+            chosen.append(page)
+        if len(chosen) >= limit:
+            return chosen
+
+    for page, phrases in sorted(
+        matched_sections.items(), key=lambda kv: len(kv[1]), reverse=True
+    ):
+        if page in used:
+            continue
+        used.add(page)
+        chosen.append(page)
+        if len(chosen) >= limit:
+            break
+
+    return chosen
 
 
 def _expand_neighbors(indices: Iterable[int], total: int, window: int = 1) -> list[int]:
@@ -187,6 +269,26 @@ def _looks_like_scan(page_texts: list[str]) -> bool:
         return False
     non_empty = sum(1 for t in page_texts if len(t.strip()) >= _SCAN_PAGE_TEXT_THRESHOLD)
     return non_empty < max(1, len(page_texts) * 0.3)
+
+
+def _cyrillic_ratio(text: str) -> float:
+    letters = [ch for ch in text if ch.isalpha()]
+    if len(letters) < 80:
+        return 1.0  # мало букв — не считаем «битой» кодировкой
+    cyr = sum(1 for ch in letters if ("А" <= ch <= "я") or ch in "Ёё")
+    return cyr / len(letters)
+
+
+def _looks_like_garbled_encoding(page_texts: list[str]) -> bool:
+    """Текст есть, но почти без кириллицы (битый ToUnicode, как у ALRS 2024/2025).
+
+    Ключевые фразы не матчятся → без vision прогон падает. Считаем такие PDF
+    «сканами» и отдаём PNG vision-модели.
+    """
+    sample = "\n".join(page_texts[: min(20, len(page_texts))])
+    if len(sample.strip()) < 500:
+        return False
+    return _cyrillic_ratio(sample) < 0.15
 
 
 def extract_financial_pages(
@@ -238,13 +340,24 @@ def extract_financial_pages(
             page_texts.append(page.get_text("text") or "")
 
         matched_sections: dict[int, list[str]] = {}
+        hits_by_page: dict[int, dict[int, int]] = {}
         for idx, raw in enumerate(page_texts):
             norm = _normalize(raw)
-            matches = _find_matches(norm)
+            matches, hits_by_group = _find_matches(norm)
             if matches:
                 matched_sections[idx] = matches
+                hits_by_page[idx] = hits_by_group
 
-        is_scan = _looks_like_scan(page_texts) and not matched_sections
+        garbled = _looks_like_garbled_encoding(page_texts)
+        is_scan = (
+            (_looks_like_scan(page_texts) or garbled) and not matched_sections
+        )
+        if garbled and not matched_sections:
+            logger.warning(
+                "PDF=%s: текст извлечён, но почти без кириллицы "
+                "(битая кодировка/ToUnicode) — переключаемся на vision.",
+                label,
+            )
 
         # ─── Ветка 1: обычный текстовый PDF ──────────────────────────────
         if matched_sections:
@@ -253,29 +366,54 @@ def extract_financial_pages(
             )
 
             if len(selected) > max_pages:
-                ranked = sorted(
-                    matched_sections.items(),
-                    key=lambda kv: len(kv[1]),
-                    reverse=True,
-                )
-                top_pages = {idx for idx, _ in ranked[:max_pages]}
-                selected = _expand_neighbors(top_pages, total=total_pages, window=neighbor_window)
-                selected = selected[:max_pages]
+                top_pages = _prioritized_pages(matched_sections, hits_by_page, max_pages)
+                selected = _expand_neighbors(
+                    top_pages, total=total_pages, window=neighbor_window
+                )[:max_pages]
                 logger.warning(
-                    "Слишком много кандидатов (%d), ограничили до %d страниц.",
-                    len(selected), max_pages,
+                    "Слишком много кандидатов, ограничили до %d страниц "
+                    "(по одной лучшей странице на раздел + добор по совпадениям).",
+                    max_pages,
                 )
 
             chunks: list[str] = []
             for idx in selected:
                 marker = f"\n\n───── СТРАНИЦА {idx + 1} из {total_pages} ─────\n"
-                chunks.append(marker + page_texts[idx].strip())
+                body = page_texts[idx].strip()
+                if len(body) < _SCAN_PAGE_TEXT_THRESHOLD:
+                    body = (
+                        "[НА ЭТОЙ СТРАНИЦЕ МАЛО ИЗВЛЕКАЕМОГО ТЕКСТА — "
+                        "смотри прикреплённое изображение страницы]"
+                    )
+                chunks.append(marker + body)
 
             text = "\n".join(chunks).strip()
 
+            # Гибрид: в «текстовом» PDF отдельные таблицы бывают растровыми
+            # (НОВАТЭК: баланс — картинка, ОПиУ — текст). Рендерим только
+            # пустые выбранные страницы, чтобы vision-модель их прочитала.
+            sparse = [
+                idx for idx in selected
+                if len(page_texts[idx].strip()) < _SCAN_PAGE_TEXT_THRESHOLD
+            ]
+            page_images: list[bytes] = []
+            for idx in sparse[:_MAX_SCAN_PAGES_FOR_VISION]:
+                try:
+                    page_images.append(_render_page_png(doc[idx]))
+                except Exception as exc:  # noqa: BLE001
+                    logger.error("Не смог отрендерить страницу %d: %s", idx + 1, exc)
+
+            if page_images:
+                logger.warning(
+                    "PDF=%s: гибридный режим — %d выбранных страниц без текста "
+                    "отправлены как PNG (vision).",
+                    label, len(page_images),
+                )
+
             logger.info(
-                "PDF=%s: всего страниц %d, выбрано %d (по ключам: %d).",
+                "PDF=%s: всего страниц %d, выбрано %d (по ключам: %d), vision=%d.",
                 label, total_pages, len(selected), len(matched_sections),
+                len(page_images),
             )
 
             return PdfExtractionResult(
@@ -284,8 +422,9 @@ def extract_financial_pages(
                 selected_pages=selected,
                 text=text,
                 matched_sections=matched_sections,
-                is_scanned=False,
-                page_images=[],
+                # True → extractor_service приложит page_images к запросу LLM.
+                is_scanned=bool(page_images),
+                page_images=page_images,
             )
 
         # ─── Ветка 2: скан-PDF — рендерим страницы для vision-LLM ─────────

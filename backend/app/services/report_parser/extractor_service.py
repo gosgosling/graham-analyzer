@@ -45,6 +45,7 @@ from app.services.companies.company_service import apply_business_description_fr
 from app.utils.moex_client import (
     get_closing_price_on_or_before,
     get_fx_rate_on_or_before,
+    get_shares_outstanding as get_moex_issuesize,
 )
 
 logger = logging.getLogger(__name__)
@@ -60,15 +61,18 @@ class _FieldSpec:
     label: str                  # человеко-читаемое имя
     kind: str                   # 'money_mln' | 'int' | 'float' | 'bool' | 'str' | 'date'
     relevant_for: tuple[str, ...] = ("general", "bank")  # general/bank
+    # False — поле заполняется вне LLM (даты/MOEX) и не влияет на score качества.
+    scored: bool = True
 
 
 # Поля, которые есть и в модели БД, и в ExtractedReport — значит их реально
 # можно сравнивать. Порядок важен — в таком порядке покажем в UI.
 _COMPARABLE_FIELDS: tuple[_FieldSpec, ...] = (
-    _FieldSpec("report_date", "Дата окончания периода", "date"),
-    _FieldSpec("filing_date", "Дата публикации", "date"),
+    # Годовой report_date = 31.12.YYYY; filing_date и акции реестра — не из LLM.
+    _FieldSpec("report_date", "Дата окончания периода", "date", scored=False),
+    _FieldSpec("filing_date", "Дата публикации", "date", scored=False),
     _FieldSpec("currency", "Валюта", "str"),
-    _FieldSpec("shares_outstanding", "Акции в обращении", "int"),
+    _FieldSpec("shares_outstanding", "Акции (из отчёта / EPS)", "int", scored=False),
     _FieldSpec("revenue", "Выручка / Опер. доходы", "money_mln"),
     _FieldSpec("net_income", "Чистая прибыль", "money_mln"),
     _FieldSpec("net_income_reported", "Прибыль (отчётная)", "money_mln"),
@@ -81,6 +85,7 @@ _COMPARABLE_FIELDS: tuple[_FieldSpec, ...] = (
     _FieldSpec("debt", "Долг (кредиты и займы)", "money_mln", ("general",)),
     _FieldSpec("dividends_per_share", "Дивиденд на акцию", "float"),
     _FieldSpec("dividends_paid", "Дивиденды выплачивались", "bool"),
+    _FieldSpec("special_dividends_per_share", "В т.ч. разовые дивиденды", "float"),
     _FieldSpec("net_interest_income", "Чистые проц. доходы (NII)", "money_mln", ("bank",)),
     _FieldSpec("fee_commission_income", "Чистые комисс. доходы", "money_mln", ("bank",)),
     _FieldSpec("operating_expenses", "Операционные расходы", "money_mln", ("bank",)),
@@ -89,6 +94,12 @@ _COMPARABLE_FIELDS: tuple[_FieldSpec, ...] = (
     _FieldSpec("capex", "CAPEX", "money_mln", ("general",)),
     _FieldSpec("lease_principal", "Аренда (тело)", "money_mln", ("general",)),
     _FieldSpec("lease_interest", "Аренда (проценты)", "money_mln", ("general",)),
+    # Пока не извлекаем и не оцениваем в quality-score (особый случай).
+    _FieldSpec(
+        "debt_principal", "Погашение кредитов (тело)", "money_mln",
+        ("general",), scored=False,
+    ),
+    _FieldSpec("depreciation_amortization", "Амортизация (D&A)", "money_mln", ("general",)),
 )
 
 
@@ -182,19 +193,53 @@ class ReportAlreadyExistsError(RuntimeError):
 # ─── Вспомогательные ─────────────────────────────────────────────────────────
 
 
-def _resolve_report_date(extracted: ExtractedReport) -> str:
-    """Если модель не смогла извлечь report_date — подставим 31.12 года."""
+def _resolve_report_date(
+    extracted: ExtractedReport,
+    *,
+    period_type: Optional[str] = None,
+    fiscal_year: Optional[int] = None,
+) -> str:
+    """Дата окончания периода.
+
+    Для годовых отчётов всегда 31.12.{fiscal_year} — год известен из формы/
+    имени файла, LLM не нужен. Для прочих периодов берём ответ модели, иначе
+    тот же fallback.
+    """
+    year = fiscal_year or extracted.fiscal_year
+    pt = (period_type or extracted.period_type or "annual")
+    pt_norm = str(pt).strip().lower().replace("-", "_")
+    if pt_norm in {"annual", "year", "y"}:
+        return f"{year}-12-31"
     if extracted.report_date:
-        return extracted.report_date
-    return f"{extracted.fiscal_year}-12-31"
+        return str(extracted.report_date)[:10]
+    return f"{year}-12-31"
+
+
+def _fetch_moex_shares_issued(ticker: Optional[str]) -> Optional[int]:
+    """ISSUESIZE из реестра MOEX → shares_issued (best-effort)."""
+    if not ticker:
+        return None
+    try:
+        info = get_moex_issuesize(ticker)
+    except Exception as exc:  # noqa: BLE001 — внешний HTTP
+        logger.warning("MOEX shares lookup failed for %s: %s", ticker, exc)
+        return None
+    if not info or info.get("issuesize") is None:
+        return None
+    try:
+        value = int(info["issuesize"])
+    except (TypeError, ValueError):
+        return None
+    return value if value > 0 else None
 
 
 def _parse_iso_date(raw: Optional[str]) -> Optional[date]:
-    """Попытка распарсить YYYY-MM-DD. Возвращает None если формат неожиданный."""
+    """YYYY-MM-DD или DD.MM.YYYY → date; иначе None."""
     if not raw:
         return None
     try:
-        return date.fromisoformat(str(raw)[:10])
+        from app.utils.date_parse import parse_date
+        return parse_date(raw)
     except (ValueError, TypeError):
         return None
 
@@ -229,6 +274,8 @@ def _enrich_with_moex_prices(
     *,
     ticker: Optional[str],
     exchange_rate: Optional[float] = None,
+    period_type: Optional[str] = None,
+    fiscal_year: Optional[int] = None,
 ) -> tuple[Optional[float], Optional[float]]:
     """Вернуть (price_per_share, price_at_filing) из MOEX для данного отчёта.
 
@@ -247,7 +294,9 @@ def _enrich_with_moex_prices(
     `exchange_rate` отсутствует для non-RUB отчёта — возвращаем None. Тогда
     пользователь сможет ввести цену вручную через форму.
     """
-    report_iso = _resolve_report_date(extracted)
+    report_iso = _resolve_report_date(
+        extracted, period_type=period_type, fiscal_year=fiscal_year,
+    )
     report_d = _parse_iso_date(report_iso)
     filing_d = _parse_iso_date(extracted.filing_date)
 
@@ -318,6 +367,10 @@ _SUSPICIOUS_SHARES_THRESHOLD = 10_000_000
 # этот случай.
 _SHARES_SOFT_WARN_THRESHOLD = 1_000_000_000
 
+# Пояснение к разовым дивидендам — короткая пометка для аналитика, а не цитата
+# из отчёта. Обрезаем, чтобы модель не записала туда абзац.
+_SPECIAL_DIVIDEND_NOTE_MAX_LEN = 256
+
 
 def _auto_fix_money_units(extracted: ExtractedReport) -> tuple[ExtractedReport, Optional[str]]:
     """
@@ -325,32 +378,81 @@ def _auto_fix_money_units(extracted: ExtractedReport) -> tuple[ExtractedReport, 
     Outputs. Например, пишет в `extraction_notes` 'Единицы отчёта — миллиарды
     рублей', но в enum-поле оставляет 'millions'.
 
-    Если в свободном тексте заметок явно упоминается 'млрд' / 'миллиард' и
-    units_scale != 'billions' — форсируем billions. Аналогично для 'тыс. руб'.
+    Важно: простое слово «млрд» в заметках НЕ достаточно. Модель часто пишет
+    «обесценение 93 млрд» как человекочитаемую величину при units_scale=millions
+    (93 000 млн = 93 млрд). Ложный auto-fix ×1000 уничтожает все поля.
+    Смотрим только на явные формулировки про единицы отчёта.
     """
     notes = (extracted.extraction_notes or "").lower()
     if not notes:
         return extracted, None
 
-    mentions_billions = any(kw in notes for kw in ("млрд", "миллиард", "billion"))
-    mentions_thousands = any(kw in notes for kw in ("тыс. руб", "тыс.руб", "тысяч", "thousand"))
+    mentions_millions_as_units = any(
+        kw in notes
+        for kw in (
+            "в миллионах",
+            "миллионы российских",
+            "миллионах рублей",
+            "млн руб",
+            "млн. руб",
+            "units_scale = 'millions'",
+            "units_scale='millions'",
+            "единицы отчёта: млн",
+            "единицы отчета: млн",
+            "единицы: млн",
+        )
+    )
+    mentions_billions_as_units = any(
+        kw in notes
+        for kw in (
+            "в миллиардах",
+            "миллиарды российских",
+            "миллиардах рублей",
+            "units_scale = 'billions'",
+            "units_scale='billions'",
+            "единицы отчёта: млрд",
+            "единицы отчета: млрд",
+            "единицы: млрд",
+            "единицы отчёта — млрд",
+            "единицы отчета — млрд",
+        )
+    )
+    mentions_thousands_as_units = any(
+        kw in notes
+        for kw in (
+            "в тыс. руб",
+            "в тысячах руб",
+            "тыс. руб.",
+            "тысячах рублей",
+            "units_scale = 'thousands'",
+            "units_scale='thousands'",
+            "единицы отчёта: тыс",
+            "единицы отчета: тыс",
+        )
+    )
 
-    if mentions_billions and extracted.units_scale != "billions":
+    if (
+        mentions_billions_as_units
+        and not mentions_millions_as_units
+        and extracted.units_scale != "billions"
+    ):
         fixed = extracted.model_copy(update={"units_scale": "billions"})
         msg = (
-            f"AUTO-FIX: в заметках модели упоминаются 'миллиарды', но "
+            f"AUTO-FIX: в заметках явно указаны единицы 'миллиарды', но "
             f"units_scale='{extracted.units_scale}'. Принудительно установлено "
             f"'billions'. Все денежные значения будут × 1000 (в млн)."
         )
         logger.warning(msg)
         return fixed, msg
 
-    if mentions_thousands and extracted.units_scale == "millions":
-        # Более консервативно — только если модель сказала 'millions' а пишет
-        # про тысячи. Не трогаем, если она уже thousands или units.
+    if (
+        mentions_thousands_as_units
+        and not mentions_millions_as_units
+        and extracted.units_scale == "millions"
+    ):
         fixed = extracted.model_copy(update={"units_scale": "thousands"})
         msg = (
-            f"AUTO-FIX: в заметках модели упоминаются 'тыс. руб.', но "
+            f"AUTO-FIX: в заметках явно указаны единицы 'тыс. руб.', но "
             f"units_scale='millions'. Принудительно установлено 'thousands'."
         )
         logger.warning(msg)
@@ -415,12 +517,13 @@ def _auto_fix_shares_units(extracted: ExtractedReport) -> tuple[ExtractedReport,
         shares_fix_msg_prefix = ""
 
     # 1) Модель в заметках явно упомянула 'млн. штук' → принудительно millions,
-    #    но ТОЛЬКО если число достаточно маленькое (до 100 000) — иначе это
-    #    ошибка модели (она неверно интерпретировала подпись в отчёте).
+    #    но ТОЛЬКО если число похоже на «млн. штук» (обычно 2–5 знаков:
+    #    Татнефть ~2 103, Сбер ~22 586). Шестизначное 689 644 — это уже
+    #    тысячи штук у Лукойла; ×10⁶ даёт сотни триллионов и ломает P/E.
     if (
         mentions_mln_shares
         and extracted.shares_units_scale != "millions"
-        and shares < 1_000_000
+        and shares < 100_000
     ):
         fixed = extracted.model_copy(update={"shares_units_scale": "millions"})
         msg = (
@@ -612,7 +715,106 @@ def _collect_sanity_warnings(extracted: ExtractedReport) -> list[str]:
             "в отчёте за следующий год). Проверь вручную."
         )
 
+    special = extracted.special_dividends_per_share
+    if special is not None and special > 0:
+        total_dps = extracted.dividends_per_share
+        if total_dps is None:
+            warnings.append(
+                f"special_dividends_per_share={special} при пустом "
+                f"dividends_per_share — разовая часть не может существовать без "
+                f"общей суммы. Заполни общий дивиденд или убери разовую часть."
+            )
+        elif special > total_dps:
+            warnings.append(
+                f"special_dividends_per_share={special} > dividends_per_share="
+                f"{total_dps} — модель приняла разовую выплату за добавку к "
+                f"общей сумме. Значение обрезано до общей суммы, ПРОВЕРЬ вручную."
+            )
+        else:
+            warnings.append(
+                f"Разовая часть дивидендов: {special} из {total_dps} на акцию — "
+                f"регулярная доходность считается без неё. Сверь с примечанием "
+                f"о дивидендах."
+            )
+
+    # Амортизация: без неё не сравнить CAPEX с износом и не посчитать
+    # owner earnings, поэтому просим найти её вручную.
+    if extracted.report_type != "bank":
+        da = extracted.depreciation_amortization
+        if da is None:
+            warnings.append(
+                "depreciation_amortization не найдена — посмотри корректировки "
+                "в операционной части ОДДС или примечание о себестоимости. "
+                "Без неё не считается качество прибыли и поддерживающий CAPEX."
+            )
+        elif extracted.capex is not None and da > 0 and extracted.capex / da > 5:
+            warnings.append(
+                f"CAPEX / D&A = {extracted.capex / da:.1f}× — необычно много. "
+                f"Проверь, не попало ли в CAPEX приобретение дочерних компаний "
+                f"или не занижена ли амортизация (например, взята только по ОС "
+                f"без НМА и права пользования)."
+            )
+
     return warnings
+
+
+def _sanitize_special_dividends(
+    extracted: ExtractedReport,
+) -> tuple[Optional[float], Optional[str]]:
+    """
+    Привести разовую часть дивидендов к инварианту «часть общей суммы».
+
+    Модель периодически трактует спецдивиденд как отдельную выплату сверх
+    основной. Если оставить так, регулярная доходность (общая минус разовая)
+    уйдёт в минус. Обрезаем по общей сумме — предупреждение об этом уже
+    попало в extraction_notes через sanity-checks.
+    """
+    special = extracted.special_dividends_per_share
+    if special is None or special <= 0:
+        return None, None
+    if not extracted.dividends_paid:
+        return None, None
+
+    total = extracted.dividends_per_share
+    if total is None or total <= 0:
+        return None, None
+
+    note = (extracted.special_dividends_note or "").strip() or None
+    if note and len(note) > _SPECIAL_DIVIDEND_NOTE_MAX_LEN:
+        note = note[:_SPECIAL_DIVIDEND_NOTE_MAX_LEN].rstrip() + "…"
+    return min(special, total), note
+
+
+def _sync_net_income_fields(
+    extracted: ExtractedReport,
+) -> tuple[ExtractedReport, Optional[str]]:
+    """Дозаполнить пару прибыль ↔ прибыль отчётная, если одно из полей пусто.
+
+    Модель часто заполняет только одно. Для аналитика важнее FCF; пустая
+    «Чистая прибыль» или «Прибыль отчётная» ломает форму. Копируем найденное
+    значение в пустое поле (нормализация по Грэму — опциональна и вручную).
+    """
+    ni = extracted.net_income
+    nir = extracted.net_income_reported
+    if ni is None and nir is None:
+        return extracted, None
+    if ni is not None and nir is not None:
+        return extracted, None
+    if ni is None:
+        fixed = extracted.model_copy(update={"net_income": nir})
+        msg = (
+            f"AUTO-FIX: net_income скопирован из net_income_reported "
+            f"({nir}). Нормализация по Грэму не делалась."
+        )
+        logger.info(msg)
+        return fixed, msg
+    fixed = extracted.model_copy(update={"net_income_reported": ni})
+    msg = (
+        f"AUTO-FIX: net_income_reported скопирован из net_income "
+        f"({ni})."
+    )
+    logger.info(msg)
+    return fixed, msg
 
 
 def _build_extraction_notes(
@@ -845,6 +1047,9 @@ def parse_pdf_to_report(
         )
         extracted = extracted.model_copy(update={"fiscal_year": fiscal_year})
 
+    # 5.3) Пара прибыль / прибыль отчётная — дозаполнить пустое из заполненного
+    extracted, ni_sync_msg = _sync_net_income_fields(extracted)
+
     outcome.extracted = extracted
 
     # 6) Соберём extraction_notes
@@ -853,7 +1058,7 @@ def parse_pdf_to_report(
         pdf_label=label,
         selected_pages=len(extraction.selected_pages),
         total_pages=extraction.total_pages,
-        extra_warnings=[money_autofix_msg, shares_autofix_msg],
+        extra_warnings=[money_autofix_msg, shares_autofix_msg, ni_sync_msg],
     )
 
     # 7) Для банка NULL'им current_assets/current_liabilities.
@@ -863,6 +1068,12 @@ def parse_pdf_to_report(
         ca = None
         cl = None
 
+    # 7.0) Разовая часть дивидендов — составляющая dividends_per_share, а не
+    # добавка к ней. Модель иногда трактует её как отдельную выплату, поэтому
+    # обрезаем по общей сумме: заниженная регулярная доходность безопаснее
+    # отрицательной.
+    special_dps, special_note = _sanitize_special_dividends(extracted)
+
     # 7.1) Для отчётов в иностранной валюте подтягиваем курс к рублю на дату
     # окончания отчётного периода. Делается ДО подтяжки цен, т.к. при USD/EUR
     # отчёте цену MOEX (в рублях) нужно будет разделить на курс, чтобы сохранить
@@ -870,8 +1081,10 @@ def parse_pdf_to_report(
     #
     # Источники: MOEX (биржевой, 2012..июнь-2024) → CBR (официальный, fallback).
     auto_exchange_rate: Optional[float] = None
+    report_iso = _resolve_report_date(
+        extracted, period_type=period_type, fiscal_year=fiscal_year,
+    )
     if extracted.currency and extracted.currency.upper() != "RUB":
-        report_iso = _resolve_report_date(extracted)
         report_d = _parse_iso_date(report_iso)
         auto_exchange_rate = _fetch_fx_rate_for_report(extracted.currency, report_d)
         if auto_exchange_rate is not None:
@@ -902,6 +1115,8 @@ def parse_pdf_to_report(
         extracted,
         ticker=company.ticker,  # type: ignore[arg-type]
         exchange_rate=auto_exchange_rate,
+        period_type=period_type,
+        fiscal_year=fiscal_year,
     )
     if moex_price_on_report is not None or moex_price_on_filing is not None:
         logger.info(
@@ -909,6 +1124,15 @@ def parse_pdf_to_report(
             "на report_date=%s, на filing_date=%s.",
             company.ticker, fiscal_year, extracted.currency,
             moex_price_on_report, moex_price_on_filing,
+        )
+
+    # 7.3) Реестр акций (ISSUESIZE) с MOEX → shares_issued. Не путать со
+    # средневзвешенным из примечания к EPS (то кладём в shares_weighted_avg).
+    moex_shares_issued = _fetch_moex_shares_issued(company.ticker)  # type: ignore[arg-type]
+    if moex_shares_issued is not None:
+        logger.info(
+            "[%s %s] MOEX ISSUESIZE → shares_issued=%s.",
+            company.ticker, fiscal_year, f"{moex_shares_issued:,}",
         )
 
     payload = FinancialReportCreate(
@@ -919,10 +1143,11 @@ def parse_pdf_to_report(
         accounting_standard=accounting_standard,  # type: ignore[arg-type]
         consolidated=consolidated,
         source="company_website",  # type: ignore[arg-type]
-        report_date=_resolve_report_date(extracted),
+        report_date=report_iso,
         filing_date=extracted.filing_date,
         price_per_share=moex_price_on_report,
         price_at_filing=moex_price_on_filing,
+        shares_issued=moex_shares_issued,
         shares_outstanding=None,
         shares_weighted_avg=extracted.shares_outstanding,
         revenue=extracted.revenue,
@@ -937,6 +1162,8 @@ def parse_pdf_to_report(
         debt=extracted.debt,
         dividends_per_share=extracted.dividends_per_share,
         dividends_paid=extracted.dividends_paid,
+        special_dividends_per_share=special_dps,
+        special_dividends_note=special_note,
         net_interest_income=extracted.net_interest_income,
         fee_commission_income=extracted.fee_commission_income,
         operating_expenses=extracted.operating_expenses,
@@ -945,6 +1172,8 @@ def parse_pdf_to_report(
         capex=extracted.capex,
         lease_principal=extracted.lease_principal,
         lease_interest=extracted.lease_interest,
+        debt_principal=extracted.debt_principal,
+        depreciation_amortization=extracted.depreciation_amortization,
         currency=extracted.currency,
         exchange_rate=auto_exchange_rate,
         auto_extracted=True,
@@ -1136,6 +1365,9 @@ def compute_report_diff(
     for spec in _COMPARABLE_FIELDS:
         if report_type not in spec.relevant_for:
             continue
+        # Даты / реестр акций заполняются вне LLM — не считаем в score качества.
+        if not spec.scored:
+            continue
 
         existing_raw = getattr(existing, spec.key, None)
         extracted_raw = getattr(extracted, spec.key, None)
@@ -1256,6 +1488,7 @@ def compare_pdf_with_existing(
     extracted = rescale_to_millions(extracted)
     if extracted.fiscal_year != fiscal_year:
         extracted = extracted.model_copy(update={"fiscal_year": fiscal_year})
+    extracted, ni_sync_msg = _sync_net_income_fields(extracted)
 
     # Обогатим extraction_notes тем же списком sanity-предупреждений, что
     # используется в parse_pdf_to_report — чтобы аналитик видел красные флаги
@@ -1265,7 +1498,7 @@ def compare_pdf_with_existing(
         pdf_label=label,
         selected_pages=len(extraction.selected_pages),
         total_pages=extraction.total_pages,
-        extra_warnings=[money_autofix_msg, shares_autofix_msg],
+        extra_warnings=[money_autofix_msg, shares_autofix_msg, ni_sync_msg],
     )
     extracted = extracted.model_copy(update={"extraction_notes": enriched_notes})
 

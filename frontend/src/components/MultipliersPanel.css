@@ -124,6 +124,42 @@
 .legend-item.loss   { color: var(--color-loss); }
 .legend-item.neutral { color: var(--color-neutral); }
 
+.legend-profile {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+.legend-profile-select {
+  font: inherit;
+  color: var(--color-text-primary);
+  background: var(--color-bg-subtle, transparent);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 6px;
+  padding: 2px 6px;
+  cursor: pointer;
+  max-width: 260px;
+}
+
+.legend-profile-select:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* Звёздочка у дивдоходности: в цифре учтены разовые выплаты */
+.div-special-mark {
+  margin-left: 1px;
+  font-size: 0.85em;
+  vertical-align: super;
+  line-height: 0;
+  opacity: 0.7;
+}
+
 /* ── Табы ─────────────────────────────────────────────────────────────────── */
 
 .mult-tabs {

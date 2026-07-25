@@ -549,6 +549,8 @@ const ReportForm: React.FC<ReportFormProps> = ({
         debt: null,
         dividends_per_share: null,
         dividends_paid: false,
+        special_dividends_per_share: null,
+        special_dividends_note: null,
         has_preferred_shares: false,
         preferred_share_dividends: null,
         net_interest_income: null,
@@ -892,12 +894,22 @@ const ReportForm: React.FC<ReportFormProps> = ({
             setError('Казначейские акции не могут превышать размещённое количество');
             return;
         }
+
+        if (
+            formData.special_dividends_per_share != null
+            && formData.special_dividends_per_share > (formData.dividends_per_share ?? 0)
+        ) {
+            setError('Разовые дивиденды входят в общую сумму и не могут её превышать');
+            return;
+        }
         
         // Очищаем fiscal_quarter для не-квартальных отчётов синхронно,
         // не через setFormData (который асинхронен), а в локальной копии данных
         const submitData: FinancialReportCreate = {
             ...formData,
             fiscal_quarter: formData.period_type === 'quarterly' ? formData.fiscal_quarter : null,
+            special_dividends_per_share: formData.dividends_paid ? formData.special_dividends_per_share : null,
+            special_dividends_note: formData.dividends_paid ? formData.special_dividends_note : null,
         };
 
         setIsSubmitting(true);
@@ -1883,6 +1895,47 @@ const ReportForm: React.FC<ReportFormProps> = ({
                                     <small className="field-hint">
                                         Суммарный дивиденд на акцию за весь период. Если Мосбиржа
                                         показала не все выплаты — введите полную сумму вручную.
+                                    </small>
+                                </div>
+                            </div>
+                        )}
+
+                        {formData.dividends_paid && (
+                            <div className="form-row">
+                                <div className="form-label">
+                                    <div className="price-label-row">
+                                        <span>В т.ч. разовые (спец.) дивиденды, {formData.currency}:</span>
+                                    </div>
+                                    <input
+                                        type="number"
+                                        name="special_dividends_per_share"
+                                        value={formData.special_dividends_per_share ?? ''}
+                                        onChange={handleInputChange}
+                                        step="0.0001"
+                                        placeholder="0.0000"
+                                        className="form-input"
+                                    />
+                                    <small className="field-hint">
+                                        Часть суммы выше, которая не повторится: продажа актива,
+                                        разовая выплата от материнской компании, спецдивиденд.
+                                        Регулярная доходность считается без неё.
+                                    </small>
+                                </div>
+                                <div className="form-label">
+                                    <div className="price-label-row">
+                                        <span>Комментарий к разовой выплате:</span>
+                                    </div>
+                                    <input
+                                        type="text"
+                                        name="special_dividends_note"
+                                        value={formData.special_dividends_note ?? ''}
+                                        onChange={handleInputChange}
+                                        placeholder="напр. дивиденд с продажи зарубежного бизнеса"
+                                        className="form-input"
+                                        maxLength={300}
+                                    />
+                                    <small className="field-hint">
+                                        Показывается в подсказке к дивидендной доходности.
                                     </small>
                                 </div>
                             </div>

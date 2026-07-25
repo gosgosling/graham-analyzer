@@ -59,6 +59,41 @@ export interface Multipliers {
     date: string;
 }
 
+/** Ключи метрик, для которых отраслевой профиль задаёт пороги */
+export type SectorMetricKey = 'pe' | 'pb' | 'de' | 'cr' | 'roe' | 'dy';
+
+/**
+ * Пороги одной метрики.
+ * higher_is_better=false: value ≤ good → «хорошо», ≤ warn → «внимание».
+ * higher_is_better=true:  value ≥ good → «хорошо», ≥ warn → «внимание».
+ */
+export interface SectorProfileBand {
+    good: number | null;
+    warn: number | null;
+    higher_is_better: boolean;
+    hint: string;
+    applicable: boolean;
+    note?: string | null;
+    tooltip_lines: string[];
+}
+
+/** Отраслевой профиль порогов — приходит с бэкенда вместе с мультипликаторами */
+export interface SectorProfile {
+    key: string;
+    label: string;
+    summary: string;
+    book_value_reliable: boolean;
+    lease_heavy: boolean;
+    bands: Record<SectorMetricKey, SectorProfileBand>;
+}
+
+/** Профиль в списке выбора (GET /companies/sector-profiles) */
+export interface SectorProfileOption {
+    key: string;
+    label: string;
+    summary: string;
+}
+
 /** Кэшированная запись мультипликаторов из таблицы multipliers */
 export interface MultiplierRecord {
     id: number;
@@ -77,9 +112,13 @@ export interface MultiplierRecord {
     ltm_net_income: number | null;
     ltm_revenue: number | null;
     ltm_dividends_per_share: number | null;
+    /** Разовая часть LTM-дивидендов, ₽/акцию (входит в ltm_dividends_per_share) */
+    ltm_special_dividends_per_share?: number | null;
 
     // Балансовые (в рублях)
     equity: number | null;
+    /** Итого активы, млн ₽ — знаменатель оборачиваемости в разложении ROE */
+    total_assets?: number | null;
     total_liabilities: number | null;
     current_assets: number | null;
     current_liabilities: number | null;
@@ -91,6 +130,8 @@ export interface MultiplierRecord {
     debt_to_equity: number | null;
     current_ratio: number | null;
     dividend_yield: number | null;
+    /** Дивидендная доходность без разовых выплат */
+    dividend_yield_regular?: number | null;
     /** Cost-to-Income ratio (%), только для банков */
     cost_to_income: number | null;
 
@@ -129,6 +170,8 @@ export interface CurrentMultipliers {
     ltm_net_income: number | null;
     ltm_revenue: number | null;
     ltm_dividends_per_share: number | null;
+    /** Разовая часть LTM-дивидендов, ₽/акцию (входит в ltm_dividends_per_share) */
+    ltm_special_dividends_per_share?: number | null;
 
     price_used: number | null;
     shares_used: number | null;
@@ -140,6 +183,10 @@ export interface CurrentMultipliers {
     market_cap: number | null;
     /** Собственный капитал, млн ₽ (из балансового отчёта) */
     equity: number | null;
+    /** Итого активы, млн ₽ — для разложения ROE */
+    total_assets?: number | null;
+    /** Отраслевой профиль порогов, применённый бэкендом к этой компании */
+    sector_profile?: SectorProfile | null;
 
     pe_ratio: number | null;
     pb_ratio: number | null;
@@ -147,6 +194,8 @@ export interface CurrentMultipliers {
     debt_to_equity: number | null;
     current_ratio: number | null;
     dividend_yield: number | null;
+    /** Дивидендная доходность без разовых выплат */
+    dividend_yield_regular?: number | null;
     cost_to_income: number | null;
 
     // Денежные потоки LTM (NULL для банков)
@@ -189,6 +238,11 @@ export interface Company {
     name: string;
     isin?: string;
     sector?: string;
+    /**
+     * Профиль порогов, закреплённый аналитиком вручную. Пусто — профиль
+     * определяется по сектору, который T-Invest отдаёт крупными группами.
+     */
+    sector_profile_key?: string | null;
     currency: string;
     lot: number;
     api_trade_available_flag: boolean;
@@ -252,8 +306,17 @@ export interface FinancialReportCreate {
     cash_and_equivalents?: number | null;
     /** Финансовый долг, млн */
     debt?: number | null;
+    /** Дивиденды на акцию за период, ВСЕГО (включая разовые) */
     dividends_per_share?: number | null;
     dividends_paid: boolean;
+    /**
+     * Разовая часть выплаты, входящая в dividends_per_share: спецдивиденд,
+     * компенсация пропущенных лет, распределение от продажи актива.
+     * Регулярная выплата = dividends_per_share − special_dividends_per_share.
+     */
+    special_dividends_per_share?: number | null;
+    /** Причина разовой выплаты — показывается в подсказке к дивдоходности */
+    special_dividends_note?: string | null;
     /** Есть привилегированные акции — для корректировки прибыли и FCF на обыкновенные */
     has_preferred_shares?: boolean;
     /** Дивиденды по привилегированным акциям за период, млн валюты отчёта */

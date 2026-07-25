@@ -215,7 +215,7 @@ def _call_with_structured_outputs(
     соответствующий схеме ExtractedReport."""
     try:
         completion = client.beta.chat.completions.parse(
-            model=settings.LLM_MODEL,
+            model=_model_for_request(images),
             temperature=settings.LLM_TEMPERATURE,
             messages=[
                 {"role": "system", "content": system_prompt},
@@ -237,6 +237,13 @@ def _call_with_structured_outputs(
     return parsed
 
 
+def _model_for_request(images: Optional[list[bytes]]) -> str:
+    """Текст → LLM_MODEL; запрос с PNG → LLM_VISION_MODEL (если задан)."""
+    if images and settings.LLM_VISION_MODEL:
+        return settings.LLM_VISION_MODEL
+    return settings.LLM_MODEL
+
+
 def _call_with_json_object(
     client: OpenAI,
     *,
@@ -247,9 +254,10 @@ def _call_with_json_object(
     """JSON-режим для провайдеров без полноценных structured outputs
     (Ollama, DashScope/Qwen): response_format=json_object + ручной парсинг."""
     extra_body = _provider_extra_body()
+    model = _model_for_request(images)
     try:
         completion: ChatCompletion = client.chat.completions.create(
-            model=settings.LLM_MODEL,
+            model=model,
             temperature=settings.LLM_TEMPERATURE,
             messages=[
                 {"role": "system", "content": system_prompt},

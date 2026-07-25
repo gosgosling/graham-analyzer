@@ -4,20 +4,24 @@ from app.models.financial_report import FinancialReport
 def convert_to_rub(value: Optional[float], currency: str, exchange_rate: Optional[float]) -> Optional[float]:
     """
     Конвертирует значение в рубли.
-    
+
     Args:
         value: Значение для конвертации (может быть None)
-        currency: Валюта исходного значения
-        exchange_rate: Курс обмена (USD/RUB)
-        
+        currency: Валюта исходного значения (RUB / USD / EUR / CNY / …)
+        exchange_rate: Курс «единица валюты отчёта → рубль» на дату отчёта.
+            Для RUB не используется. Для любой другой валюты обязателен:
+            иначе вернётся исходное значение (и сохранение такого отчёта
+            должно было упасть на валидации выше по стеку).
+
     Returns:
         Значение в рублях или None если value is None
     """
     if value is None:
         return None
-    if currency == "USD" and exchange_rate:
-        return value * exchange_rate
-    return value
+    code = (currency or "RUB").strip().upper()
+    if code == "RUB" or not exchange_rate:
+        return value
+    return value * exchange_rate
 
 
 def get_report_values_in_rub(report: FinancialReport) -> Dict[str, Optional[float]]:

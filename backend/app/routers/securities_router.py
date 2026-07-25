@@ -30,7 +30,7 @@ def get_analysis_companies():
     securities = get_securities()
     for security in securities:
         multipliers = _get_multipliers_by_company_id(security['id'])
-        classified_category = classify_company(multipliers) 
+        classified_category = classify_company(multipliers, sector=security.get('sector'))
         if classified_category['classify'] == "undervalued": undervalued_companies.append({'security': security, 'multipliers': multipliers, 'category': classified_category['classify']})
         elif classified_category['classify'] == "stable": stable_companies.append({'security': security, 'multipliers': multipliers, 'category': classified_category['classify']})
         else:  overvalued_companies.append({'security': security, 'multipliers': multipliers, 'category': classified_category['classify']})
@@ -59,7 +59,7 @@ def get_company_result(company_id: int):
     if company is None:
         raise HTTPException(status_code=404, detail='Company not found')
     multipliers = _get_multipliers_by_company_id(company_id)
-    category = classify_company(multipliers)
+    category = classify_company(multipliers, sector=company.get('sector'))
     result = {
         "company_id": company_id,
         "company_name": company['name'],

@@ -1,0 +1,10 @@
+model: dashscope:qwen3.7-max
+ok: 6  errors: 0
+mean_score: 0.3756  min_score: 0.1053
+
+LKOH 2024: score=16% match=3 close=0 mismatch=13 missing_ai=3 | report_date:missing_ai, filing_date:missing_ai, revenue:mismatch, net_income:mismatch, net_income_reported:mismatch, total_assets:mismatch, current_assets:mismatch, total_liabilities:mismatch, current_liabilities:mismatch, equity:mismatch, cash_and_equivalents:mismatch, debt:mismatch
+LKOH 2023: score=84% match=16 close=0 mismatch=0 missing_ai=3 | report_date:missing_ai, filing_date:missing_ai, dividends_per_share:missing_ai
+LKOH 2021: score=11% match=2 close=0 mismatch=14 missing_ai=3 | report_date:missing_ai, filing_date:missing_ai, shares_outstanding:mismatch, revenue:mismatch, net_income:mismatch, net_income_reported:mismatch, total_assets:mismatch, current_assets:mismatch, total_liabilities:mismatch, current_liabilities:mismatch, equity:mismatch, cash_and_equivalents:mismatch
+NVTK 2025: score=37% match=7 close=0 mismatch=2 missing_ai=10 | report_date:missing_ai, filing_date:missing_ai, shares_outstanding:missing_ai, net_income:mismatch, total_assets:missing_ai, current_assets:missing_ai, total_liabilities:missing_ai, current_liabilities:missing_ai, debt:missing_ai, dividends_per_share:missing_ai, dividends_paid:mismatch, capex:missing_ai
+NVTK 2024: score=37% match=7 close=0 mismatch=1 missing_ai=11 | report_date:missing_ai, filing_date:missing_ai, shares_outstanding:missing_ai, net_income:missing_ai, total_assets:missing_ai, current_assets:missing_ai, total_liabilities:missing_ai, current_liabilities:missing_ai, debt:missing_ai, dividends_per_share:missing_ai, dividends_paid:mismatch, capex:missing_ai
+NVTK 2023: score=41% match=7 close=0 mismatch=2 missing_ai=8 | report_date:missing_ai, filing_date:missing_ai, shares_outstanding:missing_ai, net_income:mismatch, total_assets:missing_ai, current_assets:missing_ai, total_liabilities:missing_ai, current_liabilities:missing_ai, dividends_per_share:missing_ai, capex:mismatch

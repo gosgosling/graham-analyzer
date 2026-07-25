@@ -12,3 +12,6 @@ python-multipart==0.0.20
 pymupdf==1.24.13
 openai==1.60.0
 tenacity==9.0.0
+
+# Тесты расчётного слоя: python -m pytest (из каталога backend)
+pytest==9.1.1

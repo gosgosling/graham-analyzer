@@ -1,5 +1,11 @@
 import axios from 'axios';
-import { Security, Company, CompaniesSyncStatus, CompaniesSyncResponse } from '../types';
+import {
+    Security,
+    Company,
+    CompaniesSyncStatus,
+    CompaniesSyncResponse,
+    SectorProfileOption,
+} from '../types';
 
 const api = axios.create({
     baseURL: 'http://localhost:8000',
@@ -59,6 +65,27 @@ export const updateCompanyPreferredShare = async (
     const response = await api.patch<Company>(
         `/companies/${companyId}/preferred-share`,
         { is_preferred_share: isPreferredShare },
+    );
+    return response.data;
+};
+
+/** Список отраслевых профилей порогов для выбора в карточке компании. */
+export const getSectorProfiles = async (): Promise<SectorProfileOption[]> => {
+    const response = await api.get<SectorProfileOption[]>('/companies/sector-profiles');
+    return response.data;
+};
+
+/**
+ * Закрепить за компанией профиль порогов. null возвращает автоопределение
+ * по сектору; выбор переживает синхронизацию с T-Invest.
+ */
+export const updateCompanySectorProfile = async (
+    companyId: number,
+    profileKey: string | null,
+): Promise<Company> => {
+    const response = await api.patch<Company>(
+        `/companies/${companyId}/sector-profile`,
+        { sector_profile_key: profileKey },
     );
     return response.data;
 };

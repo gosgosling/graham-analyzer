@@ -53,9 +53,16 @@ class Multiplier(Base):
     ltm_net_income: Mapped[Optional[float]] = mapped_column(Numeric(20, 2), nullable=True)
     ltm_revenue: Mapped[Optional[float]] = mapped_column(Numeric(20, 2), nullable=True)
     ltm_dividends_per_share: Mapped[Optional[float]] = mapped_column(Numeric(15, 4), nullable=True)
+    # Разовая часть дивидендов LTM (₽/акцию) — для отделения устойчивой
+    # доходности от компенсационных и специальных выплат
+    ltm_special_dividends_per_share: Mapped[Optional[float]] = mapped_column(
+        Numeric(15, 4), nullable=True
+    )
 
     # Балансовые данные из последнего отчёта
     equity: Mapped[Optional[float]] = mapped_column(Numeric(20, 2), nullable=True)
+    # Итого активы — знаменатель оборачиваемости и числитель рычага в разложении ROE
+    total_assets: Mapped[Optional[float]] = mapped_column(Numeric(20, 2), nullable=True)
     total_liabilities: Mapped[Optional[float]] = mapped_column(Numeric(20, 2), nullable=True)
     current_assets: Mapped[Optional[float]] = mapped_column(Numeric(20, 2), nullable=True)
     current_liabilities: Mapped[Optional[float]] = mapped_column(Numeric(20, 2), nullable=True)
@@ -67,6 +74,10 @@ class Multiplier(Base):
     debt_to_equity: Mapped[Optional[float]] = mapped_column(Numeric(12, 4), nullable=True)
     current_ratio: Mapped[Optional[float]] = mapped_column(Numeric(12, 4), nullable=True)
     dividend_yield: Mapped[Optional[float]] = mapped_column(Numeric(12, 4), nullable=True)
+    # Доходность без разовых выплат: (DPS − спецдивиденды) / цена × 100%
+    dividend_yield_regular: Mapped[Optional[float]] = mapped_column(
+        Numeric(12, 4), nullable=True
+    )
     # Банковский мультипликатор: Cost-to-Income ratio = Операционные расходы / Операционный доход × 100%
     # NULL для промышленных компаний
     cost_to_income: Mapped[Optional[float]] = mapped_column(Numeric(12, 4), nullable=True)

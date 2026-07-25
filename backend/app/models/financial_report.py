@@ -105,8 +105,17 @@ class FinancialReport(Base):
     )  # Фактическая (отчётная) прибыль по раскрытию, млн — если отличается от net_income
 
     # Дивиденды
-    dividends_per_share: Mapped[Optional[float]] = mapped_column(Numeric(10, 4), nullable=True)  # Дивиденды на акцию (₽ или $ за акцию)
+    dividends_per_share: Mapped[Optional[float]] = mapped_column(Numeric(10, 4), nullable=True)  # Дивиденды на акцию, ВСЕГО за период (₽ или $ за акцию)
     dividends_paid: Mapped[Optional[bool]] = mapped_column(default=False)  # выплачивались ли дивиденды в этом периоде
+    # Часть от dividends_per_share, приходящаяся на разовые (специальные) выплаты:
+    # компенсация пропущенных лет после редомициляции, распределение от продажи
+    # актива, спецдивиденд по решению мажоритария. Регулярная выплата =
+    # dividends_per_share − special_dividends_per_share. Без этого разделения
+    # скринер поднимает наверх компании, которые только что раздали накопленное.
+    special_dividends_per_share: Mapped[Optional[float]] = mapped_column(
+        Numeric(10, 4), nullable=True
+    )
+    special_dividends_note: Mapped[Optional[str]] = mapped_column(String(256), nullable=True)
 
     # Привилегированные акции: дивиденды по префам (млн валюты) вычитаются из NI и FCF для оценки по обыкновенным
     has_preferred_shares: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)

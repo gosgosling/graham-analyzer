@@ -1,0 +1,6 @@
+model: dashscope:qwen3.7-plus
+ok: 2  errors: 0
+mean_score: 0.595  min_score: 0.5789
+
+ALRS 2025: score=61% match=10 close=1 mismatch=3 missing_ai=4 | report_date:missing_ai, filing_date:missing_ai, shares_outstanding:mismatch, net_income:mismatch, equity:missing_ai, cash_and_equivalents:mismatch, depreciation_amortization:missing_ai
+ALRS 2024: score=58% match=10 close=1 mismatch=4 missing_ai=4 | report_date:missing_ai, filing_date:missing_ai, shares_outstanding:mismatch, net_income:mismatch, net_income_reported:mismatch, cash_and_equivalents:mismatch, dividends_per_share:missing_ai, depreciation_amortization:missing_ai

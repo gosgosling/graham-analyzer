@@ -40,6 +40,10 @@ class Settings(BaseSettings):
     LLM_BASE_URL: str = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
     LLM_API_KEY: str = ""
     LLM_MODEL: str = "qwen3.7-plus"
+    # Отдельная vision-модель для страниц-картинок (баланс НОВАТЭКа и сканы).
+    # qwen3.7-max текст-only; для PNG нужен qwen3-vl-plus / qwen-vl-max.
+    # Пусто → использовать LLM_MODEL и для картинок.
+    LLM_VISION_MODEL: str = ""
     LLM_TEMPERATURE: float = 0.0
     LLM_REQUEST_TIMEOUT: int = 600
 

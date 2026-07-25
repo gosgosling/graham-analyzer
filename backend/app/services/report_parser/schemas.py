@@ -14,6 +14,8 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
+from app.utils.date_parse import normalize_date_str
+
 
 # Маппинг подписей, которые LLM иногда возвращает из PDF (вместо ISO-кода),
 # в канонический код валюты. Например: подпись таблицы "в млн руб." модель
@@ -85,12 +87,30 @@ class ExtractedReport(BaseModel):
     consolidated: bool = Field(True, description="Консолидированная ли отчётность")
     report_date: Optional[str] = Field(
         None,
-        description="Дата окончания отчётного периода в формате YYYY-MM-DD "
-                    "(обычно 31.12.{fiscal_year})",
+        description=(
+            "Дата окончания периода YYYY-MM-DD. Для годового отчёта всегда "
+            "31.12.{fiscal_year}; можно null — сервер подставит сам."
+        ),
     )
     filing_date: Optional[str] = Field(
-        None, description="Дата публикации отчёта YYYY-MM-DD, если указана"
+        None,
+        description=(
+            "Дата публикации YYYY-MM-DD — обычно в конце аудиторского "
+            "заключения перед балансом. Необязательна; null если не видна."
+        ),
     )
+
+    @field_validator("report_date", "filing_date", mode="before")
+    @classmethod
+    def _normalize_dates(cls, v):
+        """LLM часто пишет «30.04.2021» — приводим к ISO до записи в БД."""
+        if v is None or v == "":
+            return None
+        try:
+            return normalize_date_str(v)
+        except ValueError:
+            # Пусть дальше упадёт с понятной ошибкой на сохранении, не на схеме LLM
+            return v
 
     report_type: ReportTypeLiteral = Field(
         "general",
@@ -201,37 +221,58 @@ class ExtractedReport(BaseModel):
     capex: Optional[float] = Field(
         None,
         description=(
-            "Капитальные затраты (CAPEX) из раздела ИНВЕСТИЦИОННОЙ деятельности "
-            "ОДДС. СИНОНИМЫ: 'Приобретение основных средств', 'Приобретение "
-            "основных средств и нематериальных активов', 'Покупка основных "
-            "средств', 'Purchase of property, plant and equipment', 'Capital "
-            "expenditures'. Если приобретение ОС и НМА указаны раздельно — сложи "
-            "их. Записывай ПОЛОЖИТЕЛЬНЫМ числом (абсолютная величина оттока), "
-            "даже если в отчёте оно в скобках/со знаком минус. В ИСХОДНЫХ единицах."
+            "CAPEX = сумма оттоков 'Приобретение основных средств' + "
+            "'Приобретение нематериальных активов' из ИНВЕСТИЦИОННОЙ "
+            "деятельности ОДДС (отдельного поля НМА нет — всегда складывай). "
+            "Если одна строка 'ОС и НМА' — бери её. ПОЛОЖИТЕЛЬНОЕ число "
+            "(модуль оттока). В extraction_notes: 'capex = ОС X + НМА Y'. "
+            "В ИСХОДНЫХ единицах."
         ),
     )
     lease_principal: Optional[float] = Field(
         None,
         description=(
-            "Погашение ТЕЛА обязательств по аренде (лизингу) из раздела "
-            "ФИНАНСОВОЙ деятельности ОДДС. СИНОНИМЫ: 'Погашение обязательств по "
-            "аренде', 'Выплаты основной суммы обязательств по аренде', "
-            "'Payment of lease liabilities', 'Principal elements of lease "
-            "payments'. ПОЛОЖИТЕЛЬНОЕ число (величина оттока). Если проценты по "
-            "аренде включены в эту же строку — раздели по возможности и отметь в "
-            "extraction_notes. В ИСХОДНЫХ единицах."
+            "Арендные выплаты из ФИНАНСОВОЙ деятельности ОДДС. Если в отчёте "
+            "одна строка 'Выплаты обязательств по аренде' / 'Погашение "
+            "обязательств по аренде' / 'Payment of lease liabilities' без "
+            "разделения на тело и проценты — положи ВСЮ сумму сюда, а "
+            "lease_interest оставь null (НЕ оценивай проценты). Если тело "
+            "выделено отдельно — только тело. ПОЛОЖИТЕЛЬНОЕ число. "
+            "В ИСХОДНЫХ единицах."
         ),
     )
     lease_interest: Optional[float] = Field(
         None,
         description=(
-            "ПРОЦЕНТЫ, уплаченные по обязательствам аренды (лизинга). СИНОНИМЫ: "
-            "'Проценты по аренде уплаченные', 'Процентная составляющая платежей "
-            "по аренде', 'Interest on lease liabilities', 'Interest portion of "
-            "lease payments'. Часто указаны в разделе финансовой/операционной "
-            "деятельности ОДДС либо в примечании про аренду. ПОЛОЖИТЕЛЬНОЕ число. "
-            "Если отдельно не выделены — оставь null и отметь это в "
-            "extraction_notes. В ИСХОДНЫХ единицах."
+            "Проценты по аренде ТОЛЬКО если в ОДДС/примечании есть ОТДЕЛЬНАЯ "
+            "строка ('Проценты по аренде уплаченные', 'Interest on lease "
+            "liabilities'). Если аренда одной строкой без разбивки — null, "
+            "не выдумывай. ПОЛОЖИТЕЛЬНОЕ число. В ИСХОДНЫХ единицах."
+        ),
+    )
+
+    depreciation_amortization: Optional[float] = Field(
+        None,
+        description=(
+            "Амортизация основных средств, НМА и права пользования активом "
+            "(D&A) за период. Ищи в разделе ОПЕРАЦИОННОЙ деятельности ОДДС "
+            "как корректировку прибыли, либо в примечании о себестоимости / "
+            "операционных расходах. СИНОНИМЫ: 'Амортизация', 'Износ и "
+            "амортизация', 'Амортизация основных средств и нематериальных "
+            "активов', 'Depreciation and amortisation', 'Depreciation, "
+            "depletion and amortisation'. Если амортизация ОС, НМА и права "
+            "пользования (аренда по МСФО 16) указаны раздельными строками — "
+            "СЛОЖИ их и отметь разбивку в extraction_notes. Записывай "
+            "ПОЛОЖИТЕЛЬНЫМ числом, даже если в ОДДС она со знаком плюс как "
+            "корректировка. В ИСХОДНЫХ единицах."
+        ),
+    )
+    debt_principal: Optional[float] = Field(
+        None,
+        description=(
+            "Оставь null. Погашение кредитов/займов/облигаций сейчас не "
+            "извлекаем и в FCF не входит (финансирование, не sustenance). "
+            "Не суммируй строки погашения долга в другие поля."
         ),
     )
 
@@ -246,16 +287,17 @@ class ExtractedReport(BaseModel):
     net_income: Optional[float] = Field(
         None,
         description=(
-            "Чистая прибыль акционеров материнской компании (нормализованная). "
-            "Если в отчёте несколько строк (до/после учёта меньшинства), бери "
-            "«Прибыль, относящаяся к акционерам ПАО ...»."
+            "Чистая прибыль акционеров материнской компании. По умолчанию = "
+            "net_income_reported (та же строка ОПиУ). Оба поля заполняй; "
+            "не оставляй одно null, если второе известно."
         ),
     )
     net_income_reported: Optional[float] = Field(
         None,
         description=(
-            "Фактическая отчётная прибыль — та, что указана в строке 'Чистая прибыль' "
-            "без каких-либо нормализаций. Может совпадать с net_income."
+            "Отчётная чистая прибыль из строки 'Чистая прибыль' / 'Прибыль за "
+            "период' без корректировок. Если заполнил net_income — скопируй "
+            "сюда то же число (и наоборот)."
         ),
     )
 
@@ -263,12 +305,52 @@ class ExtractedReport(BaseModel):
     dividends_per_share: Optional[float] = Field(
         None,
         description=(
-            "Дивиденды на одну обыкновенную акцию в ПОЛНЫХ единицах валюты (₽/$). "
-            "Брать итоговые начисленные за отчётный год. Null если не указано."
+            "Сумма дивидендов на одну обыкновенную акцию за ОТЧЁТНЫЙ ГОД "
+            "(промежуточные + финальные транши этого года) в ПОЛНЫХ единицах "
+            "валюты (₽/$). Финальный дивиденд за год N часто объявляют/платят "
+            "в году N+1 — относи к году N, не к году платежа. Не подставляй "
+            "дивиденд прошлого года. Если полный итог за отчётный год ещё не "
+            "объявлен — null."
         ),
     )
     dividends_paid: bool = Field(
         False, description="Выплачивались ли дивиденды в отчётном периоде"
+    )
+
+    @field_validator("dividends_paid", mode="before")
+    @classmethod
+    def _coerce_dividends_paid(cls, v):
+        """json_object-режим часто отдаёт null вместо false — не валим весь ответ."""
+        if v is None:
+            return False
+        return v
+    special_dividends_per_share: Optional[float] = Field(
+        None,
+        description=(
+            "ЧАСТЬ dividends_per_share, которая является РАЗОВОЙ выплатой и не "
+            "повторится в следующем году. Это специальный дивиденд, доплата за "
+            "пропущенные периоды, распределение выручки от продажи актива или "
+            "бизнеса, разовое распределение от материнской компании. Признаки в "
+            "тексте: 'специальный дивиденд', 'special dividend', 'разовая "
+            "выплата', 'дополнительный дивиденд за 20XX год', 'в связи с "
+            "продажей'. ВАЖНО: это не отдельная сумма СВЕРХ dividends_per_share, "
+            "а её составляющая, поэтому значение не может превышать "
+            "dividends_per_share. Если в отчёте нет прямого указания на разовый "
+            "характер выплаты — оставь null, НЕ угадывай. В ПОЛНЫХ единицах "
+            "валюты (₽/$) на одну обыкновенную акцию."
+        ),
+    )
+    # Без max_length: в json_schema-режиме OpenAI строковые ограничения
+    # поддерживаются не всеми провайдерами и запрос падает на валидации схемы.
+    # Обрезаем длину на нашей стороне, в _sanitize_special_dividends.
+    special_dividends_note: Optional[str] = Field(
+        None,
+        description=(
+            "Одна короткая фраза о причине разовой выплаты, если "
+            "special_dividends_per_share заполнен: например 'доплата за 2021 "
+            "год' или 'распределение от продажи зарубежного бизнеса'. "
+            "null, если разовой части нет."
+        ),
     )
 
     # ─── Акции ──────────────────────────────────────────────────────────────
@@ -282,6 +364,34 @@ class ExtractedReport(BaseModel):
             "Единицы (штуки/тысячи) укажи в shares_units_scale."
         ),
     )
+
+    @field_validator("shares_outstanding", mode="before")
+    @classmethod
+    def _coerce_shares_outstanding_int(cls, v):
+        """LLM иногда отдаёт млн акций как float (178.38) — округляем до int.
+
+        Иначе Pydantic падает с int_from_float до auto-fix масштаба.
+        """
+        if v is None or v == "":
+            return None
+        if isinstance(v, bool):
+            return None
+        if isinstance(v, int):
+            return v
+        if isinstance(v, float):
+            if v != v:  # NaN
+                return None
+            return int(round(v))
+        if isinstance(v, str):
+            text = v.strip().replace(" ", "").replace("\u00a0", "").replace(",", ".")
+            if not text or text.lower() in {"null", "none", "n/a", "-"}:
+                return None
+            try:
+                return int(round(float(text)))
+            except ValueError:
+                return v
+        return v
+
     shares_units_scale: Literal["units", "thousands", "millions"] = Field(
         "units",
         description=(
@@ -295,6 +405,14 @@ class ExtractedReport(BaseModel):
             "Если не уверен — thousands (чаще встречается в российских МСФО)."
         ),
     )
+
+    @field_validator("shares_units_scale", mode="before")
+    @classmethod
+    def _coerce_shares_units_scale(cls, v):
+        """null от модели → units (безопасный дефолт, дальше сработают auto-fix)."""
+        if v is None or (isinstance(v, str) and not v.strip()):
+            return "units"
+        return v
 
     # ─── Банковские поля (только при report_type='bank') ────────────────────
     net_interest_income: Optional[float] = Field(
@@ -367,6 +485,8 @@ _MONETARY_FIELDS_IN_MILLIONS: tuple[str, ...] = (
     "capex",
     "lease_principal",
     "lease_interest",
+    "debt_principal",
+    "depreciation_amortization",
 )
 
 
@@ -388,8 +508,8 @@ def rescale_to_millions(report: ExtractedReport) -> ExtractedReport:
       * `shares_units_scale == "units"`,
     а соответствующие значения уже пересчитаны.
 
-    Поля, которые всегда в полных единицах валюты (dividends_per_share),
-    НЕ трогаем.
+    Поля, которые всегда в полных единицах валюты (dividends_per_share,
+    special_dividends_per_share), НЕ трогаем.
     """
     money_factor = _SCALE_TO_MILLIONS.get(report.units_scale, 1.0)
     shares_factor = _SHARES_SCALE_TO_UNITS.get(report.shares_units_scale, 1)

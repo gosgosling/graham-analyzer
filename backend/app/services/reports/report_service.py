@@ -7,6 +7,7 @@ from app.models.company import Company
 from app.schemas import FinancialReportCreate
 from app.services.analysis import multiplier_service
 from app.models.enums import sector_to_report_type
+from app.utils.date_parse import parse_date
 
 
 def create_report(db: Session, report_data: FinancialReportCreate) -> FinancialReport:
@@ -23,11 +24,11 @@ def create_report(db: Session, report_data: FinancialReportCreate) -> FinancialR
     Raises:
         IntegrityError: Если отчет с такими параметрами уже существует
     """
-    # Преобразуем строки дат в объекты date
-    report_date_obj = datetime.strptime(report_data.report_date, "%Y-%m-%d").date()
-    filing_date_obj = None
-    if report_data.filing_date:
-        filing_date_obj = datetime.strptime(report_data.filing_date, "%Y-%m-%d").date()
+    # YYYY-MM-DD или DD.MM.YYYY (часто так возвращает LLM из аудиторского заключения)
+    report_date_obj = parse_date(report_data.report_date)
+    if report_date_obj is None:
+        raise ValueError(f"Некорректная report_date: {report_data.report_date!r}")
+    filing_date_obj = parse_date(report_data.filing_date) if report_data.filing_date else None
 
     # Автоматически определяем report_type из сектора компании
     company = db.query(Company).filter(Company.id == report_data.company_id).first()
@@ -66,6 +67,8 @@ def create_report(db: Session, report_data: FinancialReportCreate) -> FinancialR
         debt=report_data.debt,
         dividends_per_share=report_data.dividends_per_share,
         dividends_paid=report_data.dividends_paid,
+        special_dividends_per_share=report_data.special_dividends_per_share,
+        special_dividends_note=report_data.special_dividends_note,
         has_preferred_shares=report_data.has_preferred_shares,
         preferred_share_dividends=report_data.preferred_share_dividends,
         currency=report_data.currency,
@@ -205,11 +208,10 @@ def update_report(
     if not db_report:
         return None
     
-    # Преобразуем строки дат в объекты date
-    report_date_obj = datetime.strptime(report_data.report_date, "%Y-%m-%d").date()
-    filing_date_obj = None
-    if report_data.filing_date:
-        filing_date_obj = datetime.strptime(report_data.filing_date, "%Y-%m-%d").date()
+    report_date_obj = parse_date(report_data.report_date)
+    if report_date_obj is None:
+        raise ValueError(f"Некорректная report_date: {report_data.report_date!r}")
+    filing_date_obj = parse_date(report_data.filing_date) if report_data.filing_date else None
     
     # Обновляем поля
     db_report.company_id = report_data.company_id  # type: ignore
@@ -246,6 +248,8 @@ def update_report(
     db_report.debt = report_data.debt  # type: ignore
     db_report.dividends_per_share = report_data.dividends_per_share  # type: ignore
     db_report.dividends_paid = report_data.dividends_paid  # type: ignore
+    db_report.special_dividends_per_share = report_data.special_dividends_per_share  # type: ignore
+    db_report.special_dividends_note = report_data.special_dividends_note  # type: ignore
     db_report.has_preferred_shares = report_data.has_preferred_shares  # type: ignore
     db_report.preferred_share_dividends = report_data.preferred_share_dividends  # type: ignore
     db_report.currency = report_data.currency  # type: ignore
