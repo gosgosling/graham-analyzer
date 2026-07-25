@@ -4,6 +4,7 @@ from typing import List, Optional
 from datetime import datetime, timezone
 from app.models.company import Company
 from app.schemas import CompanyCreate
+from app.services.analysis.sector_profiles import available_profiles
 from app.services.companies.share_class import (
     detect_preferred_share,
     instrument_can_be_preferred,
@@ -71,6 +72,7 @@ def create_company(db: Session, company_data: CompanyCreate) -> Company:
         name=company_data.name,
         isin=company_data.isin,
         sector=company_data.sector,
+        sector_profile_key=company_data.sector_profile_key,
         currency=company_data.currency,
         lot=company_data.lot,
         api_trade_available_flag=company_data.api_trade_available_flag,
@@ -117,6 +119,9 @@ def _apply_company_update(db_company: Company, company_data: CompanyCreate, db: 
     # Применяем только если значение явно передано (например, из PATCH).
     if company_data.is_preferred_share is not None:
         db_company.is_preferred_share = company_data.is_preferred_share  # type: ignore
+    # Профиль порогов — тоже ручной выбор: синхронизация с T-Invest его не трогает.
+    if company_data.sector_profile_key is not None:
+        db_company.sector_profile_key = company_data.sector_profile_key  # type: ignore
     db.commit()
     db.refresh(db_company)
     return db_company
@@ -140,6 +145,28 @@ def set_preferred_share_flag(
         db_company.is_preferred_share = False  # type: ignore
     else:
         db_company.is_preferred_share = is_preferred  # type: ignore
+    db.commit()
+    db.refresh(db_company)
+    return db_company
+
+
+def set_sector_profile_key(
+    db: Session, company_id: int, profile_key: Optional[str]
+) -> Optional[Company]:
+    """
+    Закрепляет за компанией отраслевой профиль порогов.
+
+    Пустое значение возвращает автоопределение по сектору. Неизвестный ключ
+    отклоняется: молча свести пороги к грэмовским из-за опечатки — худший
+    исход, чем явная ошибка.
+    """
+    db_company = get_company_by_id(db, company_id)
+    if not db_company:
+        return None
+    cleaned = (profile_key or "").strip().lower()
+    if cleaned and cleaned not in {p["key"] for p in available_profiles()}:
+        raise ValueError(f"Неизвестный профиль: {profile_key}")
+    db_company.sector_profile_key = cleaned or None  # type: ignore[assignment]
     db.commit()
     db.refresh(db_company)
     return db_company

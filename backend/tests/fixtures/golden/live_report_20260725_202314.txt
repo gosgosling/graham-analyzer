@@ -1,0 +1,7 @@
+model: dashscope:qwen3.7-plus
+ok: 3  errors: 0
+mean_score: 0.7806  min_score: 0.7059
+
+LKOH 2023: score=81% match=13 close=0 mismatch=2 missing_ai=1 | net_income:mismatch, dividends_per_share:missing_ai, depreciation_amortization:mismatch
+AFLT 2023: score=82% match=14 close=0 mismatch=3 missing_ai=0 | net_income:mismatch, cash_and_equivalents:mismatch, debt:mismatch
+ALRS 2023: score=71% match=12 close=0 mismatch=5 missing_ai=0 | cash_and_equivalents:mismatch, debt:mismatch, dividends_per_share:mismatch, lease_principal:mismatch, depreciation_amortization:mismatch

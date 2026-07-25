@@ -15,14 +15,18 @@ def compute_fcf(
     capex: Optional[float],
     lease_principal: Optional[float] = None,
     lease_interest: Optional[float] = None,
-    debt_principal: Optional[float] = None,
+    debt_principal: Optional[float] = None,  # noqa: ARG001 — reserved, не в формуле
 ) -> Optional[float]:
     """
-    FCF = OCF − CAPEX − тело аренды − проценты по аренде − тело долга (долг. ЦБ).
+    FCF = OCF − CAPEX − аренда (тело + проценты).
 
-    OCF и CAPEX обязательны для расчёта (базовая формула).
-    Остальные слагаемые опциональны (отсутствие = 0).
-    Все оттоки хранятся как положительные числа.
+    CAPEX — приобретение ОС + НМА (положительный отток).
+    Аренда: если в ОДДС одна строка «Выплаты обязательств по аренде» —
+    вся сумма в lease_principal, lease_interest = null.
+
+    debt_principal (погашение кредитов/облигаций) в формулу НЕ входит:
+    это финансирование, не sustenance capex/lease. Параметр оставлен для
+    совместимости вызовов и особых ручных кейсов — игнорируется.
     """
     if operating_cash_flow is None or capex is None:
         return None
@@ -30,6 +34,5 @@ def compute_fcf(
         float(capex)
         + _outflow(lease_principal)
         + _outflow(lease_interest)
-        + _outflow(debt_principal)
     )
     return round(float(operating_cash_flow) - total_out, 3)

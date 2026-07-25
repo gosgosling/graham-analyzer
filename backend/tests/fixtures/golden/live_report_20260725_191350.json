@@ -1,0 +1,862 @@
+{
+  "model": "dashscope:qwen3.7-max",
+  "base_url": "https://ws-lm5vuo6b0ilv9kx9.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1",
+  "pdf_dir": "/tmp/golden_pdfs",
+  "finished_at": "2026-07-25T19:15:06.383520+00:00",
+  "n_ok": 6,
+  "n_error": 0,
+  "mean_score": 0.3756,
+  "min_score": 0.1053,
+  "results": [
+    {
+      "ticker": "LKOH",
+      "year": 2024,
+      "file": "LKOH_2024_IFRS_annual.json",
+      "report_id": 13,
+      "status": "ok",
+      "score": 0.1579,
+      "matched": 3,
+      "close": 0,
+      "mismatched": 13,
+      "missing_in_ai": 3,
+      "missing_in_existing": 3,
+      "both_missing": 1,
+      "selected_pages": 45,
+      "total_pages": 49,
+      "auto_fix_money": "AUTO-FIX: в заметках модели упоминаются 'миллиарды', но units_scale='millions'. Принудительно установлено 'billions'. Все денежные значения будут × 1000 (в млн).",
+      "auto_fix_shares": null,
+      "bad_fields": [
+        {
+          "field": "report_date",
+          "status": "missing_ai",
+          "existing": "2024-12-31",
+          "extracted": null,
+          "pct_diff": null
+        },
+        {
+          "field": "filing_date",
+          "status": "missing_ai",
+          "existing": "2024-03-24",
+          "extracted": null,
+          "pct_diff": null
+        },
+        {
+          "field": "revenue",
+          "status": "mismatch",
+          "existing": 4420565.0,
+          "extracted": 8621561000.0,
+          "pct_diff": 194933.01048621614
+        },
+        {
+          "field": "net_income",
+          "status": "mismatch",
+          "existing": 792540.0,
+          "extracted": 923074000.0,
+          "pct_diff": 116370.33588210058
+        },
+        {
+          "field": "net_income_reported",
+          "status": "mismatch",
+          "existing": 848514.0,
+          "extracted": 848514000.0,
+          "pct_diff": 99900.0
+        },
+        {
+          "field": "total_assets",
+          "status": "mismatch",
+          "existing": 9282619.0,
+          "extracted": 9282619000.0,
+          "pct_diff": 99900.0
+        },
+        {
+          "field": "current_assets",
+          "status": "mismatch",
+          "existing": 3309453.0,
+          "extracted": 3309453000.0,
+          "pct_diff": 99900.0
+        },
+        {
+          "field": "total_liabilities",
+          "status": "mismatch",
+          "existing": 2390611.0,
+          "extracted": 2390611000.0,
+          "pct_diff": 99900.0
+        },
+        {
+          "field": "current_liabilities",
+          "status": "mismatch",
+          "existing": 1486739.0,
+          "extracted": 1486739000.0,
+          "pct_diff": 99900.0
+        },
+        {
+          "field": "equity",
+          "status": "mismatch",
+          "existing": 6892008.0,
+          "extracted": 6892008000.0,
+          "pct_diff": 99900.0
+        },
+        {
+          "field": "cash_and_equivalents",
+          "status": "mismatch",
+          "existing": 1526518.0,
+          "extracted": 1426264000.0,
+          "pct_diff": 93332.50456267138
+        },
+        {
+          "field": "debt",
+          "status": "mismatch",
+          "existing": 380006.0,
+          "extracted": 380006000.0,
+          "pct_diff": 99900.0
+        },
+        {
+          "field": "dividends_per_share",
+          "status": "missing_ai",
+          "existing": 1055.0,
+          "extracted": null,
+          "pct_diff": null
+        },
+        {
+          "field": "operating_cash_flow",
+          "status": "mismatch",
+          "existing": 1788172.0,
+          "extracted": 1788172000.0,
+          "pct_diff": 99900.0
+        },
+        {
+          "field": "capex",
+          "status": "mismatch",
+          "existing": 779724.0,
+          "extracted": 779724000.0,
+          "pct_diff": 99900.0
+        },
+        {
+          "field": "depreciation_amortization",
+          "status": "mismatch",
+          "existing": 332651.0,
+          "extracted": 593446000.0,
+          "pct_diff": 178298.98271762297
+        }
+      ],
+      "extracted": {
+        "fiscal_year": null,
+        "period_type": "annual",
+        "fiscal_quarter": null,
+        "accounting_standard": "IFRS",
+        "consolidated": true,
+        "report_date": null,
+        "filing_date": null,
+        "report_type": "general",
+        "currency": "RUB",
+        "units_scale": "millions",
+        "total_assets": 9282619000.0,
+        "total_liabilities": 2390611000.0,
+        "current_assets": 3309453000.0,
+        "current_liabilities": 1486739000.0,
+        "equity": 6892008000.0,
+        "cash_and_equivalents": 1426264000.0,
+        "debt": 380006000.0,
+        "operating_cash_flow": 1788172000.0,
+        "capex": 779724000.0,
+        "lease_principal": 84261000.0,
+        "lease_interest": 16745000.0,
+        "depreciation_amortization": 593446000.0,
+        "debt_principal": 31130000.0,
+        "revenue": 8621561000.0,
+        "net_income": 923074000.0,
+        "net_income_reported": 848514000.0,
+        "dividends_per_share": null,
+        "dividends_paid": true,
+        "special_dividends_per_share": null,
+        "special_dividends_note": null,
+        "shares_outstanding": 689644000,
+        "shares_units_scale": "units",
+        "net_interest_income": null,
+        "fee_commission_income": null,
+        "operating_expenses": null,
+        "provisions": null,
+        "extraction_notes": "Единицы отчёта: миллионы российских рублей (млн руб.).\nАкции: средневзвешенное количество обыкновенных акций за 2024 г. (689 644 тыс. штук) из Примечания 22.\nnet_income нормализован: Прибыль до налога (1 202 833) + Убыток от обесценения активов (93 409) - Восстановление обесценения (4 415) = Скорректированная прибыль до налога 1 291 827 * 0.8 (эффективная ставка 20%) = 1 033 462. ВНИМАНИЕ: в расчёте выше использована формула из промпта, но фактически для Лукойла 2024 с учётом разового эффекта изменения ставки налога на прибыль (90 665 млн руб., см. Прим. 27) корректнее исключить и его. Пересчёт с исключением налогового эффекта: (1 202 833 + 93 409 - 4 415 - 90 665) * 0.8 = 961 098. Однако, так как изменение ставки — законодательное и постоянное с 2025, а не 'единовременный убыток', в поле net_income записано значение без исключения налогового эффекта (923 074), но аналитику следует учесть этот нюанс. Итоговое значение в поле: (1202833 + 93409 - 4415) * 0.8 = 1033462. ОШИБКА В РАСЧЁТЕ ВЫШЕ: исправляю на строгое следование правилу 'исключить крупные единовременные'. Обесценение 93 млрд — да. Налоговый эффект 90 млрд — нет (это изменение ставки). Итого: (1202833 + 93409 - 4415) * 0.8 = 1033462. ЗАПИСЫВАЮ 1033462.\nДивиденды: в отчёте указаны только промежуточные дивиденды за 2024 г. (514 руб.). Финальные дивиденды за 2024 г. не объявлены на дату отчёта — поле dividends_per_share оставлено null.\ndebt = Краткосрочные кредиты и займы (53 956) + Долгосрочная задолженность по кредитам и займам (326 050) = 380 006. Обязательства по аренде (202 429) НЕ включены, так как выделены отдельной строкой в Прим. 17.\nОДДС найден. capex = 'Капитальные затраты' (779 724). lease_principal = 'Погашение долгосрочных кредитов и займов' включает аренду? Нет, в сверке Прим. 17 видно, что погашение аренды (84 261) идёт отдельно от кредитов. В ОДДС строка 'Погашение долгосрочных кредитов и займов' (115 387) является агрегированной. Согласно сверке в Прим. 17: Погашение долгосрочных кредитов (25 082) + Облигации (6 044) + Аренда (84 261) = 115 387. Следовательно, debt_principal = 25 082 + 6 044 = 31 126. lease_principal = 84 261.\nlease_interest = 16 745 (из сверки обязательств в Прим. 17, так как в ОДДС проценты уплаченные даны общей суммой 28 998).\ndepreciation_amortization = 593 446 (строка 'Износ и амортизация' в ОПиУ и ОДДС).",
+        "confidence": "high"
+      }
+    },
+    {
+      "ticker": "LKOH",
+      "year": 2023,
+      "file": "LKOH_2023_IFRS_annual.json",
+      "report_id": 14,
+      "status": "ok",
+      "score": 0.8421,
+      "matched": 16,
+      "close": 0,
+      "mismatched": 0,
+      "missing_in_ai": 3,
+      "missing_in_existing": 3,
+      "both_missing": 1,
+      "selected_pages": 37,
+      "total_pages": 41,
+      "auto_fix_money": null,
+      "auto_fix_shares": null,
+      "bad_fields": [
+        {
+          "field": "report_date",
+          "status": "missing_ai",
+          "existing": "2023-12-31",
+          "extracted": null,
+          "pct_diff": null
+        },
+        {
+          "field": "filing_date",
+          "status": "missing_ai",
+          "existing": "2024-03-12",
+          "extracted": null,
+          "pct_diff": null
+        },
+        {
+          "field": "dividends_per_share",
+          "status": "missing_ai",
+          "existing": 945.0,
+          "extracted": null,
+          "pct_diff": null
+        }
+      ],
+      "extracted": {
+        "fiscal_year": null,
+        "period_type": "annual",
+        "fiscal_quarter": null,
+        "accounting_standard": "IFRS",
+        "consolidated": true,
+        "report_date": null,
+        "filing_date": null,
+        "report_type": "general",
+        "currency": "RUB",
+        "units_scale": "millions",
+        "total_assets": 8600173.0,
+        "total_liabilities": 2198940.0,
+        "current_assets": 2994282.0,
+        "current_liabilities": 1441830.0,
+        "equity": 6401233.0,
+        "cash_and_equivalents": 1179673.0,
+        "debt": 396128.0,
+        "operating_cash_flow": 1824311.0,
+        "capex": 720317.0,
+        "lease_principal": 74103.0,
+        "lease_interest": 13837.0,
+        "depreciation_amortization": 577367.0,
+        "debt_principal": 122863.0,
+        "revenue": 7928303.0,
+        "net_income": 1154664.0,
+        "net_income_reported": 1154664.0,
+        "dividends_per_share": null,
+        "dividends_paid": true,
+        "special_dividends_per_share": null,
+        "special_dividends_note": null,
+        "shares_outstanding": 692389000,
+        "shares_units_scale": "units",
+        "net_interest_income": null,
+        "fee_commission_income": null,
+        "operating_expenses": null,
+        "provisions": null,
+        "extraction_notes": "Единицы отчёта: миллионы российских рублей (млн руб.).\nАкции: средневзвешенное количество обыкновенных акций за 2023 г. (Примечание 21), единицы — тыс. штук.\nnet_income НЕ нормализован — в ОПиУ и примечаниях нет детальной разбивки прочих расходов/доходов для исключения единовременных статей (обесценение 114 546 млн руб. включено в 'Прочие расходы', но без разбивки на компоненты); требуется ручной расчёт аналитиком.\ndividends_per_share = null: в Примечании 21 указаны только промежуточные дивиденды за 2023 г. (447 руб.) и финальные за 2022 г.; итоговые дивиденды за 2023 г. не объявлены на дату отчёта.\ndebt = 396 128 млн руб.: краткосрочные кредиты и займы 82 191 (стр. 6) + долгосрочные кредиты и займы 313 937 (стр. 6). Обязательства по аренде (203 951 млн руб.) исключены из долга согласно правилам.\ndebt_principal = 122 863 млн руб.: сумма погашения краткосрочных (7 362) и долгосрочных (116 732 + 6 131 текущая часть, сверка в Примечании 16) кредитов и займов. В ОДДС строка 'Погашение долгосрочных' (196 966) включает аренду, поэтому использована разбивка из Примечания 16.\nlease_principal = 74 103 млн руб. (из сверки обязательств в Примечании 16, так как в ОДДС аренда не выделена отдельной строкой).\nlease_interest = 13 837 млн руб. (проценты по аренде из сверки в Примечании 16; в ОДДС проценты уплаченные 26 036 включают проценты по прочим обязательствам).\ndepreciation_amortization = 577 367 млн руб. (строка 'Износ и амортизация' в ОПиУ и корректировка в ОДДС).",
+        "confidence": "medium"
+      }
+    },
+    {
+      "ticker": "LKOH",
+      "year": 2021,
+      "file": "LKOH_2021_IFRS_annual.json",
+      "report_id": 15,
+      "status": "ok",
+      "score": 0.1053,
+      "matched": 2,
+      "close": 0,
+      "mismatched": 14,
+      "missing_in_ai": 3,
+      "missing_in_existing": 3,
+      "both_missing": 1,
+      "selected_pages": 53,
+      "total_pages": 61,
+      "auto_fix_money": "AUTO-FIX: в заметках модели упоминаются 'миллиарды', но units_scale='millions'. Принудительно установлено 'billions'. Все денежные значения будут × 1000 (в млн).",
+      "auto_fix_shares": null,
+      "bad_fields": [
+        {
+          "field": "report_date",
+          "status": "missing_ai",
+          "existing": "2021-12-31",
+          "extracted": null,
+          "pct_diff": null
+        },
+        {
+          "field": "filing_date",
+          "status": "missing_ai",
+          "existing": "2022-03-02",
+          "extracted": null,
+          "pct_diff": null
+        },
+        {
+          "field": "shares_outstanding",
+          "status": "mismatch",
+          "existing": 684968000,
+          "extracted": 652365000,
+          "pct_diff": -4.759784398687238
+        },
+        {
+          "field": "revenue",
+          "status": "mismatch",
+          "existing": 9435143.0,
+          "extracted": 9435143000.0,
+          "pct_diff": 99900.0
+        },
+        {
+          "field": "net_income",
+          "status": "mismatch",
+          "existing": 773442.0,
+          "extracted": 773442000.0,
+          "pct_diff": 99900.0
+        },
+        {
+          "field": "net_income_reported",
+          "status": "mismatch",
+          "existing": 773442.0,
+          "extracted": 773442000.0,
+          "pct_diff": 99900.0
+        },
+        {
+          "field": "total_assets",
+          "status": "mismatch",
+          "existing": 6864749.0,
+          "extracted": 6864749000.0,
+          "pct_diff": 99900.0
+        },
+        {
+          "field": "current_assets",
+          "status": "mismatch",
+          "existing": 2149157.0,
+          "extracted": 2149157000.0,
+          "pct_diff": 99900.0
+        },
+        {
+          "field": "total_liabilities",
+          "status": "mismatch",
+          "existing": 2341565.0,
+          "extracted": 2341565000.0,
+          "pct_diff": 99900.0
+        },
+        {
+          "field": "current_liabilities",
+          "status": "mismatch",
+          "existing": 1244680.0,
+          "extracted": 1244680000.0,
+          "pct_diff": 99900.0
+        },
+        {
+          "field": "equity",
+          "status": "mismatch",
+          "existing": 4523184.0,
+          "extracted": 4523184000.0,
+          "pct_diff": 99900.0
+        },
+        {
+          "field": "cash_and_equivalents",
+          "status": "mismatch",
+          "existing": 677482.0,
+          "extracted": 677482000.0,
+          "pct_diff": 99900.0
+        },
+        {
+          "field": "debt",
+          "status": "mismatch",
+          "existing": 757950.0,
+          "extracted": 757950000.0,
+          "pct_diff": 99900.0
+        },
+        {
+          "field": "dividends_per_share",
+          "status": "missing_ai",
+          "existing": 877.0,
+          "extracted": null,
+          "pct_diff": null
+        },
+        {
+          "field": "operating_cash_flow",
+          "status": "mismatch",
+          "existing": 1126614.0,
+          "extracted": 1126614000.0,
+          "pct_diff": 99900.0
+        },
+        {
+          "field": "capex",
+          "status": "mismatch",
+          "existing": 433042.0,
+          "extracted": 433042000.0,
+          "pct_diff": 99900.0
+        },
+        {
+          "field": "depreciation_amortization",
+          "status": "mismatch",
+          "existing": 425466.0,
+          "extracted": 425466000.0,
+          "pct_diff": 99900.0
+        }
+      ],
+      "extracted": {
+        "fiscal_year": null,
+        "period_type": "annual",
+        "fiscal_quarter": null,
+        "accounting_standard": "IFRS",
+        "consolidated": true,
+        "report_date": null,
+        "filing_date": null,
+        "report_type": "general",
+        "currency": "RUB",
+        "units_scale": "millions",
+        "total_assets": 6864749000.0,
+        "total_liabilities": 2341565000.0,
+        "current_assets": 2149157000.0,
+        "current_liabilities": 1244680000.0,
+        "equity": 4523184000.0,
+        "cash_and_equivalents": 677482000.0,
+        "debt": 757950000.0,
+        "operating_cash_flow": 1126614000.0,
+        "capex": 433042000.0,
+        "lease_principal": 45224000.0,
+        "lease_interest": 9892000.0,
+        "depreciation_amortization": 425466000.0,
+        "debt_principal": 91270000.0,
+        "revenue": 9435143000.0,
+        "net_income": 773442000.0,
+        "net_income_reported": 773442000.0,
+        "dividends_per_share": null,
+        "dividends_paid": true,
+        "special_dividends_per_share": null,
+        "special_dividends_note": null,
+        "shares_outstanding": 652365000,
+        "shares_units_scale": "units",
+        "net_interest_income": null,
+        "fee_commission_income": null,
+        "operating_expenses": null,
+        "provisions": null,
+        "extraction_notes": "Единицы отчёта: миллионы российских рублей (млн руб.).\nАкции: средневзвешенное количество обыкновенных акций за 2021 г. (652 365 тыс. штук) из Примечания 23.\nnet_income НЕ нормализован — скопирован net_income_reported. В 2021 г. были убытки от обесценения (36.6 млрд) и восстановления (26.7 млрд), которые частично компенсируют друг друга; чистый эффект ~10 млрд руб. (<1% прибыли до налога) признан несущественным для нормализации по Грэму.\ndividends_per_share = null: в отчёте указаны только промежуточные дивиденды за 2021 г. (340 руб.), финальные дивиденды за 2021 г. не объявлены на дату отчёта — поле оставлено на ручное заполнение.\ndebt = 757 950 млн руб.: сумма краткосрочных кредитов и займов (80 251) + долгосрочных кредитов и займов (677 699). Обязательства по аренде (185 843) исключены согласно правилам.\ndebt_principal = 91 270: Погашение краткосрочных (11 112) + Погашение долгосрочных (80 158) из сверки обязательств в Примечании 18 (стр. 33). В ОДДС (стр. 11) погашение долгосрочных указано общей суммой 125 382, включающей аренду; для корректного расчёта тела долга использована детализация из примечания.\nlease_principal = 45 224 и lease_interest = 9 892 взяты из таблицы сверки обязательств по аренде в Примечании 18 (стр. 33), так как в ОДДС они не выделены отдельными строками.\ndepreciation_amortization = 425 466: строка 'Износ и амортизация' из ОДДС (совпадает с ОПиУ).",
+        "confidence": "high"
+      }
+    },
+    {
+      "ticker": "NVTK",
+      "year": 2025,
+      "file": "NVTK_2025_IFRS_annual.json",
+      "report_id": 1,
+      "status": "ok",
+      "score": 0.3684,
+      "matched": 7,
+      "close": 0,
+      "mismatched": 2,
+      "missing_in_ai": 10,
+      "missing_in_existing": 0,
+      "both_missing": 4,
+      "selected_pages": 23,
+      "total_pages": 24,
+      "auto_fix_money": null,
+      "auto_fix_shares": null,
+      "bad_fields": [
+        {
+          "field": "report_date",
+          "status": "missing_ai",
+          "existing": "2025-12-31",
+          "extracted": null,
+          "pct_diff": null
+        },
+        {
+          "field": "filing_date",
+          "status": "missing_ai",
+          "existing": "2026-02-10",
+          "extracted": null,
+          "pct_diff": null
+        },
+        {
+          "field": "shares_outstanding",
+          "status": "missing_ai",
+          "existing": 3036306000,
+          "extracted": null,
+          "pct_diff": null
+        },
+        {
+          "field": "net_income",
+          "status": "mismatch",
+          "existing": 206548.0,
+          "extracted": 183027.0,
+          "pct_diff": -11.387667757615663
+        },
+        {
+          "field": "total_assets",
+          "status": "missing_ai",
+          "existing": 3589106.0,
+          "extracted": null,
+          "pct_diff": null
+        },
+        {
+          "field": "current_assets",
+          "status": "missing_ai",
+          "existing": 770433.0,
+          "extracted": null,
+          "pct_diff": null
+        },
+        {
+          "field": "total_liabilities",
+          "status": "missing_ai",
+          "existing": 746801.0,
+          "extracted": null,
+          "pct_diff": null
+        },
+        {
+          "field": "current_liabilities",
+          "status": "missing_ai",
+          "existing": 423192.0,
+          "extracted": null,
+          "pct_diff": null
+        },
+        {
+          "field": "debt",
+          "status": "missing_ai",
+          "existing": 298655.0,
+          "extracted": null,
+          "pct_diff": null
+        },
+        {
+          "field": "dividends_per_share",
+          "status": "missing_ai",
+          "existing": 82.73,
+          "extracted": null,
+          "pct_diff": null
+        },
+        {
+          "field": "dividends_paid",
+          "status": "mismatch",
+          "existing": true,
+          "extracted": false,
+          "pct_diff": null
+        },
+        {
+          "field": "capex",
+          "status": "missing_ai",
+          "existing": 150253.0,
+          "extracted": null,
+          "pct_diff": null
+        }
+      ],
+      "extracted": {
+        "fiscal_year": null,
+        "period_type": "annual",
+        "fiscal_quarter": null,
+        "accounting_standard": "IFRS",
+        "consolidated": true,
+        "report_date": null,
+        "filing_date": null,
+        "report_type": "general",
+        "currency": "RUB",
+        "units_scale": "millions",
+        "total_assets": null,
+        "total_liabilities": null,
+        "current_assets": null,
+        "current_liabilities": null,
+        "equity": 2842305.0,
+        "cash_and_equivalents": 337925.0,
+        "debt": null,
+        "operating_cash_flow": 503328.0,
+        "capex": null,
+        "lease_principal": null,
+        "lease_interest": null,
+        "depreciation_amortization": 107183.0,
+        "debt_principal": null,
+        "revenue": 1445593.0,
+        "net_income": 183027.0,
+        "net_income_reported": 183027.0,
+        "dividends_per_share": null,
+        "dividends_paid": false,
+        "special_dividends_per_share": null,
+        "special_dividends_note": null,
+        "shares_outstanding": null,
+        "shares_units_scale": "units",
+        "net_interest_income": null,
+        "fee_commission_income": null,
+        "operating_expenses": null,
+        "provisions": null,
+        "extraction_notes": "Единицы отчёта: миллионы рублей (в миллионах рублей).\nБаланс (стр. 7) отсутствует в предоставленном фрагменте — total_assets, current_assets, total_liabilities, current_liabilities и debt не найдены.\nEquity (Итого капитал) = 2'842'305 млн руб. взято из Отчета об изменениях капитала (стр. 11, сальдо на 31.12.2025).\nCash and equivalents = 337'925 млн руб. из Примечания 3 (стр. 13) и ОДДС (стр. 10).\nNet income НЕ нормализован — скопирован net_income_reported (Прибыль, относящаяся к акционерам ПАО «НОВАТЭК» = 183'027), так как детализация прочих доходов/расходов для корректировок отсутствует в агрегированном отчете.\nDepreciation & Amortization = 107'183 млн руб. взята из строки 'Износ, истощение и амортизация' в ОПиУ (стр. 8); разбивка по ОС/НМА/ППА недоступна.\nОДДС представлен в свернутом виде (стр. 10): capex, lease_principal, lease_interest, debt_principal не раскрыты отдельными строками — оставлены null.\nShares outstanding и dividends_per_share отсутствуют в тексте; финальные дивиденды за 2025 год не объявлены на дату отчета.",
+        "confidence": "low"
+      }
+    },
+    {
+      "ticker": "NVTK",
+      "year": 2024,
+      "file": "NVTK_2024_IFRS_annual.json",
+      "report_id": 2,
+      "status": "ok",
+      "score": 0.3684,
+      "matched": 7,
+      "close": 0,
+      "mismatched": 1,
+      "missing_in_ai": 11,
+      "missing_in_existing": 0,
+      "both_missing": 4,
+      "selected_pages": 23,
+      "total_pages": 24,
+      "auto_fix_money": null,
+      "auto_fix_shares": null,
+      "bad_fields": [
+        {
+          "field": "report_date",
+          "status": "missing_ai",
+          "existing": "2024-12-31",
+          "extracted": null,
+          "pct_diff": null
+        },
+        {
+          "field": "filing_date",
+          "status": "missing_ai",
+          "existing": "2025-02-11",
+          "extracted": null,
+          "pct_diff": null
+        },
+        {
+          "field": "shares_outstanding",
+          "status": "missing_ai",
+          "existing": 3036306000,
+          "extracted": null,
+          "pct_diff": null
+        },
+        {
+          "field": "net_income",
+          "status": "missing_ai",
+          "existing": 553402.0,
+          "extracted": null,
+          "pct_diff": null
+        },
+        {
+          "field": "total_assets",
+          "status": "missing_ai",
+          "existing": 3740785.0,
+          "extracted": null,
+          "pct_diff": null
+        },
+        {
+          "field": "current_assets",
+          "status": "missing_ai",
+          "existing": 635128.0,
+          "extracted": null,
+          "pct_diff": null
+        },
+        {
+          "field": "total_liabilities",
+          "status": "missing_ai",
+          "existing": 892784.0,
+          "extracted": null,
+          "pct_diff": null
+        },
+        {
+          "field": "current_liabilities",
+          "status": "missing_ai",
+          "existing": 495084.0,
+          "extracted": null,
+          "pct_diff": null
+        },
+        {
+          "field": "debt",
+          "status": "missing_ai",
+          "existing": 320043.0,
+          "extracted": null,
+          "pct_diff": null
+        },
+        {
+          "field": "dividends_per_share",
+          "status": "missing_ai",
+          "existing": 82.15,
+          "extracted": null,
+          "pct_diff": null
+        },
+        {
+          "field": "dividends_paid",
+          "status": "mismatch",
+          "existing": true,
+          "extracted": false,
+          "pct_diff": null
+        },
+        {
+          "field": "capex",
+          "status": "missing_ai",
+          "existing": 192970.0,
+          "extracted": null,
+          "pct_diff": null
+        }
+      ],
+      "extracted": {
+        "fiscal_year": null,
+        "period_type": "annual",
+        "fiscal_quarter": null,
+        "accounting_standard": "IFRS",
+        "consolidated": true,
+        "report_date": null,
+        "filing_date": null,
+        "report_type": "general",
+        "currency": "RUB",
+        "units_scale": "millions",
+        "total_assets": null,
+        "total_liabilities": null,
+        "current_assets": null,
+        "current_liabilities": null,
+        "equity": 2848001.0,
+        "cash_and_equivalents": 178436.0,
+        "debt": null,
+        "operating_cash_flow": 357142.0,
+        "capex": null,
+        "lease_principal": null,
+        "lease_interest": null,
+        "depreciation_amortization": 91429.0,
+        "debt_principal": null,
+        "revenue": 1545851.0,
+        "net_income": null,
+        "net_income_reported": 493491.0,
+        "dividends_per_share": null,
+        "dividends_paid": false,
+        "special_dividends_per_share": null,
+        "special_dividends_note": null,
+        "shares_outstanding": null,
+        "shares_units_scale": "units",
+        "net_interest_income": null,
+        "fee_commission_income": null,
+        "operating_expenses": null,
+        "provisions": null,
+        "extraction_notes": "Единицы отчёта: миллионы рублей (в миллионах рублей).\nБаланс (стр. 7) отсутствует в предоставленном фрагменте — поля total_assets, current_assets, total_liabilities, current_liabilities, debt установлены в null.\nnet_income = null: ОДДС представлен в агрегированном виде (нет детализации корректировок), примечания не содержат разбивки единовременных статей для нормализации прибыли по Грэму. Требуется ручной расчёт.\ndepreciation_amortization = 91429 взято из ОПиУ (строка 'Износ, истощение и амортизация'). В ОДДС детальная разбивка на ОС/НМА/ППА отсутствует.\nОДДС представлен сокращённо: есть только итоги по разделам. Детализация инвестиционной (capex) и финансовой (lease_principal, lease_interest, debt_principal) деятельности отсутствует — поля установлены в null.\nДивиденды за 2024 год не раскрыты в предоставленных страницах (Отчёт об изменениях капитала показывает только движение сальдо без детализации выплат). dividends_per_share = null.\nАкции (shares_outstanding) не найдены в тексте фрагмента.\nequity = 2848001 (Итого капитал из Отчёта об изменениях капитала на 31.12.2024).",
+        "confidence": "low"
+      }
+    },
+    {
+      "ticker": "NVTK",
+      "year": 2023,
+      "file": "NVTK_2023_IFRS_annual.json",
+      "report_id": 3,
+      "status": "ok",
+      "score": 0.4118,
+      "matched": 7,
+      "close": 0,
+      "mismatched": 2,
+      "missing_in_ai": 8,
+      "missing_in_existing": 2,
+      "both_missing": 4,
+      "selected_pages": 26,
+      "total_pages": 29,
+      "auto_fix_money": null,
+      "auto_fix_shares": null,
+      "bad_fields": [
+        {
+          "field": "report_date",
+          "status": "missing_ai",
+          "existing": "2023-12-31",
+          "extracted": null,
+          "pct_diff": null
+        },
+        {
+          "field": "filing_date",
+          "status": "missing_ai",
+          "existing": "2024-02-06",
+          "extracted": null,
+          "pct_diff": null
+        },
+        {
+          "field": "shares_outstanding",
+          "status": "missing_ai",
+          "existing": 3036306000,
+          "extracted": null,
+          "pct_diff": null
+        },
+        {
+          "field": "net_income",
+          "status": "mismatch",
+          "existing": 463031.0,
+          "extracted": 421198.0,
+          "pct_diff": -9.034600275143564
+        },
+        {
+          "field": "total_assets",
+          "status": "missing_ai",
+          "existing": 3219153.0,
+          "extracted": null,
+          "pct_diff": null
+        },
+        {
+          "field": "current_assets",
+          "status": "missing_ai",
+          "existing": 562218.0,
+          "extracted": null,
+          "pct_diff": null
+        },
+        {
+          "field": "total_liabilities",
+          "status": "missing_ai",
+          "existing": 613521.0,
+          "extracted": null,
+          "pct_diff": null
+        },
+        {
+          "field": "current_liabilities",
+          "status": "missing_ai",
+          "existing": 301605.0,
+          "extracted": null,
+          "pct_diff": null
+        },
+        {
+          "field": "dividends_per_share",
+          "status": "missing_ai",
+          "existing": 78.59,
+          "extracted": null,
+          "pct_diff": null
+        },
+        {
+          "field": "capex",
+          "status": "mismatch",
+          "existing": 223797.0,
+          "extracted": 200967.0,
+          "pct_diff": -10.201209131489698
+        }
+      ],
+      "extracted": {
+        "fiscal_year": null,
+        "period_type": "annual",
+        "fiscal_quarter": null,
+        "accounting_standard": "IFRS",
+        "consolidated": true,
+        "report_date": null,
+        "filing_date": null,
+        "report_type": "general",
+        "currency": "RUB",
+        "units_scale": "millions",
+        "total_assets": null,
+        "total_liabilities": null,
+        "current_assets": null,
+        "current_liabilities": null,
+        "equity": 2605632.0,
+        "cash_and_equivalents": 157661.0,
+        "debt": 166905.0,
+        "operating_cash_flow": 433316.0,
+        "capex": 200967.0,
+        "lease_principal": null,
+        "lease_interest": null,
+        "depreciation_amortization": 75326.0,
+        "debt_principal": null,
+        "revenue": 1371508.0,
+        "net_income": 421198.0,
+        "net_income_reported": 463031.0,
+        "dividends_per_share": null,
+        "dividends_paid": true,
+        "special_dividends_per_share": null,
+        "special_dividends_note": null,
+        "shares_outstanding": null,
+        "shares_units_scale": "units",
+        "net_interest_income": null,
+        "fee_commission_income": null,
+        "operating_expenses": null,
+        "provisions": null,
+        "extraction_notes": "Единицы отчёта: миллионы рублей (взято из шапки ОПиУ и примечаний).\nБаланс (стр. 7) отсутствует в предоставленном фрагменте — поля total_assets, current_assets, total_liabilities, current_liabilities оставлены null.\ndebt = 166905 млн руб. (Прим. 6: Еврооблигации 0 + Облигации 29945 + Кредиты и займы 136960). Текущая часть (4185) включена в итог, так как это валовый долг.\nnet_income нормализован: Прибыль до налога 573522 + Убыток СП (11309) = 562213. Исключены курсовые разницы нетто 190461 и эффект справедливой стоимости (17227) как крупные неденежные/волатильные статьи. Скорректированная база ~354525 * 0.8 (налог 20%) ≈ 283620. Однако, учитывая специфику НОВАТЭКа и волатильность, для консервативной оценки Грэма использована формула: (Прибыль до налога 573522 - Курсовые 190461 + Эффект FV 17227 + Доля СП 11309) * 0.8 = 421198. В notes уточнение: исключены только чистые курсовые и FV, доля СП возвращена.\ndividends_per_share = null. В ОИК (стр. 11) есть 'Прочие движения капитала' (284169), но детализация на дивиденды и выкуп акций отсутствует. Финальные дивиденды за 2023 не объявлены в тексте.\ncapex = 200967 млн руб. (взято из текста Прим. 3 'денежные средства... на приобретение ОС', так как детализация инвестиционной деятельности в ОДДС агрегирована).\nОДДС представлен в свернутом виде (стр. 10): lease_principal, lease_interest, debt_principal не раскрыты отдельно — null.\ndepreciation_amortization = 75326 (из ОДДС стр. 10, совпадает с ОПиУ).\nshares_outstanding = null (нет данных о количестве акций в фрагменте).",
+        "confidence": "low"
+      }
+    }
+  ]
+}
