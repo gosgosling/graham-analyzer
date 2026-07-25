@@ -1,0 +1,10 @@
+model: dashscope:qwen3.7-plus
+ok: 4  errors: 2
+mean_score: 0.6345  min_score: 0.55
+
+AFLT 2025: score=62% match=13 close=0 mismatch=5 missing_ai=3 | report_date:missing_ai, filing_date:missing_ai, net_income:mismatch, cash_and_equivalents:mismatch, debt:mismatch, dividends_per_share:missing_ai, dividends_paid:mismatch, lease_interest:mismatch
+AFLT 2024: score=62% match=13 close=0 mismatch=5 missing_ai=3 | report_date:missing_ai, filing_date:missing_ai, revenue:mismatch, net_income:mismatch, cash_and_equivalents:mismatch, debt:mismatch, dividends_per_share:missing_ai, dividends_paid:mismatch
+AFLT 2023: score=75% match=15 close=0 mismatch=2 missing_ai=3 | report_date:missing_ai, filing_date:missing_ai, net_income:missing_ai, cash_and_equivalents:mismatch, debt:mismatch
+ALRS 2025: error RuntimeError: В PDF ALRS_2025.pdf не найдено страниц с финансовыми таблицами (по ключевым фразам). Проверь отчёт вручную.
+ALRS 2024: error RuntimeError: В PDF ALRS_2024.pdf не найдено страниц с финансовыми таблицами (по ключевым фразам). Проверь отчёт вручную.
+ALRS 2023: score=55% match=10 close=1 mismatch=7 missing_ai=2 | report_date:missing_ai, filing_date:missing_ai, net_income:mismatch, cash_and_equivalents:mismatch, debt:mismatch, dividends_per_share:mismatch, dividends_paid:mismatch, lease_principal:mismatch, depreciation_amortization:mismatch

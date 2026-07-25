@@ -1,0 +1,74 @@
+[
+  {
+    "ticker": "LKOH",
+    "year": 2024,
+    "file": "LKOH_2024_IFRS_annual.json",
+    "report_id": 13
+  },
+  {
+    "ticker": "LKOH",
+    "year": 2023,
+    "file": "LKOH_2023_IFRS_annual.json",
+    "report_id": 14
+  },
+  {
+    "ticker": "LKOH",
+    "year": 2021,
+    "file": "LKOH_2021_IFRS_annual.json",
+    "report_id": 15
+  },
+  {
+    "ticker": "NVTK",
+    "year": 2025,
+    "file": "NVTK_2025_IFRS_annual.json",
+    "report_id": 1
+  },
+  {
+    "ticker": "NVTK",
+    "year": 2024,
+    "file": "NVTK_2024_IFRS_annual.json",
+    "report_id": 2
+  },
+  {
+    "ticker": "NVTK",
+    "year": 2023,
+    "file": "NVTK_2023_IFRS_annual.json",
+    "report_id": 3
+  },
+  {
+    "ticker": "AFLT",
+    "year": 2025,
+    "file": "AFLT_2025_IFRS_annual.json",
+    "report_id": 329
+  },
+  {
+    "ticker": "AFLT",
+    "year": 2024,
+    "file": "AFLT_2024_IFRS_annual.json",
+    "report_id": 328
+  },
+  {
+    "ticker": "AFLT",
+    "year": 2023,
+    "file": "AFLT_2023_IFRS_annual.json",
+    "report_id": 327
+  },
+  {
+    "ticker": "ALRS",
+    "year": 2025,
+    "file": "ALRS_2025_IFRS_annual.json",
+    "report_id": 334
+  },
+  {
+    "ticker": "ALRS",
+    "year": 2024,
+    "file": "ALRS_2024_IFRS_annual.json",
+    "report_id": 333
+  },
+  {
+    "ticker": "ALRS",
+    "year": 2023,
+    "file": "ALRS_2023_IFRS_annual.json",
+    "report_id": 120
+  }
+]

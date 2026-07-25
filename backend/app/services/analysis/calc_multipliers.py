@@ -27,6 +27,7 @@ def calculate_multipliers(
     ltm_net_income: Optional[float] = None,
     ltm_revenue: Optional[float] = None,
     ltm_dividends_per_share: Optional[float] = None,
+    ltm_special_dividends_per_share: Optional[float] = None,
     ltm_operating_cash_flow: Optional[float] = None,
     ltm_capex: Optional[float] = None,
     ltm_lease_principal: Optional[float] = None,
@@ -49,6 +50,7 @@ def calculate_multipliers(
         ltm_net_income: LTM чистая прибыль в млн валюты отчёта (None → из отчёта)
         ltm_revenue: LTM выручка / Total Operating Income в млн (None → из отчёта)
         ltm_dividends_per_share: LTM дивиденды на акцию в ₽/$ (None → из отчёта)
+        ltm_special_dividends_per_share: разовая часть LTM-дивидендов в ₽/$ (None → из отчёта)
         ltm_operating_cash_flow: LTM операционный поток в млн валюты отчёта (None → из отчёта)
         ltm_capex: LTM CAPEX (положит. число) в млн валюты отчёта (None → из отчёта)
 
@@ -87,6 +89,17 @@ def calculate_multipliers(
         to_rub_full(ltm_dividends_per_share) if ltm_dividends_per_share is not None
         else to_rub_full(_report_dps)
     )
+    # Разовая часть выплаты (спецдивиденд, компенсация пропущенных лет).
+    # Хранится как доля от общей DPS, поэтому регулярная = общая − разовая.
+    _report_special = (
+        getattr(report, "special_dividends_per_share", None)
+        if getattr(report, "dividends_paid", False) else None
+    )
+    special_dividends_rub = (
+        to_rub_full(ltm_special_dividends_per_share)
+        if ltm_special_dividends_per_share is not None
+        else to_rub_full(_report_special)
+    )
 
     # Балансовые (в млн валюты → млн рублей)
     equity_mln = to_rub_mln(report.equity)
@@ -120,6 +133,13 @@ def calculate_multipliers(
     dividend_yield: Optional[float] = None
     if dividends_per_share_rub and price_rub and price_rub > 0:
         dividend_yield = round(dividends_per_share_rub / price_rub * 100, 2)
+
+    # Регулярная доходность — без разовых выплат. Если разовая часть не
+    # размечена, регулярная совпадает с общей.
+    dividend_yield_regular: Optional[float] = None
+    if dividends_per_share_rub and price_rub and price_rub > 0:
+        regular_dps = dividends_per_share_rub - (special_dividends_rub or 0.0)
+        dividend_yield_regular = round(max(regular_dps, 0.0) / price_rub * 100, 2)
 
     # ─── Показатели, зависящие от типа отрасли ───────────────────────────────
     debt_to_equity: Optional[float] = None
@@ -212,6 +232,8 @@ def calculate_multipliers(
         "debt_to_equity": debt_to_equity,
         "current_ratio": current_ratio,
         "dividend_yield": dividend_yield,
+        "dividend_yield_regular": dividend_yield_regular,
+        "ltm_special_dividends_per_share": special_dividends_rub,
         "cost_to_income": cost_to_income,
         "market_cap": market_cap_mln,           # млн рублей
         "price_used": round(price_rub, 4) if price_rub else None,  # ₽ за акцию

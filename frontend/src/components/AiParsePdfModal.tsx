@@ -449,6 +449,24 @@ const ParseResultSummary: React.FC<ParseResultSummaryProps> = ({
           <span className="ai-parse-v">{fmtMln(r.total_liabilities)}</span>
         </div>
         <div>
+          <span className="ai-parse-k">Амортизация (D&A)</span>
+          <span className="ai-parse-v">{fmtMln(r.depreciation_amortization)}</span>
+        </div>
+        <div>
+          <span className="ai-parse-k">Дивиденд на акцию</span>
+          <span className="ai-parse-v">
+            {r.dividends_per_share != null
+              ? `${r.dividends_per_share.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ${r.currency === 'RUB' ? '₽' : r.currency}`
+              : '—'}
+            {r.special_dividends_per_share != null && r.special_dividends_per_share > 0 && (
+              <span className="ai-parse-v-note">
+                {' '}в т.ч. разовые{' '}
+                {r.special_dividends_per_share.toLocaleString('ru-RU', { maximumFractionDigits: 2 })}
+              </span>
+            )}
+          </span>
+        </div>
+        <div>
           <span className="ai-parse-k">Страниц в PDF</span>
           <span className="ai-parse-v">
             {response.selected_pages} из {response.total_pages} (использовано)

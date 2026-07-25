@@ -19,6 +19,11 @@ class Company(Base):
     name: Mapped[str] = mapped_column(String, nullable=False)
     isin: Mapped[Optional[str]] = mapped_column(String, nullable=True, index=True)
     sector: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    # Ручное закрепление отраслевого профиля порогов (ключ из sector_profiles).
+    # T-Invest отдаёт сектор слишком крупными группами: весь потребительский
+    # рынок приходит как "consumer", хотя пороги для продуктовой сети и для
+    # магазина электроники разные. Пусто → профиль определяется по sector.
+    sector_profile_key: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
     currency: Mapped[str] = mapped_column(String, nullable=False, default="RUB")
     lot: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     api_trade_available_flag: Mapped[bool] = mapped_column(Boolean, default=False)

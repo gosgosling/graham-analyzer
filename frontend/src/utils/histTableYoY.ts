@@ -28,6 +28,10 @@ export interface HistRowSnapshot {
   ltm_revenue: number | null;
   ltm_net_income: number | null;
   equity: number | null;
+  total_assets: number | null;
+  dividend_yield: number | null;
+  dividend_yield_regular: number | null;
+  ltm_special_dividends_per_share: number | null;
 }
 
 export interface HistRowYoY {
@@ -229,6 +233,10 @@ export function snapshotFromRecord(r: MultiplierRecord): HistRowSnapshot {
     ltm_revenue: r.ltm_revenue,
     ltm_net_income: r.ltm_net_income,
     equity: r.equity,
+    total_assets: r.total_assets ?? null,
+    dividend_yield: r.dividend_yield,
+    dividend_yield_regular: r.dividend_yield_regular ?? r.dividend_yield,
+    ltm_special_dividends_per_share: r.ltm_special_dividends_per_share ?? null,
   };
 }
 
@@ -251,5 +259,9 @@ export function snapshotFromCurrent(r: CurrentMultipliers): HistRowSnapshot {
     ltm_revenue: r.ltm_revenue,
     ltm_net_income: r.ltm_net_income,
     equity: r.equity,
+    total_assets: r.total_assets ?? null,
+    dividend_yield: r.dividend_yield,
+    dividend_yield_regular: r.dividend_yield_regular ?? r.dividend_yield,
+    ltm_special_dividends_per_share: r.ltm_special_dividends_per_share ?? null,
   };
 }

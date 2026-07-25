@@ -1,0 +1,10 @@
+model: dashscope:qwen3.7-plus
+ok: 6  errors: 0
+mean_score: 0.7142  min_score: 0.6316
+
+LKOH 2024: score=63% match=12 close=0 mismatch=4 missing_ai=3 | report_date:missing_ai, filing_date:missing_ai, revenue:mismatch, net_income:mismatch, cash_and_equivalents:mismatch, dividends_per_share:missing_ai, depreciation_amortization:mismatch
+LKOH 2023: score=79% match=14 close=1 mismatch=2 missing_ai=2 | report_date:missing_ai, filing_date:missing_ai, net_income:mismatch, dividends_per_share:mismatch
+LKOH 2021: score=79% match=13 close=2 mismatch=2 missing_ai=2 | report_date:missing_ai, filing_date:missing_ai, shares_outstanding:mismatch, dividends_per_share:mismatch
+NVTK 2025: score=74% match=13 close=1 mismatch=1 missing_ai=4 | report_date:missing_ai, filing_date:missing_ai, net_income:mismatch, dividends_per_share:missing_ai, capex:missing_ai
+NVTK 2024: score=63% match=11 close=1 mismatch=2 missing_ai=5 | report_date:missing_ai, filing_date:missing_ai, shares_outstanding:missing_ai, net_income:mismatch, dividends_per_share:missing_ai, dividends_paid:mismatch, capex:missing_ai
+NVTK 2023: score=71% match=10 close=2 mismatch=2 missing_ai=3 | report_date:missing_ai, filing_date:missing_ai, dividends_per_share:missing_ai, dividends_paid:mismatch, capex:mismatch

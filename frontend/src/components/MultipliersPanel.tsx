@@ -8,9 +8,11 @@ import {
 import {
   getCompanyCurrentMultipliers,
   getCompanyMultipliersHistory,
+  getSectorProfiles,
   refreshCompanyMultipliers,
+  updateCompanySectorProfile,
 } from '../services';
-import { MultiplierRecord, CurrentMultipliers, Company } from '../types';
+import { MultiplierRecord, CurrentMultipliers, Company, SectorProfile } from '../types';
 import { useChartColors, ChartColors } from '../contexts/ThemeContext';
 import SharesCapHover from './SharesCapHover';
 import {
@@ -18,77 +20,83 @@ import {
   snapshotFromCurrent,
   snapshotFromRecord,
   YOY_NA,
+  type HistRowSnapshot,
   type HistRowYoY,
   type YoYDisplay,
 } from '../utils/histTableYoY';
+import {
+  GRAHAM_FALLBACK,
+  getBand,
+  hintFor,
+  levelFor,
+  tooltipLinesFor,
+  type MetricLevel,
+} from '../utils/sectorProfile';
+import {
+  computeDupont,
+  computeRoeDriver,
+  roeTooltipLines,
+  type RoeDriver,
+} from '../utils/roeBreakdown';
 import './MultipliersPanel.css';
 
-// ─── Критерии Грэма для цветовой кодировки ───────────────────────────────────
+// ─── Цветовая кодировка ──────────────────────────────────────────────────────
+//
+// Пороги P/E, P/B, D/E, CR, ROE и дивдоходности задаёт отраслевой профиль,
+// который приходит с бэкенда вместе с мультипликаторами: у продуктового
+// ритейлера Current Ratio 0.7 — норма, у банка D/E вообще не считается.
+// Пороги, не зависящие от отрасли (P/FCF, FCF/NI, ND/FCF), остаются здесь.
 
-type Level = 'good' | 'warn' | 'bad' | 'neutral' | 'loss';
-
-function peLevel(v: number | null): Level {
-  if (v === null) return 'neutral';
-  if (v <= 15) return 'good';
-  if (v <= 25) return 'warn';
-  return 'bad';
-}
+type Level = MetricLevel;
 
 /** P/E null + убыток → «убыток» в UI. */
-function peLevelContext(pe: number | null, income: number | null): Level {
-  if (pe !== null) return peLevel(pe);
+function peLevelContext(
+  profile: SectorProfile | null | undefined,
+  pe: number | null,
+  income: number | null,
+): Level {
+  if (pe !== null) return levelFor(profile, 'pe', pe);
   if (income !== null && income < 0) return 'loss';
   return 'neutral';
 }
 
-function pbLevel(v: number | null): Level {
-  if (v === null) return 'neutral';
-  if (v <= 1.5) return 'good';
-  if (v <= 3) return 'warn';
-  return 'bad';
-}
-
 /** P/B null + отрицательный капитал → «убыток» в UI. */
-function pbLevelContext(pb: number | null, equity: number | null): Level {
-  if (pb !== null) return pbLevel(pb);
+function pbLevelContext(
+  profile: SectorProfile | null | undefined,
+  pb: number | null,
+  equity: number | null,
+): Level {
+  if (pb !== null) return levelFor(profile, 'pb', pb);
   if (equity !== null && equity < 0) return 'loss';
   return 'neutral';
 }
 
-function roeLevel(v: number | null): Level {
+/**
+ * D/E с учётом отрицательного капитала: отрицательное значение формально
+ * попадает в «хорошо», хотя означает дефицит балансовой стоимости.
+ */
+function deLevel(profile: SectorProfile | null | undefined, v: number | null): Level {
   if (v === null) return 'neutral';
   if (v < 0) return 'bad';
-  if (v >= 15) return 'good';
-  if (v >= 10) return 'warn';
-  return 'bad';
-}
-
-/**
- * D/E с учётом отрицательного капитала.
- * Отрицательный D/E = знаменатель (капитал) отрицателен → книжная стоимость дефицит, 'bad'.
- */
-function deLevel(v: number | null): Level {
-  if (v === null) return 'neutral';
-  if (v < 0) return 'bad';   // отрицательный капитал: формально «хорошо», фактически плохо
-  if (v <= 0.5) return 'good';
-  if (v <= 1) return 'warn';
-  return 'bad';
+  return levelFor(profile, 'de', v);
 }
 
 const DE_BANKRUPTCY_TIP =
   'Отрицательный собственный капитал — компания фактически банкрот. D/E в такой ситуации не имеет смысла.';
 
 function deBadge(
+  profile: SectorProfile | null | undefined,
   de: number | null,
   equity: number | null,
   fallbackHint?: string,
 ): { value: number | null; level: Level; tip?: string } {
-  const level = deLevel(de);
+  const level = deLevel(profile, de);
   const bankrupt = de !== null && de < 0 && equity !== null && equity < 0;
+  const leaseNote = getBand(profile, 'de').note ?? undefined;
   return {
     value: de,
     level,
-    tip: bankrupt ? DE_BANKRUPTCY_TIP : fallbackHint,
+    tip: bankrupt ? DE_BANKRUPTCY_TIP : (fallbackHint ?? leaseNote),
   };
 }
 
@@ -214,18 +222,19 @@ function fcfNiLevel(v: number | null): Level {
   return 'loss';  // FCF отрицательный — красный флаг
 }
 
-/** ROE: капитал ≤ 0 → «Н/Д»; ROE > 100% → «Искажено»; иначе число (в т.ч. отрицательное при убытке). */
-function roeBadge(
+/**
+ * Особые состояния ROE, не зависящие от отрасли: при неположительном капитале
+ * показатель бессмыслен, а значение выше 100% почти всегда означает не
+ * выдающийся бизнес, а крошечный знаменатель.
+ */
+function roeDisplayState(
   roe: number | null | undefined,
-  _netIncome: number | null | undefined,
   equity: number | null | undefined,
-): { value: number | null; level: Level; textLabel?: string; nullHint?: string; centered?: boolean } {
+): { value: number | null; textLabel?: string; nullHint?: string; centered?: boolean } {
   const eq = equity ?? null;
-
   if (eq !== null && eq <= 0) {
     return {
       value: null,
-      level: 'loss',
       textLabel: 'Н/Д',
       nullHint: 'Собственный капитал ≤ 0 — ROE не применим',
       centered: true,
@@ -235,12 +244,50 @@ function roeBadge(
   if (v !== null && v > 100) {
     return {
       value: null,
-      level: 'warn',
       textLabel: 'Искажено',
       nullHint: 'ROE > 100% — показатель может быть искажён (малый капитал или разовые эффекты)',
     };
   }
-  return { value: v, level: roeLevel(v) };
+  return { value: v };
+}
+
+/** ROE: капитал ≤ 0 → «Н/Д»; ROE > 100% → «Искажено»; иначе число (в т.ч. отрицательное при убытке). */
+function roeBadge(
+  profile: SectorProfile | null | undefined,
+  roe: number | null | undefined,
+  equity: number | null | undefined,
+): { value: number | null; level: Level; textLabel?: string; nullHint?: string; centered?: boolean } {
+  const state = roeDisplayState(roe, equity);
+  if (state.textLabel === 'Н/Д') return { ...state, level: 'loss' };
+  if (state.textLabel === 'Искажено') return { ...state, level: 'warn' };
+  const v = state.value;
+  if (v !== null && v < 0) return { value: v, level: 'bad' };
+  return { value: v, level: levelFor(profile, 'roe', v) };
+}
+
+/**
+ * Пояснение к ROE: разложение по Дюпону плюс атрибуция изменения к прошлому
+ * периоду. Нужно, чтобы скачок ROE вверх при падающей прибыли читался как
+ * сжатие капитала, а не как рост эффективности.
+ */
+function roeExplanation(
+  snapshot: HistRowSnapshot,
+  previous: HistRowSnapshot | null | undefined,
+): { driver: RoeDriver; tip?: string } {
+  const dupont = computeDupont({
+    netIncome: snapshot.ltm_net_income,
+    revenue: snapshot.ltm_revenue,
+    totalAssets: snapshot.total_assets,
+    equity: snapshot.equity,
+  });
+  const driver = computeRoeDriver(
+    { roe: snapshot.roe, netIncome: snapshot.ltm_net_income, equity: snapshot.equity },
+    previous
+      ? { roe: previous.roe, netIncome: previous.ltm_net_income, equity: previous.equity }
+      : null,
+  );
+  const lines = roeTooltipLines(dupont, driver);
+  return { driver, tip: lines.length > 0 ? lines.join('\n') : undefined };
 }
 
 /** UI для FCF/NI: при NI ≤ 0 — «убыток»; при NI > 0 — число и шкала fcfNiLevel. */
@@ -260,243 +307,6 @@ function fcfNiBadge(
   return { value: v, level: fcfNiLevel(v) };
 }
 
-// ─── Отраслевые профили Current Ratio ────────────────────────────────────────
-//
-// CR — «градусник»: норма сильно зависит от бизнес-модели.
-// Для сырьевых/коммунальных компаний мощный денежный поток перекрывает
-// краткосрочные обязательства, даже когда CR < 1.
-// Для ритейла и дистрибуции — нет стабильного потока, запасы критичны,
-// и норма Грэма ≥ 2 абсолютно уместна.
-
-export interface CrProfile {
-  /** Название группы для тултипа */
-  industryLabel: string;
-  /** CR выше этого уровня → 'good' */
-  good: number;
-  /** CR выше этого уровня → 'warn' (ниже — 'bad') */
-  warn: number;
-  /** Одна строка-объяснение для карточки */
-  thresholdHint: string;
-  /** Многострочное пояснение для тултипа в заголовке таблицы */
-  tooltipLines: string[];
-  /**
-   * Нужно ли вместо числовой оценки показать нейтральную пометку
-   * (напр. для банков — у них нестандартная структура баланса).
-   */
-  notApplicable?: boolean;
-}
-
-/**
- * Определяет отраслевой профиль CR по строке sector компании.
- * Ключевые слова — без регистра, частичное совпадение.
- */
-export function getCrProfile(sector?: string | null): CrProfile {
-  const s = (sector ?? '').toLowerCase();
-
-  const hasAny = (...words: string[]) => words.some((w) => s.includes(w));
-
-  // ── Банки и финансовые организации ──
-  // Структура баланса принципиально иная: краткосрочные обязательства ≈ вклады,
-  // классический CR не применим. Не даём оценку — только информируем.
-  if (hasAny('bank', 'банк', 'financial', 'финанс', 'insurance', 'страхов',
-             'leasing', 'лизинг', 'finance')) {
-    return {
-      industryLabel: 'Банки / финансы',
-      good: Infinity,
-      warn: Infinity,
-      thresholdHint: 'CR для банков не применим',
-      tooltipLines: [
-        'Для банков и финансовых организаций CR не используется:',
-        'их «краткосрочные обязательства» — это депозиты клиентов,',
-        'а не коммерческие долги. Ликвидность оценивается по',
-        'нормативам ЦБ (Н1, Н2, Н3), а не по балансовому соотношению.',
-      ],
-      notApplicable: true,
-    };
-  }
-
-  // ── Нефть и газ, горнодобыча, металлургия ──
-  // Огромный операционный поток покрывает краткосрочные обязательства;
-  // значительная часть «краткосрочного» долга — это кредитные линии,
-  // которые постоянно рефинансируются. Норма 0.7–1.2.
-  if (hasAny('oil', 'gas', 'нефт', 'газ', 'энерго', 'energy',
-             'mining', 'металл', 'coal', 'уголь', 'petro', 'горнодобыв',
-             'золото', 'silver', 'copper', 'alumin')) {
-    return {
-      industryLabel: 'Нефтегаз / горнодобыча / металлургия',
-      good: 1.0,
-      warn: 0.7,
-      thresholdHint: '≥ 1.0 — норма для нефтегаза',
-      tooltipLines: [
-        'Нефтегаз, металлургия: мощный операционный поток',
-        'покрывает краткосрочный долг даже при CR < 1.',
-        '≥ 1.0  —  хорошо',
-        '0.7–1.0  —  допустимо, смотри D/E и cash flow',
-        '< 0.7  —  агрессивная долговая политика, копай глубже',
-        '',
-        'Пример: Лукойл ~0.9 — норма; Роснефть ~0.5 — красный флаг',
-        'даже для нефтянки (огромный краткосрочный долг).',
-      ],
-    };
-  }
-
-  // ── Коммунальные услуги, электроэнергетика, тепло, вода ──
-  // Регулируемый тариф = стабильный поток; высокий capex финансируется
-  // долгосрочным долгом. CR < 1 — обычная ситуация.
-  if (hasAny('util', 'electric', 'энергетик', 'электро', 'тепло',
-             'water', 'вода', 'коммунал', 'generation', 'генерац')) {
-    return {
-      industryLabel: 'Коммунальные / электроэнергетика',
-      good: 1.0,
-      warn: 0.7,
-      thresholdHint: '≥ 1.0 — норма для коммунальных',
-      tooltipLines: [
-        'Коммунальные, электроэнергетика: регулируемый тариф',
-        'обеспечивает предсказуемый поток. CR < 1 — ок.',
-        '≥ 1.0  —  хорошо',
-        '0.7–1.0  —  норма, смотри долг и инвестиции',
-        '< 0.7  —  требует пояснения (разовые капвложения?)',
-      ],
-    };
-  }
-
-  // ── IT / телеком / цифровые сервисы ──
-  //
-  // Важно: GICS «communication_services» (Яндекс, VK, Meta и др.) НЕ содержит
-  // слова telecom/internet — без явного учёта уходит в «промышленность».
-  // Сектор T-Invest ровно «it» тоже должен ловиться (не путать с подстрокой «it»
-  // внутри случайных слов — только границы слова / точное совпадение).
-  const wordIt = /\b(it|ict)\b/.test(s);
-  const gicsIt = hasAny(
-    'communication_services',
-    'communication services',
-    'information_technology',
-    'information technology',
-    'it_services',
-    'it services',
-    'internet_software',
-    'internet software',
-  );
-  const itTelecomMedia = hasAny(
-    'software', 'hardware', 'internet', 'computer', 'semiconductor', 'cyber',
-    'cloud', 'saas', 'digital', 'platform', 'technology', 'technologies',
-    'informatics', 'telecom', 'телеком', 'связь', 'cellular', 'mobile',
-    'мобильн', 'медиа', 'media', 'gaming', 'програм', 'информац', 'цифров', 'облак',
-  );
-  if (s === 'it' || gicsIt || wordIt || itTelecomMedia) {
-    return {
-      industryLabel: 'IT / телеком / цифровые сервисы',
-      good: 1.5,
-      warn: 1.0,
-      thresholdHint: '≥ 1.5 — хорошо для IT / цифровых сервисов',
-      tooltipLines: [
-        'IT, телеком, платформы: обычно asset-light, мало запасов,',
-        'высокая маржа или подписная выручка. Классический CR ≥ 2 для',
-        '«магазина с полки» здесь часто завышен; ориентиры мягче.',
-        '≥ 1.5  —  хорошо',
-        '1.0–1.5  —  приемлемо',
-        '< 1.0  —  нетипично, смотри структуру обязательств и cash flow',
-        '',
-        'Секторы вроде communication_services (GICS) относятся сюда же.',
-      ],
-    };
-  }
-
-  // ── Ритейл и дистрибуция ──
-  // Нет мощного сырьевого потока. Бизнес живёт от оборачиваемости запасов
-  // и дебиторки. CR < 1 — почти всегда симптом беды. Норма Грэма ≥ 2.
-  // «consumer» одно слово слишком широкое — используем типичные хвосты GICS.
-  const retailCore = hasAny(
-    'retail', 'ритейл', 'торговл', 'supermarket', 'маркет', 'hypermarket',
-    'distribution', 'дистрибуц', 'food', 'grocery', 'продукт', 'фарм', 'pharma',
-    'drugstore', 'shopping', 'потребител',
-  );
-  const gicsRetailConsumer =
-    hasAny(
-      'consumer_staples',
-      'consumer_discretionary',
-      'consumer_defensive',
-      'consumer cyclical',
-      'consumer_cyclical',
-      'consumer staples',
-      'consumer discretionary',
-      'consumer defensive',
-    ) || /\bconsumer\s+(staples|discretionary|defensive|cyclical)\b/.test(s);
-  if (retailCore || gicsRetailConsumer) {
-    return {
-      industryLabel: 'Ритейл / дистрибуция / FMCG',
-      good: 2.0,
-      warn: 1.2,
-      thresholdHint: '≥ 2.0 — норма по Грэму для ритейла',
-      tooltipLines: [
-        'Ритейл, дистрибуция: нет стабильного сырьевого потока.',
-        'Бизнес живёт за счёт оборачиваемости товарных запасов.',
-        'CR < 1 здесь — почти всегда симптом предбанкротного',
-        'состояния. Применяется классическая норма Грэма.',
-        '≥ 2.0  —  хорошо (норма Грэма)',
-        '1.2–2.0  —  приемлемо, следить за оборачиваемостью',
-        '< 1.2  —  красный флаг для ритейла',
-      ],
-    };
-  }
-
-  // ── Строительство и девелопмент ──
-  // Большие авансы от покупателей входят в «краткосрочные обязательства»,
-  // что искусственно занижает CR. Смотри в динамике, сравнивай с аналогами.
-  if (hasAny('construct', 'строит', 'develo', 'девелоп', 'real estate',
-             'недвижим', 'realty')) {
-    return {
-      industryLabel: 'Строительство / девелопмент',
-      good: 1.2,
-      warn: 0.8,
-      thresholdHint: '≥ 1.2 — норма для строителей',
-      tooltipLines: [
-        'Строительство: авансы покупателей квартир — краткосрочные',
-        'обязательства, что занижает CR. Важнее смотреть динамику',
-        'и эскроу-счета (в РФ — обязательно с 2019 г.).',
-        '≥ 1.2  —  хорошо',
-        '0.8–1.2  —  обычная ситуация для девелопера',
-        '< 0.8  —  изучить структуру обязательств',
-      ],
-    };
-  }
-
-  // ── Промышленность и производство (General / default) ──
-  // Умеренная ликвидность, запасы важны, но есть производственный поток.
-  // Ориентир — ≥ 1.5; классическая норма Грэма ≥ 2 здесь уже уместна.
-  return {
-    industryLabel: 'Промышленность / прочее',
-    good: 2.0,
-    warn: 1.5,
-    thresholdHint: '≥ 2.0 — норма по Грэму',
-    tooltipLines: [
-      'Производство, промышленность: запасы и дебиторка критичны.',
-      'Применяется классическая норма Грэма.',
-      '≥ 2.0  —  хорошо (норма Грэма)',
-      '1.5–2.0  —  приемлемо, следить за запасами',
-      '< 1.5  —  внимание; < 1.0  —  красный флаг',
-    ],
-  };
-}
-
-/**
- * Уровень CR с учётом отраслевого профиля.
- * Для секторов, где CR не применим (банки), всегда возвращает 'neutral'.
- */
-function crLevel(v: number | null, profile: CrProfile): Level {
-  if (v === null) return 'neutral';
-  if (profile.notApplicable) return 'neutral';
-  if (v >= profile.good) return 'good';
-  if (v >= profile.warn) return 'warn';
-  return 'bad';
-}
-
-function dyLevel(v: number | null): Level {
-  if (v === null) return 'neutral';
-  if (v >= 3) return 'good';
-  if (v >= 1) return 'warn';
-  return 'bad';
-}
 
 // ─── Вспомогательные компоненты ──────────────────────────────────────────────
 
@@ -556,15 +366,17 @@ function MetricBadge({
 }
 
 function DeMetricBadge({
+  profile,
   de,
   equity,
   fallbackHint,
 }: {
+  profile: SectorProfile | null | undefined;
   de: number | null;
   equity: number | null | undefined;
   fallbackHint?: string;
 }) {
-  const ui = deBadge(de, equity ?? null, fallbackHint);
+  const ui = deBadge(profile, de, equity ?? null, fallbackHint);
   return (
     <MetricBadge
       value={ui.value}
@@ -576,23 +388,31 @@ function DeMetricBadge({
 }
 
 function RoeMetricBadge({
+  profile,
   roe,
-  netIncome,
   equity,
+  explanationTip,
+  misleading = false,
 }: {
+  profile: SectorProfile | null | undefined;
   roe: number | null | undefined;
-  netIncome: number | null | undefined;
   equity: number | null | undefined;
+  /** Разложение по Дюпону и причина изменения — показывается по наведению */
+  explanationTip?: string;
+  /** Изменение ROE вызвано движением капитала: подсвечиваем как «внимание» */
+  misleading?: boolean;
 }) {
-  const ui = roeBadge(roe, netIncome, equity);
+  const ui = roeBadge(profile, roe, equity);
+  const level: Level = misleading && ui.level === 'good' ? 'warn' : ui.level;
   return (
     <MetricBadge
       value={ui.value}
-      level={ui.level}
+      level={level}
       suffix="%"
       nullHint={ui.nullHint}
       textLabel={ui.textLabel}
       centered={ui.centered}
+      tip={ui.value !== null ? explanationTip : undefined}
     />
   );
 }
@@ -615,13 +435,41 @@ function NoDividendYieldMark({ className = '' }: { className?: string }) {
   return <span className={`mult-cell-center${className ? ` ${className}` : ''}`}>{mark}</span>;
 }
 
+/**
+ * Подсказка к доходности, в которой есть разовая часть.
+ * Спецвыплата — компенсация пропущенных лет, распределение от продажи актива —
+ * не повторится в следующем году, поэтому оценивается регулярная часть.
+ */
+function specialDividendTip(
+  totalYield: number | null,
+  regularYield: number | null,
+  specialPerShare: number,
+): string {
+  const parts = [
+    `Всего за 12 мес.: ${totalYield !== null ? `${totalYield.toFixed(2)}%` : '—'}`,
+    `из них разовая часть: ${fmt(specialPerShare)} ₽ на акцию`,
+    `регулярная доходность: ${regularYield !== null ? `${regularYield.toFixed(2)}%` : '—'}`,
+    '',
+    'Оценка выставлена по регулярной части: спецвыплата в следующем году не повторится.',
+  ];
+  return parts.join('\n');
+}
+
 function DividendYieldBadge({
+  profile,
   dividendYield,
+  dividendYieldRegular,
+  specialDividendsPerShare,
   ltmDividendsPerShare,
   priceUsed,
   isPreferredShare = false,
 }: {
+  profile: SectorProfile | null | undefined;
   dividendYield: number | null;
+  /** Доходность без разовых выплат — именно она получает цветовую оценку */
+  dividendYieldRegular?: number | null;
+  /** Разовая часть выплаты, ₽ на акцию */
+  specialDividendsPerShare?: number | null;
   ltmDividendsPerShare: number | null;
   priceUsed: number | null;
   /** Тикер представляет привилегированные акции — у него нет понятия
@@ -629,13 +477,17 @@ function DividendYieldBadge({
   isPreferredShare?: boolean;
 }) {
   if (dividendYield !== null) {
-    const lvl = dyLevel(dividendYield);
+    const special = specialDividendsPerShare ?? 0;
+    const hasSpecial = special > 0;
+    const regular = dividendYieldRegular ?? dividendYield;
+    const shown = hasSpecial ? regular : dividendYield;
+    const lvl = levelFor(profile, 'dy', shown);
+    const tip = hasSpecial
+      ? specialDividendTip(dividendYield, regular, special)
+      : (isPreferredShare ? 'Доходность по привилегированным акциям' : undefined);
     return (
-      <span
-        className={`mult-cell ${lvl}`}
-        title={isPreferredShare ? 'Доходность по привилегированным акциям' : undefined}
-      >
-        {dividendYield.toFixed(2)}%
+      <span className={`mult-cell ${lvl}${tip ? ' mult-cell-tip' : ''}`} title={tip}>
+        {shown.toFixed(2)}%{hasSpecial ? <span className="div-special-mark">*</span> : null}
       </span>
     );
   }
@@ -723,7 +575,9 @@ function fmtDateFull(iso: string): string {
 
 interface CurrentCardsProps {
   data: CurrentMultipliers;
-  crProfile: CrProfile;
+  profile: SectorProfile;
+  /** Предыдущий отчётный год — нужен, чтобы объяснить изменение ROE */
+  previous?: HistRowSnapshot | null;
   /** Тикер компании — привилегированные акции (TRNFP, BANEP, SBERP …) */
   isPreferredShare?: boolean;
 }
@@ -760,14 +614,26 @@ const PfcfCardToggleIcon: React.FC = () => (
   </svg>
 );
 
-const CurrentCards: React.FC<CurrentCardsProps> = ({ data, crProfile, isPreferredShare = false }) => {
+const CurrentCards: React.FC<CurrentCardsProps> = ({
+  data,
+  profile,
+  previous,
+  isPreferredShare = false,
+}) => {
   const [pfcfCardMode, setPfcfCardMode] = React.useState<PfcfColMode>('pfcf');
   const income = data.ltm_net_income;
   const isLoss = income !== null && income < 0;
-  const roeUi = roeBadge(data.roe, income, data.equity ?? null);
+  const roeUi = roeBadge(profile, data.roe, data.equity ?? null);
+  const roeInfo = roeExplanation(snapshotFromCurrent(data), previous);
+  const roeLevelAdjusted: Level =
+    roeInfo.driver.misleading && roeUi.level === 'good' ? 'warn' : roeUi.level;
   const isBank = data.cost_to_income !== null || (
     data.debt_to_equity === null && data.current_ratio === null
   );
+  const crBand = getBand(profile, 'cr');
+  const specialPerShare = data.ltm_special_dividends_per_share ?? 0;
+  const hasSpecialDividend = specialPerShare > 0 && data.dividend_yield !== null;
+  const regularYield = data.dividend_yield_regular ?? data.dividend_yield;
   const ltmFcf = (data as any).ltm_fcf as number | null | undefined;
   const pfcf = (data as any).price_to_fcf as number | null | undefined;
   const fcfNi = (data as any).fcf_to_net_income as number | null | undefined;
@@ -777,38 +643,43 @@ const CurrentCards: React.FC<CurrentCardsProps> = ({ data, crProfile, isPreferre
     {
       label: 'P/E',
       value: data.pe_ratio,
-      level: peLevelContext(data.pe_ratio, income),
+      level: peLevelContext(profile, data.pe_ratio, income),
       hint: 'Цена / Прибыль',
-      threshold: isLoss ? 'Убыток — P/E не применим' : '≤ 15 — хорошо',
+      threshold: isLoss ? 'Убыток — P/E не применим' : hintFor(profile, 'pe'),
+      tip: getBand(profile, 'pe').note ?? undefined,
     },
     {
       label: 'P/B',
       value: data.pb_ratio,
-      level: pbLevelContext(data.pb_ratio, data.equity ?? null),
+      level: pbLevelContext(profile, data.pb_ratio, data.equity ?? null),
       hint: 'Цена / Балансовая стоимость',
-      threshold: '≤ 1.5 — хорошо',
+      threshold: hintFor(profile, 'pb'),
+      tip: getBand(profile, 'pb').note ?? undefined,
     },
     {
       label: 'ROE',
       value: roeUi.textLabel ? null : roeUi.value,
-      level: roeUi.level,
+      level: roeLevelAdjusted,
       hint: 'Рентабельность капитала',
       threshold:
         roeUi.textLabel === 'Н/Д'
           ? 'Капитал ≤ 0'
           : roeUi.textLabel === 'Искажено'
             ? 'ROE > 100%'
-            : roeUi.value !== null && roeUi.value < 0
-              ? 'Отрицательный ROE'
-              : '≥ 15% — хорошо',
+            : roeInfo.driver.misleading
+              ? 'Рост за счёт сокращения капитала'
+              : roeUi.value !== null && roeUi.value < 0
+                ? 'Отрицательный ROE'
+                : hintFor(profile, 'roe'),
       suffix: '%',
       nullHint: roeUi.nullHint,
       textLabel: roeUi.textLabel,
+      tip: roeInfo.tip,
     },
     {
       label: 'Долг/Капитал',
       value: data.debt_to_equity,
-      level: deLevel(data.debt_to_equity),
+      level: deLevel(profile, data.debt_to_equity),
       hint: 'Total Liabilities / Equity',
       threshold:
         data.equity !== null &&
@@ -819,45 +690,55 @@ const CurrentCards: React.FC<CurrentCardsProps> = ({ data, crProfile, isPreferre
           ? 'Отрицательный капитал — банкрот'
           : data.debt_to_equity !== null && data.debt_to_equity < 0
             ? 'Отрицательный капитал'
-            : '≤ 0.5 — хорошо',
+            : hintFor(profile, 'de'),
       tip:
         data.debt_to_equity !== null &&
         data.debt_to_equity < 0 &&
         data.equity != null &&
         data.equity < 0
           ? DE_BANKRUPTCY_TIP
-          : undefined,
+          : (getBand(profile, 'de').note ?? undefined),
     },
     {
       label: 'Current Ratio',
       value: data.current_ratio,
-      level: crLevel(data.current_ratio, crProfile),
-      hint: crProfile.notApplicable ? 'CR не применим для данного типа компании' : 'Текущая ликвидность',
-      threshold: crProfile.thresholdHint,
+      level: levelFor(profile, 'cr', data.current_ratio),
+      hint: crBand.applicable ? 'Текущая ликвидность' : 'CR не применим для данного типа компании',
+      threshold: crBand.hint,
+      tip: crBand.tooltip_lines.join('\n') || undefined,
     },
     {
       label: 'Div. Yield',
-      value: data.dividend_yield,
+      // При наличии разовой выплаты показываем и оцениваем регулярную часть:
+      // спецдивиденд в следующем году не повторится.
+      value: hasSpecialDividend ? regularYield : data.dividend_yield,
       level:
         data.dividend_yield !== null
-          ? dyLevel(data.dividend_yield)
+          ? levelFor(profile, 'dy', hasSpecialDividend ? regularYield : data.dividend_yield)
           : data.ltm_dividends_per_share === null
             ? isPreferredShare
               ? 'neutral'
               : 'bad'
             : 'neutral',
-      hint: isPreferredShare
-        ? 'Дивидендная доходность (привилегированные)'
-        : 'Дивидендная доходность',
+      hint: hasSpecialDividend
+        ? 'Дивидендная доходность (без разовых)'
+        : isPreferredShare
+          ? 'Дивидендная доходность (привилегированные)'
+          : 'Дивидендная доходность',
       threshold:
         data.dividend_yield !== null
-          ? '≥ 3% — хорошо'
+          ? hasSpecialDividend
+            ? `Всего ${data.dividend_yield.toFixed(2)}% с разовой выплатой`
+            : hintFor(profile, 'dy')
           : data.ltm_dividends_per_share === null
             ? isPreferredShare
               ? 'Дивиденды по префам в отчётах не указаны'
               : 'Дивиденды не выплачивались'
             : 'Нет цены / данных для расчёта',
       suffix: '%',
+      tip: hasSpecialDividend
+        ? specialDividendTip(data.dividend_yield, regularYield, specialPerShare)
+        : undefined,
     },
   ];
 
@@ -1002,20 +883,23 @@ const LtmMeta: React.FC<{ data: CurrentMultipliers }> = ({ data }) => {
 
 // ─── Историческая таблица ─────────────────────────────────────────────────────
 
-// ─── Тултип для заголовка CR с отраслевыми порогами ──────────────────────────
+// ─── Тултип заголовка колонки с отраслевыми порогами ─────────────────────────
 
-interface CrTooltipProps {
-  profile: CrProfile;
+interface MetricTooltipProps {
+  profile: SectorProfile;
+  metric: 'cr';
   anchorRef: React.RefObject<HTMLTableCellElement | null>;
 }
 
 /**
- * Rich-тултип: объясняет, какой отраслевой профиль применяется для CR
- * и каковы конкретные пороги «хорошо / внимание / плохо».
- * Рендерится в portal (#root), чтобы не зажиматься overflow:hidden таблицы.
+ * Rich-тултип: объясняет, какой отраслевой профиль применён к метрике
+ * и каковы конкретные пороги «хорошо / внимание / тревога».
+ * Рендерится в portal, чтобы не зажиматься overflow:hidden таблицы.
  */
-const CrTooltip: React.FC<CrTooltipProps> = ({ profile, anchorRef }) => {
+const MetricTooltip: React.FC<MetricTooltipProps> = ({ profile, metric, anchorRef }) => {
   const [pos, setPos] = React.useState<{ top: number; left: number } | null>(null);
+  const band = getBand(profile, metric);
+  const lines = tooltipLinesFor(profile, metric);
 
   React.useLayoutEffect(() => {
     const el = anchorRef.current;
@@ -1029,24 +913,27 @@ const CrTooltip: React.FC<CrTooltipProps> = ({ profile, anchorRef }) => {
 
   if (!pos) return null;
 
+  const comparator = band.higher_is_better ? '≥' : '≤';
+  const inverse = band.higher_is_better ? '<' : '>';
+
   return createPortal(
     <div
       className="cr-tooltip"
       style={{ top: pos.top, left: pos.left }}
       role="tooltip"
     >
-      <div className="cr-tooltip-industry">{profile.industryLabel}</div>
-      {profile.notApplicable ? (
-        <p className="cr-tooltip-na">{profile.tooltipLines[0]}</p>
+      <div className="cr-tooltip-industry">{profile.label}</div>
+      {!band.applicable || band.good === null || band.warn === null ? (
+        <p className="cr-tooltip-na">{lines[0] ?? band.hint}</p>
       ) : (
         <>
           <div className="cr-tooltip-thresholds">
-            <span className="cr-tt-good">● хорошо: ≥ {profile.good.toFixed(1)}</span>
-            <span className="cr-tt-warn">● внимание: ≥ {profile.warn.toFixed(1)}</span>
-            <span className="cr-tt-bad">● тревога: &lt; {profile.warn.toFixed(1)}</span>
+            <span className="cr-tt-good">● хорошо: {comparator} {band.good.toFixed(1)}</span>
+            <span className="cr-tt-warn">● внимание: {comparator} {band.warn.toFixed(1)}</span>
+            <span className="cr-tt-bad">● тревога: {inverse} {band.warn.toFixed(1)}</span>
           </div>
           <div className="cr-tooltip-body">
-            {profile.tooltipLines.map((line, i) =>
+            {lines.map((line, i) =>
               line === '' ? <br key={i} /> : <div key={i} className="cr-tooltip-line">{line}</div>,
             )}
           </div>
@@ -1060,7 +947,7 @@ const CrTooltip: React.FC<CrTooltipProps> = ({ profile, anchorRef }) => {
 interface HistTableProps {
   rows: MultiplierRecord[];
   currentRow?: CurrentMultipliers;
-  crProfile: CrProfile;
+  profile: SectorProfile;
   /** Тикер представляет привилегированные акции — влияет на отображение Div. Yield */
   isPreferredShare?: boolean;
 }
@@ -1259,7 +1146,9 @@ interface HistTableRowProps {
   yoy: HistRowYoY | null;
   pctMode: boolean;
   pfcfColMode: PfcfColMode;
-  crProfile: CrProfile;
+  profile: SectorProfile;
+  /** Строка за предыдущий год — для атрибуции изменения ROE */
+  previous?: HistRowSnapshot | null;
   isPreferredShare: boolean;
 }
 
@@ -1272,13 +1161,16 @@ const HistTableRow: React.FC<HistTableRowProps> = ({
   yoy,
   pctMode,
   pfcfColMode,
-  crProfile,
+  profile,
+  previous,
   isPreferredShare,
 }) => {
   const income = snapshot.ltm_net_income;
   const isLoss = income !== null && income < 0;
   const negEquity = snapshot.equity !== null && snapshot.equity < 0;
   const fcfNiRow = fcfNiBadge(snapshot.fcf_to_net_income, income);
+  const roeInfo = roeExplanation(snapshot, previous);
+  const crBand = getBand(profile, 'cr');
 
   const noPrice = snapshot.price_used === null || (record != null && record.shares_used === null);
   const noIncome = income === null;
@@ -1327,7 +1219,7 @@ const HistTableRow: React.FC<HistTableRowProps> = ({
         yoy?.pe,
         <MetricBadge
           value={snapshot.pe_ratio}
-          level={peLevelContext(snapshot.pe_ratio, income)}
+          level={peLevelContext(profile, snapshot.pe_ratio, income)}
           nullHint={peHint}
         />,
       )}
@@ -1336,30 +1228,41 @@ const HistTableRow: React.FC<HistTableRowProps> = ({
         yoy?.pb,
         <MetricBadge
           value={snapshot.pb_ratio}
-          level={pbLevelContext(snapshot.pb_ratio, snapshot.equity)}
+          level={pbLevelContext(profile, snapshot.pb_ratio, snapshot.equity)}
           nullHint={pbHint}
         />,
       )}
       {histYoYCell(
         pctMode,
         yoy?.roe,
-        <RoeMetricBadge roe={snapshot.roe} netIncome={income} equity={snapshot.equity} />,
+        <RoeMetricBadge
+          profile={profile}
+          roe={snapshot.roe}
+          equity={snapshot.equity}
+          explanationTip={roeInfo.tip}
+          misleading={roeInfo.driver.misleading}
+        />,
       )}
       {histYoYCell(
         pctMode,
         yoy?.de,
-        <DeMetricBadge de={snapshot.debt_to_equity} equity={snapshot.equity} fallbackHint={deHint} />,
+        <DeMetricBadge
+          profile={profile}
+          de={snapshot.debt_to_equity}
+          equity={snapshot.equity}
+          fallbackHint={deHint}
+        />,
       )}
       {histYoYCell(
         pctMode,
         yoy?.cr,
         <MetricBadge
           value={snapshot.current_ratio}
-          level={crLevel(snapshot.current_ratio, crProfile)}
+          level={levelFor(profile, 'cr', snapshot.current_ratio)}
           nullHint={
             noCurr
               ? 'Нет оборотных активов или краткосрочных обязательств'
-              : crProfile.notApplicable
+              : !crBand.applicable
                 ? 'CR не применим для данного типа компании'
                 : undefined
           }
@@ -1369,7 +1272,10 @@ const HistTableRow: React.FC<HistTableRowProps> = ({
         pctMode,
         yoy?.div,
         <DividendYieldBadge
+          profile={profile}
           dividendYield={dividendYield ?? record?.dividend_yield ?? null}
+          dividendYieldRegular={snapshot.dividend_yield_regular}
+          specialDividendsPerShare={snapshot.ltm_special_dividends_per_share}
           ltmDividendsPerShare={snapshot.ltm_dividends_per_share}
           priceUsed={snapshot.price_used}
           isPreferredShare={isPreferredShare}
@@ -1430,7 +1336,7 @@ const HistTableRow: React.FC<HistTableRowProps> = ({
 const HistTable: React.FC<HistTableProps & { pctMode: boolean }> = ({
   rows,
   currentRow,
-  crProfile,
+  profile,
   isPreferredShare = false,
   pctMode,
 }) => {
@@ -1466,7 +1372,7 @@ const HistTable: React.FC<HistTableProps & { pctMode: boolean }> = ({
               CR
               <span className="cr-header-hint-icon" aria-hidden>ⓘ</span>
               {crTooltipVisible && (
-                <CrTooltip profile={crProfile} anchorRef={crThRef} />
+                <MetricTooltip profile={profile} metric="cr" anchorRef={crThRef} />
               )}
             </th>
             <th className="col-mult">Div, %</th>
@@ -1511,7 +1417,8 @@ const HistTable: React.FC<HistTableProps & { pctMode: boolean }> = ({
               }
               pctMode={pctMode}
               pfcfColMode={pfcfColMode}
-              crProfile={crProfile}
+              profile={profile}
+              previous={rows.length > 0 ? snapshotFromRecord(rows[0]) : null}
               isPreferredShare={isPreferredShare}
             />
           )}
@@ -1534,7 +1441,8 @@ const HistTable: React.FC<HistTableProps & { pctMode: boolean }> = ({
               }
               pctMode={pctMode}
               pfcfColMode={pfcfColMode}
-              crProfile={crProfile}
+              profile={profile}
+              previous={index + 1 < rows.length ? snapshotFromRecord(rows[index + 1]) : null}
               isPreferredShare={isPreferredShare}
             />
           ))}
@@ -1584,7 +1492,7 @@ type ChartRowInput = Pick<
 function toChartPoint(r: ChartRowInput, year: string, isLtm: boolean): ChartPoint {
   const ni = r.ltm_net_income ?? null;
   const isLoss = ni !== null && ni < 0;
-  const roeUi = roeBadge(r.roe, ni, r.equity ?? null);
+  const roeUi = roeDisplayState(r.roe, r.equity ?? null);
 
   const peOk = r.pe_ratio != null && r.pe_ratio > 0 && !isLoss;
   const roeOk = !roeUi.textLabel && roeUi.value != null;
@@ -1658,67 +1566,59 @@ interface ChartConfig {
  * (см. tokens.css → --color-chart-*), что обеспечивает консистентный
  * вид светлой и тёмной палитры.
  */
-function buildCharts(c: ChartColors, crProfile?: CrProfile): ChartConfig[] {
-  const crRefs: ChartConfig['referenceLines'] = crProfile && !crProfile.notApplicable
-    ? [
-        { value: crProfile.good, label: `${crProfile.good.toFixed(1)} хорошо`, color: c.refGood },
-        ...(crProfile.warn !== crProfile.good
-          ? [{ value: crProfile.warn, label: `${crProfile.warn.toFixed(1)} внимание`, color: c.refBad }]
-          : []),
-      ]
-    : [{ value: 2, label: '2.0', color: c.refGood }];
+function buildCharts(c: ChartColors, profile: SectorProfile): ChartConfig[] {
+  /** Линии «хорошо» и «внимание» рисуем по порогам отраслевого профиля. */
+  const refs = (
+    metric: 'pe' | 'pb' | 'roe' | 'de' | 'cr' | 'dy',
+    format: (v: number) => string,
+  ): ChartConfig['referenceLines'] => {
+    const b = getBand(profile, metric);
+    if (!b.applicable || b.good === null || b.warn === null) return [];
+    const lines = [{ value: b.good, label: format(b.good), color: c.refGood }];
+    if (b.warn !== b.good) {
+      lines.push({ value: b.warn, label: format(b.warn), color: c.refBad });
+    }
+    return lines;
+  };
 
   return [
     {
       key: 'pe_ratio',
       label: 'P/E',
       color: c.line1,
-      referenceLines: [
-        { value: 15, label: 'Грэм 15', color: c.refGood },
-        { value: 25, label: 'Грэм 25', color: c.refBad },
-      ],
+      referenceLines: refs('pe', (v) => v.toFixed(0)),
     },
     {
       key: 'pb_ratio',
       label: 'P/B',
       color: c.line2,
-      referenceLines: [
-        { value: 1.5, label: '1.5×', color: c.refGood },
-        { value: 3, label: '3×', color: c.refBad },
-      ],
+      referenceLines: refs('pb', (v) => `${v.toFixed(1)}×`),
     },
     {
       key: 'roe',
       label: 'ROE, %',
       color: c.line3,
       suffix: '%',
-      referenceLines: [
-        { value: 15, label: '15%', color: c.refGood },
-      ],
+      referenceLines: refs('roe', (v) => `${v.toFixed(0)}%`),
     },
     {
       key: 'debt_to_equity',
       label: 'Долг/Капитал',
       color: c.line4,
-      referenceLines: [
-        { value: 0.5, label: '0.5', color: c.refGood },
-        { value: 1, label: '1.0', color: c.refBad },
-      ],
+      referenceLines: refs('de', (v) => v.toFixed(1)),
     },
     {
       key: 'current_ratio',
       label: 'Current Ratio',
       color: c.line5,
-      referenceLines: crRefs,
+      referenceLines: refs('cr', (v) => v.toFixed(1)),
     },
     {
       key: 'dividend_yield',
       label: 'Дивиденд. доходность, %',
       color: c.line6,
       suffix: '%',
-      referenceLines: [
-        { value: 3, label: '3%', color: c.refGood },
-      ],
+      referenceLines: refs('dy', (v) => `${v.toFixed(0)}%`),
     },
   ];
 }
@@ -1726,6 +1626,7 @@ function buildCharts(c: ChartColors, crProfile?: CrProfile): ChartConfig[] {
 interface MultipliersChartsProps {
   rows: MultiplierRecord[];
   currentRow?: CurrentMultipliers;
+  profile?: SectorProfile;
 }
 
 interface MetricLineChartProps {
@@ -1835,9 +1736,9 @@ const MetricLineChart: React.FC<MetricLineChartProps> = ({ data, config, chartCo
 
 // Компонент графиков (пока не подключён к панели)
 // eslint-disable-next-line @typescript-eslint/no-unused-vars -- зарезервировано для встраивания графиков
-const MultipliersCharts: React.FC<MultipliersChartsProps> = ({ rows, currentRow }) => {
+const MultipliersCharts: React.FC<MultipliersChartsProps> = ({ rows, currentRow, profile }) => {
   const chartColors = useChartColors();
-  const charts = buildCharts(chartColors);
+  const charts = buildCharts(chartColors, profile ?? GRAHAM_FALLBACK);
   const chartData = buildMultiplierChartData(rows, currentRow);
 
   if (chartData.length === 0) {
@@ -1862,15 +1763,15 @@ const MultipliersCharts: React.FC<MultipliersChartsProps> = ({ rows, currentRow 
 interface ChartsPairProps {
   rows: MultiplierRecord[];
   currentRow?: CurrentMultipliers;
-  crProfile: CrProfile;
+  profile: SectorProfile;
 }
 
 const CHART_PAGE_SIZE = 2;
 
-const ChartsPager: React.FC<ChartsPairProps> = ({ rows, currentRow, crProfile }) => {
+const ChartsPager: React.FC<ChartsPairProps> = ({ rows, currentRow, profile }) => {
   const [page, setPage] = useState(0);
   const chartColors = useChartColors();
-  const charts = buildCharts(chartColors, crProfile);
+  const charts = buildCharts(chartColors, profile);
   const totalPages = Math.ceil(charts.length / CHART_PAGE_SIZE);
   const visibleCharts = charts.slice(page * CHART_PAGE_SIZE, (page + 1) * CHART_PAGE_SIZE);
   const chartData = buildMultiplierChartData(rows, currentRow);
@@ -1917,7 +1818,6 @@ const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company }) => {
   /** После первого sync цены с T-Invest можно грузить current-мультипликаторы. */
   const [initialPriceSynced, setInitialPriceSynced] = useState(false);
   const queryClient = useQueryClient();
-  const crProfile = getCrProfile(company.sector);
 
   const companyId = company.id!;
 
@@ -1928,10 +1828,31 @@ const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company }) => {
     retry: false,
   });
 
+  // Профиль приходит вместе с мультипликаторами; пока их нет — классический Грэм.
+  const profile = currentData?.sector_profile ?? GRAHAM_FALLBACK;
+
   const { data: histData, isLoading: histLoading } = useQuery({
     queryKey: ['multipliers-history', companyId, 'report_based'],
     queryFn: () => getCompanyMultipliersHistory(companyId, 'report_based', 20),
     retry: false,
+  });
+
+  const { data: profileOptions } = useQuery({
+    queryKey: ['sector-profiles'],
+    queryFn: getSectorProfiles,
+    staleTime: Infinity,
+  });
+
+  // Закрепление профиля за компанией: сектор из T-Invest слишком крупный,
+  // поэтому аналитик может выбрать пороги вручную и сразу увидеть перекраску.
+  const profileMutation = useMutation({
+    mutationFn: (key: string | null) => updateCompanySectorProfile(companyId, key),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['multipliers-current', companyId] });
+      // Ключ карточки компании хранит id строкой из useParams — инвалидируем
+      // по префиксу, иначе точное совпадение по числу не сработает.
+      queryClient.invalidateQueries({ queryKey: ['company'] });
+    },
   });
 
   // Ручное обновление по кнопке — с тостом успеха/ошибки.
@@ -2037,13 +1958,31 @@ const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company }) => {
         </div>
       </div>
 
-      {/* Легенда */}
+      {/* Легенда и применённый отраслевой профиль */}
       <div className="legend-bar">
-        <span className="legend-item good">● Норма по Грэму</span>
+        <span className="legend-item good">● Норма профиля</span>
         <span className="legend-item warn">● Внимание</span>
         <span className="legend-item bad">● Превышение</span>
         <span className="legend-item loss">● Убыток</span>
         <span className="legend-item neutral">● Нет данных</span>
+        <label className="legend-profile" title={profile.summary}>
+          <span className="legend-profile-label">Пороги:</span>
+          <select
+            className="legend-profile-select"
+            value={company.sector_profile_key ?? ''}
+            onChange={(e) => profileMutation.mutate(e.target.value || null)}
+            disabled={profileMutation.isPending || !profileOptions}
+          >
+            <option value="">
+              Авто по сектору{company.sector ? ` «${company.sector}»` : ''}
+            </option>
+            {(profileOptions ?? []).map((opt) => (
+              <option key={opt.key} value={opt.key} title={opt.summary}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </label>
       </div>
 
       {/* Контент */}
@@ -2072,7 +2011,8 @@ const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company }) => {
                     <LtmMeta data={currentData} />
                     <CurrentCards
                       data={currentData}
-                      crProfile={crProfile}
+                      profile={profile}
+                      previous={rows.length > 0 ? snapshotFromRecord(rows[0]) : null}
                       isPreferredShare={!!company.is_preferred_share}
                     />
                     <div className="ltm-financials">
@@ -2124,7 +2064,7 @@ const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company }) => {
 
               {/* Правая часть — 2 графика с пагинацией */}
               <div className="mult-charts-col">
-                <ChartsPager rows={rows} currentRow={currentData ?? undefined} crProfile={crProfile} />
+                <ChartsPager rows={rows} currentRow={currentData ?? undefined} profile={profile} />
               </div>
             </div>
 
@@ -2153,7 +2093,7 @@ const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company }) => {
                 <HistTable
                   rows={rows}
                   currentRow={currentData ?? undefined}
-                  crProfile={crProfile}
+                  profile={profile}
                   isPreferredShare={!!company.is_preferred_share}
                   pctMode={histPctMode}
                 />

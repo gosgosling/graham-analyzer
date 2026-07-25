@@ -3,14 +3,16 @@ import os
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from app.schemas import Company, CompanyDescriptionUpdate
-from typing import List
+from app.schemas import Company, CompanyDescriptionUpdate, SectorProfileOption
+from typing import List, Optional
 from app.database import get_db
+from app.services.analysis.sector_profiles import available_profiles
 from app.services.companies.company_service import (
     get_all_companies,
     get_company_by_id,
     set_business_description_manual,
     set_preferred_share_flag,
+    set_sector_profile_key,
 )
 from app.services.companies.sync_service import sync_companies_from_tinkoff
 from app.models.company import Company as CompanyModel
@@ -19,6 +21,11 @@ from app.models.company import Company as CompanyModel
 class PreferredShareUpdate(BaseModel):
     """Тело PATCH /companies/{id}/preferred-share: новое значение флажка."""
     is_preferred_share: bool
+
+
+class SectorProfileUpdate(BaseModel):
+    """Тело PATCH /companies/{id}/sector-profile; null возвращает автоопределение."""
+    sector_profile_key: Optional[str] = None
 
 router = APIRouter(prefix="/companies", tags=["companies"])
 
@@ -103,6 +110,18 @@ def sync_companies(db: Session = Depends(get_db)):
             detail=f"Ошибка при синхронизации: {str(e)}"
         )
 
+# Объявлено до "/{company_id}": иначе FastAPI попытается разобрать
+# "sector-profiles" как целочисленный ID и вернёт 422.
+@router.get("/sector-profiles", response_model=List[SectorProfileOption])
+def list_sector_profiles():
+    """
+    Доступные отраслевые профили порогов — для выбора аналитиком в карточке
+    компании, когда сектор из T-Invest слишком крупный («consumer» — это и
+    продуктовая сеть, и магазин электроники).
+    """
+    return list(available_profiles())
+
+
 @router.get("/{company_id}", response_model=Company)
 def get_company(company_id: int, db: Session = Depends(get_db)):
     """
@@ -136,6 +155,25 @@ def update_preferred_share_flag(
     на следующей синхронизации с T-Invest.
     """
     company = set_preferred_share_flag(db, company_id, payload.is_preferred_share)
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+    return company
+
+
+@router.patch("/{company_id}/sector-profile", response_model=Company)
+def update_sector_profile(
+    company_id: int,
+    payload: SectorProfileUpdate,
+    db: Session = Depends(get_db),
+):
+    """
+    Закрепляет за компанией профиль порогов. Пустое значение возвращает
+    автоопределение по сектору. Выбор сохраняется при синхронизации с T-Invest.
+    """
+    try:
+        company = set_sector_profile_key(db, company_id, payload.sector_profile_key)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
     if not company:
         raise HTTPException(status_code=404, detail="Company not found")
     return company

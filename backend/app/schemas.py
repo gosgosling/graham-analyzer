@@ -1,5 +1,5 @@
 from pydantic import BaseModel, model_validator, computed_field, field_serializer
-from typing import Optional, List, Union
+from typing import Dict, Optional, List, Union
 from datetime import date, datetime
 from app.models.enums import PeriodType, AccountingStandard, ReportSource
 from app.services.analysis.share_counts import compute_circulation_shares
@@ -77,6 +77,9 @@ class Company(BaseModel):
     name: str  # Название компании
     isin: str # ISIN для связи с MOEX
     sector: Optional[str] = None  # Сектор
+    # Профиль порогов, закреплённый аналитиком (см. /companies/sector-profiles).
+    # Пусто → определяется автоматически по сектору.
+    sector_profile_key: Optional[str] = None
     currency: str  # Валюта
     lot: int  # Размер лота
     api_trade_available_flag: bool = False  # Доступность для торговли через API
@@ -113,6 +116,7 @@ class CompanyCreate(BaseModel):
     name: str
     isin: str
     sector: Optional[str] = None
+    sector_profile_key: Optional[str] = None
     currency: str = "RUB"
     lot: int = 1
     api_trade_available_flag: bool = False
@@ -173,8 +177,12 @@ class FinancialReportCreate(BaseModel):
     equity: Optional[float] = None
     cash_and_equivalents: Optional[float] = None  # наличность, млн
     debt: Optional[float] = None                  # долг, млн
-    dividends_per_share: Optional[float] = None  # ₽/$ за акцию (полные единицы)
+    dividends_per_share: Optional[float] = None  # ₽/$ за акцию, ВСЕГО (полные единицы)
     dividends_paid: bool = False
+    # Разовая часть выплаты (входит в dividends_per_share): спецдивиденд,
+    # компенсация пропущенных лет, распределение от продажи актива
+    special_dividends_per_share: Optional[float] = None
+    special_dividends_note: Optional[str] = None
     has_preferred_shares: bool = False
     preferred_share_dividends: Optional[float] = None  # млн валюты отчёта
 
@@ -281,6 +289,8 @@ class FinancialReport(BaseModel):
     debt: Optional[float] = None                  # долг, млн
     dividends_per_share: Optional[float] = None
     dividends_paid: bool = False
+    special_dividends_per_share: Optional[float] = None
+    special_dividends_note: Optional[str] = None
     has_preferred_shares: bool = False
     preferred_share_dividends: Optional[float] = None
 
@@ -538,6 +548,38 @@ class StockPriceResponse(BaseModel):
 # Multiplier schemas
 # ---------------------------------------------------------------------------
 
+class SectorProfileOption(BaseModel):
+    """Элемент списка профилей для выбора аналитиком в карточке компании."""
+    key: str
+    label: str
+    summary: str
+
+
+class SectorProfileBand(BaseModel):
+    """Пороги одной метрики в рамках отраслевого профиля."""
+    good: Optional[float] = None
+    warn: Optional[float] = None
+    higher_is_better: bool
+    hint: str
+    applicable: bool = True
+    note: Optional[str] = None
+    tooltip_lines: List[str] = []
+
+
+class SectorProfileResponse(BaseModel):
+    """
+    Отраслевой профиль порогов. Определяется на бэкенде по сектору компании
+    и типу отчёта; фронтенд раскрашивает карточки и таблицу по этим значениям,
+    чтобы пороги не расходились между слоями.
+    """
+    key: str
+    label: str
+    summary: str
+    book_value_reliable: bool = True
+    lease_heavy: bool = False
+    bands: Dict[str, SectorProfileBand]
+
+
 class MultiplierResponse(BaseModel):
     """Схема ответа для кэшированных мультипликаторов."""
     id: int
@@ -558,9 +600,11 @@ class MultiplierResponse(BaseModel):
     ltm_net_income: Optional[float] = None
     ltm_revenue: Optional[float] = None
     ltm_dividends_per_share: Optional[float] = None
+    ltm_special_dividends_per_share: Optional[float] = None  # разовая часть, ₽/акцию
 
     # Балансовые данные
     equity: Optional[float] = None
+    total_assets: Optional[float] = None
     total_liabilities: Optional[float] = None
     current_assets: Optional[float] = None
     current_liabilities: Optional[float] = None
@@ -572,6 +616,7 @@ class MultiplierResponse(BaseModel):
     debt_to_equity: Optional[float] = None
     current_ratio: Optional[float] = None
     dividend_yield: Optional[float] = None
+    dividend_yield_regular: Optional[float] = None  # без разовых выплат
     cost_to_income: Optional[float] = None  # % — только для банков
 
     # Денежные потоки LTM (NULL для банков)
@@ -608,6 +653,7 @@ class CurrentMultipliersResponse(BaseModel):
     ltm_net_income: Optional[float] = None
     ltm_revenue: Optional[float] = None
     ltm_dividends_per_share: Optional[float] = None
+    ltm_special_dividends_per_share: Optional[float] = None  # разовая часть, ₽/акцию
 
     # Расчётные данные
     price_used: Optional[float] = None
@@ -617,6 +663,10 @@ class CurrentMultipliersResponse(BaseModel):
     shares_cap_explanation: Optional[str] = None
     market_cap: Optional[float] = None
     equity: Optional[float] = None  # собственный капитал, млн ₽ (из балансового отчёта)
+    total_assets: Optional[float] = None  # итого активы, млн ₽ (для разложения ROE)
+
+    # Отраслевой профиль порогов, применённый к этой компании
+    sector_profile: Optional[SectorProfileResponse] = None
 
     # Мультипликаторы
     pe_ratio: Optional[float] = None
@@ -625,6 +675,7 @@ class CurrentMultipliersResponse(BaseModel):
     debt_to_equity: Optional[float] = None
     current_ratio: Optional[float] = None
     dividend_yield: Optional[float] = None
+    dividend_yield_regular: Optional[float] = None  # без разовых выплат
     cost_to_income: Optional[float] = None  # % — только для банков
 
     # Денежные потоки LTM (NULL для банков)

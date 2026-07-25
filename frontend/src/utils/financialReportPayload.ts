@@ -43,6 +43,8 @@ export function financialReportToCreatePayload(
     debt: r.debt ?? null,
     dividends_per_share: r.dividends_per_share ?? null,
     dividends_paid: r.dividends_paid ?? false,
+    special_dividends_per_share: r.special_dividends_per_share ?? null,
+    special_dividends_note: r.special_dividends_note ?? null,
     has_preferred_shares: r.has_preferred_shares ?? false,
     preferred_share_dividends: r.preferred_share_dividends ?? null,
     net_interest_income: r.net_interest_income ?? null,
