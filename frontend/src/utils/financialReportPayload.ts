@@ -55,6 +55,7 @@ export function financialReportToCreatePayload(
     capex: r.capex ?? null,
     lease_principal: r.lease_principal ?? null,
     lease_interest: r.lease_interest ?? null,
+    interest_paid: r.interest_paid ?? null,
     debt_principal: r.debt_principal ?? null,
     depreciation_amortization: r.depreciation_amortization ?? null,
     currency: r.currency || 'RUB',

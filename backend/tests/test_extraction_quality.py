@@ -39,7 +39,7 @@ _COMPARE_KEYS = (
     "equity", "cash_and_equivalents", "debt",
     "dividends_per_share", "dividends_paid", "special_dividends_per_share",
     "operating_cash_flow", "capex", "lease_principal", "lease_interest",
-    "depreciation_amortization",
+    "interest_paid", "depreciation_amortization",
 )
 
 

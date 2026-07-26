@@ -1,3 +1,4 @@
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from typing import List, Optional
@@ -43,6 +44,14 @@ def get_company_by_id(db: Session, company_id: int) -> Optional[Company]:
         Объект Company или None, если не найдена
     """
     return db.query(Company).filter(Company.id == company_id).first()
+
+
+def get_company_by_ticker(db: Session, ticker: str) -> Optional[Company]:
+    """Поиск компании по тикеру (без учёта регистра)."""
+    if not ticker:
+        return None
+    t = ticker.strip().upper()
+    return db.query(Company).filter(func.upper(Company.ticker) == t).first()
 
 def create_company(db: Session, company_data: CompanyCreate) -> Company:
     """

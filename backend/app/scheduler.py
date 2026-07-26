@@ -97,11 +97,36 @@ def start_scheduler() -> None:
         replace_existing=True,
     )
 
+    # Еженедельный listing e-disclosure (вс 03:00 МСК)
+    _scheduler.add_job(
+        _weekly_disclosure_sync,
+        CronTrigger(day_of_week="sun", hour=3, minute=0, timezone="Europe/Moscow"),
+        id="weekly_disclosure_sync",
+        replace_existing=True,
+    )
+
     _scheduler.start()
     logger.info(
         "Планировщик запущен. Следующее обновление цен: %s",
         _scheduler.get_job("daily_price_update").next_run_time,
     )
+
+
+def _weekly_disclosure_sync() -> None:
+    """Listing e-disclosure → disclosure_periods (без скачивания/парсинга)."""
+    from app.services.disclosure.sync_service import is_sync_alive, start_sync
+
+    if is_sync_alive():
+        logger.warning("Планировщик: disclosure sync уже выполняется — пропуск")
+        return
+    db = SessionLocal()
+    try:
+        run = start_sync(db)
+        logger.info("Планировщик: запущен disclosure sync #%s", run.id)
+    except Exception as e:
+        logger.error("Планировщик: не удалось стартовать disclosure sync: %s", e)
+    finally:
+        db.close()
 
 
 def stop_scheduler() -> None:

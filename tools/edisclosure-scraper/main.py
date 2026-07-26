@@ -31,7 +31,8 @@ from config import COMPANY_DELAY_MIN, COMPANY_DELAY_MAX, REPORTS_BASE_DIR
 from db_client import get_companies_from_db
 from downloader import download_reports
 from pdf_extract import process_orphan_zips_in_ticker_dir
-from scraper import fetch_annual_reports
+from period_parse import filter_coverage_entries
+from scraper import fetch_all_reports, fetch_annual_reports
 
 # ── Logging ────────────────────────────────────────────────────────────────────
 logging.basicConfig(
@@ -106,6 +107,21 @@ def parse_args() -> argparse.Namespace:
             "Продолжение прогона: пропустить все тикеры до указанного (порядок как в БД с "
             "фильтром company_ids) и обработать начиная с него. Пример: --start-from MVID"
         ),
+    )
+    parser.add_argument(
+        "--list-json",
+        action="store_true",
+        help="Только listing (все периоды) → JSON в stdout, без скачивания",
+    )
+    parser.add_argument(
+        "--coverage-filter",
+        action="store_true",
+        help="С --list-json: только годовые + самый свежий interim на тикер",
+    )
+    parser.add_argument(
+        "--all-periods",
+        action="store_true",
+        help="Скачивать годовые + промежуточные (по умолчанию только годовые)",
     )
     return parser.parse_args()
 
@@ -196,6 +212,7 @@ def main() -> None:
     # ── Основной цикл ─────────────────────────────────────────────────────────
     total_downloaded = 0
     total_skipped = 0
+    list_json_rows: list[dict] = []
 
     for idx, (ticker, company_id, company_name) in enumerate(companies_to_process, start=1):
         logger.info(
@@ -203,38 +220,58 @@ def main() -> None:
             idx, len(companies_to_process), ticker, company_id,
         )
 
-        reports = fetch_annual_reports(company_id, ticker)
+        if args.list_json or args.all_periods:
+            reports = fetch_all_reports(company_id, ticker)
+        else:
+            reports = fetch_annual_reports(company_id, ticker)
 
-        if args.dry_run:
+        if args.coverage_filter:
+            reports = filter_coverage_entries(reports)
+
+        if args.list_json:
+            payload = {
+                "ticker": ticker,
+                "company_name": company_name,
+                "edisclosure_id": company_id,
+                "reports": [r.to_dict() for r in reports],
+            }
+            # Накапливаем в список на уровне main — см. ниже
+            list_json_rows.append(payload)
+        elif args.dry_run:
             if reports:
                 print(f"\n{ticker} ({company_name})  [id={company_id}]:")
-                for r in sorted(reports, key=lambda x: x.year, reverse=True):
-                    pdf_p = REPORTS_BASE_DIR / ticker / f"{ticker}_{r.year}.pdf"
+                for r in sorted(
+                    reports, key=lambda x: (x.fiscal_year, x.interim_rank), reverse=True
+                ):
+                    pdf_p = REPORTS_BASE_DIR / ticker / f"{ticker}_{r.period_key}.pdf"
                     status = "✓ PDF есть" if pdf_p.exists() else "→ будет скачан"
-                    print(f"  {r.year}  {status}  {r.file_label}  {r.file_url}")
+                    print(
+                        f"  {r.period_key:10}  {status}  {r.file_label}  {r.file_url}"
+                    )
             else:
                 print(f"\n{ticker}: отчёты не найдены.")
         else:
             result = download_reports(ticker, reports)
-            total_downloaded += len([y for y in result if not _already_existed(ticker, y)])
-            total_skipped += len(reports) - len(result)
+            total_downloaded += len(result)
+            total_skipped += max(0, len(reports) - len(result))
 
-        # Пауза между компаниями (кроме последней)
-        if idx < len(companies_to_process) and not args.dry_run:
+        # Пауза между компаниями (кроме последней); list-json тоже ходит на сайт
+        if idx < len(companies_to_process) and (args.list_json or not args.dry_run):
             delay = random.uniform(COMPANY_DELAY_MIN, COMPANY_DELAY_MAX)
             logger.info("Пауза %.0f с перед следующей компанией...", delay)
             time.sleep(delay)
 
+    if args.list_json:
+        print(json.dumps(list_json_rows, ensure_ascii=False, indent=2))
+        return
+
     if not args.dry_run:
         logger.info("=" * 60)
-        logger.info("Готово. Загружено новых файлов: %d, пропущено/ошибок: %d.",
-                    total_downloaded, total_skipped)
-
-
-def _already_existed(ticker: str, year: str) -> bool:
-    """Проверяет, существовал ли файл до запуска (приближённо, через размер лога)."""
-    # Упрощённая проверка — downloader сам отслеживает уже существующие файлы
-    return False
+        logger.info(
+            "Готово. Загружено/найдено PDF: %d, пропущено/ошибок: %d.",
+            total_downloaded,
+            total_skipped,
+        )
 
 
 if __name__ == "__main__":

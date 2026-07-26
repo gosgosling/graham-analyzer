@@ -144,8 +144,8 @@ class FinancialReport(Base):
     # ─── Денежные потоки (ОДДС) ──────────────────────────────────────────────
     # Все значения в МИЛЛИОНАХ валюты отчёта (как и остальные P&L-показатели).
     # capex хранится как положительное число (абсолютная величина оттока).
-    # FCF = OCF − CAPEX − lease_principal − lease_interest − debt_principal
-    # (последние три опциональны; вычисляется, не хранится).
+    # FCF = OCF − CAPEX − lease − interest_paid (вычисляется, не хранится).
+    # interest_paid — только если «Проценты уплаченные» в финансовой деятельности.
     operating_cash_flow: Mapped[Optional[float]] = mapped_column(
         Numeric(15, 3), nullable=True
     )  # Операционный денежный поток, млн
@@ -158,9 +158,12 @@ class FinancialReport(Base):
     lease_interest: Mapped[Optional[float]] = mapped_column(
         Numeric(15, 3), nullable=True
     )  # Проценты по аренде, положит. отток, млн
+    interest_paid: Mapped[Optional[float]] = mapped_column(
+        Numeric(15, 3), nullable=True
+    )  # Проценты уплаченные (financing), положит. отток, млн
     debt_principal: Mapped[Optional[float]] = mapped_column(
         Numeric(15, 3), nullable=True
-    )  # Выплаты по долговым ЦБ (тело долга), положит. отток, млн
+    )  # Выплаты по долговым ЦБ (тело долга), положит. отток, млн — не в FCF
     # Амортизация и износ (из ОПУ или корректировка к ОДДС), млн — для диагностики CAPEX vs D&A;
     # в расчёт мультипликаторов не входит (будущий модуль справедливой стоимости).
     depreciation_amortization: Mapped[Optional[float]] = mapped_column(

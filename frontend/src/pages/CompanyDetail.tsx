@@ -1151,6 +1151,7 @@ const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
             report.capex != null ||
             report.lease_principal != null ||
             report.lease_interest != null ||
+            report.interest_paid != null ||
             report.debt_principal != null ||
             report.depreciation_amortization != null) && (
             <div className="detail-section">
@@ -1178,6 +1179,12 @@ const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
                   <div className="detail-item">
                     <span className="detail-label">Проценты по аренде:</span>
                     <span className="detail-value">{fmtMln(report.lease_interest)}</span>
+                  </div>
+                )}
+                {report.interest_paid != null && (
+                  <div className="detail-item">
+                    <span className="detail-label">Проценты уплаченные:</span>
+                    <span className="detail-value">{fmtMln(report.interest_paid)}</span>
                   </div>
                 )}
                 {report.debt_principal != null && (

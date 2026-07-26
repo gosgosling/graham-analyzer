@@ -15,18 +15,19 @@ def compute_fcf(
     capex: Optional[float],
     lease_principal: Optional[float] = None,
     lease_interest: Optional[float] = None,
-    debt_principal: Optional[float] = None,  # noqa: ARG001 — reserved, не в формуле
+    interest_paid: Optional[float] = None,
+    debt_principal: Optional[float] = None,  # noqa: ARG001 — не в формуле
 ) -> Optional[float]:
     """
-    FCF = OCF − CAPEX − аренда (тело + проценты).
+    FCF = OCF − CAPEX − аренда − проценты уплаченные (из financing).
 
-    CAPEX — приобретение ОС + НМА (положительный отток).
-    Аренда: если в ОДДС одна строка «Выплаты обязательств по аренде» —
-    вся сумма в lease_principal, lease_interest = null.
+    CAPEX — ОС + НМА (положительный отток).
+    Аренда: одна строка «выплаты по аренде» → вся сумма в lease_principal.
+    interest_paid — строка «Проценты уплаченные» из ФИНАНСОВОЙ деятельности
+    (когда в операционной проценты добавлены обратно). Если проценты уже
+    внутри OCF — поле должно быть null, иначе будет двойной вычет.
 
-    debt_principal (погашение кредитов/облигаций) в формулу НЕ входит:
-    это финансирование, не sustenance capex/lease. Параметр оставлен для
-    совместимости вызовов и особых ручных кейсов — игнорируется.
+    debt_principal (погашение кредитов/облигаций) в формулу НЕ входит.
     """
     if operating_cash_flow is None or capex is None:
         return None
@@ -34,5 +35,6 @@ def compute_fcf(
         float(capex)
         + _outflow(lease_principal)
         + _outflow(lease_interest)
+        + _outflow(interest_paid)
     )
     return round(float(operating_cash_flow) - total_out, 3)

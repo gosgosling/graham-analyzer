@@ -41,6 +41,10 @@ class LLMParseError(RuntimeError):
     """Нераспарсиваемый / невалидный ответ модели. Не ретраим."""
 
 
+class LLMQuotaExhaustedError(RuntimeError):
+    """Free tier / AllocationQuota исчерпан. Ретраи бесполезны — сменить модель или биллинг."""
+
+
 class LLMNotConfiguredError(RuntimeError):
     """В настройках не задан API-ключ / провайдер LLM."""
 
@@ -85,6 +89,11 @@ def _parse_retry_after(exc: RateLimitError) -> float:
 
 def _raise_as_transient(exc: Exception, *, context: str) -> NoReturn:
     """Превращает исключения openai-sdk в наши, сохраняя подсказку retry-after."""
+    msg = str(exc)
+    # FreeTierOnly / AllocationQuota — не временная ошибка: 3 ретрая только жгут время.
+    if "FreeTierOnly" in msg or "AllocationQuota" in msg:
+        logger.error("LLM quota exhausted (%s): %s", context, exc)
+        raise LLMQuotaExhaustedError(msg) from exc
     if isinstance(exc, RateLimitError):
         retry_after = _parse_retry_after(exc)
         logger.warning(
@@ -93,7 +102,7 @@ def _raise_as_transient(exc: Exception, *, context: str) -> NoReturn:
         )
         raise LLMRateLimitError(str(exc), retry_after=retry_after) from exc
     logger.warning("LLM transient error (%s): %s", context, exc)
-    raise LLMTransientError(str(exc)) from exc
+    raise LLMTransientError(msg) from exc
 
 
 def _build_client() -> OpenAI:

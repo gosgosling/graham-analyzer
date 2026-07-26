@@ -1,15 +1,8 @@
 """
-Загрузка файлов с e-disclosure.ru и сохранение годового отчёта как PDF.
-
-Итоговая структура:
-  /home/devops/Reports/TATN/
-    TATN_2024.pdf
-    TATN_2023.pdf
-    ...
-
-Архивы zip после успешного извлечения PDF удаляются.
-Если с сервера приходит уже PDF — сохраняется как TICKER_YEAR.pdf.
+Загрузка файлов с e-disclosure.ru → TICKER_{period_key}.pdf
 """
+
+from __future__ import annotations
 
 import logging
 import random
@@ -20,7 +13,11 @@ from pathlib import Path
 import requests
 
 from config import FILE_DELAY_MIN, FILE_DELAY_MAX, REPORTS_BASE_DIR, USER_AGENT
-from pdf_extract import extract_main_pdf_from_zip, pdf_exists, pdf_target_path, process_orphan_zips_in_ticker_dir
+from pdf_extract import (
+    extract_main_pdf_from_zip,
+    pdf_target_path,
+    process_orphan_zips_in_ticker_dir,
+)
 from scraper import ReportEntry
 
 logger = logging.getLogger(__name__)
@@ -52,7 +49,11 @@ def _get_sp_cookies() -> dict[str, str]:
                 timezone_id="Europe/Moscow",
             )
             page = context.new_page()
-            page.goto("https://www.e-disclosure.ru/", wait_until="domcontentloaded", timeout=60_000)
+            page.goto(
+                "https://www.e-disclosure.ru/",
+                wait_until="domcontentloaded",
+                timeout=60_000,
+            )
             pw_cookies = context.cookies()
             browser.close()
 
@@ -90,7 +91,7 @@ def _filename_for(report: ReportEntry) -> str:
         if candidate in label_lower:
             ext = candidate
             break
-    return f"{report.year}_annual_consolidated.{ext}"
+    return f"{report.period_key}_consolidated.{ext}"
 
 
 def _download_to_path(session: requests.Session, url: str, dest: Path) -> None:
@@ -104,74 +105,75 @@ def _download_to_path(session: requests.Session, url: str, dest: Path) -> None:
 
 def download_reports(ticker: str, reports: list[ReportEntry]) -> dict[str, str]:
     """
-    Скачивает отчёты и сохраняет как TICKER_YEAR.pdf.
-    Возвращает словарь {год: путь_к_pdf}.
+    Скачивает отчёты → TICKER_{period_key}.pdf.
+    Возвращает {period_key: path}.
     """
     if not reports:
         return {}
 
     ticker_dir = _ticker_dir(ticker)
-    # Обработать ранее скачанные zip без PDF (повторный запуск)
     process_orphan_zips_in_ticker_dir(ticker, ticker_dir)
 
     session = _make_session()
     result: dict[str, str] = {}
 
-    for report in sorted(reports, key=lambda r: r.year, reverse=True):
-        year = report.year
-        pdf_path = pdf_target_path(ticker, year, ticker_dir)
+    for report in sorted(
+        reports,
+        key=lambda r: (r.fiscal_year, r.interim_rank),
+        reverse=True,
+    ):
+        key = report.period_key
+        pdf_path = pdf_target_path(ticker, report.year, ticker_dir, period_key=key)
 
         if pdf_path.exists():
-            logger.info("[%s] PDF за %s уже есть — %s", ticker, year, pdf_path.name)
-            result[str(year)] = str(pdf_path)
+            logger.info("[%s] PDF %s уже есть — %s", ticker, key, pdf_path.name)
+            result[key] = str(pdf_path)
             continue
 
         filename = _filename_for(report)
         dest = ticker_dir / filename
 
-        # Старый запуск: остался только zip — распаковать без повторной загрузки
         if dest.exists() and dest.suffix.lower() == ".zip":
-            extracted = extract_main_pdf_from_zip(dest, ticker, year, ticker_dir, delete_zip=True)
+            extracted = extract_main_pdf_from_zip(
+                dest, ticker, report.year, ticker_dir, delete_zip=True, period_key=key
+            )
             if extracted:
-                result[str(year)] = str(extracted)
+                result[key] = str(extracted)
             continue
 
         if dest.exists() and dest.suffix.lower() == ".pdf":
             shutil.copy2(dest, pdf_path)
-            # если имя не совпадало — оставляем только целевое имя
             if dest != pdf_path:
                 dest.unlink(missing_ok=True)
             logger.info("[%s] ✓ Сохранён %s", ticker, pdf_path.name)
-            result[str(year)] = str(pdf_path)
+            result[key] = str(pdf_path)
             continue
 
         delay = random.uniform(FILE_DELAY_MIN, FILE_DELAY_MAX)
-        logger.debug("[%s] Ждём %.1f с перед скачиванием %s...", ticker, delay, filename)
         time.sleep(delay)
 
         logger.info("[%s] Скачиваем %s → %s", ticker, report.file_url, filename)
         try:
             _download_to_path(session, report.file_url, dest)
             size_kb = dest.stat().st_size / 1024
-            logger.info("[%s] ✓ Сохранён временный файл %s (%.0f КБ)", ticker, filename, size_kb)
+            logger.info("[%s] ✓ Временный %s (%.0f КБ)", ticker, filename, size_kb)
 
             suffix = dest.suffix.lower()
             if suffix == ".pdf":
                 shutil.copy2(dest, pdf_path)
                 dest.unlink(missing_ok=True)
                 logger.info("[%s] ✓ Сохранён %s", ticker, pdf_path.name)
-                result[str(year)] = str(pdf_path)
+                result[key] = str(pdf_path)
             elif suffix == ".zip":
-                extracted = extract_main_pdf_from_zip(dest, ticker, year, ticker_dir, delete_zip=True)
-                if extracted:
-                    result[str(year)] = str(extracted)
-                else:
-                    logger.warning("[%s] Не удалось извлечь PDF из %s — оставлен архив.", ticker, filename)
-            else:
-                logger.warning(
-                    "[%s] Неизвестный тип файла %s — оставлен как есть. Добавьте обработку вручную.",
-                    ticker, filename,
+                extracted = extract_main_pdf_from_zip(
+                    dest, ticker, report.year, ticker_dir, delete_zip=True, period_key=key
                 )
+                if extracted:
+                    result[key] = str(extracted)
+                else:
+                    logger.warning("[%s] Не удалось извлечь PDF из %s", ticker, filename)
+            else:
+                logger.warning("[%s] Неизвестный тип %s", ticker, filename)
 
         except requests.HTTPError as exc:
             logger.error("[%s] HTTP-ошибка %s: %s", ticker, report.file_url, exc)
