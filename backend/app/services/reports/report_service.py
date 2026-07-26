@@ -82,6 +82,7 @@ def create_report(db: Session, report_data: FinancialReportCreate) -> FinancialR
         capex=report_data.capex,
         lease_principal=report_data.lease_principal,
         lease_interest=report_data.lease_interest,
+        interest_paid=report_data.interest_paid,
         debt_principal=report_data.debt_principal,
         depreciation_amortization=report_data.depreciation_amortization,
         # Верификация / источник AI
@@ -263,6 +264,7 @@ def update_report(
     db_report.capex = report_data.capex  # type: ignore
     db_report.lease_principal = report_data.lease_principal  # type: ignore
     db_report.lease_interest = report_data.lease_interest  # type: ignore
+    db_report.interest_paid = report_data.interest_paid  # type: ignore
     db_report.debt_principal = report_data.debt_principal  # type: ignore
     db_report.depreciation_amortization = report_data.depreciation_amortization  # type: ignore
 

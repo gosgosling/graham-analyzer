@@ -201,7 +201,8 @@ class FinancialReportCreate(BaseModel):
     capex: Optional[float] = None                # CAPEX (положит. число), млн
     lease_principal: Optional[float] = None      # Тело аренды, млн (положит. отток)
     lease_interest: Optional[float] = None       # Проценты по аренде, млн
-    debt_principal: Optional[float] = None       # Тело долга (долг. ЦБ), млн
+    interest_paid: Optional[float] = None        # Проценты уплаченные (financing), млн
+    debt_principal: Optional[float] = None       # Тело долга (долг. ЦБ), млн — не в FCF
     # Амортизация и износ (D&A), млн — для сопоставления с CAPEX; не в формулах мультипликаторов.
     depreciation_amortization: Optional[float] = None
 
@@ -308,6 +309,7 @@ class FinancialReport(BaseModel):
     capex: Optional[float] = None                # CAPEX (положит. число), млн
     lease_principal: Optional[float] = None
     lease_interest: Optional[float] = None
+    interest_paid: Optional[float] = None
     debt_principal: Optional[float] = None
     depreciation_amortization: Optional[float] = None  # D&A, млн
 
@@ -462,7 +464,7 @@ class FinancialReport(BaseModel):
     @computed_field  # type: ignore
     @property
     def fcf(self) -> Optional[float]:
-        """FCF = OCF − CAPEX − аренда (тело, %) − тело долга; млн валюты отчёта."""
+        """FCF = OCF − CAPEX − аренда − проценты уплаченные (financing); млн."""
         from app.services.analysis.fcf import compute_fcf
 
         return compute_fcf(
@@ -470,6 +472,7 @@ class FinancialReport(BaseModel):
             self.capex,
             self.lease_principal,
             self.lease_interest,
+            self.interest_paid,
             self.debt_principal,
         )
 

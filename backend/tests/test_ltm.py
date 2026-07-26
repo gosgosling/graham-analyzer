@@ -35,6 +35,7 @@ def _rpt(**kw) -> SimpleNamespace:
         "capex": None,
         "lease_principal": None,
         "lease_interest": None,
+        "interest_paid": None,
         "debt_principal": None,
         "period_type": PeriodType.ANNUAL,
         "fiscal_quarter": None,

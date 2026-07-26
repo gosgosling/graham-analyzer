@@ -7,6 +7,13 @@ from alembic import context
 from app.database import Base
 from app.models.company import Company
 from app.models.financial_report import FinancialReport  # Импортируем модель для миграций
+from app.models.mass_parse import MassParseJob, MassParseItem  # noqa: F401
+from app.models.disclosure import (  # noqa: F401
+    DisclosureSyncRun,
+    DisclosurePeriod,
+    DisclosureParseJob,
+    DisclosureParseItem,
+)
 from app.config import settings
 
 # this is the Alembic Config object, which provides

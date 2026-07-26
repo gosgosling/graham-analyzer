@@ -17,16 +17,20 @@ def test_fcf_base_formula():
     assert compute_fcf(15_000, 5_000) == 10_000.0
 
 
-def test_fcf_subtracts_capex_and_lease_only():
-    """FCF = OCF − CAPEX − аренда; погашение кредитов (debt_principal) игнорируется."""
-    assert compute_fcf(15_000, 5_000, 2_000, 500, 1_500) == 7_500.0
-    assert compute_fcf(15_000, 5_000, 2_000, 500, None) == 7_500.0
+def test_fcf_subtracts_capex_lease_and_interest_paid():
+    """FCF = OCF − CAPEX − аренда − interest_paid; тело долга игнорируется."""
+    assert compute_fcf(15_000, 5_000, 2_000, 500, 1_000, 9_999) == 6_500.0
+    assert compute_fcf(15_000, 5_000, 2_000, 500, None, 9_999) == 7_500.0
 
 
-def test_fcf_combined_lease_line_without_interest():
-    """Одна строка «выплаты по аренде» → только lease_principal."""
-    # MVID-like: OCF=-392, CAPEX=8804 (ОС+НМА), lease=11882
-    assert compute_fcf(-392, 8_804, 11_882, None, 133_196) == -21_078.0
+def test_fcf_financing_interest_mechel_pattern():
+    """Проценты в financing вычитаются (Мечел-паттерн)."""
+    assert compute_fcf(46_352, 10_760, 5_711, None, 43_348) == -13_467.0
+
+
+def test_fcf_combined_lease_line_without_interest_paid():
+    """Одна строка аренды; debt_principal не влияет."""
+    assert compute_fcf(-392, 8_804, 11_882, None, None, 133_196) == -21_078.0
 
 
 def test_fcf_treats_missing_outflows_as_zero():

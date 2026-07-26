@@ -9,11 +9,13 @@ import CompanyDetail from './pages/CompanyDetail';
 import CompanyReportsMatrix from './pages/CompanyReportsMatrix';
 import BondsList from './pages/BondsList';
 import BondDetail from './pages/BondDetail';
+import MassParse from './pages/MassParse';
+import DisclosureCoverage from './pages/DisclosureCoverage';
 import ThemeToggle from './components/ThemeToggle';
 import DbBackupButton from './components/DbBackupButton';
 import { useTheme } from './contexts/ThemeContext';
 
-type NavSection = 'securities' | 'companies' | 'bonds';
+type NavSection = 'securities' | 'companies' | 'bonds' | 'mass-parse' | 'disclosure';
 
 function Navigation() {
   const location = useLocation();
@@ -21,6 +23,8 @@ function Navigation() {
   const active: NavSection =
     location.pathname === '/' ? 'securities'
     : location.pathname.startsWith('/bond') ? 'bonds'
+    : location.pathname.startsWith('/mass-parse') ? 'mass-parse'
+    : location.pathname.startsWith('/disclosure') ? 'disclosure'
     : 'companies';
 
   const navBtn = (section: NavSection, to: string, label: string) => (
@@ -41,6 +45,8 @@ function Navigation() {
           {navBtn('securities', '/', '📈 Ценные бумаги (MOEX)')}
           {navBtn('companies', '/companies', '🏢 Компании (T-Invest)')}
           {navBtn('bonds', '/bonds', '📄 Облигации')}
+          {navBtn('mass-parse', '/mass-parse', '🤖 Массовый парсинг')}
+          {navBtn('disclosure', '/disclosure', '📋 Отчётность')}
         </div>
         <div className="app-nav-actions">
           <DbBackupButton />
@@ -104,6 +110,8 @@ function App() {
             <Route path="/company/:companyId/reports-matrix" element={<CompanyReportsMatrix />} />
             <Route path="/bonds" element={<BondsList />} />
             <Route path="/bond/:figi" element={<BondDetail />} />
+            <Route path="/mass-parse" element={<MassParse />} />
+            <Route path="/disclosure" element={<DisclosureCoverage />} />
           </Routes>
         </div>
       </Router>
