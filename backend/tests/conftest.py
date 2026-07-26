@@ -40,6 +40,7 @@ _DEFAULTS: dict[str, Any] = {
     "capex": 5_000.0,
     "lease_principal": None,
     "lease_interest": None,
+    "interest_paid": None,
     "debt_principal": None,
     "depreciation_amortization": 4_000.0,
     # Дивиденды, ₽ на акцию

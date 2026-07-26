@@ -32,6 +32,7 @@ def calculate_multipliers(
     ltm_capex: Optional[float] = None,
     ltm_lease_principal: Optional[float] = None,
     ltm_lease_interest: Optional[float] = None,
+    ltm_interest_paid: Optional[float] = None,
     ltm_debt_principal: Optional[float] = None,
 ) -> Dict[str, Optional[float]]:
     """
@@ -192,6 +193,10 @@ def calculate_multipliers(
             ltm_lease_interest if ltm_lease_interest is not None
             else getattr(report, 'lease_interest', None)
         )
+        interest_paid_raw = (
+            ltm_interest_paid if ltm_interest_paid is not None
+            else getattr(report, 'interest_paid', None)
+        )
         debt_p_raw = (
             ltm_debt_principal if ltm_debt_principal is not None
             else getattr(report, 'debt_principal', None)
@@ -202,11 +207,19 @@ def calculate_multipliers(
         ltm_capex_mln = cap_mln
         lease_p_mln = to_rub_mln(lease_p_raw) if lease_p_raw is not None else None
         lease_i_mln = to_rub_mln(lease_i_raw) if lease_i_raw is not None else None
+        interest_paid_mln = (
+            to_rub_mln(interest_paid_raw) if interest_paid_raw is not None else None
+        )
         debt_p_mln = to_rub_mln(debt_p_raw) if debt_p_raw is not None else None
 
         if ltm_ocf_mln is not None and cap_mln is not None:
             ltm_fcf_mln = compute_fcf(
-                ltm_ocf_mln, cap_mln, lease_p_mln, lease_i_mln, debt_p_mln
+                ltm_ocf_mln,
+                cap_mln,
+                lease_p_mln,
+                lease_i_mln,
+                interest_paid_mln,
+                debt_p_mln,
             )
 
         # P/FCF = Market Cap / LTM FCF  (только если FCF > 0)

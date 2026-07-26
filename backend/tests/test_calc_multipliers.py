@@ -128,15 +128,20 @@ def test_fcf_chain(report):
     assert m["net_debt_to_fcf"] == 1.5
 
 
-def test_lease_outflows_reduce_fcf_but_debt_principal_does_not(report_factory):
-    """Аренда вычитается; погашение кредитов/облигаций в FCF не входит."""
+def test_lease_and_interest_paid_reduce_fcf_but_debt_principal_does_not(report_factory):
+    """Аренда и проценты уплаченные вычитаются; тело долга — нет."""
     m = calculate_multipliers(
-        report_factory(lease_principal=2_000.0, lease_interest=500.0, debt_principal=1_500.0)
+        report_factory(
+            lease_principal=2_000.0,
+            lease_interest=500.0,
+            interest_paid=1_000.0,
+            debt_principal=1_500.0,
+        )
     )
 
-    # OCF 15_000 − CAPEX 5_000 − lease 2_000 − interest 500 = 7_500
-    assert m["ltm_fcf"] == 7_500.0
-    assert m["fcf_to_net_income"] == 0.75
+    # OCF 15_000 − CAPEX 5_000 − lease 2_000 − lease% 500 − interest 1_000 = 6_500
+    assert m["ltm_fcf"] == 6_500.0
+    assert m["fcf_to_net_income"] == 0.65
 
 
 def test_negative_fcf_gives_no_price_to_fcf(report_factory):

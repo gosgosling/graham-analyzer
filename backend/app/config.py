@@ -47,6 +47,9 @@ class Settings(BaseSettings):
     LLM_TEMPERATURE: float = 0.0
     LLM_REQUEST_TIMEOUT: int = 600
 
+    # Корень массового парсинга: подкаталоги = тикеры, внутри *.pdf
+    MASS_PARSE_REPORTS_DIR: str = "/home/devops/Reports"
+
     @property
     def llm_configured(self) -> bool:
         """LLM настроен? Для Ollama api_key может быть пустым, base_url указан."""

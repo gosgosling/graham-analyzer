@@ -123,9 +123,10 @@ const MATRIX_ROWS: MatrixRowDef[] = [
   { key: 'capex', label: 'CAPEX', kind: 'number', hint: 'млн, положит.', nonBankOnly: true },
   { key: 'lease_principal', label: 'Тело аренды', kind: 'number', hint: 'млн, опц.', nonBankOnly: true },
   { key: 'lease_interest', label: '% по аренде', kind: 'number', hint: 'млн, опц.', nonBankOnly: true },
-  { key: 'debt_principal', label: 'Тело долга (долг. ЦБ)', kind: 'number', hint: 'млн, опц.', nonBankOnly: true },
+  { key: 'interest_paid', label: 'Проценты уплаченные', kind: 'number', hint: 'млн, financing', nonBankOnly: true },
+  { key: 'debt_principal', label: 'Тело долга (долг. ЦБ)', kind: 'number', hint: 'млн, не в FCF', nonBankOnly: true },
   { key: 'depreciation_amortization', label: 'Амортизация и износ (D&A)', kind: 'number', hint: 'млн', nonBankOnly: true },
-  { key: 'fcf_display', label: 'FCF (расчётное)', kind: 'readonly', hint: 'OCF − CAPEX − аренда − долг', nonBankOnly: true },
+  { key: 'fcf_display', label: 'FCF (расчётное)', kind: 'readonly', hint: 'OCF − CAPEX − аренда − %', nonBankOnly: true },
   {
     key: 'adjusted_fcf_display',
     label: 'FCF (обыкнов.)',
@@ -179,6 +180,7 @@ function initialDraftPayload(company_id: number): FinancialReportCreate {
     capex: null,
     lease_principal: null,
     lease_interest: null,
+    interest_paid: null,
     debt_principal: null,
     depreciation_amortization: null,
     currency: 'RUB',
@@ -250,6 +252,7 @@ function getDisplayValue(r: FinancialReport, row: MatrixRowDef): string {
       r.capex,
       r.lease_principal,
       r.lease_interest,
+      r.interest_paid,
       r.debt_principal,
     );
     return f != null ? String(f) : '';
@@ -266,6 +269,7 @@ function getDisplayValue(r: FinancialReport, row: MatrixRowDef): string {
       r.capex,
       r.lease_principal,
       r.lease_interest,
+      r.interest_paid,
       r.debt_principal,
     );
     if (base == null) return '';

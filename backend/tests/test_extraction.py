@@ -209,6 +209,19 @@ def test_annual_report_date_is_always_year_end():
     assert _resolve_report_date(r2, period_type="ANNUAL") == "2023-12-31"
 
 
+def test_units_scale_null_defaults_to_millions():
+    """ABRD-2020: модель вернула units_scale=null → падала валидация."""
+    r = ExtractedReport.model_validate({
+        "fiscal_year": 2020,
+        "period_type": "annual",
+        "currency": "RUB",
+        "units_scale": None,
+        "dividends_paid": False,
+        "revenue": 1000,
+    })
+    assert r.units_scale == "millions"
+
+
 def test_llm_russian_filing_date_is_normalized_to_iso():
     """Ошибка LNZL: filing_date «30.04.2021» ломал strptime('%Y-%m-%d')."""
     from app.utils.date_parse import normalize_date_str, parse_date

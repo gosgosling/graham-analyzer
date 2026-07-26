@@ -94,6 +94,7 @@ _COMPARABLE_FIELDS: tuple[_FieldSpec, ...] = (
     _FieldSpec("capex", "CAPEX", "money_mln", ("general",)),
     _FieldSpec("lease_principal", "Аренда (тело)", "money_mln", ("general",)),
     _FieldSpec("lease_interest", "Аренда (проценты)", "money_mln", ("general",)),
+    _FieldSpec("interest_paid", "Проценты уплаченные", "money_mln", ("general",)),
     # Пока не извлекаем и не оцениваем в quality-score (особый случай).
     _FieldSpec(
         "debt_principal", "Погашение кредитов (тело)", "money_mln",
@@ -1172,6 +1173,7 @@ def parse_pdf_to_report(
         capex=extracted.capex,
         lease_principal=extracted.lease_principal,
         lease_interest=extracted.lease_interest,
+        interest_paid=extracted.interest_paid,
         debt_principal=extracted.debt_principal,
         depreciation_amortization=extracted.depreciation_amortization,
         currency=extracted.currency,

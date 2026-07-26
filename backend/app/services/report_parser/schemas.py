@@ -134,6 +134,32 @@ class ExtractedReport(BaseModel):
         ),
     )
 
+    @field_validator("units_scale", mode="before")
+    @classmethod
+    def _coerce_units_scale(cls, v):
+        """null от модели → millions (типичный масштаб российских МСФО)."""
+        if v is None or (isinstance(v, str) and not v.strip()):
+            return "millions"
+        if isinstance(v, str):
+            key = v.strip().lower()
+            aliases = {
+                "unit": "units",
+                "шт": "units",
+                "руб": "units",
+                "thousand": "thousands",
+                "тыс": "thousands",
+                "тыс.": "thousands",
+                "million": "millions",
+                "млн": "millions",
+                "млн.": "millions",
+                "billion": "billions",
+                "млрд": "billions",
+                "млрд.": "billions",
+            }
+            if key in aliases:
+                return aliases[key]
+        return v
+
     # ─── Балансовые показатели (в ИСХОДНЫХ единицах отчёта!) ─────────────────
     # После получения от LLM мы сами приведём их в миллионы согласно units_scale.
     total_assets: Optional[float] = Field(
@@ -248,6 +274,24 @@ class ExtractedReport(BaseModel):
             "строка ('Проценты по аренде уплаченные', 'Interest on lease "
             "liabilities'). Если аренда одной строкой без разбивки — null, "
             "не выдумывай. ПОЛОЖИТЕЛЬНОЕ число. В ИСХОДНЫХ единицах."
+        ),
+    )
+    interest_paid: Optional[float] = Field(
+        None,
+        description=(
+            "КРИТИЧНО: проценты уплаченные по кредитам/займам/облигациям "
+            "ТОЛЬКО из раздела ФИНАНСОВОЙ деятельности ОДДС. "
+            "СИНОНИМЫ (financing only): 'Проценты уплаченные', "
+            "'Interest paid', 'Interest paid on borrowings'. "
+            "ПОЛОЖИТЕЛЬНОЕ число. "
+            "ЗАПРЕЩЕНО: копировать 'Проценты уплаченные' из ОПЕРАЦИОННОЙ "
+            "деятельности (строка выше/внутри OCF — уже в OCF → верни null; "
+            "типичный паттерн: после 'OCF до процентов и налога' идут "
+            "проценты полученные/уплаченные, затем итог OCF). "
+            "Если в финансовой деятельности строки нет — null, даже когда "
+            "в операционной сумма большая. При сомнении — null. "
+            "Не путай с процентами по аренде и с погашением тела долга. "
+            "В ИСХОДНЫХ единицах."
         ),
     )
 
@@ -485,6 +529,7 @@ _MONETARY_FIELDS_IN_MILLIONS: tuple[str, ...] = (
     "capex",
     "lease_principal",
     "lease_interest",
+    "interest_paid",
     "debt_principal",
     "depreciation_amortization",
 )

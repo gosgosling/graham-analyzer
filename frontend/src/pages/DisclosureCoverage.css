@@ -1,0 +1,212 @@
+.disclosure-page {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px 20px 48px;
+}
+
+.disclosure-page h1 {
+  margin: 0 0 8px;
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.disclosure-lead {
+  margin: 0 0 20px;
+  color: var(--color-text-secondary);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.disclosure-panel {
+  padding: 16px 18px;
+  margin-bottom: 16px;
+  background: var(--color-bg-overlay);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-1);
+}
+
+.disclosure-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.disclosure-stat {
+  padding: 10px 12px;
+  background: var(--color-bg-subtle);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border-default);
+}
+
+.disclosure-stat .label {
+  display: block;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-tertiary);
+  margin-bottom: 4px;
+}
+
+.disclosure-stat .value {
+  font-size: 1.25rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.disclosure-stat .value.is-ok { color: var(--color-success, #27ae60); }
+.disclosure-stat .value.is-warn { color: #d68910; }
+.disclosure-stat .value.is-err { color: #c0392b; }
+.disclosure-stat .value.is-avail { color: #2980b9; }
+
+.disclosure-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.disclosure-actions button {
+  padding: 8px 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border-default);
+  background: var(--color-bg-subtle);
+  color: var(--color-text-primary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.disclosure-actions button.primary {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-text-on-primary);
+}
+
+.disclosure-actions button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.disclosure-message {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  margin: 0 0 12px;
+  word-break: break-word;
+}
+
+.disclosure-error {
+  margin: 8px 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: #e74c3c15;
+  color: #c0392b;
+  font-size: 13px;
+}
+
+.disclosure-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.disclosure-tabs button {
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border-default);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.disclosure-tabs button.active {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-text-on-primary);
+}
+
+.disclosure-table-wrap {
+  overflow-x: auto;
+  max-height: 560px;
+  overflow-y: auto;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+}
+
+.disclosure-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.disclosure-table th,
+.disclosure-table td {
+  padding: 8px 10px;
+  text-align: left;
+  border-bottom: 1px solid var(--color-border-default);
+  vertical-align: top;
+}
+
+.disclosure-table th {
+  position: sticky;
+  top: 0;
+  background: var(--color-bg-overlay);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-tertiary);
+  z-index: 1;
+}
+
+.disclosure-pill {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.disclosure-pill.waiting { background: #95a5a622; color: #7f8c8d; }
+.disclosure-pill.overdue { background: #e74c3c22; color: #c0392b; }
+.disclosure-pill.available { background: #3498db22; color: #2980b9; }
+.disclosure-pill.in_service { background: #27ae6022; color: #1e8449; }
+.disclosure-pill.unknown { background: #95a5a622; color: #7f8c8d; }
+
+.disclosure-row-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.disclosure-row-actions button {
+  padding: 4px 8px;
+  font-size: 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border-default);
+  background: var(--color-bg-subtle);
+  cursor: pointer;
+  color: var(--color-text-primary);
+}
+
+.disclosure-filter {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.disclosure-filter input {
+  padding: 6px 10px;
+  border: 1.5px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-input);
+  color: var(--color-text-primary);
+  font-size: 13px;
+  min-width: 120px;
+}

@@ -59,6 +59,7 @@ _LTM_FLOW_ATTRS: Tuple[str, ...] = (
     "capex",
     "lease_principal",
     "lease_interest",
+    "interest_paid",
     "debt_principal",
 )
 _LTM_BANK_ATTRS: Tuple[str, ...] = ("net_interest_income", "fee_commission_income")
@@ -199,6 +200,7 @@ def _flow_to_ltm_payload(flow: Dict[str, Optional[float]]) -> Dict[str, Optional
         "ltm_capex": flow.get("capex"),
         "ltm_lease_principal": flow.get("lease_principal"),
         "ltm_lease_interest": flow.get("lease_interest"),
+        "ltm_interest_paid": flow.get("interest_paid"),
         "ltm_debt_principal": flow.get("debt_principal"),
         "ltm_net_interest_income": flow.get("net_interest_income"),
         "ltm_fee_commission_income": flow.get("fee_commission_income"),
@@ -362,6 +364,9 @@ def calculate_current_multipliers(
         ),
         ltm_lease_interest=_ltm_back_to_report_currency(
             ltm.get("ltm_lease_interest"), balance_report
+        ),
+        ltm_interest_paid=_ltm_back_to_report_currency(
+            ltm.get("ltm_interest_paid"), balance_report
         ),
         ltm_debt_principal=_ltm_back_to_report_currency(
             ltm.get("ltm_debt_principal"), balance_report
@@ -692,6 +697,7 @@ def save_report_based_multiplier(
         cap_rub,
         crub(getattr(report, 'lease_principal', None)),
         crub(getattr(report, 'lease_interest', None)),
+        crub(getattr(report, 'interest_paid', None)),
         crub(getattr(report, 'debt_principal', None)),
     )  # type: ignore
     existing.price_to_fcf = mults.get("price_to_fcf")  # type: ignore

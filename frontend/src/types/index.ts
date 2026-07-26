@@ -338,7 +338,9 @@ export interface FinancialReportCreate {
     lease_principal?: number | null;
     /** Проценты по аренде, положительный отток, млн */
     lease_interest?: number | null;
-    /** Выплаты по долговым ЦБ (тело долга), положительный отток, млн */
+    /** Проценты уплаченные (financing), положительный отток, млн */
+    interest_paid?: number | null;
+    /** Выплаты по долговым ЦБ (тело долга), положительный отток, млн — не в FCF */
     debt_principal?: number | null;
     /** Амортизация и износ (D&A), млн — для сравнения с CAPEX (будущий модуль анализа) */
     depreciation_amortization?: number | null;

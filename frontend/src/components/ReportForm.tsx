@@ -561,6 +561,7 @@ const ReportForm: React.FC<ReportFormProps> = ({
         capex: null,
         lease_principal: null,
         lease_interest: null,
+        interest_paid: null,
         debt_principal: null,
         depreciation_amortization: null,
         currency: 'RUB',
@@ -1546,7 +1547,21 @@ const ReportForm: React.FC<ReportFormProps> = ({
                                         className="form-input form-input-thousands"
                                     />
                                     <small className="field-hint">
-                                        Процентная часть арендных платежей. Положительное число.
+                                        Только если % по аренде отдельной строкой. Иначе пусто.
+                                    </small>
+                                </label>
+
+                                <label className="form-label">
+                                    Проценты уплаченные, млн {formData.currency}:
+                                    <FormattedInput
+                                        name="interest_paid"
+                                        numericValue={formData.interest_paid}
+                                        onNumericChange={handleNumericChange}
+                                        placeholder="опционально"
+                                        className="form-input form-input-thousands"
+                                    />
+                                    <small className="field-hint">
+                                        Только из финансовой деятельности ОДДС. Если «Проценты уплаченные» в операционной (выше OCF) — оставить пустым.
                                     </small>
                                 </label>
 
@@ -1560,7 +1575,7 @@ const ReportForm: React.FC<ReportFormProps> = ({
                                         className="form-input form-input-thousands"
                                     />
                                     <small className="field-hint">
-                                        Выплаты по долговым ценным бумагам (тело, без процентов). Положительное число.
+                                        Не входит в FCF. Особый случай / справочно.
                                     </small>
                                 </label>
                             </div>
@@ -1600,6 +1615,7 @@ const ReportForm: React.FC<ReportFormProps> = ({
                                     formData.capex,
                                     formData.lease_principal,
                                     formData.lease_interest,
+                                    formData.interest_paid,
                                     formData.debt_principal,
                                 );
                                 if (fcfPreview == null) return null;
@@ -1610,7 +1626,7 @@ const ReportForm: React.FC<ReportFormProps> = ({
                                 const hasExtraOutflows =
                                     (formData.lease_principal ?? 0) !== 0 ||
                                     (formData.lease_interest ?? 0) !== 0 ||
-                                    (formData.debt_principal ?? 0) !== 0;
+                                    (formData.interest_paid ?? 0) !== 0;
                                 return (
                                     <>
                                         <div className="cashflow-fcf-preview">
@@ -1620,7 +1636,7 @@ const ReportForm: React.FC<ReportFormProps> = ({
                                             </span>
                                             {hasExtraOutflows && (
                                                 <small className="field-hint" style={{ display: 'block', marginTop: 6 }}>
-                                                    Опер. поток − CAPEX − аренда (тело и %) − тело долга (долг. ЦБ).
+                                                    OCF − CAPEX − аренда − проценты уплаченные (financing).
                                                 </small>
                                             )}
                                         </div>
