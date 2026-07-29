@@ -430,6 +430,111 @@ def _ltm_back_to_report_currency(
 
 
 # ---------------------------------------------------------------------------
+# Раскладка расчёта по колонкам Multiplier
+# ---------------------------------------------------------------------------
+
+# Метрики, которые ложатся в кэш под тем же именем, что и в расчёте.
+_METRIC_FIELDS: Tuple[str, ...] = (
+    "price_used",
+    "shares_used",
+    "market_cap",
+    "pe_ratio",
+    "pb_ratio",
+    "roe",
+    "debt_to_equity",
+    "current_ratio",
+    "dividend_yield",
+    "dividend_yield_regular",
+    "cost_to_income",
+    "ltm_fcf",
+    "ltm_operating_cash_flow",
+    "ltm_capex",
+    "price_to_fcf",
+    "fcf_to_net_income",
+    "net_debt",
+    "net_debt_to_fcf",
+)
+
+# Поток для снимка «на сегодня» приходит из LTM-агрегации. В записи на дату
+# отчёта те же колонки заполняются значениями самого отчёта (_report_flow_rub).
+_LTM_FLOW_SNAPSHOT_FIELDS: Tuple[str, ...] = (
+    "ltm_net_income",
+    "ltm_revenue",
+    "ltm_dividends_per_share",
+    "ltm_special_dividends_per_share",
+)
+
+_BALANCE_FIELDS: Tuple[str, ...] = (
+    "equity",
+    "total_assets",
+    "total_liabilities",
+    "current_assets",
+    "current_liabilities",
+)
+
+
+def _apply(row: Multiplier, values: Dict[str, Optional[float]]) -> None:
+    """Проставляет колонки кэша по словарю.
+
+    Раньше это были два списка присвоений по двадцать строк, скопированных
+    друг у друга — и уже разошедшихся. Теперь список полей один, и добавление
+    метрики Грэма правится в одном месте. Заодно уходит `# type: ignore` с
+    каждой строки: у моделей SQLAlchemy аннотация `Mapped[Optional[float]]`
+    не совпадает с типом присваиваемого значения, и pyright ругался на всё.
+    """
+    for field, value in values.items():
+        setattr(row, field, value)
+
+
+def _picked(mults: Dict, fields: Tuple[str, ...]) -> Dict[str, Optional[float]]:
+    """Выбирает из расчёта только перечисленные поля."""
+    return {field: mults.get(field) for field in fields}
+
+
+def _balance_rub(report: FinancialReport) -> Dict[str, Optional[float]]:
+    """Балансовые показатели отчёта, приведённые к рублям."""
+    rate = _to_float(report.exchange_rate)
+    return {
+        field: _convert(getattr(report, field), report.currency, rate)
+        for field in _BALANCE_FIELDS
+    }
+
+
+def _report_flow_rub(report: FinancialReport, mults: Dict) -> Dict[str, Optional[float]]:
+    """Поток за период самого отчёта (в рублях) — для записи на дату отчёта.
+
+    У годового отчёта LTM совпадает с самим годом, поэтому `ltm_*`-колонки
+    заполняются значениями отчёта, а не агрегацией. Разовые дивиденды —
+    исключение: их отделяет от регулярных сам расчёт.
+    """
+    rate = _to_float(report.exchange_rate)
+
+    def crub(value):
+        return _convert(value, report.currency, rate)
+
+    ocf_rub = crub(report.operating_cash_flow)
+    capex_rub = crub(report.capex)
+    calculated_capex = mults.get("ltm_capex")
+
+    return {
+        "ltm_net_income": crub(report.net_income),
+        "ltm_revenue": crub(report.revenue),
+        "ltm_dividends_per_share": crub(report.dividends_per_share),
+        "ltm_special_dividends_per_share": mults.get("ltm_special_dividends_per_share"),
+        "ltm_operating_cash_flow": ocf_rub,
+        "ltm_capex": calculated_capex if calculated_capex is not None else capex_rub,
+        "ltm_fcf": compute_fcf(
+            ocf_rub,
+            capex_rub,
+            crub(report.lease_principal),
+            crub(report.lease_interest),
+            crub(report.interest_paid),
+            crub(report.debt_principal),
+        ),
+    }
+
+
+# ---------------------------------------------------------------------------
 # Cache (upsert) multiplier record
 # ---------------------------------------------------------------------------
 
@@ -456,45 +561,15 @@ def save_current_multiplier(
         existing = Multiplier(company_id=company_id, date=today, type="current")
         db.add(existing)
 
-    existing.report_id = mults.get("balance_report_id")  # type: ignore
-    existing.price_used = mults.get("price_used")  # type: ignore
-    existing.shares_used = mults.get("shares_used")  # type: ignore
-    existing.market_cap = mults.get("market_cap")  # type: ignore
-    existing.ltm_net_income = mults.get("ltm_net_income")  # type: ignore
-    existing.ltm_revenue = mults.get("ltm_revenue")  # type: ignore
-    existing.ltm_dividends_per_share = mults.get("ltm_dividends_per_share")  # type: ignore
-    existing.ltm_special_dividends_per_share = mults.get("ltm_special_dividends_per_share")  # type: ignore
-    existing.pe_ratio = mults.get("pe_ratio")  # type: ignore
-    existing.pb_ratio = mults.get("pb_ratio")  # type: ignore
-    existing.roe = mults.get("roe")  # type: ignore
-    existing.debt_to_equity = mults.get("debt_to_equity")  # type: ignore
-    existing.current_ratio = mults.get("current_ratio")  # type: ignore
-    existing.dividend_yield = mults.get("dividend_yield")  # type: ignore
-    existing.dividend_yield_regular = mults.get("dividend_yield_regular")  # type: ignore
-    existing.cost_to_income = mults.get("cost_to_income")  # type: ignore
-    existing.ltm_fcf = mults.get("ltm_fcf")  # type: ignore
-    existing.ltm_operating_cash_flow = mults.get("ltm_operating_cash_flow")  # type: ignore
-    existing.ltm_capex = mults.get("ltm_capex")  # type: ignore
-    existing.price_to_fcf = mults.get("price_to_fcf")  # type: ignore
-    existing.fcf_to_net_income = mults.get("fcf_to_net_income")  # type: ignore
-    existing.net_debt = mults.get("net_debt")  # type: ignore
-    existing.net_debt_to_fcf = mults.get("net_debt_to_fcf")  # type: ignore
-
-    # Балансовые данные из отчёта (в рублях)
     balance_report_id = mults.get("balance_report_id")
+    _apply(existing, {"report_id": balance_report_id})
+    _apply(existing, _picked(mults, _METRIC_FIELDS + _LTM_FLOW_SNAPSHOT_FIELDS))
+
+    # Балансовые данные — из отчёта, на который опирается снимок (в рублях).
     if balance_report_id:
         report = db.query(FinancialReport).filter(FinancialReport.id == balance_report_id).first()
         if report:
-            rate = _to_float(report.exchange_rate)
-
-            def crub(v):
-                return _convert(v, report.currency, rate)
-
-            existing.equity = crub(report.equity)  # type: ignore
-            existing.total_assets = crub(report.total_assets)  # type: ignore
-            existing.total_liabilities = crub(report.total_liabilities)  # type: ignore
-            existing.current_assets = crub(report.current_assets)  # type: ignore
-            existing.current_liabilities = crub(report.current_liabilities)  # type: ignore
+            _apply(existing, _balance_rub(report))
 
     db.commit()
     db.refresh(existing)
@@ -652,55 +727,11 @@ def save_report_based_multiplier(
         keep_id=existing.id,
     )
 
-    existing.report_id = report.id  # type: ignore
-    existing.price_used = mults.get("price_used")  # type: ignore
-    existing.shares_used = mults.get("shares_used")  # type: ignore
-    existing.market_cap = mults.get("market_cap")  # type: ignore
-    existing.pe_ratio = mults.get("pe_ratio")  # type: ignore
-    existing.pb_ratio = mults.get("pb_ratio")  # type: ignore
-    existing.roe = mults.get("roe")  # type: ignore
-    existing.debt_to_equity = mults.get("debt_to_equity")  # type: ignore
-    existing.current_ratio = mults.get("current_ratio")  # type: ignore
-    existing.dividend_yield = mults.get("dividend_yield")  # type: ignore
-    existing.dividend_yield_regular = mults.get("dividend_yield_regular")  # type: ignore
-    existing.cost_to_income = mults.get("cost_to_income")  # type: ignore
-    existing.ltm_fcf = mults.get("ltm_fcf")  # type: ignore
-    existing.ltm_operating_cash_flow = mults.get("ltm_operating_cash_flow")  # type: ignore
-    existing.ltm_capex = mults.get("ltm_capex")  # type: ignore
-    existing.price_to_fcf = mults.get("price_to_fcf")  # type: ignore
-    existing.fcf_to_net_income = mults.get("fcf_to_net_income")  # type: ignore
-    existing.net_debt = mults.get("net_debt")  # type: ignore
-    existing.net_debt_to_fcf = mults.get("net_debt_to_fcf")  # type: ignore
-
-    rate = _to_float(report.exchange_rate)
-
-    def crub(v):
-        return _convert(v, report.currency, rate)
-
-    existing.ltm_net_income = crub(report.net_income)  # type: ignore
-    existing.ltm_revenue = crub(report.revenue)  # type: ignore
-    existing.ltm_dividends_per_share = crub(report.dividends_per_share)  # type: ignore
-    existing.ltm_special_dividends_per_share = mults.get("ltm_special_dividends_per_share")  # type: ignore
-
-    existing.ltm_operating_cash_flow = crub(getattr(report, 'operating_cash_flow', None))  # type: ignore
-    existing.ltm_capex = mults.get("ltm_capex") if mults.get("ltm_capex") is not None else crub(getattr(report, 'capex', None))  # type: ignore
-    ocf_rub = crub(getattr(report, 'operating_cash_flow', None))
-    cap_rub = crub(getattr(report, 'capex', None))
-    existing.ltm_fcf = compute_fcf(
-        ocf_rub,
-        cap_rub,
-        crub(getattr(report, 'lease_principal', None)),
-        crub(getattr(report, 'lease_interest', None)),
-        crub(getattr(report, 'interest_paid', None)),
-        crub(getattr(report, 'debt_principal', None)),
-    )  # type: ignore
-    existing.price_to_fcf = mults.get("price_to_fcf")  # type: ignore
-    existing.fcf_to_net_income = mults.get("fcf_to_net_income")  # type: ignore
-    existing.equity = crub(report.equity)  # type: ignore
-    existing.total_assets = crub(report.total_assets)  # type: ignore
-    existing.total_liabilities = crub(report.total_liabilities)  # type: ignore
-    existing.current_assets = crub(report.current_assets)  # type: ignore
-    existing.current_liabilities = crub(report.current_liabilities)  # type: ignore
+    _apply(existing, {"report_id": report.id})
+    _apply(existing, _picked(mults, _METRIC_FIELDS))
+    # Поток и баланс — из самого отчёта: для годового отчёта LTM = этот год.
+    _apply(existing, _report_flow_rub(report, mults))
+    _apply(existing, _balance_rub(report))
 
     db.commit()
     db.refresh(existing)

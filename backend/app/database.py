@@ -5,7 +5,10 @@ from app.config import settings
 
 engine = create_engine(
     settings.database_url,
-    echo=True  # Показывает SQL запросы в консоли (для отладки)
+    # Лог каждого SQL-запроса. По умолчанию выключен: на публичном демо он
+    # засоряет вывод и утаскивает в логи содержимое отчётов. Включается через
+    # SQL_ECHO=true в .env, когда нужно отладить конкретный запрос.
+    echo=settings.SQL_ECHO,
 )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
