@@ -53,7 +53,7 @@ def _multiplier_to_response(
             rate = float(rep.exchange_rate) if rep.exchange_rate is not None else None
             rub = convert_to_rub(float(rep.price_at_filing), rep.currency or "RUB", rate)
             if rub is not None:
-                price_at_filing_rub = round(rub, 4)
+                price_at_filing_rub = round(rub, 6)
     return base.model_copy(update={
         "filing_date": filing_date,
         "price_at_filing_rub": price_at_filing_rub,

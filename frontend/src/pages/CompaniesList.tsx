@@ -15,6 +15,7 @@ import { Company, FinancialReportCreate, FinancialReport } from '../types';
 import ReportForm from '../components/ReportForm';
 import TInvestSyncBar from '../components/TInvestSyncBar';
 import VerificationBadge from '../components/VerificationBadge';
+import { formatPerShare } from '../utils/perShare';
 import './SecuritiesList.css';
 import './CompaniesList.css';
 
@@ -630,9 +631,9 @@ const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
                   <div className="detail-item">
                     <span className="detail-label">Цена на дату отчёта:</span>
                     <span className="detail-value">
-                      {report.price_per_share.toLocaleString('ru-RU')} {cur}
+                      {formatPerShare(report.price_per_share)} {cur}
                       {isUsd && report.price_per_share_rub && (
-                        <span className="detail-hint"> = {report.price_per_share_rub.toLocaleString('ru-RU')} ₽</span>
+                        <span className="detail-hint"> = {formatPerShare(report.price_per_share_rub)} ₽</span>
                       )}
                     </span>
                   </div>
@@ -640,7 +641,7 @@ const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
                 {report.price_at_filing != null && (
                   <div className="detail-item">
                     <span className="detail-label">Цена на дату публикации:</span>
-                    <span className="detail-value">{report.price_at_filing.toLocaleString('ru-RU')} {cur}</span>
+                    <span className="detail-value">{formatPerShare(report.price_at_filing)} {cur}</span>
                   </div>
                 )}
                 {report.shares_issued != null && (
@@ -758,7 +759,7 @@ const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
                 {report.dividends_per_share != null && (
                   <div className="detail-item">
                     <span className="detail-label">Дивиденд на акцию:</span>
-                    <span className="detail-value">{report.dividends_per_share.toLocaleString('ru-RU')} {cur}</span>
+                    <span className="detail-value">{formatPerShare(report.dividends_per_share)} {cur}</span>
                   </div>
                 )}
               </div>

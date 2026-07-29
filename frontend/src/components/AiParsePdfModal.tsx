@@ -13,6 +13,7 @@ import type {
   ReportFieldDiff,
 } from '../types';
 import './AiParsePdfModal.css';
+import { formatPerShare } from '../utils/perShare';
 
 type AccountingStandard = 'IFRS' | 'RAS' | 'US_GAAP' | 'UK_GAAP' | 'OTHER';
 type Mode = 'create' | 'compare' | 'batch';
@@ -456,12 +457,12 @@ const ParseResultSummary: React.FC<ParseResultSummaryProps> = ({
           <span className="ai-parse-k">Дивиденд на акцию</span>
           <span className="ai-parse-v">
             {r.dividends_per_share != null
-              ? `${r.dividends_per_share.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ${r.currency === 'RUB' ? '₽' : r.currency}`
+              ? `${formatPerShare(r.dividends_per_share)} ${r.currency === 'RUB' ? '₽' : r.currency}`
               : '—'}
             {r.special_dividends_per_share != null && r.special_dividends_per_share > 0 && (
               <span className="ai-parse-v-note">
                 {' '}в т.ч. разовые{' '}
-                {r.special_dividends_per_share.toLocaleString('ru-RU', { maximumFractionDigits: 2 })}
+                {formatPerShare(r.special_dividends_per_share)}
               </span>
             )}
           </span>

@@ -50,7 +50,7 @@ class Company(Base):
     )
 
     # Текущая цена акции (обновляется из T-Invest API раз в день)
-    current_price: Mapped[Optional[float]] = mapped_column(Numeric(15, 4), nullable=True)
+    current_price: Mapped[Optional[float]] = mapped_column(Numeric(18, 6), nullable=True)
     price_updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     
     # Метаданные

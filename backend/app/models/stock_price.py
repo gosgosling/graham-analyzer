@@ -27,7 +27,7 @@ class StockPrice(Base):
     date: Mapped[dt] = mapped_column(Date, nullable=False, index=True)
 
     # Цена закрытия
-    price: Mapped[float] = mapped_column(Numeric(15, 4), nullable=False)
+    price: Mapped[float] = mapped_column(Numeric(18, 6), nullable=False)
 
     # Источник данных
     source: Mapped[str] = mapped_column(
