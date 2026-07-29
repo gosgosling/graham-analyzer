@@ -249,7 +249,7 @@ def calculate_multipliers(
         "ltm_special_dividends_per_share": special_dividends_rub,
         "cost_to_income": cost_to_income,
         "market_cap": market_cap_mln,           # млн рублей
-        "price_used": round(price_rub, 4) if price_rub else None,  # ₽ за акцию
+        "price_used": round(price_rub, 6) if price_rub else None,  # ₽ за акцию
         "shares_used": shares,
         # FCF (None для банков)
         "ltm_fcf": ltm_fcf_mln,

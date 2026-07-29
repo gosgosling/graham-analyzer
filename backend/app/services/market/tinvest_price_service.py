@@ -32,7 +32,8 @@ def _parse_tinvest_price(price_dict: dict) -> Optional[float]:
         units = int(price_dict.get("units", 0))
         nano = int(price_dict.get("nano", 0))
         value = units + nano / 1_000_000_000
-        return round(value, 4) if value > 0 else None
+        # Шесть знаков: у копеечных бумаг четвёртый знак — уже потеря процентов.
+        return round(value, 6) if value > 0 else None
     except (TypeError, ValueError):
         return None
 

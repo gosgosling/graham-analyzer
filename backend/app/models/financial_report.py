@@ -73,9 +73,11 @@ class FinancialReport(Base):
 
     # Рыночные данные
     # price_per_share и dividends_per_share — в ПОЛНЫХ единицах валюты (рублях/долларах за акцию)
+    # Шесть знаков после запятой: у ТГК-1 цена 0,004365 ₽, у ТГК-2 дивиденд — доли копейки,
+    # и при четырёх знаках такие бумаги округляются в ноль вместе с P/E и капитализацией.
     # Количество акций — в штуках (BigInteger)
-    price_per_share: Mapped[Optional[float]] = mapped_column(Numeric(15, 4), nullable=True)  # Цена акции на report_date (₽ или $ за акцию)
-    price_at_filing: Mapped[Optional[float]] = mapped_column(Numeric(15, 4), nullable=True)  # Цена акции на filing_date (₽ или $ за акцию)
+    price_per_share: Mapped[Optional[float]] = mapped_column(Numeric(18, 6), nullable=True)  # Цена акции на report_date (₽ или $ за акцию)
+    price_at_filing: Mapped[Optional[float]] = mapped_column(Numeric(18, 6), nullable=True)  # Цена акции на filing_date (₽ или $ за акцию)
     shares_issued: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)  # Размещённое (общее) количество, шт.
     shares_outstanding: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)  # Акции в обращении (явное), шт.
     shares_weighted_avg: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)  # Средневзвешенное для EPS, шт.
@@ -105,7 +107,7 @@ class FinancialReport(Base):
     )  # Фактическая (отчётная) прибыль по раскрытию, млн — если отличается от net_income
 
     # Дивиденды
-    dividends_per_share: Mapped[Optional[float]] = mapped_column(Numeric(10, 4), nullable=True)  # Дивиденды на акцию, ВСЕГО за период (₽ или $ за акцию)
+    dividends_per_share: Mapped[Optional[float]] = mapped_column(Numeric(14, 6), nullable=True)  # Дивиденды на акцию, ВСЕГО за период (₽ или $ за акцию)
     dividends_paid: Mapped[Optional[bool]] = mapped_column(default=False)  # выплачивались ли дивиденды в этом периоде
     # Часть от dividends_per_share, приходящаяся на разовые (специальные) выплаты:
     # компенсация пропущенных лет после редомициляции, распределение от продажи
@@ -113,7 +115,7 @@ class FinancialReport(Base):
     # dividends_per_share − special_dividends_per_share. Без этого разделения
     # скринер поднимает наверх компании, которые только что раздали накопленное.
     special_dividends_per_share: Mapped[Optional[float]] = mapped_column(
-        Numeric(10, 4), nullable=True
+        Numeric(14, 6), nullable=True
     )
     special_dividends_note: Mapped[Optional[str]] = mapped_column(String(256), nullable=True)
 

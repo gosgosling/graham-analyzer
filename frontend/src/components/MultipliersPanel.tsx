@@ -15,6 +15,7 @@ import {
 import { MultiplierRecord, CurrentMultipliers, Company, SectorProfile } from '../types';
 import { useChartColors, ChartColors } from '../contexts/ThemeContext';
 import SharesCapHover from './SharesCapHover';
+import { formatPerShare } from '../utils/perShare';
 import {
   computeHistRowYoY,
   snapshotFromCurrent,
@@ -837,10 +838,12 @@ const CurrentCards: React.FC<CurrentCardsProps> = ({
 
 const LtmMeta: React.FC<{ data: CurrentMultipliers }> = ({ data }) => {
   const sourceLabel: Record<string, string> = {
-    quarterly_4: '4 квартала',
     annual: 'Годовой отчёт',
+    ytd_full_year: 'YTD за 4 квартала (= год)',
     semi_annual_derived: 'LTM: FY + H1 − H1 прошл. года',
+    quarterly_3_derived: 'LTM: FY + 9М − 9М прошл. года',
     interim_derived: 'LTM: FY + YTD − YTD прошл. года',
+    insufficient: 'Только промежуточные отчёты — LTM не считается',
   };
   const src = data.ltm_source
     ? sourceLabel[data.ltm_source]
@@ -855,7 +858,7 @@ const LtmMeta: React.FC<{ data: CurrentMultipliers }> = ({ data }) => {
         <span className="ltm-meta-icon">💰</span>
         <span className="ltm-meta-label">Текущая цена:</span>
         <span className="ltm-meta-value">
-          {data.current_price !== null ? `${fmt(data.current_price)} ₽` : 'не задана'}
+          {data.current_price !== null ? `${formatPerShare(data.current_price)} ₽` : 'не задана'}
         </span>
       </span>
       <span className="ltm-meta-item">
@@ -971,7 +974,7 @@ const HistPriceCell: React.FC<{ row: MultiplierRecord }> = ({ row }) => {
           <div className="mult-price-tip-line">
             На дату публикации ({fmtDateFull(filing)})
           </div>
-          <div className="mult-price-tip-value">{fmt(row.price_at_filing_rub)} ₽</div>
+          <div className="mult-price-tip-value">{formatPerShare(row.price_at_filing_rub)} ₽</div>
         </>
       );
     }
@@ -985,7 +988,7 @@ const HistPriceCell: React.FC<{ row: MultiplierRecord }> = ({ row }) => {
     }
     if (row.price_at_filing_rub != null) {
       return (
-        <div className="mult-price-tip-value">Цена на дату публикации: {fmt(row.price_at_filing_rub)} ₽</div>
+        <div className="mult-price-tip-value">Цена на дату публикации: {formatPerShare(row.price_at_filing_rub)} ₽</div>
       );
     }
     return null;
@@ -1006,7 +1009,7 @@ const HistPriceCell: React.FC<{ row: MultiplierRecord }> = ({ row }) => {
         }}
         onMouseLeave={() => setOpen(false)}
       >
-        {row.price_used !== null ? fmt(row.price_used) : '—'}
+        {row.price_used !== null ? formatPerShare(row.price_used) : '—'}
       </span>
       {open && hasTip && tipBody
         ? createPortal(
@@ -1200,7 +1203,7 @@ const HistTableRow: React.FC<HistTableRowProps> = ({
 
   const priceContent = record
     ? <HistPriceCell row={record} />
-    : (snapshot.price_used !== null ? fmt(snapshot.price_used) : '—');
+    : (snapshot.price_used !== null ? formatPerShare(snapshot.price_used) : '—');
 
   return (
     <tr className={rowClassName}>
@@ -1861,7 +1864,7 @@ const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company }) => {
     onSuccess: (res) => {
       setRefreshMsg(
         res.success
-          ? `✓ Цена обновлена: ${fmt(res.price)} ₽`
+          ? `✓ Цена обновлена: ${formatPerShare(res.price)} ₽`
           : '⚠ Не удалось получить цену из T-Invest API',
       );
       queryClient.invalidateQueries({ queryKey: ['multipliers-current', companyId] });
@@ -1901,7 +1904,7 @@ const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company }) => {
         queryClient.invalidateQueries({ queryKey: ['multipliers-history', companyId] });
         queryClient.invalidateQueries({ queryKey: ['company', companyId] });
         if (res.success && res.price !== null) {
-          setRefreshMsg(`✓ Цена актуальна: ${fmt(res.price)} ₽`);
+          setRefreshMsg(`✓ Цена актуальна: ${formatPerShare(res.price)} ₽`);
         } else {
           setRefreshMsg('⚠ Не удалось получить актуальную цену');
         }
@@ -2036,7 +2039,7 @@ const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company }) => {
                           <span className="ltm-fin-label">Дивиденды на акцию</span>
                           <span className="ltm-fin-value">
                             {currentData.ltm_dividends_per_share !== null
-                              ? `${fmt(currentData.ltm_dividends_per_share)} ₽`
+                              ? `${formatPerShare(currentData.ltm_dividends_per_share)} ₽`
                               : '—'}
                           </span>
                         </div>

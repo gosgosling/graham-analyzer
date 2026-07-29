@@ -17,6 +17,7 @@ import MultipliersPanel from '../components/MultipliersPanel';
 import ReportForm from '../components/ReportForm';
 import VerificationBadge from '../components/VerificationBadge';
 import AiParsePdfModal from '../components/AiParsePdfModal';
+import { formatPerShare } from '../utils/perShare';
 import { shadeHex, isLightBrandHex, isNeutralBrandForHero } from '../utils/brandColor';
 import { computeNetDebt } from '../utils/netDebt';
 import { resolveSharesForMultipliers, explainSharesCapBasis } from '../utils/shareCounts';
@@ -374,10 +375,10 @@ const CompanyDetail: React.FC = () => {
               <div className="quick-stat">
                 <span className="stat-label">Цена акции</span>
                 <span className="stat-value">
-                  {latestReport.price_per_share_rub.toLocaleString()} ₽
+                  {formatPerShare(latestReport.price_per_share_rub)} ₽
                 </span>
                 {latestReport.currency === 'USD' && latestReport.price_per_share && (
-                  <span className="stat-hint">({latestReport.price_per_share.toLocaleString()} USD)</span>
+                  <span className="stat-hint">({formatPerShare(latestReport.price_per_share)} USD)</span>
                 )}
                 <span className="stat-date">на {latestReport.report_date}</span>
               </div>
@@ -1004,9 +1005,9 @@ const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
                   <div className="detail-item">
                     <span className="detail-label">Цена на дату отчёта:</span>
                     <span className="detail-value">
-                      {report.price_per_share.toLocaleString('ru-RU')} {cur}
+                      {formatPerShare(report.price_per_share)} {cur}
                       {isUsd && report.price_per_share_rub && (
-                        <span className="detail-hint"> = {report.price_per_share_rub.toLocaleString('ru-RU')} ₽</span>
+                        <span className="detail-hint"> = {formatPerShare(report.price_per_share_rub)} ₽</span>
                       )}
                     </span>
                   </div>
@@ -1015,7 +1016,7 @@ const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
                   <div className="detail-item">
                     <span className="detail-label">Цена на дату публикации:</span>
                     <span className="detail-value">
-                      {report.price_at_filing.toLocaleString('ru-RU')} {cur}
+                      {formatPerShare(report.price_at_filing)} {cur}
                     </span>
                   </div>
                 )}
@@ -1224,7 +1225,7 @@ const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
                   <div className="detail-item">
                     <span className="detail-label">Дивиденд на акцию:</span>
                     <span className="detail-value">
-                      {report.dividends_per_share.toLocaleString('ru-RU')} {cur}
+                      {formatPerShare(report.dividends_per_share)} {cur}
                     </span>
                   </div>
                 )}

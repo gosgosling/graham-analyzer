@@ -45,18 +45,18 @@ class Multiplier(Base):
     )  # "report_based" | "current" | "daily"
 
     # Рыночные данные, использованные при расчёте
-    price_used: Mapped[Optional[float]] = mapped_column(Numeric(15, 4), nullable=True)
+    price_used: Mapped[Optional[float]] = mapped_column(Numeric(18, 6), nullable=True)
     shares_used: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
     market_cap: Mapped[Optional[float]] = mapped_column(Numeric(20, 2), nullable=True)
 
     # LTM показатели P&L (Last Twelve Months)
     ltm_net_income: Mapped[Optional[float]] = mapped_column(Numeric(20, 2), nullable=True)
     ltm_revenue: Mapped[Optional[float]] = mapped_column(Numeric(20, 2), nullable=True)
-    ltm_dividends_per_share: Mapped[Optional[float]] = mapped_column(Numeric(15, 4), nullable=True)
+    ltm_dividends_per_share: Mapped[Optional[float]] = mapped_column(Numeric(18, 6), nullable=True)
     # Разовая часть дивидендов LTM (₽/акцию) — для отделения устойчивой
     # доходности от компенсационных и специальных выплат
     ltm_special_dividends_per_share: Mapped[Optional[float]] = mapped_column(
-        Numeric(15, 4), nullable=True
+        Numeric(18, 6), nullable=True
     )
 
     # Балансовые данные из последнего отчёта
