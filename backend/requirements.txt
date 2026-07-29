@@ -15,3 +15,6 @@ tenacity==9.0.0
 
 # Тесты расчётного слоя: python -m pytest (из каталога backend)
 pytest==9.1.1
+# Покрытие — вход для scripts/code_quality.py:
+#   pytest --cov=app --cov-report=json:../coverage.json
+pytest-cov==7.1.0

@@ -19,7 +19,10 @@ class Settings(BaseSettings):
     POSTGRES_HOST: str = "localhost"
     POSTGRES_PORT: int = 5432
     DATABASE_URL: Optional[str] = None  # Опционально, если указан напрямую в .env
-    
+    # Печатать каждый SQL-запрос (SQLAlchemy echo). Для отладки конкретного
+    # запроса; в обычной работе и на демо — выключено.
+    SQL_ECHO: bool = False
+
     # Redis
     REDIS_URL: str = "redis://localhost:6379/0"
     
