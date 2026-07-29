@@ -17,7 +17,6 @@ from app.services.analysis.multiplier_service import (
     _ltm_back_to_report_currency,
     _ltm_formula_field,
     _ltm_from_interim_formula,
-    _sum_rub,
 )
 from app.models.enums import PeriodType
 
@@ -112,25 +111,6 @@ def test_dividends_ignored_when_not_paid():
 
     assert _field_rub(report, "dividends_per_share") is None
     assert _field_rub(report, "special_dividends_per_share") is None
-
-
-def test_sum_rub_across_quarters():
-    """Четыре квартала в рублях складываются; пустые поля не портят сумму."""
-    q1 = _rpt(net_income=10)
-    q2 = _rpt(net_income=20)
-    q3 = _rpt(net_income=None)
-    q4 = _rpt(net_income=30)
-
-    assert _sum_rub([q1, q2, q3, q4], "net_income") == 60.0
-    assert _sum_rub([q3], "net_income") is None
-
-
-def test_sum_rub_converts_usd_quarters():
-    """Кварталы в разных валютах приводятся к рублям до сложения."""
-    rub = _rpt(currency="RUB", net_income=100)
-    usd = _rpt(currency="USD", exchange_rate=90.0, net_income=2)  # 180 ₽
-
-    assert _sum_rub([rub, usd], "net_income") == 280.0
 
 
 def test_ltm_formula_with_usd_reports():

@@ -5,9 +5,17 @@
     1. Последний отчёт — годовой → LTM = этот год (FY).
     2. Последний отчёт — промежуточный (полугодовой / квартальный, YTD):
        LTM = FY_{N-1} + YTD_N − YTD_{N-1}
-       (напр. H1_2026 + FY2025 − H1_2025 → июль 2025 – июнь 2026).
-    3. Иначе, если есть 4 квартальных отчёта — суммируем их.
-    4. Иначе — последний годовой отчёт или частичная сумма кварталов.
+       (напр. H1_2026 + FY2025 − H1_2025 → июль 2025 – июнь 2026;
+       9М_2026 + FY2025 − 9М_2025 → октябрь 2025 – сентябрь 2026).
+    3. Промежуточный отчёт за 4 квартала (YTD = весь год) — это и есть FY.
+    4. Иначе — последний годовой отчёт целиком.
+    5. Если ни того, ни другого нет — LTM не считается.
+
+Промежуточные отчёты эмитенты публикуют нарастающим итогом (YTD): «6 месяцев»,
+«9 месяцев». Складывать их между собой нельзя — 3М + 9М посчитает первый
+квартал дважды, а четвёртый потеряет. Поэтому единственный способ получить
+скользящий год из промежуточного отчёта — формула из пункта 2; когда данных
+для неё не хватает, берётся годовой отчёт, а не суррогат из сумм.
 
 Балансовые показатели (активы, капитал, долг, cash) — всегда из самого
 свежего отчёта (latest), без LTM-агрегации.
@@ -77,20 +85,18 @@ def _field_rub(report: FinancialReport, attr: str) -> Optional[float]:
     return _convert(val, report.currency, _to_float(report.exchange_rate))
 
 
-def _sum_rub(reports: List[FinancialReport], attr: str) -> Optional[float]:
-    """Суммирует поле по отчётам, конвертируя каждый в рубли."""
-    total = 0.0
-    has_any = False
-    for report in reports:
-        converted = _field_rub(report, attr)
-        if converted is not None:
-            total += converted
-            has_any = True
-    return round(total, 2) if has_any else None
+def _flow_fields_rub(report: FinancialReport, is_bank: bool) -> Dict[str, Optional[float]]:
+    """Потоковые поля одного отчёта за полный год — как есть, без агрегации."""
+    attrs = _LTM_FLOW_ATTRS + (_LTM_BANK_ATTRS if is_bank else ())
+    return {attr: _field_rub(report, attr) for attr in attrs}
 
 
-def _annual_fields_rub(annual: FinancialReport) -> Dict[str, Optional[float]]:
-    return {attr: _field_rub(annual, attr) for attr in _LTM_FLOW_ATTRS}
+def _covers_full_year(report: FinancialReport) -> bool:
+    """YTD за четыре квартала — это уже год, отдельная агрегация не нужна."""
+    return (
+        report.period_type == PeriodType.QUARTERLY
+        and report.fiscal_quarter == 4
+    )
 
 
 def _ltm_formula_field(
@@ -216,25 +222,14 @@ def get_ltm_data(db: Session, company_id: int) -> Optional[Dict]:
         ltm_revenue          — выручка LTM
         ltm_dividends_per_share — дивиденды на акцию LTM
         balance_report       — последний отчёт с балансовыми данными (объект FinancialReport)
-        source               — "annual" | "semi_annual_derived" | "quarterly_4" | ...
+        source               — "annual" | "semi_annual_derived" | "quarterly_3_derived" |
+                               "ytd_full_year" | "insufficient"
     Все суммы в рублях (после конвертации).
     Если данных нет — возвращает None.
 
     ⚠️ Промежуточные отчёты должны содержать накопительные (YTD) значения
     за период с начала года — как в публикуемой отчётности эмитента.
     """
-    # Последние 4 квартальных отчёта (по дате, убывание)
-    quarterly: List[FinancialReport] = (
-        db.query(FinancialReport)
-        .filter(
-            FinancialReport.company_id == company_id,
-            FinancialReport.period_type == PeriodType.QUARTERLY,
-        )
-        .order_by(FinancialReport.report_date.desc())
-        .limit(4)
-        .all()
-    )
-
     # Последний годовой отчёт
     annual: Optional[FinancialReport] = (
         db.query(FinancialReport)
@@ -262,34 +257,33 @@ def get_ltm_data(db: Session, company_id: int) -> Optional[Dict]:
     flow: Dict[str, Optional[float]]
 
     if latest.period_type == PeriodType.ANNUAL:
-        flow = _annual_fields_rub(latest)
-        if is_bank:
-            flow.update({attr: _field_rub(latest, attr) for attr in _LTM_BANK_ATTRS})
+        flow = _flow_fields_rub(latest, is_bank)
         source = "annual"
     else:
         interim = _try_interim_ltm(db, company_id, latest)
         if interim is not None:
             flow, source = interim
-        elif len(quarterly) == 4:
-            flow = {attr: _sum_rub(quarterly, attr) for attr in _LTM_FLOW_ATTRS}
-            if is_bank:
-                flow.update(
-                    {attr: _sum_rub(quarterly, attr) for attr in _LTM_BANK_ATTRS}
-                )
-            source = "quarterly_4"
+        elif _covers_full_year(latest):
+            flow = _flow_fields_rub(latest, is_bank)
+            source = "ytd_full_year"
         elif annual is not None:
-            flow = _annual_fields_rub(annual)
-            if is_bank:
-                flow.update({attr: _field_rub(annual, attr) for attr in _LTM_BANK_ATTRS})
+            # Свежий YTD без прошлогодней пары в LTM не превращается: берём
+            # последний полный год. Он устарел, но это честные 12 месяцев.
+            flow = _flow_fields_rub(annual, is_bank)
             source = "annual"
         else:
-            reports_available = quarterly if quarterly else []
-            flow = {attr: _sum_rub(reports_available, attr) for attr in _LTM_FLOW_ATTRS}
-            if is_bank and reports_available:
-                flow.update(
-                    {attr: _sum_rub(reports_available, attr) for attr in _LTM_BANK_ATTRS}
-                )
-            source = f"quarterly_{len(reports_available)}"
+            # Остались только промежуточные отчёты: 9 месяцев — это не год, а
+            # сумма YTD-отчётов между собой считает одни кварталы дважды.
+            # Лучше пустой мультипликатор, чем правдоподобно неверный.
+            flow = {attr: None for attr in _LTM_FLOW_ATTRS + _LTM_BANK_ATTRS}
+            source = "insufficient"
+            logger.info(
+                "LTM для company_id=%s не посчитан: есть только промежуточные "
+                "отчёты (последний — %s %s), годового нет.",
+                company_id,
+                latest.period_type,
+                latest.fiscal_year,
+            )
 
     payload = _flow_to_ltm_payload(flow)
     return {

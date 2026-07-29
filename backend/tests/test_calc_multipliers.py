@@ -4,6 +4,8 @@
 капитализация 100 млрд ₽, прибыль 10 млрд, капитал 50 млрд →
 P/E = 10, P/B = 2, ROE = 20%, D/E = 0.5, Current Ratio = 2.
 """
+import pytest
+
 from app.services.analysis.calc_multipliers import calculate_multipliers
 
 
@@ -229,3 +231,27 @@ def test_eur_report_uses_exchange_rate_too(report_factory):
     assert m_eur["pe_ratio"] == m_rub["pe_ratio"]
     assert m_eur["market_cap"] == m_rub["market_cap"] * 100
     assert m_eur["price_used"] == 10_000.0
+
+
+def test_penny_stock_keeps_price_and_ratios(report_factory):
+    """Копеечная бумага (ТГК-1: 0,004365 ₽ × 1,458 трлн акций).
+
+    При округлении цены до двух знаков капитализация и P/E обнулялись —
+    в этом классе бумаг округление всегда играет против нас.
+    """
+    penny = report_factory(
+        price_per_share=0.004365,
+        shares_outstanding=1_458_404_850_747,
+        net_income=3_580.573,   # млн ₽
+        equity=20_628.875,      # млн ₽
+        dividends_per_share=0.000345,
+    )
+
+    m = calculate_multipliers(penny)
+
+    assert m["price_used"] == 0.004365
+    # 0,004365 × 1,4584 трлн ≈ 6,366 млрд ₽
+    assert m["market_cap"] == pytest.approx(6_365.9, rel=1e-3)
+    assert m["pe_ratio"] == pytest.approx(1.78, abs=0.01)
+    assert m["pb_ratio"] == pytest.approx(0.31, abs=0.01)
+    assert m["dividend_yield"] == pytest.approx(7.9, abs=0.1)

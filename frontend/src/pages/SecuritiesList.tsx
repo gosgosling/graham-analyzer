@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { getSecurities } from '../services';
 import { Security } from '../types';
 import TInvestSyncBar from '../components/TInvestSyncBar';
+import { formatPerShare } from '../utils/perShare';
 import './SecuritiesList.css';
 
 const SecuritiesList: React.FC = () => {
@@ -11,14 +12,9 @@ const SecuritiesList: React.FC = () => {
     queryFn: getSecurities
   });
 
-  // Функция для форматирования чисел
-  const formatPrice = (price: number | null): string => {
-    if (price === null) return '-';
-    return price.toLocaleString('ru-RU', { 
-      minimumFractionDigits: 2, 
-      maximumFractionDigits: 2 
-    });
-  };
+  // Копеечные бумаги (ТГК-1 — 0,004365 ₽) при двух знаках превращаются в ноль,
+  // поэтому число знаков подбирается по масштабу цены.
+  const formatPrice = (price: number | null): string => formatPerShare(price, '-');
 
   // Функция для форматирования даты
   const formatDate = (date: string | null): string => {

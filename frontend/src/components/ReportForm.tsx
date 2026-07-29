@@ -19,6 +19,7 @@ import {
 import { computeFcf } from '../utils/fcf';
 import { computeNetDebt } from '../utils/netDebt';
 import './ReportForm.css';
+import { formatPerShare } from '../utils/perShare';
 
 dayjs.locale('ru');
 
@@ -471,7 +472,7 @@ const PriceFetchBadge: React.FC<{
                 {needsConversion && (
                     <span className="price-badge info">
                         {canConvert
-                            ? `${rub.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ₽ (MOEX) ÷ ${exchangeRate!.toFixed(4)} = ${(rub / exchangeRate!).toFixed(4)} ${reportCurrency}`
+                            ? `${formatPerShare(rub)} ₽ (MOEX) ÷ ${exchangeRate!.toFixed(4)} = ${formatPerShare(rub / exchangeRate!)} ${reportCurrency}`
                             : `⚠ MOEX даёт ${rub.toLocaleString('ru-RU')} ₽ — укажите курс ${reportCurrency}/RUB, чтобы конвертировать в ${reportCurrency}/акция`
                         }
                     </span>
@@ -738,7 +739,7 @@ const ReportForm: React.FC<ReportFormProps> = ({
                     // пересчёта ниже (useEffect на formData.exchange_rate).
                     return prev;
                 }
-                return { ...prev, [field]: Number((result.price / rate).toFixed(4)) };
+                return { ...prev, [field]: Number((result.price / rate).toFixed(6)) };
             });
         } catch (err: any) {
             const msg = formatApiErrorMessage(err, 'Не удалось получить цену');
@@ -760,7 +761,7 @@ const ReportForm: React.FC<ReportFormProps> = ({
                 if (rub == null) return;
                 const newValue = cur === 'RUB'
                     ? rub
-                    : (rate && rate > 0 ? Number((rub / rate).toFixed(4)) : null);
+                    : (rate && rate > 0 ? Number((rub / rate).toFixed(6)) : null);
                 if (newValue === next[field]) return;
                 // Пересчитываем только если это MOEX-значение: ручной ввод
                 // отличается от RUB-цены MOEX (в RUB-отчёте) или от rub/rate
@@ -1119,7 +1120,7 @@ const ReportForm: React.FC<ReportFormProps> = ({
                                         name="exchange_rate"
                                         value={formData.exchange_rate || ''}
                                         onChange={handleInputChange}
-                                        step="0.0001"
+                                        step="any"
                                         placeholder={
                                             fxRateState.loading
                                                 ? 'Загружается с MOEX/ЦБ…'
@@ -1165,7 +1166,7 @@ const ReportForm: React.FC<ReportFormProps> = ({
                                     name="price_per_share"
                                     value={formData.price_per_share || ''}
                                     onChange={handleInputChange}
-                                    step="0.01"
+                                    step="any"
                                     placeholder="Загружается автоматически..."
                                     className={`form-input ${priceReportState.loading ? 'input-loading' : ''}`}
                                 />
@@ -1198,7 +1199,7 @@ const ReportForm: React.FC<ReportFormProps> = ({
                                     name="price_at_filing"
                                     value={formData.price_at_filing || ''}
                                     onChange={handleInputChange}
-                                    step="0.01"
+                                    step="any"
                                     placeholder="Загружается автоматически..."
                                     className={`form-input ${priceFilingState.loading ? 'input-loading' : ''}`}
                                 />
@@ -1904,7 +1905,7 @@ const ReportForm: React.FC<ReportFormProps> = ({
                                         name="dividends_per_share"
                                         value={formData.dividends_per_share || ''}
                                         onChange={handleInputChange}
-                                        step="0.0001"
+                                        step="any"
                                         placeholder="0.0000"
                                         className="form-input"
                                     />
@@ -1927,7 +1928,7 @@ const ReportForm: React.FC<ReportFormProps> = ({
                                         name="special_dividends_per_share"
                                         value={formData.special_dividends_per_share ?? ''}
                                         onChange={handleInputChange}
-                                        step="0.0001"
+                                        step="any"
                                         placeholder="0.0000"
                                         className="form-input"
                                     />

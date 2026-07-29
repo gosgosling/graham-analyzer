@@ -322,7 +322,7 @@ def _enrich_with_moex_prices(
     def _to_report_currency(price_rub: Optional[float]) -> Optional[float]:
         if price_rub is None:
             return None
-        return round(price_rub / exchange_rate, 4)
+        return round(price_rub / exchange_rate, 6)
 
     return _to_report_currency(price_on_report_rub), _to_report_currency(price_on_filing_rub)
 
