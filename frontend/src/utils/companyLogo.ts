@@ -2,7 +2,33 @@ import type { Company } from '../types';
 
 const BRAND_CDN = 'https://invest-brands.cdn-tinkoff.ru';
 
-const HAS_IMG_EXT = /\.(png|webp|jpe?g|svg)(\?.*)?$/i;
+const IMG_EXT = /\.(png|webp|jpe?g|svg)(\?.*)?$/i;
+
+/** Уже есть суффикс размера (…x160.png, …x640.webp)? */
+const HAS_SIZE_SUFFIX = /x\d{2,4}\.(png|webp|jpe?g|svg)(\?.*)?$/i;
+
+/**
+ * Варианты с суффиксом размера для CDN Тинькофф.
+ *
+ * CDN публикует только объекты с размером: `RU000A103X66x160.png` отдаётся,
+ * а `RU000A103X66.png` — 403 AccessDenied. T-Invest API при этом возвращает
+ * ссылку без суффикса, и она лежит в `brand_logo_url` у всех компаний.
+ * Имя объекта не всегда равно ISIN (`mtsnewx160.png`, `segezhax160.png`),
+ * поэтому суффикс подставляется в само имя из API, а не собирается из ISIN.
+ */
+function withSizeSuffixes(url: string, add: (u: string) => void): void {
+  const [pathOnly, query] = url.split('?');
+  const qs = query ? `?${query}` : '';
+  if (HAS_SIZE_SUFFIX.test(pathOnly)) {
+    add(url);
+    return;
+  }
+  const match = pathOnly.match(IMG_EXT);
+  const base = match ? pathOnly.slice(0, pathOnly.length - match[0].length) : pathOnly.replace(/\/$/, '');
+  const ext = match ? match[0] : '.png';
+  add(`${base}x160${ext}${qs}`);
+  add(`${base}x640${ext}${qs}`);
+}
 
 /** SBERP → SBER (логотип на CDN у префов часто по «обычному» тикеру) */
 function deprefMoexTicker(ticker: string): string | null {
@@ -30,17 +56,12 @@ export function getCompanyLogoCandidates(company: Company): string[] {
 
   const raw = company.brand_logo_url?.trim();
   if (raw) {
-    add(raw);
-    const low = raw.toLowerCase();
-    if (low.includes('invest-brands.cdn-tinkoff.ru')) {
-      const pathOnly = raw.split('?')[0];
-      if (!HAS_IMG_EXT.test(pathOnly)) {
-        const base = raw.split('?')[0].replace(/\/$/, '');
-        const qs = raw.includes('?') ? `?${raw.split('?')[1]}` : '';
-        add(`${base}x160.png${qs}`);
-        add(`${base}x640.png${qs}`);
-      }
+    // Сначала размерные варианты: ссылка из API без суффикса даёт 403,
+    // и без этого первая попытка гарантированно тратится впустую.
+    if (raw.toLowerCase().includes('invest-brands.cdn-tinkoff.ru')) {
+      withSizeSuffixes(raw, add);
     }
+    add(raw);
   }
 
   const ticker = company.ticker?.trim() ?? '';

@@ -6,12 +6,29 @@
 """
 
 from sqlalchemy.orm import Session
-from sqlalchemy import extract, func
-from typing import List, Dict, Optional
-from datetime import datetime, date
+from typing import List, Dict, Optional, Sequence
+from datetime import datetime
 from app.models.financial_report import FinancialReport
 from app.models.company import Company
 from app.schemas import DividendContinuityResult
+
+
+def _continuous_streak(payment_years: Sequence[int]) -> int:
+    """Сколько лет подряд платили, считая назад от последней выплаты.
+
+    Именно это имел в виду Грэм под непрерывностью: серия, которая длится до
+    последней выплаты. Считать от текущего года нельзя — компания, платившая
+    с 2010 по 2015 и с тех пор не платившая, получила бы «16 лет непрерывных
+    выплат» в 2026 году.
+    """
+    if not payment_years:
+        return 0
+    streak = 1
+    for i in range(len(payment_years) - 1, 0, -1):
+        if payment_years[i - 1] != payment_years[i] - 1:
+            break
+        streak += 1
+    return streak
 
 
 def calculate_dividend_continuity(
@@ -21,15 +38,16 @@ def calculate_dividend_continuity(
 ) -> DividendContinuityResult:
     """
     Рассчитывает непрерывность выплаты дивидендов для компании.
-    
-    По принципам Грэма, компания должна выплачивать дивиденды непрерывно
-    в течение минимум 20 лет чтобы считаться надежной инвестицией.
-    
+
+    У Грэма порог — 20 лет непрерывных выплат. Для российского рынка он
+    недостижим (сама биржа моложе), поэтому по умолчанию берётся 10 лет:
+    это адаптация, а не оригинальный критерий.
+
     Args:
         db: Сессия базы данных
         company_id: ID компании
-        min_years: Минимальное количество лет для считания непрерывными (по умолчанию 20)
-        
+        min_years: Минимальная длина серии выплат (по умолчанию 10)
+
     Returns:
         DividendContinuityResult с информацией о непрерывности выплат
     """
@@ -79,34 +97,31 @@ def calculate_dividend_continuity(
     actual_years = set(payment_years)
     gap_years = sorted(list(expected_years - actual_years))
     
-    # Количество лет непрерывных выплат (от начала до последнего года без пропусков)
-    if gap_years:
-        # Есть пропуски - считаем от последнего пропуска
-        last_gap = gap_years[-1]
-        years_of_continuous = current_year - last_gap - 1
-    else:
-        # Нет пропусков - считаем от начала
-        years_of_continuous = current_year - start_year
-    
-    # Проверяем, выплачивались ли дивиденды в последнем году
+    # Длина серии, заканчивающейся последней выплатой.
+    years_of_continuous = _continuous_streak(payment_years)
+
+    # Дивиденд за прошлый год объявляют уже в этом — отставание на год нормально.
     has_recent_payment = last_year >= current_year - 1
-    
-    # Определяем, является ли выплата непрерывной
-    is_continuous = (
-        len(gap_years) == 0 and  # Нет пропусков
-        years_of_continuous >= min_years and  # Минимум 20 лет
-        has_recent_payment  # Выплачивались в последние годы
-    )
-    
-    # Формируем рекомендацию
+
+    is_continuous = years_of_continuous >= min_years and has_recent_payment
+
     if is_continuous:
         recommendation = f"✅ Отличная непрерывность: {years_of_continuous} лет без перерывов"
-    elif years_of_continuous >= min_years and len(gap_years) > 0:
-        recommendation = f"⚠️ Хорошая история, но были пропуски в годах: {gap_years}"
-    elif years_of_continuous < min_years:
-        recommendation = f"❌ Недостаточная история выплат: {years_of_continuous} лет (требуется минимум {min_years})"
+    elif years_of_continuous >= min_years and not has_recent_payment:
+        recommendation = (
+            f"⚠️ Серия из {years_of_continuous} лет прервана: "
+            f"последняя выплата за {last_year} год"
+        )
+    elif gap_years:
+        recommendation = (
+            f"⚠️ Серия выплат — {years_of_continuous} лет "
+            f"(требуется минимум {min_years}); были пропуски: {gap_years}"
+        )
     else:
-        recommendation = "❌ Нестабильная выплата дивидендов"
+        recommendation = (
+            f"❌ Недостаточная история выплат: {years_of_continuous} лет "
+            f"(требуется минимум {min_years})"
+        )
     
     return DividendContinuityResult(
         company_id=company_id,

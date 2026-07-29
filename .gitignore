@@ -1,3 +1,8 @@
 .env
 # e-disclosure Playwright cookies (may contain session secrets)
 tools/edisclosure-scraper/.edisclosure_storage_state.json
+
+# Отчёты покрытия — вход для scripts/code_quality.py, в гит не нужны
+.coverage
+coverage.json
+htmlcov/

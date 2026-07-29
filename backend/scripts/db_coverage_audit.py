@@ -33,7 +33,7 @@ from app.services.analysis.share_counts import (  # noqa: E402
     resolve_shares_for_multipliers,
 )
 
-# database.py создаёт engine с echo=True — SQL каждой строки затопил бы отчёт.
+# Если в .env включён SQL_ECHO, SQL каждой строки затопил бы отчёт.
 # Уровень сбрасывается после импорта: create_engine(echo=True) выставляет его сам.
 logging.getLogger("sqlalchemy.engine.Engine").setLevel(logging.WARNING)
 
