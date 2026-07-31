@@ -6,3 +6,6 @@ tools/edisclosure-scraper/.edisclosure_storage_state.json
 .coverage
 coverage.json
 htmlcov/
+
+# Байткод скриптов в корне (scripts/) — появляется при прогоне метрик
+__pycache__/
