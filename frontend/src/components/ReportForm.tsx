@@ -20,6 +20,7 @@ import { computeFcf } from '../utils/fcf';
 import { computeNetDebt } from '../utils/netDebt';
 import './ReportForm.css';
 import { formatPerShare } from '../utils/perShare';
+import { emptyFinancialReportPayload } from '../utils/financialReportPayload';
 
 dayjs.locale('ru');
 
@@ -522,52 +523,12 @@ const ReportForm: React.FC<ReportFormProps> = ({
         loading: false, result: null, error: null,
     });
 
-    const defaultValues: FinancialReportCreate = {
-        company_id: companyId,
+    // Черновик квартального отчёта: остальные поля — из общего конструктора.
+    const defaultValues: FinancialReportCreate = emptyFinancialReportPayload(companyId, {
         period_type: 'quarterly',
         fiscal_year: new Date().getFullYear(),
         fiscal_quarter: 4,
-        accounting_standard: 'IFRS',
-        consolidated: true,
-        source: 'manual',
-        report_date: '',
-        filing_date: null,
-        price_per_share: null,
-        price_at_filing: null,
-        shares_issued: null,
-        shares_outstanding: null,
-        shares_weighted_avg: null,
-        treasury_shares: null,
-        revenue: null,
-        net_income: null,
-        net_income_reported: null,
-        total_assets: null,
-        current_assets: null,
-        total_liabilities: null,
-        current_liabilities: null,
-        equity: null,
-        cash_and_equivalents: null,
-        debt: null,
-        dividends_per_share: null,
-        dividends_paid: false,
-        special_dividends_per_share: null,
-        special_dividends_note: null,
-        has_preferred_shares: false,
-        preferred_share_dividends: null,
-        net_interest_income: null,
-        fee_commission_income: null,
-        operating_expenses: null,
-        provisions: null,
-        operating_cash_flow: null,
-        capex: null,
-        lease_principal: null,
-        lease_interest: null,
-        interest_paid: null,
-        debt_principal: null,
-        depreciation_amortization: null,
-        currency: 'RUB',
-        exchange_rate: null,
-    };
+    });
     // В режиме редактирования накладываем initialValues поверх дефолтов
     const [formData, setFormData] = useState<FinancialReportCreate>(
         initialValues ? { ...defaultValues, ...initialValues, company_id: companyId } : defaultValues,

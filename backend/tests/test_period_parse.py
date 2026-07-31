@@ -1,11 +1,14 @@
-"""Unit-тесты разбора периодов e-disclosure (offline)."""
-import sys
-from pathlib import Path
+"""Unit-тесты разбора периодов e-disclosure (offline).
 
+Модули скрапера подключает `ensure_scraper_importable` — та же функция, что и
+в рабочем коде. Раньше тест повторял вставку в `sys.path` своей формулой пути,
+и при переносе каталогов ломался отдельно от приложения.
+"""
 import pytest
 
-_SCRAPER = Path(__file__).resolve().parents[2] / "tools" / "edisclosure-scraper"
-sys.path.insert(0, str(_SCRAPER))
+from app.services.disclosure.edisclosure_client import ensure_scraper_importable
+
+ensure_scraper_importable()
 
 from period_parse import filter_coverage_entries, parse_period_label  # noqa: E402
 

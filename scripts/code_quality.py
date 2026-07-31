@@ -101,6 +101,7 @@ class Findings:
     asserts: int = 0
     coverage: Dict[str, Tuple[int, int]] = field(default_factory=dict)  # файл → (покрыто, всего)
     untested_modules: List[str] = field(default_factory=list)
+    layering: List[str] = field(default_factory=list)
 
 
 # ─── Python: размер, сложность ───────────────────────────────────────────────
@@ -299,6 +300,60 @@ def scan_duplicates(findings: Findings) -> None:
 # ─── Тесты и покрытие ────────────────────────────────────────────────────────
 
 
+# ─── Расслоение: что где лежит ───────────────────────────────────────────────
+
+
+# Правило про sys.path касается кода приложения и его тестов: самостоятельные
+# скрипты в scripts/ и tools/ запускаются напрямую и добавляют backend в путь
+# законно. Внутри приложения точка одна — обёртка над каталогом скрапера
+# (дефис в имени не даёт сделать из него пакет).
+_SYS_PATH_SCOPE = ("backend/app/", "backend/tests/")
+_SYS_PATH_ALLOWED = ("app/services/disclosure/edisclosure_client.py",)
+
+# Заглушки не должны попадать в рабочие слои: mock-данные уже один раз
+# доехали до публичного роутера и отдавались как настоящие.
+_MOCK_IMPORT = re.compile(r"^\s*from\s+app\.[\w.]*(mock|fixture)[\w.]*\s+import|^\s*import\s+app\.[\w.]*mock")
+
+
+def scan_layering(findings: Findings) -> None:
+    """Нарушения размещения: хаки путей, заглушки в проде, дубли хелперов."""
+    for path in iter_files(".py"):
+        name = rel(path)
+        for i, line in enumerate(path.read_text(encoding="utf-8", errors="replace").splitlines(), 1):
+            if "sys.path.insert" in line or "sys.path.append" in line:
+                in_scope = any(name.startswith(s) for s in _SYS_PATH_SCOPE)
+                if in_scope and not any(name.endswith(a) for a in _SYS_PATH_ALLOWED):
+                    findings.layering.append(
+                        f"`{name}:{i}` правит sys.path в обход "
+                        f"`ensure_scraper_importable` — путь начнёт зависеть от каталога запуска"
+                    )
+            if _MOCK_IMPORT.match(line) and "/tests/" not in name:
+                findings.layering.append(f"`{name}:{i}` тянет заглушки в рабочий код")
+
+    # Одноимённые локальные хелперы в разных файлах фронтенда — след того, что
+    # функцию написали заново вместо импорта (так разошлись четыре fmtMln).
+    helpers: Dict[str, List[str]] = defaultdict(list)
+    helper_def = re.compile(r"^\s*(?:const|function)\s+(fmt\w*|format\w*)\s*[=(]")
+    for path in iter_files(".ts", ".tsx"):
+        if is_test(path) or "/utils/" in rel(path):
+            continue
+        for i, line in enumerate(path.read_text(encoding="utf-8", errors="replace").splitlines(), 1):
+            match = helper_def.match(line)
+            if not match:
+                continue
+            # Однострочная обёртка над общим утилем — не дубль, а локальная
+            # подстановка валюты: `const fmtMln = (n) => formatMln(n, cur)`.
+            if re.search(r"=>\s*format\w*\(", line) or "return format" in line:
+                continue
+            helpers[match.group(1)].append(f"{rel(path)}:{i}")
+    for helper, locations in sorted(helpers.items()):
+        if len(locations) > 1:
+            findings.layering.append(
+                f"`{helper}` объявлен в {len(locations)} местах вместо общего утиля: "
+                + ", ".join(f"`{loc}`" for loc in locations[:4])
+            )
+
+
 def load_coverage(findings: Findings, coverage_path: Path) -> None:
     if not coverage_path.exists():
         return
@@ -387,6 +442,12 @@ def build_report(findings: Findings) -> Tuple[List[str], List[str]]:
             f"≥ {MIN_DUP_BLOCK} строк подряд",
             verdict(not findings.duplicates),
         ],
+        [
+            "Нарушений расслоения",
+            f"{len(findings.layering)}",
+            "0",
+            verdict(not findings.layering),
+        ],
         ["Тестов / assert'ов", f"{findings.tests} / {findings.asserts}", "—", "—"],
         [
             "Assert на тест",
@@ -442,6 +503,17 @@ def build_report(findings: Findings) -> Tuple[List[str], List[str]]:
             lines.append(f"- {size} строк × {len(locations)}: " + ", ".join(f"`{l}`" for l in locations[:4]))
         lines.append("")
 
+    if findings.layering:
+        violations.append(f"нарушений расслоения: {len(findings.layering)}")
+        lines += [
+            "## Что лежит не на своём месте",
+            "",
+            "Заглушки в рабочем коде, правка `sys.path` мимо общей точки и",
+            "одноимённые хелперы, написанные заново вместо импорта.",
+            "",
+        ]
+        lines += [f"- {item}" for item in findings.layering] + [""]
+
     if findings.untested_modules:
         lines += [
             "## Сервисы, где тесты не выполнили ни строки",
@@ -487,6 +559,7 @@ def main() -> int:
     scan_python(findings)
     scan_typescript(findings)
     scan_duplicates(findings)
+    scan_layering(findings)
     load_coverage(findings, Path(args.coverage))
     find_untested_modules(findings)
 
