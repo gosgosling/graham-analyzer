@@ -9,6 +9,7 @@ from app.config import settings
 from app.database import get_db
 from app.models.company import Company
 from app.schemas import FinancialReport, FinancialReportCreate
+from app.routers.pipeline_errors import http_error_for
 from app.services.reports import report_service
 from app.services.report_parser import (
     compare_pdf_with_existing,
@@ -17,12 +18,6 @@ from app.services.report_parser import (
 from app.services.report_parser.extractor_service import (
     ReportAlreadyExistsError,
     ReportNotFoundForComparison,
-)
-from app.services.report_parser.llm_client import (
-    LLMNotConfiguredError,
-    LLMParseError,
-    LLMRateLimitError,
-    LLMTransientError,
 )
 
 logger = logging.getLogger(__name__)
@@ -298,53 +293,16 @@ async def parse_pdf_endpoint(
             force=force,
             pdf_label=filename,
         )
-    except ReportAlreadyExistsError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=str(exc),
-        ) from exc
-    except LLMNotConfiguredError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=str(exc),
-        ) from exc
-    except LLMParseError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"LLM вернул некорректный JSON: {exc}",
-        ) from exc
-    except LLMRateLimitError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail=(
-                f"Превышен лимит запросов к LLM (TPM/RPM). "
-                f"Подожди ~{int(exc.retry_after)} сек и повтори попытку. "
-                f"Оригинал: {exc}"
-            ),
-            headers={"Retry-After": str(int(exc.retry_after))},
-        ) from exc
-    except LLMTransientError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
-            detail=f"LLM временно недоступен: {exc}",
-        ) from exc
-    except RuntimeError as exc:
-        # extract_financial_pages бросает RuntimeError если в PDF ничего не нашлось
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=str(exc),
-        ) from exc
-    except ValueError as exc:
-        # валидация аргументов пайплайна (например, fiscal_year в будущем)
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(exc),
-        ) from exc
     except Exception as exc:
-        logger.exception("Ошибка парсинга PDF для company_id=%s: %s", company_id, exc)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Не удалось обработать PDF: {exc}",
+        raise http_error_for(
+            exc,
+            action="Не удалось обработать PDF",
+            context=f"company_id={company_id}",
+            specific={
+                ReportAlreadyExistsError: status.HTTP_409_CONFLICT,
+                # валидация аргументов пайплайна (например, fiscal_year в будущем)
+                ValueError: status.HTTP_400_BAD_REQUEST,
+            },
         ) from exc
 
     if not outcome.created_report_id:
@@ -487,46 +445,12 @@ async def compare_pdf_endpoint(
             consolidated=consolidated,
             pdf_label=filename,
         )
-    except ReportNotFoundForComparison as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(exc),
-        ) from exc
-    except LLMNotConfiguredError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=str(exc),
-        ) from exc
-    except LLMParseError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"LLM вернул некорректный JSON: {exc}",
-        ) from exc
-    except LLMRateLimitError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail=(
-                f"Превышен лимит запросов к LLM (TPM/RPM). "
-                f"Подожди ~{int(exc.retry_after)} сек и повтори попытку. "
-                f"Оригинал: {exc}"
-            ),
-            headers={"Retry-After": str(int(exc.retry_after))},
-        ) from exc
-    except LLMTransientError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
-            detail=f"LLM временно недоступен: {exc}",
-        ) from exc
-    except RuntimeError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=str(exc),
-        ) from exc
     except Exception as exc:
-        logger.exception("Ошибка compare-pdf для company_id=%s: %s", company_id, exc)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Не удалось сравнить PDF: {exc}",
+        raise http_error_for(
+            exc,
+            action="Не удалось сравнить PDF",
+            context=f"company_id={company_id}",
+            specific={ReportNotFoundForComparison: status.HTTP_404_NOT_FOUND},
         ) from exc
 
     diffs_out = [

@@ -16,6 +16,7 @@ import { MultiplierRecord, CurrentMultipliers, Company, SectorProfile } from '..
 import { useChartColors, ChartColors } from '../contexts/ThemeContext';
 import SharesCapHover from './SharesCapHover';
 import { formatPerShare } from '../utils/perShare';
+import { formatMln } from '../utils/format';
 import {
   computeHistRowYoY,
   snapshotFromCurrent,
@@ -546,11 +547,7 @@ function ColHeaderWithUnit({
  * Если >= 1000 млн — показывает в млрд, иначе в млн.
  */
 function fmtMln(n: number | null): string {
-  if (n === null) return '—';
-  const abs = Math.abs(n);
-  if (abs >= 1_000_000) return (n / 1_000_000).toFixed(2) + ' трлн ₽';
-  if (abs >= 1_000)     return (n / 1_000).toFixed(2) + ' млрд ₽';
-  return n.toLocaleString('ru-RU', { maximumFractionDigits: 1 }) + ' млн ₽';
+  return formatMln(n);
 }
 
 /** Значение в млн ₽ → число в млрд (без единицы; единица в заголовке колонки). */
@@ -559,7 +556,10 @@ function fmtMlnBln(n: number | null): string {
   return (n / 1_000).toFixed(2);
 }
 
-function fmtDate(d: string): string {
+/** Год из даты YYYY-MM-DD — подпись периода в таблице и на графике.
+ *  Имя `fmtDate` вводило в заблуждение: в BondDetail так называется настоящее
+ *  форматирование даты, а здесь возвращается только год. */
+function fmtYear(d: string): string {
   return d.split('-')[0];
 }
 
@@ -1430,7 +1430,7 @@ const HistTable: React.FC<HistTableProps & { pctMode: boolean }> = ({
             <HistTableRow
               key={r.id}
               rowClassName="row-hist"
-              periodCell={fmtDate(r.date)}
+              periodCell={fmtYear(r.date)}
               record={r}
               snapshot={snapshotFromRecord(r)}
               yoy={
@@ -1522,7 +1522,7 @@ function buildMultiplierChartData(
 ): ChartPoint[] {
   const historical = [...rows].reverse();
   return [
-    ...historical.map((r) => toChartPoint(r, fmtDate(r.date), false)),
+    ...historical.map((r) => toChartPoint(r, fmtYear(r.date), false)),
     ...(currentRow ? [toChartPoint(currentRow, 'LTM', true)] : []),
   ];
 }

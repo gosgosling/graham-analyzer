@@ -16,6 +16,7 @@ import ReportForm from '../components/ReportForm';
 import TInvestSyncBar from '../components/TInvestSyncBar';
 import VerificationBadge from '../components/VerificationBadge';
 import { formatPerShare } from '../utils/perShare';
+import { formatMln } from '../utils/format';
 import './SecuritiesList.css';
 import './CompaniesList.css';
 
@@ -535,13 +536,7 @@ const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
   const cur = report.currency;
   const isUsd = cur === 'USD';
 
-  const fmtMln = (n: number | null | undefined): string => {
-    if (n === null || n === undefined) return '—';
-    const abs = Math.abs(n);
-    if (abs >= 1_000_000) return (n / 1_000_000).toFixed(2) + ` трлн ${cur}`;
-    if (abs >= 1_000)     return (n / 1_000).toFixed(2) + ` млрд ${cur}`;
-    return n.toLocaleString('ru-RU', { maximumFractionDigits: 1 }) + ` млн ${cur}`;
-  };
+  const fmtMln = (n: number | null | undefined): string => formatMln(n, cur);
 
   const pt2 = report.period_type.toLowerCase();
   const periodLabel =

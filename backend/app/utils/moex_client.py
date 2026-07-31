@@ -5,6 +5,16 @@ from typing import List, Dict, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
+
+class MoexUnavailableError(RuntimeError):
+    """MOEX ISS не ответил.
+
+    Отдельный тип нужен, чтобы вызывающий отличал «биржа недоступна» от
+    «данных нет»: первое — временный сбой и 503, второе — валидный пустой
+    ответ. Раньше оба случая выглядели как пустой список.
+    """
+
+
 # MOEX ISS доступен напрямую; системный HTTPS_PROXY (xray/outline) часто ломает запросы.
 _moex_session: Optional[requests.Session] = None
 
@@ -21,15 +31,29 @@ def _moex_get(url: str, **kwargs) -> requests.Response:
 
 # ─── Список активных инструментов ─────────────────────────────────────────────
 
+# Основной режим торгов акциями. Без него ISS отдаёт одну и ту же бумагу
+# несколько раз — по строке на каждый режим (TQBR, SMAL, SPEQ): 767 строк
+# против 263 бумаг. Таблица на фронте ключуется по тикеру и получала дубли,
+# а лишние 85 КБ ответа никто не использовал.
+_SHARES_BOARD = "TQBR"
+
+
 def get_moex_securities() -> List[Dict]:
     """
-    Получает список акций компаний, торгующих на Мосбирже.
+    Получает список акций основного режима торгов Мосбиржи.
     Фильтрует только акции (INSTRID='EQIN', SECTYPE='1').
+
+    Raises:
+        MoexUnavailableError: ISS не ответил. Это не то же самое, что «бумаг
+        нет»: пустой список на месте ошибки прячет причину от вызывающего.
     """
-    url = "https://iss.moex.com/iss/engines/stock/markets/shares/securities.json"
+    url = (
+        f"https://iss.moex.com/iss/engines/stock/markets/shares/boards/{_SHARES_BOARD}"
+        "/securities.json?iss.only=securities&iss.meta=off"
+    )
 
     try:
-        response = _moex_get(url, timeout=15)
+        response = _moex_get(url, timeout=20)
         response.raise_for_status()
 
         data = response.json()
@@ -60,7 +84,7 @@ def get_moex_securities() -> List[Dict]:
 
     except requests.exceptions.RequestException as e:
         logger.warning("Ошибка при запросе к MOEX API: %s", e)
-        return []
+        raise MoexUnavailableError(str(e)) from e
 
 
 # ─── Дивиденды ────────────────────────────────────────────────────────────────

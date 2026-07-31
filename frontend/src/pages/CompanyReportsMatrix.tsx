@@ -14,7 +14,7 @@ import {
 } from '../services';
 import type { FinancialReport, FinancialReportCreate } from '../types';
 import { detectSectorDisplayKind } from '../utils/sectorDisplayKind';
-import { financialReportToCreatePayload } from '../utils/financialReportPayload';
+import { financialReportToCreatePayload, emptyFinancialReportPayload } from '../utils/financialReportPayload';
 import { formatApiErrorMessage } from '../utils/apiErrors';
 import { moexRubPriceToReportFieldValue } from '../utils/moexReportAssist';
 import { computeFcf } from '../utils/fcf';
@@ -142,55 +142,11 @@ const MATRIX_DRAFT_ID = -1;
 
 function initialDraftPayload(company_id: number): FinancialReportCreate {
   const y = new Date().getFullYear();
-  return {
-    company_id,
-    period_type: 'annual',
+  // Годовой отчёт за текущий год — остальное берётся из общего конструктора.
+  return emptyFinancialReportPayload(company_id, {
     fiscal_year: y,
-    fiscal_quarter: null,
-    accounting_standard: 'IFRS',
-    consolidated: true,
-    source: 'manual',
     report_date: `${y}-12-31`,
-    filing_date: null,
-    price_per_share: null,
-    price_at_filing: null,
-    shares_issued: null,
-    shares_outstanding: null,
-    shares_weighted_avg: null,
-    treasury_shares: null,
-    revenue: null,
-    net_income: null,
-    net_income_reported: null,
-    total_assets: null,
-    current_assets: null,
-    cash_and_equivalents: null,
-    debt: null,
-    total_liabilities: null,
-    current_liabilities: null,
-    equity: null,
-    dividends_per_share: null,
-    dividends_paid: false,
-    has_preferred_shares: false,
-    preferred_share_dividends: null,
-    net_interest_income: null,
-    fee_commission_income: null,
-    operating_expenses: null,
-    provisions: null,
-    operating_cash_flow: null,
-    capex: null,
-    lease_principal: null,
-    lease_interest: null,
-    interest_paid: null,
-    debt_principal: null,
-    depreciation_amortization: null,
-    currency: 'RUB',
-    exchange_rate: null,
-    auto_extracted: false,
-    verified_by_analyst: true,
-    extraction_notes: null,
-    extraction_model: null,
-    source_pdf_path: null,
-  };
+  });
 }
 
 function validateDraftForCreate(p: FinancialReportCreate): string | null {

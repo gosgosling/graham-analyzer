@@ -14,6 +14,7 @@ import type {
 } from '../types';
 import './AiParsePdfModal.css';
 import { formatPerShare } from '../utils/perShare';
+import { formatMln } from '../utils/format';
 
 type AccountingStandard = 'IFRS' | 'RAS' | 'US_GAAP' | 'UK_GAAP' | 'OTHER';
 type Mode = 'create' | 'compare' | 'batch';
@@ -400,13 +401,7 @@ const ParseResultSummary: React.FC<ParseResultSummaryProps> = ({
   const r = response.report;
   const warnings = response.warnings || [];
 
-  const fmtMln = (n: number | null | undefined): string => {
-    if (n === null || n === undefined) return '—';
-    const abs = Math.abs(n);
-    if (abs >= 1_000_000) return (n / 1_000_000).toFixed(2) + ' трлн';
-    if (abs >= 1_000) return (n / 1_000).toFixed(2) + ' млрд';
-    return n.toLocaleString('ru-RU', { maximumFractionDigits: 1 }) + ' млн';
-  };
+  const fmtMln = (n: number | null | undefined): string => formatMln(n, null);
 
   return (
     <div className="ai-parse-body">
@@ -535,10 +530,7 @@ function _formatDiffValue(
   const isNum = Number.isFinite(num);
 
   if (kind === 'money_mln' && isNum) {
-    const abs = Math.abs(num);
-    if (abs >= 1_000_000) return (num / 1_000_000).toFixed(2) + ' трлн';
-    if (abs >= 1_000) return (num / 1_000).toFixed(2) + ' млрд';
-    return num.toLocaleString('ru-RU', { maximumFractionDigits: 1 }) + ' млн';
+    return formatMln(num, null);
   }
   if (kind === 'int' && isNum) {
     return num.toLocaleString('ru-RU', { maximumFractionDigits: 0 });

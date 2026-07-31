@@ -1,0 +1,53 @@
+"""Pydantic-схемы API, разложенные по сущностям.
+
+Раньше это был один файл на 745 строк — при том что модели рядом
+аккуратно разбиты по сущностям. Имена реэкспортируются, поэтому
+`from app.schemas import FinancialReport` продолжает работать.
+"""
+from app.schemas.market import (  # noqa: F401
+    Security,
+    StockPriceResponse,
+    PriceUpdateResponse,
+)
+from app.schemas.company import (  # noqa: F401
+    Company,
+    CompanyDescriptionUpdate,
+    CompanyCreate,
+    CompanyWithPrice,
+)
+from app.schemas.report import (  # noqa: F401
+    FinancialReportCreate,
+    FinancialReport,
+)
+from app.schemas.multiplier import (  # noqa: F401
+    SectorProfileOption,
+    SectorProfileBand,
+    SectorProfileResponse,
+    MultiplierResponse,
+    CurrentMultipliersResponse,
+)
+from app.schemas.dividend import (  # noqa: F401
+    DividendContinuityResult,
+)
+from app.schemas.admin import (  # noqa: F401
+    PostgresBackupResponse,
+)
+
+__all__ = [
+    "Security",
+    "StockPriceResponse",
+    "PriceUpdateResponse",
+    "Company",
+    "CompanyDescriptionUpdate",
+    "CompanyCreate",
+    "CompanyWithPrice",
+    "FinancialReportCreate",
+    "FinancialReport",
+    "SectorProfileOption",
+    "SectorProfileBand",
+    "SectorProfileResponse",
+    "MultiplierResponse",
+    "CurrentMultipliersResponse",
+    "DividendContinuityResult",
+    "PostgresBackupResponse",
+]

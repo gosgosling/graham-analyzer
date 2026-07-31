@@ -7,31 +7,43 @@ import sys
 from pathlib import Path
 from typing import Any, Optional
 
+from app.config import BASE_DIR
+
 logger = logging.getLogger(__name__)
 
-_SCRAPER_DIR = (
-    Path(__file__).resolve().parents[4] / "tools" / "edisclosure-scraper"
-)
-# Path: backend/app/services/disclosure -> parents[0]=disclosure ... parents[3]=backend, parents[4]=repo root
-# __file__ = .../backend/app/services/disclosure/edisclosure_client.py
-# parents[0]=disclosure, [1]=services, [2]=app, [3]=backend, [4]=repo root ✓
+# Каталог скрапера считается от расположения этого файла, а не от текущего
+# рабочего каталога: сервер запускают и из backend/, и из корня, и из systemd.
+# Раньше здесь было три догадки подряд (parents[4], root/tools, cwd().parent),
+# и приложение вело себя по-разному в зависимости от места запуска.
+#
+# BASE_DIR — корень репозитория, тот же, от которого config.py читает .env.
+SCRAPER_DIR = BASE_DIR / "tools" / "edisclosure-scraper"
 
 
-def _ensure_scraper_path() -> Path:
-    root = Path(__file__).resolve().parents[4]
-    scraper = root / "tools" / "edisclosure-scraper"
-    if not scraper.is_dir():
-        # fallback: cwd-relative
-        alt = Path.cwd().parent / "tools" / "edisclosure-scraper"
-        if alt.is_dir():
-            scraper = alt
-    if str(scraper) not in sys.path:
-        sys.path.insert(0, str(scraper))
-    return scraper
+def ensure_scraper_importable() -> Path:
+    """Делает модули скрапера импортируемыми и возвращает его каталог.
+
+    Дефис в имени каталога не даёт оформить его обычным пакетом, поэтому путь
+    добавляется в `sys.path`. Единственное место, где это делается: тесты и
+    сервисы вызывают эту функцию, а не повторяют вставку у себя.
+
+    Raises:
+        FileNotFoundError: каталога нет — сразу и с понятным текстом, вместо
+        `ModuleNotFoundError: scraper` из глубины импорта.
+    """
+    if not SCRAPER_DIR.is_dir():
+        raise FileNotFoundError(
+            f"Не найден каталог скрапера: {SCRAPER_DIR}. "
+            "Он часть репозитория — проверьте, что backend запущен из рабочей копии."
+        )
+    if str(SCRAPER_DIR) not in sys.path:
+        sys.path.insert(0, str(SCRAPER_DIR))
+    return SCRAPER_DIR
+
 
 
 def load_edisclosure_mapping() -> dict[str, int]:
-    scraper = _ensure_scraper_path()
+    scraper = ensure_scraper_importable()
     mapping_file = scraper / "company_ids.json"
     with open(mapping_file, encoding="utf-8") as f:
         raw = json.load(f)
@@ -46,7 +58,7 @@ def load_edisclosure_mapping() -> dict[str, int]:
 
 def fetch_company_reports(edisclosure_id: int, ticker: str) -> list[dict[str, Any]]:
     """Listing всех консолидированных периодов → list[dict]."""
-    _ensure_scraper_path()
+    ensure_scraper_importable()
     from scraper import fetch_all_reports  # type: ignore[import-not-found]
 
     entries = fetch_all_reports(edisclosure_id, ticker)
@@ -54,7 +66,7 @@ def fetch_company_reports(edisclosure_id: int, ticker: str) -> list[dict[str, An
 
 
 def close_browser_session() -> None:
-    _ensure_scraper_path()
+    ensure_scraper_importable()
     try:
         from browser_session import close_session  # type: ignore[import-not-found]
 
@@ -67,7 +79,7 @@ def download_company_reports(
     ticker: str, report_dicts: list[dict[str, Any]]
 ) -> dict[str, str]:
     """Скачать выбранные периоды. report_dicts — как to_dict() ReportEntry."""
-    _ensure_scraper_path()
+    ensure_scraper_importable()
     from scraper import ReportEntry  # type: ignore[import-not-found]
     from downloader import download_reports  # type: ignore[import-not-found]
 
@@ -92,7 +104,7 @@ def download_company_reports(
 
 
 def filter_coverage(entries: list[dict[str, Any]], *, min_annual_year: int = 2010) -> list[dict[str, Any]]:
-    _ensure_scraper_path()
+    ensure_scraper_importable()
     from period_parse import filter_coverage_entries  # type: ignore[import-not-found]
     from types import SimpleNamespace
 
