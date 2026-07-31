@@ -6,6 +6,72 @@ function sliceDate(d: unknown): string {
   return s.slice(0, 10);
 }
 
+/**
+ * Пустое тело отчёта: все показатели null, служебные поля — как при ручном вводе.
+ *
+ * Тот же список полей раньше был выписан в форме отчёта и в матрице, и копии
+ * успели разойтись: в форме не было флагов верификации, в матрице — разовых
+ * дивидендов. Новое поле теперь добавляется здесь одно, а вызывающий передаёт
+ * только то, что отличает его случай (период, год, дату).
+ */
+export function emptyFinancialReportPayload(
+  companyId: number,
+  overrides: Partial<FinancialReportCreate> = {},
+): FinancialReportCreate {
+  return {
+    company_id: companyId,
+    period_type: 'annual',
+    fiscal_year: new Date().getFullYear(),
+    fiscal_quarter: null,
+    accounting_standard: 'IFRS',
+    consolidated: true,
+    source: 'manual',
+    report_date: '',
+    filing_date: null,
+    price_per_share: null,
+    price_at_filing: null,
+    shares_issued: null,
+    shares_outstanding: null,
+    shares_weighted_avg: null,
+    treasury_shares: null,
+    revenue: null,
+    net_income: null,
+    net_income_reported: null,
+    total_assets: null,
+    current_assets: null,
+    total_liabilities: null,
+    current_liabilities: null,
+    equity: null,
+    cash_and_equivalents: null,
+    debt: null,
+    dividends_per_share: null,
+    dividends_paid: false,
+    special_dividends_per_share: null,
+    special_dividends_note: null,
+    has_preferred_shares: false,
+    preferred_share_dividends: null,
+    net_interest_income: null,
+    fee_commission_income: null,
+    operating_expenses: null,
+    provisions: null,
+    operating_cash_flow: null,
+    capex: null,
+    lease_principal: null,
+    lease_interest: null,
+    interest_paid: null,
+    debt_principal: null,
+    depreciation_amortization: null,
+    currency: 'RUB',
+    exchange_rate: null,
+    auto_extracted: false,
+    verified_by_analyst: true,
+    extraction_notes: null,
+    extraction_model: null,
+    source_pdf_path: null,
+    ...overrides,
+  };
+}
+
 /** Полное тело для PUT /reports/{id} из текущего ответа API. */
 export function financialReportToCreatePayload(
   r: FinancialReport,

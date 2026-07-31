@@ -18,6 +18,7 @@ import ReportForm from '../components/ReportForm';
 import VerificationBadge from '../components/VerificationBadge';
 import AiParsePdfModal from '../components/AiParsePdfModal';
 import { formatPerShare } from '../utils/perShare';
+import { formatMln } from '../utils/format';
 import { shadeHex, isLightBrandHex, isNeutralBrandForHero } from '../utils/brandColor';
 import { computeNetDebt } from '../utils/netDebt';
 import { resolveSharesForMultipliers, explainSharesCapBasis } from '../utils/shareCounts';
@@ -315,14 +316,8 @@ const CompanyDetail: React.FC = () => {
     ? (latestReport.price_per_share_rub * latestSharesForCap) / 1_000_000
     : null;
 
-  /** Форматирует значение в млн ₽ → показывает в млн/млрд/трлн */
-  const fmtMln = (n: number | null | undefined): string => {
-    if (n === null || n === undefined) return '—';
-    const abs = Math.abs(n);
-    if (abs >= 1_000_000) return (n / 1_000_000).toFixed(2) + ' трлн ₽';
-    if (abs >= 1_000)     return (n / 1_000).toFixed(2) + ' млрд ₽';
-    return n.toLocaleString('ru-RU', { maximumFractionDigits: 1 }) + ' млн ₽';
-  };
+  /** Значения отчёта хранятся в млн ₽; показываем в млн/млрд/трлн. */
+  const fmtMln = (n: number | null | undefined): string => formatMln(n);
 
   return (
     <div className="company-detail-container">
@@ -900,14 +895,7 @@ const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
   const cur = report.currency;
   const isUsd = cur === 'USD';
 
-  const fmtMln = (n: number | null | undefined, showCur = true): string => {
-    if (n === null || n === undefined) return '—';
-    const abs = Math.abs(n);
-    const suffix = showCur ? ` млн ${cur}` : '';
-    if (abs >= 1_000_000) return (n / 1_000_000).toFixed(2) + ` трлн ${cur}`;
-    if (abs >= 1_000)     return (n / 1_000).toFixed(2) + ` млрд ${cur}`;
-    return n.toLocaleString('ru-RU', { maximumFractionDigits: 1 }) + suffix;
-  };
+  const fmtMln = (n: number | null | undefined): string => formatMln(n, cur);
 
   const pt = report.period_type.toLowerCase();
   const periodLabel =

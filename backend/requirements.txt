@@ -18,3 +18,10 @@ pytest==9.1.1
 # Покрытие — вход для scripts/code_quality.py:
 #   pytest --cov=app --cov-report=json:../coverage.json
 pytest-cov==7.1.0
+
+# Скрапер e-disclosure (tools/edisclosure-scraper) вызывается из
+# app/services/disclosure — значит это зависимость приложения, а не «утилиты».
+# Без неё падает скачивание отчётов: ModuleNotFoundError уже после деплоя.
+playwright>=1.44.0
+beautifulsoup4==4.12.3
+lxml==5.3.0
