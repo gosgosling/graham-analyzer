@@ -19,7 +19,6 @@ import { formatApiErrorMessage } from '../utils/apiErrors';
 import { moexRubPriceToReportFieldValue } from '../utils/moexReportAssist';
 import { computeFcf } from '../utils/fcf';
 import { computeNetDebt } from '../utils/netDebt';
-import ReportForm from '../components/ReportForm';
 import AiParsePdfModal from '../components/AiParsePdfModal';
 import './CompanyReportsMatrix.css';
 
@@ -119,6 +118,19 @@ const MATRIX_ROWS: MatrixRowDef[] = [
   { key: 'fee_commission_income', label: 'Комиссионные доходы', kind: 'number', hint: 'млн', bankOnly: true },
   { key: 'operating_expenses', label: 'Опер. расходы (до резервов)', kind: 'number', hint: 'млн', bankOnly: true },
   { key: 'provisions', label: 'Резервы под ОК', kind: 'number', hint: 'млн', bankOnly: true },
+  { key: 'interest_income', label: 'Процентные доходы (валовые)', kind: 'number', hint: 'млн', bankOnly: true },
+  { key: 'interest_expense', label: 'Процентные расходы', kind: 'number', hint: 'млн, положит.', bankOnly: true },
+  { key: 'gross_loans', label: 'Кредиты до резерва', kind: 'number', hint: 'млн, примечание', bankOnly: true },
+  { key: 'loan_loss_allowance', label: 'Накопленный резерв (ECL)', kind: 'number', hint: 'млн, положит.', bankOnly: true },
+  { key: 'npl_loans', label: 'Обесцененные (Stage 3)', kind: 'number', hint: 'млн', bankOnly: true },
+  { key: 'customer_deposits', label: 'Средства клиентов', kind: 'number', hint: 'млн', bankOnly: true },
+  { key: 'loans_retail', label: '— кредиты физлицам', kind: 'number', hint: 'млн', bankOnly: true },
+  { key: 'loans_corporate', label: '— кредиты юрлицам', kind: 'number', hint: 'млн', bankOnly: true },
+  { key: 'deposits_retail', label: '— средства физлиц', kind: 'number', hint: 'млн', bankOnly: true },
+  { key: 'deposits_corporate', label: '— средства юрлиц', kind: 'number', hint: 'млн', bankOnly: true },
+  { key: 'risk_weighted_assets', label: 'Активы под риском (RWA)', kind: 'number', hint: 'млн', bankOnly: true },
+  { key: 'capital_adequacy_ratio', label: 'Достаточность общая Н1.0', kind: 'number', hint: '%', bankOnly: true },
+  { key: 'capital_adequacy_core', label: 'Достаточность основного Н1.1', kind: 'number', hint: '%', bankOnly: true },
   { key: 'operating_cash_flow', label: 'Опер. денежный поток', kind: 'number', hint: 'млн', nonBankOnly: true },
   { key: 'capex', label: 'CAPEX', kind: 'number', hint: 'млн, положит.', nonBankOnly: true },
   { key: 'lease_principal', label: 'Тело аренды', kind: 'number', hint: 'млн, опц.', nonBankOnly: true },
@@ -172,6 +184,45 @@ function sliceIsoDate(v: unknown): string {
   if (v == null) return '';
   const s = typeof v === 'string' ? v : String(v);
   return s.slice(0, 10);
+}
+
+/** Тип периода → дата окончания и номер квартала. */
+const PERIOD_PRESETS = [
+  { value: 'annual', label: 'Год', monthDay: '12-31', quarter: null },
+  { value: 'quarterly-1', label: '3 мес (Q1)', monthDay: '03-31', quarter: 1 },
+  { value: 'semi_annual', label: '6 мес (пг)', monthDay: '06-30', quarter: null },
+  { value: 'quarterly-3', label: '9 мес (Q3)', monthDay: '09-30', quarter: 3 },
+] as const;
+
+type PeriodPreset = (typeof PERIOD_PRESETS)[number]['value'];
+
+/**
+ * Пустой отчёт за выбранный период — «черновик» одним действием.
+ *
+ * Раньше на это уходило четыре шага: открыть окно, выставить год, выставить
+ * дату окончания, сохранить. Год и дата однозначно связаны, поэтому дату
+ * подставляем сами: 31.12 для года, 30.06 для полугодия и так далее.
+ * Показатели остаются пустыми и заполняются прямо в таблице.
+ */
+function draftForPeriod(
+  companyId: number,
+  year: number,
+  preset: PeriodPreset,
+): FinancialReportCreate {
+  const spec = PERIOD_PRESETS.find((p) => p.value === preset) ?? PERIOD_PRESETS[0];
+  const periodType = spec.value.startsWith('quarterly')
+    ? 'quarterly'
+    : (spec.value as 'annual' | 'semi_annual');
+
+  return emptyFinancialReportPayload(companyId, {
+    period_type: periodType,
+    fiscal_year: year,
+    fiscal_quarter: spec.quarter,
+    report_date: `${year}-${spec.monthDay}`,
+    // Пустой отчёт — это заготовка, а не сверенные данные: пока в нём нет
+    // цифр, он не должен считаться подтверждённым аналитиком.
+    verified_by_analyst: false,
+  });
 }
 
 function periodShort(r: FinancialReport): string {
@@ -293,7 +344,14 @@ const CompanyReportsMatrix: React.FC = () => {
   const companyId = Number(companyIdParam);
   const queryClient = useQueryClient();
 
-  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [quickPeriod, setQuickPeriod] = useState<PeriodPreset>('annual');
+  // Двадцать лет назад: Грэму нужна средняя прибыль за 7–10 лет, а самые
+  // ранние отчёты в базе — 2006 года, и они тоже должны быть доступны.
+  const quickYears = useMemo(() => {
+    const now = new Date().getFullYear();
+    return Array.from({ length: 21 }, (_, i) => now - i);
+  }, []);
+  const [creatingYear, setCreatingYear] = useState<number | null>(null);
   /** Черновик нового отчёта — отображается первой колонкой матрицы без модалки. */
   const [draftPayload, setDraftPayload] = useState<FinancialReportCreate | null>(null);
   const draftRef = useRef<FinancialReportCreate | null>(null);
@@ -370,6 +428,7 @@ const CompanyReportsMatrix: React.FC = () => {
   const cancelMatrixDraft = useCallback(() => {
     setDraftPayload(null);
   }, []);
+
   const invalidateAll = useCallback(async () => {
     queryClient.invalidateQueries({ queryKey: ['reports', companyIdParam] });
     queryClient.invalidateQueries({ queryKey: ['reports-counts-by-company'] });
@@ -378,6 +437,37 @@ const CompanyReportsMatrix: React.FC = () => {
     queryClient.invalidateQueries({ queryKey: ['company', companyIdParam] });
     await refreshCompanyMultipliers(companyId, true).catch(() => {});
   }, [companyId, companyIdParam, queryClient]);
+
+  /**
+   * Пустой отчёт за выбранный год — одним действием.
+   *
+   * Раньше это были четыре шага через модальное окно; год и дата окончания
+   * связаны однозначно, поэтому спрашиваем только год, остальное подставляем.
+   */
+  /** Периоды, которые уже есть: год+тип. Повтор упрётся в constraint БД. */
+  const existingPeriodKeys = useMemo(() => {
+    const set = new Set<string>();
+    for (const r of reports ?? []) {
+      const pt = String(r.period_type).toLowerCase();
+      set.add(`${r.fiscal_year}:${pt}:${r.fiscal_quarter ?? ''}`);
+    }
+    return set;
+  }, [reports]);
+
+  const quickCreate = useCallback(
+    async (year: number) => {
+      setCreatingYear(year);
+      try {
+        await createFinancialReport(draftForPeriod(companyId, year, quickPeriod));
+        await invalidateAll();
+      } catch (e) {
+        window.alert(formatApiErrorMessage(e, 'Не удалось создать отчёт'));
+      } finally {
+        setCreatingYear(null);
+      }
+    },
+    [companyId, quickPeriod, invalidateAll],
+  );
 
   const applyMoexPriceFromPayload = useCallback(
     async (
@@ -669,23 +759,42 @@ const CompanyReportsMatrix: React.FC = () => {
           </p>
         </div>
         <div className="crm-toolbar">
-          <button
-            type="button"
-            className="crm-btn crm-btn-primary"
-            onClick={() => setShowCreateForm(true)}
-          >
-            + Отчёт вручную (окно)
-          </button>
-          <button
-            type="button"
-            className="crm-btn crm-btn-primary"
-            onClick={() => {
-              setShowCreateForm(false);
-              startMatrixDraft();
-            }}
-          >
-            + Отчёт в таблице
-          </button>
+          <div className="crm-quick-add">
+            <select
+              className="crm-quick-period"
+              value={quickPeriod}
+              onChange={(e) => setQuickPeriod(e.target.value as PeriodPreset)}
+              title="Тип периода для новых отчётов"
+            >
+              {PERIOD_PRESETS.map((p) => (
+                <option key={p.value} value={p.value}>{p.label}</option>
+              ))}
+            </select>
+            <select
+              className="crm-quick-year"
+              value=""
+              disabled={creatingYear !== null}
+              onChange={(e) => {
+                const year = Number(e.target.value);
+                if (year) void quickCreate(year);
+                e.target.value = '';
+              }}
+            >
+              <option value="">
+                {creatingYear !== null ? `Создаю ${creatingYear}…` : '+ Отчёт за год…'}
+              </option>
+              {quickYears.map((y) => {
+                const spec = PERIOD_PRESETS.find((p) => p.value === quickPeriod)!;
+                const pt = spec.value.startsWith('quarterly') ? 'quarterly' : spec.value;
+                const exists = existingPeriodKeys.has(`${y}:${pt}:${spec.quarter ?? ''}`);
+                return (
+                  <option key={y} value={y} disabled={exists}>
+                    {y}{exists ? ' — уже есть' : ''}
+                  </option>
+                );
+              })}
+            </select>
+          </div>
           <button
             type="button"
             className="crm-btn"
@@ -709,16 +818,10 @@ const CompanyReportsMatrix: React.FC = () => {
           <div className="crm-empty">
             <p>Отчётов пока нет.</p>
             <div className="crm-empty-actions">
-              <button type="button" className="crm-btn crm-btn-primary" onClick={() => setShowCreateForm(true)}>
-                Добавить (окно)
-              </button>
               <button
                 type="button"
                 className="crm-btn crm-btn-primary"
-                onClick={() => {
-                  setShowCreateForm(false);
-                  startMatrixDraft();
-                }}
+                onClick={startMatrixDraft}
               >
                 Добавить в таблице
               </button>
@@ -877,22 +980,6 @@ const CompanyReportsMatrix: React.FC = () => {
           </table>
         )}
       </div>
-
-      {showCreateForm && (
-        <ReportForm
-          companyId={companyId}
-          companyName={company.name}
-          ticker={company.ticker}
-          sector={company.sector}
-          isPreferredShare={company.is_preferred_share}
-          onSubmit={async (data) => {
-            await createFinancialReport(data);
-            setShowCreateForm(false);
-            await invalidateAll();
-          }}
-          onCancel={() => setShowCreateForm(false)}
-        />
-      )}
 
       {aiModal && (
         <AiParsePdfModal

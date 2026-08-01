@@ -5,9 +5,31 @@ from datetime import date, datetime, timezone
 from app.models.financial_report import FinancialReport
 from app.models.company import Company
 from app.schemas import FinancialReportCreate
+from app.schemas.report import ReportFigures
 from app.services.analysis import multiplier_service
 from app.models.enums import sector_to_report_type
 from app.utils.date_parse import parse_date
+
+
+# Поля показателей берём из самой схемы: список живёт в одном месте, и новое
+# поле (например, кредитный портфель банка) начинает сохраняться без правки
+# этого файла. Раньше здесь были два перечисления по сорок строк, и добавление
+# поля молча терялось, если забыть одно из них.
+_FIGURE_FIELDS: tuple[str, ...] = tuple(ReportFigures.model_fields)
+
+# При обновлении эти поля не перезаписываются: verified_by_analyst обрабатывается
+# отдельно ниже, остальные — технические метки AI-парсера.
+_UPDATE_SKIP = frozenset({
+    "auto_extracted",
+    "verified_by_analyst",
+    "extraction_model",
+    "source_pdf_path",
+})
+
+
+def _figures_from(report_data) -> dict:
+    """Значения показателей из схемы запроса — в аргументы модели."""
+    return {name: getattr(report_data, name) for name in _FIGURE_FIELDS}
 
 
 def create_report(db: Session, report_data: FinancialReportCreate) -> FinancialReport:
@@ -47,50 +69,8 @@ def create_report(db: Session, report_data: FinancialReportCreate) -> FinancialR
         # Даты
         report_date=report_date_obj,
         filing_date=filing_date_obj,
-        # Рыночные данные
-        price_per_share=report_data.price_per_share,
-        price_at_filing=report_data.price_at_filing,
-        shares_issued=report_data.shares_issued,
-        shares_outstanding=report_data.shares_outstanding,
-        shares_weighted_avg=report_data.shares_weighted_avg,
-        treasury_shares=report_data.treasury_shares,
-        # Финансовые данные
-        revenue=report_data.revenue,
-        net_income=report_data.net_income,
-        net_income_reported=report_data.net_income_reported,
-        total_assets=report_data.total_assets,
-        current_assets=report_data.current_assets,
-        total_liabilities=report_data.total_liabilities,
-        current_liabilities=report_data.current_liabilities,
-        equity=report_data.equity,
-        cash_and_equivalents=report_data.cash_and_equivalents,
-        debt=report_data.debt,
-        dividends_per_share=report_data.dividends_per_share,
-        dividends_paid=report_data.dividends_paid,
-        special_dividends_per_share=report_data.special_dividends_per_share,
-        special_dividends_note=report_data.special_dividends_note,
-        has_preferred_shares=report_data.has_preferred_shares,
-        preferred_share_dividends=report_data.preferred_share_dividends,
-        currency=report_data.currency,
-        exchange_rate=report_data.exchange_rate,
-        # Банковские показатели
-        net_interest_income=report_data.net_interest_income,
-        fee_commission_income=report_data.fee_commission_income,
-        operating_expenses=report_data.operating_expenses,
-        provisions=report_data.provisions,
-        operating_cash_flow=report_data.operating_cash_flow,
-        capex=report_data.capex,
-        lease_principal=report_data.lease_principal,
-        lease_interest=report_data.lease_interest,
-        interest_paid=report_data.interest_paid,
-        debt_principal=report_data.debt_principal,
-        depreciation_amortization=report_data.depreciation_amortization,
-        # Верификация / источник AI
-        auto_extracted=report_data.auto_extracted,
-        verified_by_analyst=report_data.verified_by_analyst,
-        extraction_notes=report_data.extraction_notes,
-        extraction_model=report_data.extraction_model,
-        source_pdf_path=report_data.source_pdf_path,
+        # Показатели отчёта — единым списком из схемы (см. _FIGURE_FIELDS)
+        **_figures_from(report_data),
         verified_at=(
             datetime.now(timezone.utc) if report_data.verified_by_analyst else None
         ),
@@ -229,44 +209,13 @@ def update_report(
     # Даты
     db_report.report_date = report_date_obj  # type: ignore
     db_report.filing_date = filing_date_obj  # type: ignore
-    # Рыночные данные
-    db_report.price_per_share = report_data.price_per_share  # type: ignore
-    db_report.price_at_filing = report_data.price_at_filing  # type: ignore
-    db_report.shares_issued = report_data.shares_issued  # type: ignore
-    db_report.shares_outstanding = report_data.shares_outstanding  # type: ignore
-    db_report.shares_weighted_avg = report_data.shares_weighted_avg  # type: ignore
-    db_report.treasury_shares = report_data.treasury_shares  # type: ignore
-    # Финансовые данные
-    db_report.revenue = report_data.revenue  # type: ignore
-    db_report.net_income = report_data.net_income  # type: ignore
-    db_report.net_income_reported = report_data.net_income_reported  # type: ignore
-    db_report.total_assets = report_data.total_assets  # type: ignore
-    db_report.current_assets = report_data.current_assets  # type: ignore
-    db_report.total_liabilities = report_data.total_liabilities  # type: ignore
-    db_report.current_liabilities = report_data.current_liabilities  # type: ignore
-    db_report.equity = report_data.equity  # type: ignore
-    db_report.cash_and_equivalents = report_data.cash_and_equivalents  # type: ignore
-    db_report.debt = report_data.debt  # type: ignore
-    db_report.dividends_per_share = report_data.dividends_per_share  # type: ignore
-    db_report.dividends_paid = report_data.dividends_paid  # type: ignore
-    db_report.special_dividends_per_share = report_data.special_dividends_per_share  # type: ignore
-    db_report.special_dividends_note = report_data.special_dividends_note  # type: ignore
-    db_report.has_preferred_shares = report_data.has_preferred_shares  # type: ignore
-    db_report.preferred_share_dividends = report_data.preferred_share_dividends  # type: ignore
-    db_report.currency = report_data.currency  # type: ignore
-    db_report.exchange_rate = report_data.exchange_rate  # type: ignore
-    # Банковские показатели
-    db_report.net_interest_income = report_data.net_interest_income  # type: ignore
-    db_report.fee_commission_income = report_data.fee_commission_income  # type: ignore
-    db_report.operating_expenses = report_data.operating_expenses  # type: ignore
-    db_report.provisions = report_data.provisions  # type: ignore
-    db_report.operating_cash_flow = report_data.operating_cash_flow  # type: ignore
-    db_report.capex = report_data.capex  # type: ignore
-    db_report.lease_principal = report_data.lease_principal  # type: ignore
-    db_report.lease_interest = report_data.lease_interest  # type: ignore
-    db_report.interest_paid = report_data.interest_paid  # type: ignore
-    db_report.debt_principal = report_data.debt_principal  # type: ignore
-    db_report.depreciation_amortization = report_data.depreciation_amortization  # type: ignore
+    # Показатели отчёта — единым списком из схемы. Технические метки AI
+    # (auto_extracted, extraction_model, source_pdf_path) при ручной правке
+    # не трогаем: их проставляет парсер.
+    for _field in _FIGURE_FIELDS:
+        if _field in _UPDATE_SKIP:
+            continue
+        setattr(db_report, _field, getattr(report_data, _field))
 
     # Любая ручная правка через форму по умолчанию подтверждает корректность данных.
     # Схема FinancialReportCreate имеет verified_by_analyst=True по умолчанию, поэтому

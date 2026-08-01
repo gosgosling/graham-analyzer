@@ -1,0 +1,174 @@
+/* Банковский блок карточки компании.
+ *
+ * Цвета берутся только из токенов (`styles/tokens.css`), поэтому блок живёт
+ * в обеих темах без отдельных правил: тема переключается атрибутом
+ * data-theme на <html>, а токены под ним переопределяются.
+ *
+ * Уровни называются как в панели мультипликаторов — good / warn / bad / na, —
+ * чтобы одинаковые состояния выглядели одинаково на всех экранах.
+ */
+
+.bank-panel {
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-xl);
+  padding: var(--space-5);
+  margin: var(--space-5) 0;
+  box-shadow: var(--shadow-1);
+}
+
+.bank-panel-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-4);
+}
+
+.bank-panel-header h2 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--color-text-primary);
+}
+
+.bank-panel-period {
+  font-size: 0.85rem;
+  color: var(--color-text-tertiary);
+}
+
+.bank-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: var(--space-3);
+}
+
+.bank-metric-card {
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-bg-subtle);
+  transition: border-color var(--transition-fast, 0.15s ease);
+}
+
+/* Светофор — теми же токенами, что и карточки мультипликаторов */
+.bank-metric-card.level-good {
+  background: var(--color-success-soft);
+  border-color: var(--color-success-border);
+}
+
+.bank-metric-card.level-warn {
+  background: var(--color-warning-soft);
+  border-color: var(--color-warning-border);
+}
+
+.bank-metric-card.level-bad {
+  background: var(--color-error-soft);
+  border-color: var(--color-error-border);
+}
+
+/* Нет данных или показатель справочный — нейтральная карточка без сигнала */
+.bank-metric-card.level-na {
+  background: var(--color-bg-subtle);
+  border-color: var(--color-border-subtle);
+}
+
+.bank-metric-label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-tertiary);
+}
+
+.bank-metric-value {
+  font-size: 1.45rem;
+  font-weight: 600;
+  margin: var(--space-1) 0;
+  color: var(--color-text-primary);
+  font-family: var(--font-ticker, var(--font-mono, inherit));
+  font-variant-numeric: tabular-nums;
+}
+
+.bank-metric-card.level-good .bank-metric-value { color: var(--color-success-text); }
+.bank-metric-card.level-warn .bank-metric-value { color: var(--color-warning-text); }
+.bank-metric-card.level-bad  .bank-metric-value { color: var(--color-error-text); }
+.bank-metric-card.level-na   .bank-metric-value { color: var(--color-text-quaternary); }
+
+.bank-metric-meaning {
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: var(--color-text-secondary);
+}
+
+.bank-metric-hint {
+  font-size: 0.72rem;
+  line-height: 1.4;
+  color: var(--color-text-quaternary);
+  margin-top: var(--space-2);
+}
+
+.bank-panel-note {
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--color-text-tertiary);
+  margin: var(--space-4) 0 0;
+}
+
+.bank-history {
+  margin-top: var(--space-6);
+}
+
+.bank-history h3 {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+  margin: 0 0 var(--space-3);
+  color: var(--color-text-tertiary);
+}
+
+/* Широкая таблица прокручивается внутри себя, а не тянет страницу */
+.bank-history-scroll {
+  overflow-x: auto;
+}
+
+.bank-history-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.bank-history-table th,
+.bank-history-table td {
+  padding: var(--space-2) var(--space-3);
+  text-align: right;
+  border-bottom: 1px solid var(--color-border-subtle);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.bank-history-table th {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-tertiary);
+  font-weight: 600;
+}
+
+.bank-history-table th:first-child,
+.bank-history-label {
+  text-align: left;
+  white-space: normal;
+  color: var(--color-text-secondary);
+}
+
+.bank-history-table tbody tr:hover {
+  background: var(--color-bg-hover);
+}
+
+.bank-history-cell.level-good { color: var(--color-success-text); }
+.bank-history-cell.level-warn { color: var(--color-warning-text); }
+.bank-history-cell.level-bad  { color: var(--color-error-text); }
+.bank-history-cell.level-na   { color: var(--color-text-quaternary); }

@@ -12,9 +12,9 @@ import {
   verifyReport,
 } from '../services';
 import { Company, FinancialReportCreate, FinancialReport } from '../types';
-import ReportForm from '../components/ReportForm';
 import TInvestSyncBar from '../components/TInvestSyncBar';
 import VerificationBadge from '../components/VerificationBadge';
+import ReportDetailModal from '../components/ReportDetailModal';
 import { formatPerShare } from '../utils/perShare';
 import { formatMln } from '../utils/format';
 import './SecuritiesList.css';
@@ -114,9 +114,10 @@ const CompaniesList: React.FC = () => {
     );
   };
 
+  // Ввод и правка отчётов живут только в матрице: одна таблица вместо
+  // модального окна, которое дублировало её поля и тормозило на больших формах.
   const handleAddReport = (company: Company) => {
-    setSelectedCompany(company);
-    setShowForm(true);
+    navigate(`/company/${company.id}/reports-matrix`);
   };
 
   const handleFormSubmit = async (reportData: FinancialReportCreate) => {
@@ -382,50 +383,19 @@ const CompaniesList: React.FC = () => {
         </table>
       </div>
       
-      {showForm && selectedCompany && selectedCompany.id && (
-        <ReportForm
-          companyId={selectedCompany.id}
-          companyName={selectedCompany.name}
-          ticker={selectedCompany.ticker}
-          onSubmit={handleFormSubmit}
-          onCancel={handleFormCancel}
-        />
-      )}
-      
-      {selectedReport && !editingReport && (
+      {selectedReport && (
         <ReportDetailModal
           report={selectedReport}
           onClose={handleCloseReport}
           onEdit={(report) => {
-            // Найти компанию для этого отчёта
-            const comp = companies?.find((c: Company) => c.id === report.company_id) ?? null;
-            setEditingCompany(comp);
-            setEditingReport(report);
-            setSelectedReport(null);
+            // Правка отчётов живёт в матрице — там же, где ввод.
+            navigate(`/company/${report.company_id}/reports-matrix`);
           }}
           onVerify={(reportId) => verifyReportMutation.mutate(reportId)}
           verifyPending={verifyReportMutation.isPending}
         />
       )}
 
-      {editingReport && editingCompany && editingCompany.id && (
-        <ReportForm
-          companyId={editingCompany.id}
-          companyName={editingCompany.name}
-          ticker={editingCompany.ticker}
-          reportId={editingReport.id}
-          initialValues={{
-            ...editingReport,
-            period_type: editingReport.period_type.toLowerCase() as any,
-            accounting_standard: editingReport.accounting_standard as any,
-            source: (editingReport.source ?? 'manual').toLowerCase() as any,
-          }}
-          onSubmit={async (data) => {
-            await updateReportMutation.mutateAsync({ id: editingReport.id, data });
-          }}
-          onCancel={() => { setEditingReport(null); setEditingCompany(null); }}
-        />
-      )}
     </div>
   );
 };
@@ -513,280 +483,6 @@ const CompanyReportsSection: React.FC<CompanyReportsSectionProps> = ({
           </button>
         </div>
       )}
-    </div>
-  );
-};
-
-interface ReportDetailModalProps {
-  report: FinancialReport;
-  onClose: () => void;
-  onEdit?: (report: FinancialReport) => void;
-  onVerify?: (reportId: number) => void;
-  verifyPending?: boolean;
-}
-
-// Тот же полный компонент, что и в CompanyDetail
-const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
-  report,
-  onClose,
-  onEdit,
-  onVerify,
-  verifyPending,
-}) => {
-  const cur = report.currency;
-  const isUsd = cur === 'USD';
-
-  const fmtMln = (n: number | null | undefined): string => formatMln(n, cur);
-
-  const pt2 = report.period_type.toLowerCase();
-  const periodLabel =
-    pt2 === 'annual'
-      ? 'Годовой'
-      : pt2 === 'semi_annual'
-      ? 'Полугодовой'
-      : `Квартальный (Q${report.fiscal_quarter})`;
-
-  return (
-    <div className="report-detail-overlay" onClick={onClose}>
-      <div className="report-detail-container" onClick={(e) => e.stopPropagation()}>
-        <div className="report-detail-header">
-          <div>
-            <h2 className="report-detail-modal-title-row">
-              📊 Финансовый отчет
-              <VerificationBadge
-                autoExtracted={report.auto_extracted}
-                verifiedByAnalyst={report.verified_by_analyst}
-              />
-            </h2>
-            <p className="report-detail-subtitle">
-              {report.fiscal_year} · {periodLabel} · {report.accounting_standard}
-            </p>
-          </div>
-          <button onClick={onClose} className="btn-close">✕</button>
-        </div>
-
-        <div className="report-detail-content">
-          {report.verified_by_analyst === false && (
-            <div className="detail-section detail-section--verification-banner">
-              <h3>
-                {report.auto_extracted ? '🤖 Черновик AI-парсера' : '⚠ Требует проверки'}
-              </h3>
-              <p>
-                Отчёт ещё не подтверждён аналитиком.
-                {report.extraction_model && (
-                  <>
-                    {' '}Создан моделью <code>{report.extraction_model}</code>.
-                  </>
-                )}
-              </p>
-              {report.extraction_notes && (
-                <details className="report-detail-verification-details">
-                  <summary>
-                    Заметки модели
-                  </summary>
-                  <pre className="report-detail-verification-pre">
-                    {report.extraction_notes}
-                  </pre>
-                </details>
-              )}
-            </div>
-          )}
-          <div className="detail-section">
-            <h3>Атрибуты отчёта</h3>
-            <div className="detail-grid">
-              <div className="detail-item">
-                <span className="detail-label">Период:</span>
-                <span className="detail-value">{report.fiscal_year} — {periodLabel}</span>
-              </div>
-              <div className="detail-item">
-                <span className="detail-label">Дата окончания периода:</span>
-                <span className="detail-value">{report.report_date}</span>
-              </div>
-              {report.filing_date && (
-                <div className="detail-item">
-                  <span className="detail-label">Дата публикации:</span>
-                  <span className="detail-value">{report.filing_date}</span>
-                </div>
-              )}
-              <div className="detail-item">
-                <span className="detail-label">Стандарт / Валюта:</span>
-                <span className="detail-value">
-                  {report.accounting_standard} / {cur}
-                  {isUsd && report.exchange_rate ? ` (курс: ${report.exchange_rate} ₽)` : ''}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {(report.price_per_share || report.price_at_filing || report.shares_issued || report.shares_outstanding) && (
-            <div className="detail-section">
-              <h3>Рыночные данные</h3>
-              <div className="detail-grid">
-                {report.price_per_share != null && (
-                  <div className="detail-item">
-                    <span className="detail-label">Цена на дату отчёта:</span>
-                    <span className="detail-value">
-                      {formatPerShare(report.price_per_share)} {cur}
-                      {isUsd && report.price_per_share_rub && (
-                        <span className="detail-hint"> = {formatPerShare(report.price_per_share_rub)} ₽</span>
-                      )}
-                    </span>
-                  </div>
-                )}
-                {report.price_at_filing != null && (
-                  <div className="detail-item">
-                    <span className="detail-label">Цена на дату публикации:</span>
-                    <span className="detail-value">{formatPerShare(report.price_at_filing)} {cur}</span>
-                  </div>
-                )}
-                {report.shares_issued != null && (
-                  <div className="detail-item">
-                    <span className="detail-label">Размещено (общее):</span>
-                    <span className="detail-value">{report.shares_issued.toLocaleString('ru-RU')} шт.</span>
-                  </div>
-                )}
-                {(report.shares_outstanding_effective ?? report.shares_outstanding) != null && (
-                  <div className="detail-item">
-                    <span className="detail-label">Акции в обращении:</span>
-                    <span className="detail-value">
-                      {(report.shares_outstanding_effective ?? report.shares_outstanding)!.toLocaleString('ru-RU')} шт.
-                    </span>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {(report.revenue != null ||
-            report.net_income != null ||
-            report.net_income_reported != null) && (
-            <div className="detail-section">
-              <h3>Отчёт о прибылях и убытках <span className="section-units">(млн {cur})</span></h3>
-              <div className="detail-grid">
-                {report.revenue != null && (
-                  <div className="detail-item">
-                    <span className="detail-label">Выручка:</span>
-                    <span className="detail-value">{fmtMln(report.revenue)}</span>
-                  </div>
-                )}
-                {report.net_income != null && (
-                  <div className="detail-item">
-                    <span className="detail-label">Чистая прибыль:</span>
-                    <span className="detail-value">{fmtMln(report.net_income)}</span>
-                  </div>
-                )}
-                {report.net_income_reported != null && (
-                  <div className="detail-item">
-                    <span className="detail-label">Фактическая прибыль (отчётная):</span>
-                    <span className="detail-value">{fmtMln(report.net_income_reported)}</span>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {(report.total_assets != null || report.equity != null) && (
-            <div className="detail-section">
-              <h3>Балансовые показатели <span className="section-units">(млн {cur})</span></h3>
-              <div className="detail-grid">
-                {report.total_assets != null && (
-                  <div className="detail-item"><span className="detail-label">Активы (всего):</span><span className="detail-value">{fmtMln(report.total_assets)}</span></div>
-                )}
-                {report.current_assets != null && (
-                  <div className="detail-item"><span className="detail-label">Оборотные активы:</span><span className="detail-value">{fmtMln(report.current_assets)}</span></div>
-                )}
-                {report.total_liabilities != null && (
-                  <div className="detail-item"><span className="detail-label">Обязательства (всего):</span><span className="detail-value">{fmtMln(report.total_liabilities)}</span></div>
-                )}
-                {report.current_liabilities != null && (
-                  <div className="detail-item"><span className="detail-label">Краткосрочные обяз-ва:</span><span className="detail-value">{fmtMln(report.current_liabilities)}</span></div>
-                )}
-                {report.equity != null && (
-                  <div className="detail-item"><span className="detail-label">Собственный капитал:</span><span className="detail-value">{fmtMln(report.equity)}</span></div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Денежные потоки (ОДДС) */}
-          {(report.operating_cash_flow != null || report.capex != null || report.depreciation_amortization != null) && (
-            <div className="detail-section">
-              <h3>Денежные потоки (ОДДС) <span className="section-units">(млн {cur})</span></h3>
-              <div className="detail-grid">
-                {report.operating_cash_flow != null && (
-                  <div className="detail-item">
-                    <span className="detail-label">Операционный поток (CFO):</span>
-                    <span className="detail-value">{fmtMln(report.operating_cash_flow)}</span>
-                  </div>
-                )}
-                {report.capex != null && (
-                  <div className="detail-item">
-                    <span className="detail-label">CAPEX:</span>
-                    <span className="detail-value">{fmtMln(report.capex)}</span>
-                  </div>
-                )}
-                {report.depreciation_amortization != null && (
-                  <div className="detail-item">
-                    <span className="detail-label">Амортизация и износ (D&amp;A):</span>
-                    <span className="detail-value">{fmtMln(report.depreciation_amortization)}</span>
-                  </div>
-                )}
-                {report.fcf != null && (
-                  <div className="detail-item">
-                    <span className="detail-label">FCF (CFO − CAPEX):</span>
-                    <span className={`detail-value${report.fcf < 0 ? ' detail-loss' : ' detail-yes'}`}>
-                      {fmtMln(report.fcf)}
-                    </span>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {report.dividends_paid && (
-            <div className="detail-section">
-              <h3>Дивиденды</h3>
-              <div className="detail-grid">
-                <div className="detail-item">
-                  <span className="detail-label">Выплачивались:</span>
-                  <span className="detail-value detail-yes">✓ Да</span>
-                </div>
-                {report.dividends_per_share != null && (
-                  <div className="detail-item">
-                    <span className="detail-label">Дивиденд на акцию:</span>
-                    <span className="detail-value">{formatPerShare(report.dividends_per_share)} {cur}</span>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div className="report-detail-footer">
-          <span className="report-detail-meta">
-            Добавлен: {report.created_at ? new Date(report.created_at).toLocaleDateString('ru-RU') : '—'}
-          </span>
-          <div className="report-detail-footer-actions">
-            {onVerify && report.verified_by_analyst === false && (
-              <button
-                onClick={() => onVerify(report.id)}
-                className="btn-edit-report"
-                disabled={verifyPending}
-                style={{ background: '#52c41a', color: 'white', border: 'none' }}
-                title="Подтвердить, что отчёт проверен"
-              >
-                {verifyPending ? 'Подтверждаем…' : '✓ Подтвердить'}
-              </button>
-            )}
-            {onEdit && (
-              <button onClick={() => onEdit(report)} className="btn-edit-report">
-                ✏️ Редактировать
-              </button>
-            )}
-            <button onClick={onClose} className="btn-close-detail">Закрыть</button>
-          </div>
-        </div>
-      </div>
     </div>
   );
 };

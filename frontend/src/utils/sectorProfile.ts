@@ -45,11 +45,26 @@ export const GRAHAM_FALLBACK: SectorProfile = {
   },
 };
 
+/** Метрика без порогов в профиле: показываем, но не окрашиваем. */
+const NOT_APPLICABLE: SectorProfileBand = band(
+  null,
+  null,
+  false,
+  'Порог для этой отрасли не задан',
+  false,
+);
+
 export function getBand(
   profile: SectorProfile | null | undefined,
   metric: SectorMetricKey,
 ): SectorProfileBand {
-  return (profile ?? GRAHAM_FALLBACK).bands[metric] ?? GRAHAM_FALLBACK.bands[metric];
+  // `cir` есть только у банковского профиля, поэтому запасной вариант —
+  // «неприменимо», а не классический порог Грэма для другой метрики.
+  return (
+    (profile ?? GRAHAM_FALLBACK).bands[metric]
+    ?? GRAHAM_FALLBACK.bands[metric]
+    ?? NOT_APPLICABLE
+  );
 }
 
 /**
