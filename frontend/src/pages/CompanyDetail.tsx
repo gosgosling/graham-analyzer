@@ -14,8 +14,9 @@ import {
 } from '../services';
 import { FinancialReport, FinancialReportCreate } from '../types';
 import MultipliersPanel from '../components/MultipliersPanel';
-import ReportForm from '../components/ReportForm';
+import BankMetricsPanel from '../components/BankMetricsPanel';
 import VerificationBadge from '../components/VerificationBadge';
+import ReportDetailModal from '../components/ReportDetailModal';
 import AiParsePdfModal from '../components/AiParsePdfModal';
 import { formatPerShare } from '../utils/perShare';
 import { formatMln } from '../utils/format';
@@ -34,8 +35,6 @@ const CompanyDetail: React.FC = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [selectedReport, setSelectedReport] = useState<FinancialReport | null>(null);
-  const [editingReport, setEditingReport] = useState<FinancialReport | null>(null);
-  const [showAddReportForm, setShowAddReportForm] = useState(false);
   const [aiParseMode, setAiParseMode] = useState<'create' | 'compare' | 'batch' | null>(null);
   // Состояние раздела отчётов
   const [reportsExpanded, setReportsExpanded] = useState(true);
@@ -54,7 +53,6 @@ const CompanyDetail: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ['multipliers', companyId] });
       await refreshCompanyMultipliers(Number(companyId), true);
       queryClient.invalidateQueries({ queryKey: ['multipliers', companyId] });
-      setShowAddReportForm(false);
       alert('Отчёт успешно добавлен');
     },
     onError: (err: any) => {
@@ -81,7 +79,6 @@ const CompanyDetail: React.FC = () => {
       // Пересчитываем мультипликаторы на сервере
       await refreshCompanyMultipliers(Number(companyId), true);
       queryClient.invalidateQueries({ queryKey: ['multipliers', companyId] });
-      setEditingReport(null);
       setSelectedReport(null);
     },
     onError: (err: any) => {
@@ -150,7 +147,6 @@ const CompanyDetail: React.FC = () => {
       }
       queryClient.invalidateQueries({ queryKey: ['multipliers', companyId] });
       setSelectedReport(null);
-      setEditingReport(null);
     },
     onError: (err: any) => {
       const d = err?.response?.data?.detail;
@@ -394,7 +390,14 @@ const CompanyDetail: React.FC = () => {
       </div>
 
       {/* Мультипликаторы — сразу под шапкой */}
-      <MultipliersPanel company={company} />
+      <MultipliersPanel company={company} reports={reports} />
+
+      {/* Банковский блок: риск, качество портфеля, фондирование, капитал.
+          Показывается только у банков — определяется типом отчёта, который
+          бэкенд проставляет по сектору компании. */}
+      {reports && reports.some((r) => r.report_type === 'bank') && (
+        <BankMetricsPanel reports={reports} />
+      )}
 
       {/* Основная сетка с информацией */}
       <div className="company-content-grid">
@@ -554,12 +557,7 @@ const CompanyDetail: React.FC = () => {
               <div className="reports-card-header-actions">
                 <AddReportMenu
                   disabled={createReportMutation.isPending}
-                  onManualAdd={() => {
-                    setShowAddReportForm(true);
-                    setSelectedReport(null);
-                    setEditingReport(null);
-                    setReportsExpanded(true);
-                  }}
+                  onManualAdd={() => navigate(`/company/${companyId}/reports-matrix`)}
                   onAiCreate={() => {
                     setAiParseMode('create');
                     setReportsExpanded(true);
@@ -699,11 +697,7 @@ const CompanyDetail: React.FC = () => {
                       type="button"
                       className="btn-add-report-inline"
                       disabled={createReportMutation.isPending}
-                      onClick={() => {
-                        setShowAddReportForm(true);
-                        setSelectedReport(null);
-                        setEditingReport(null);
-                      }}
+                      onClick={() => navigate(`/company/${companyId}/reports-matrix`)}
                     >
                       + Добавить отчет
                     </button>
@@ -793,15 +787,11 @@ const CompanyDetail: React.FC = () => {
       </div>
 
       {/* Модальное окно просмотра отчёта */}
-      {selectedReport && !editingReport && (
+      {selectedReport && (
         <ReportDetailModal
           report={selectedReport}
           onClose={() => setSelectedReport(null)}
-          onEdit={(report) => {
-            setShowAddReportForm(false);
-            setEditingReport(report);
-            setSelectedReport(null);
-          }}
+          onEdit={() => navigate(`/company/${companyId}/reports-matrix`)}
           onVerify={(reportId) => verifyReportMutation.mutate(reportId)}
           verifyPending={verifyReportMutation.isPending}
           onDelete={(reportId) => {
@@ -833,448 +823,9 @@ const CompanyDetail: React.FC = () => {
         />
       )}
 
-      {/* Форма создания отчёта */}
-      {showAddReportForm && company && !editingReport && (
-        <ReportForm
-          companyId={Number(companyId)}
-          companyName={company.name}
-          ticker={company.ticker}
-          sector={company.sector}
-          isPreferredShare={company.is_preferred_share}
-          onSubmit={async (data) => {
-            await createReportMutation.mutateAsync(data);
-          }}
-          onCancel={() => setShowAddReportForm(false)}
-        />
-      )}
-
-      {/* Форма редактирования отчёта */}
-      {editingReport && company && !showAddReportForm && (
-        <ReportForm
-          companyId={Number(companyId)}
-          companyName={company.name}
-          ticker={company.ticker}
-          sector={company.sector}
-          reportId={editingReport.id}
-          isPreferredShare={company.is_preferred_share}
-          initialValues={{
-            ...editingReport,
-            period_type: editingReport.period_type.toLowerCase() as any,
-            accounting_standard: editingReport.accounting_standard as any,
-            source: (editingReport.source ?? 'manual').toLowerCase() as any,
-          }}
-          onSubmit={async (data) => {
-            await updateReportMutation.mutateAsync({ id: editingReport.id, data });
-          }}
-          onCancel={() => setEditingReport(null)}
-        />
-      )}
     </div>
   );
 };
-
-interface ReportDetailModalProps {
-  report: FinancialReport;
-  onClose: () => void;
-  onEdit?: (report: FinancialReport) => void;
-  onVerify?: (reportId: number) => void;
-  verifyPending?: boolean;
-  onDelete?: (reportId: number) => void;
-  deletePending?: boolean;
-}
-
-const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
-  report,
-  onClose,
-  onEdit,
-  onVerify,
-  verifyPending,
-  onDelete,
-  deletePending,
-}) => {
-  const cur = report.currency;
-  const isUsd = cur === 'USD';
-
-  const fmtMln = (n: number | null | undefined): string => formatMln(n, cur);
-
-  const pt = report.period_type.toLowerCase();
-  const periodLabel =
-    pt === 'annual'
-      ? 'Годовой'
-      : pt === 'semi_annual'
-      ? 'Полугодовой'
-      : `Квартальный (Q${report.fiscal_quarter})`;
-
-  return (
-    <div className="report-detail-overlay" onClick={onClose}>
-      <div className="report-detail-container" onClick={(e) => e.stopPropagation()}>
-        <div className="report-detail-header">
-          <div>
-            <h2 className="report-detail-modal-title-row">
-              📊 Финансовый отчет
-              <VerificationBadge
-                autoExtracted={report.auto_extracted}
-                verifiedByAnalyst={report.verified_by_analyst}
-              />
-            </h2>
-            <p className="report-detail-subtitle">
-              {report.fiscal_year} · {periodLabel} · {report.accounting_standard}
-              {report.consolidated ? ' · Консолидированный' : ''}
-            </p>
-          </div>
-          <button onClick={onClose} className="btn-close">✕</button>
-        </div>
-
-        <div className="report-detail-content">
-          {/* AI-блок: предупреждение и заметки модели */}
-          {report.verified_by_analyst === false && (
-            <div className="detail-section detail-section--verification-banner">
-              <h3>
-                {report.auto_extracted ? '🤖 Черновик AI-парсера' : '⚠ Требует проверки'}
-              </h3>
-              <p>
-                Отчёт ещё не подтверждён аналитиком.
-                {report.extraction_model && (
-                  <>
-                    {' '}Создан моделью <code>{report.extraction_model}</code>.
-                  </>
-                )}{' '}
-                Сверьте значения с PDF и нажмите «Подтвердить» в футере этого окна
-                (или отредактируйте через «Редактировать» — сохранение формы тоже помечает отчёт как проверенный).
-              </p>
-              {report.extraction_notes && (
-                <details className="report-detail-verification-details">
-                  <summary>
-                    Заметки модели
-                  </summary>
-                  <pre className="report-detail-verification-pre">
-                    {report.extraction_notes}
-                  </pre>
-                </details>
-              )}
-            </div>
-          )}
-
-          {/* Период и даты */}
-          <div className="detail-section">
-            <h3>Атрибуты отчёта</h3>
-            <div className="detail-grid">
-              <div className="detail-item">
-                <span className="detail-label">Период:</span>
-                <span className="detail-value">{report.fiscal_year} — {periodLabel}</span>
-              </div>
-              <div className="detail-item">
-                <span className="detail-label">Дата окончания периода:</span>
-                <span className="detail-value">{report.report_date}</span>
-              </div>
-              {report.filing_date && (
-                <div className="detail-item">
-                  <span className="detail-label">Дата публикации:</span>
-                  <span className="detail-value">{report.filing_date}</span>
-                </div>
-              )}
-              <div className="detail-item">
-                <span className="detail-label">Стандарт:</span>
-                <span className="detail-value">{report.accounting_standard}</span>
-              </div>
-              <div className="detail-item">
-                <span className="detail-label">Валюта:</span>
-                <span className="detail-value">{cur}{isUsd && report.exchange_rate ? ` (курс: ${report.exchange_rate} ₽)` : ''}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Рыночные данные */}
-          {(report.price_per_share || report.price_at_filing || report.shares_issued || report.shares_outstanding || report.shares_weighted_avg) && (
-            <div className="detail-section">
-              <h3>Рыночные данные</h3>
-              <div className="detail-grid">
-                {report.price_per_share && (
-                  <div className="detail-item">
-                    <span className="detail-label">Цена на дату отчёта:</span>
-                    <span className="detail-value">
-                      {formatPerShare(report.price_per_share)} {cur}
-                      {isUsd && report.price_per_share_rub && (
-                        <span className="detail-hint"> = {formatPerShare(report.price_per_share_rub)} ₽</span>
-                      )}
-                    </span>
-                  </div>
-                )}
-                {report.price_at_filing && (
-                  <div className="detail-item">
-                    <span className="detail-label">Цена на дату публикации:</span>
-                    <span className="detail-value">
-                      {formatPerShare(report.price_at_filing)} {cur}
-                    </span>
-                  </div>
-                )}
-                {report.shares_issued != null && (
-                  <div className="detail-item">
-                    <span className="detail-label">Размещено (общее):</span>
-                    <span className="detail-value">{report.shares_issued.toLocaleString('ru-RU')} шт.</span>
-                  </div>
-                )}
-                {(report.shares_outstanding_effective ?? report.shares_outstanding) != null && (
-                  <div className="detail-item">
-                    <span className="detail-label">Акции в обращении:</span>
-                    <span className="detail-value">
-                      {(report.shares_outstanding_effective ?? report.shares_outstanding)!.toLocaleString('ru-RU')} шт.
-                    </span>
-                  </div>
-                )}
-                {report.shares_weighted_avg != null && (
-                  <div className="detail-item">
-                    <span className="detail-label">Средневзвешенное:</span>
-                    <span className="detail-value">{report.shares_weighted_avg.toLocaleString('ru-RU')} шт.</span>
-                  </div>
-                )}
-                {report.treasury_shares != null && (
-                  <div className="detail-item">
-                    <span className="detail-label">Казначейские:</span>
-                    <span className="detail-value">{report.treasury_shares.toLocaleString('ru-RU')} шт.</span>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Отчёт о прибылях и убытках */}
-          {(report.revenue != null ||
-            report.net_income != null ||
-            report.net_income_reported != null) && (
-            <div className="detail-section">
-              <h3>Отчёт о прибылях и убытках <span className="section-units">(млн {cur})</span></h3>
-              <div className="detail-grid">
-                {report.revenue != null && (
-                  <div className="detail-item">
-                    <span className="detail-label">Выручка:</span>
-                    <span className="detail-value">{fmtMln(report.revenue)}</span>
-                  </div>
-                )}
-                {report.net_income != null && (
-                  <div className="detail-item">
-                    <span className="detail-label">Чистая прибыль:</span>
-                    <span className="detail-value">{fmtMln(report.net_income)}</span>
-                  </div>
-                )}
-                {report.net_income_reported != null && (
-                  <div className="detail-item">
-                    <span className="detail-label">Фактическая прибыль (отчётная):</span>
-                    <span className="detail-value">{fmtMln(report.net_income_reported)}</span>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Баланс */}
-          {(report.total_assets ||
-            report.equity ||
-            report.total_liabilities ||
-            report.cash_and_equivalents != null ||
-            report.debt != null) && (
-            <div className="detail-section">
-              <h3>Балансовые показатели <span className="section-units">(млн {cur})</span></h3>
-              <div className="detail-grid">
-                {report.total_assets != null && (
-                  <div className="detail-item">
-                    <span className="detail-label">Активы (всего):</span>
-                    <span className="detail-value">{fmtMln(report.total_assets)}</span>
-                  </div>
-                )}
-                {report.current_assets != null && (
-                  <div className="detail-item">
-                    <span className="detail-label">Оборотные активы:</span>
-                    <span className="detail-value">{fmtMln(report.current_assets)}</span>
-                  </div>
-                )}
-                {report.cash_and_equivalents != null && (
-                  <div className="detail-item">
-                    <span className="detail-label">Наличность (ДС и эквиваленты):</span>
-                    <span className="detail-value">{fmtMln(report.cash_and_equivalents)}</span>
-                  </div>
-                )}
-                {report.debt != null && (
-                  <div className="detail-item">
-                    <span className="detail-label">Долг:</span>
-                    <span className="detail-value">{fmtMln(report.debt)}</span>
-                  </div>
-                )}
-                {(report.net_debt != null ||
-                  computeNetDebt(report.debt, report.cash_and_equivalents) != null) && (
-                  <div className="detail-item">
-                    <span className="detail-label">Чистый долг (Net Debt):</span>
-                    <span className={`detail-value${
-                      (report.net_debt ?? computeNetDebt(report.debt, report.cash_and_equivalents) ?? 0) < 0
-                        ? ' detail-loss'
-                        : ''
-                    }`}>
-                      {fmtMln(report.net_debt ?? computeNetDebt(report.debt, report.cash_and_equivalents))}
-                    </span>
-                  </div>
-                )}
-                {report.total_liabilities != null && (
-                  <div className="detail-item">
-                    <span className="detail-label">Обязательства (всего):</span>
-                    <span className="detail-value">{fmtMln(report.total_liabilities)}</span>
-                  </div>
-                )}
-                {report.current_liabilities != null && (
-                  <div className="detail-item">
-                    <span className="detail-label">Краткосрочные обязательства:</span>
-                    <span className="detail-value">{fmtMln(report.current_liabilities)}</span>
-                  </div>
-                )}
-                {report.equity != null && (
-                  <div className="detail-item">
-                    <span className="detail-label">Собственный капитал:</span>
-                    <span className="detail-value">{fmtMln(report.equity)}</span>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Денежные потоки (ОДДС) */}
-          {(report.operating_cash_flow != null ||
-            report.capex != null ||
-            report.lease_principal != null ||
-            report.lease_interest != null ||
-            report.interest_paid != null ||
-            report.debt_principal != null ||
-            report.depreciation_amortization != null) && (
-            <div className="detail-section">
-              <h3>Денежные потоки (ОДДС) <span className="section-units">(млн {cur})</span></h3>
-              <div className="detail-grid">
-                {report.operating_cash_flow != null && (
-                  <div className="detail-item">
-                    <span className="detail-label">Операционный поток (CFO):</span>
-                    <span className="detail-value">{fmtMln(report.operating_cash_flow)}</span>
-                  </div>
-                )}
-                {report.capex != null && (
-                  <div className="detail-item">
-                    <span className="detail-label">CAPEX:</span>
-                    <span className="detail-value">{fmtMln(report.capex)}</span>
-                  </div>
-                )}
-                {report.lease_principal != null && (
-                  <div className="detail-item">
-                    <span className="detail-label">Тело аренды:</span>
-                    <span className="detail-value">{fmtMln(report.lease_principal)}</span>
-                  </div>
-                )}
-                {report.lease_interest != null && (
-                  <div className="detail-item">
-                    <span className="detail-label">Проценты по аренде:</span>
-                    <span className="detail-value">{fmtMln(report.lease_interest)}</span>
-                  </div>
-                )}
-                {report.interest_paid != null && (
-                  <div className="detail-item">
-                    <span className="detail-label">Проценты уплаченные:</span>
-                    <span className="detail-value">{fmtMln(report.interest_paid)}</span>
-                  </div>
-                )}
-                {report.debt_principal != null && (
-                  <div className="detail-item">
-                    <span className="detail-label">Тело долга (долг. ЦБ):</span>
-                    <span className="detail-value">{fmtMln(report.debt_principal)}</span>
-                  </div>
-                )}
-                {report.depreciation_amortization != null && (
-                  <div className="detail-item">
-                    <span className="detail-label">Амортизация и износ (D&amp;A):</span>
-                    <span className="detail-value">{fmtMln(report.depreciation_amortization)}</span>
-                  </div>
-                )}
-                {report.fcf != null && (
-                  <div className="detail-item">
-                    <span className="detail-label">FCF:</span>
-                    <span className={`detail-value${report.fcf < 0 ? ' detail-loss' : ' detail-yes'}`}>
-                      {fmtMln(report.fcf)}
-                    </span>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Дивиденды */}
-          {report.dividends_paid && (
-            <div className="detail-section">
-              <h3>Дивиденды</h3>
-              <div className="detail-grid">
-                <div className="detail-item">
-                  <span className="detail-label">Выплачивались:</span>
-                  <span className="detail-value detail-yes">✓ Да</span>
-                </div>
-                {report.dividends_per_share != null && (
-                  <div className="detail-item">
-                    <span className="detail-label">Дивиденд на акцию:</span>
-                    <span className="detail-value">
-                      {formatPerShare(report.dividends_per_share)} {cur}
-                    </span>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div className="report-detail-footer">
-          <span className="report-detail-meta">
-            Добавлен: {report.created_at ? new Date(report.created_at).toLocaleDateString('ru-RU') : '—'}
-          </span>
-          <div className="report-detail-footer-actions">
-            {onVerify && report.verified_by_analyst === false && (
-              <button
-                onClick={() => onVerify(report.id)}
-                className="btn-edit-report"
-                disabled={verifyPending}
-                style={{
-                  background: '#52c41a',
-                  color: 'white',
-                  border: 'none',
-                }}
-                title="Подтвердить, что отчёт проверен аналитиком"
-              >
-                {verifyPending ? 'Подтверждаем…' : '✓ Подтвердить'}
-              </button>
-            )}
-            {onEdit && (
-              <button onClick={() => onEdit(report)} className="btn-edit-report">
-                ✏️ Редактировать
-              </button>
-            )}
-            {onDelete && (
-              <button
-                onClick={() => onDelete(report.id)}
-                className="btn-edit-report"
-                disabled={deletePending}
-                style={{
-                  background: '#ff4d4f',
-                  color: 'white',
-                  border: 'none',
-                }}
-                title="Удалить отчёт и связанные записи в истории мультипликаторов"
-              >
-                {deletePending ? 'Удаляем…' : '🗑️ Удалить'}
-              </button>
-            )}
-            <button onClick={onClose} className="btn-close-detail">Закрыть</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// ─── Выпадающее меню «Добавить отчёт» ──────────────────────────────────────
-//
-// Один компактный primary-CTA со стрелкой-переключателем выпадающего меню.
-// Современный паттерн вместо 4 рядом стоящих кнопок — не растягивает шапку
-// и логически группирует все способы создания отчёта.
 
 interface AddReportMenuProps {
   disabled?: boolean;

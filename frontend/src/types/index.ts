@@ -60,7 +60,7 @@ export interface Multipliers {
 }
 
 /** Ключи метрик, для которых отраслевой профиль задаёт пороги */
-export type SectorMetricKey = 'pe' | 'pb' | 'de' | 'cr' | 'roe' | 'dy';
+export type SectorMetricKey = 'pe' | 'pb' | 'de' | 'cr' | 'roe' | 'dy' | 'cir';
 
 /**
  * Пороги одной метрики.
@@ -84,7 +84,8 @@ export interface SectorProfile {
     summary: string;
     book_value_reliable: boolean;
     lease_heavy: boolean;
-    bands: Record<SectorMetricKey, SectorProfileBand>;
+    /** Пороги по метрикам. `cir` присутствует только у банковского профиля. */
+    bands: Partial<Record<SectorMetricKey, SectorProfileBand>>;
 }
 
 /** Профиль в списке выбора (GET /companies/sector-profiles) */
@@ -327,7 +328,20 @@ export interface FinancialReportCreate {
     net_interest_income?: number | null;   // Чистые процентные доходы, млн
     fee_commission_income?: number | null; // Чистые комиссионные доходы, млн
     operating_expenses?: number | null;    // Операционные расходы (до резервов), млн
-    provisions?: number | null;            // Резервы под обесценение кредитов, млн
+    provisions?: number | null;            // Резерв ЗА ПЕРИОД, млн (положительное число)
+    interest_income?: number | null;       // Процентные доходы (валовые), млн
+    interest_expense?: number | null;      // Процентные расходы, млн (положительное число)
+    gross_loans?: number | null;           // Кредиты клиентам до вычета резерва, млн
+    loan_loss_allowance?: number | null;   // Накопленный резерв (ECL), млн
+    npl_loans?: number | null;             // Обесцененные кредиты (Stage 3 / 90+), млн
+    customer_deposits?: number | null;     // Средства клиентов, млн
+    loans_retail?: number | null;          // Кредиты физлицам (валовые), млн
+    loans_corporate?: number | null;       // Кредиты юрлицам (валовые), млн
+    deposits_retail?: number | null;       // Средства физлиц, млн
+    deposits_corporate?: number | null;    // Средства юрлиц, млн
+    risk_weighted_assets?: number | null;  // Активы, взвешенные по риску, млн
+    capital_adequacy_ratio?: number | null; // Н1.0 общий / Total capital ratio, %
+    capital_adequacy_core?: number | null;  // Н1.1 / CET1 — основной капитал, %
 
     // Денежные потоки (ОДДС) — для всех типов, кроме банков (для банков оставляют null)
     /** Операционный денежный поток (CF from operations), млн валюты */
@@ -357,7 +371,33 @@ export interface FinancialReportCreate {
     source_pdf_path?: string | null;
 }
 
+/**
+ * Банковские показатели отчёта. Считает и раскрашивает бэкенд
+ * (`bank_metrics.py`) — фронтенд только отображает, чтобы пороги не разошлись.
+ */
+export interface BankMetrics {
+    roa: number | null;                     // Прибыль / активы, %
+    net_interest_margin: number | null;     // ЧПД / активы, %
+    cost_of_risk: number | null;            // Резерв за период / портфель, %
+    npl_ratio: number | null;               // Обесцененные / портфель, %
+    npl_coverage: number | null;            // Накопленный резерв / обесцененные, %
+    loans_to_deposits: number | null;       // Чистые кредиты / средства клиентов, %
+    cost_of_funding: number | null;         // Процентные расходы / средства клиентов, %
+    capital_adequacy_ratio: number | null;  // Н1.0 общий, как раскрыл эмитент, %
+    capital_adequacy_core: number | null;   // Н1.1 / CET1 — основной капитал, %
+    capital_to_rwa: number | null;          // Капитал / RWA, % — сверка Н1.0
+    retail_loans_share: number | null;      // Доля розницы в портфеле, %
+    retail_deposits_share: number | null;   // Доля физлиц в средствах клиентов, %
+    net_loans: number | null;               // Портфель за вычетом резерва, млн
+    statuses: Record<string, 'good' | 'normal' | 'bad' | 'n/a'>;
+    hints: Record<string, string>;
+}
+
 export interface FinancialReport extends FinancialReportCreate {
+    /** Банковские показатели: считаются бэкендом только для report_type='bank'. */
+    bank_metrics?: BankMetrics | null;
+    /** Доля прибыли, выплаченная дивидендами, % — считает бэкенд для всех компаний. */
+    dividend_payout?: number | null;
     id: number;
     created_at?: string;
     updated_at?: string | null;

@@ -141,7 +141,63 @@ class FinancialReport(Base):
     )  # Операционные расходы (до резервов), млн — для расчёта CIR
     provisions: Mapped[Optional[float]] = mapped_column(
         Numeric(15, 3), nullable=True
-    )  # Резервы под обесценение кредитов, млн
+    )  # Резервы под обесценение кредитов, млн — расход ЗА ПЕРИОД, положительным числом
+
+    # Валовые процентные потоки — из них видна стоимость фондирования:
+    # дешёвые депозиты и есть главное преимущество банка.
+    interest_income: Mapped[Optional[float]] = mapped_column(
+        Numeric(15, 3), nullable=True
+    )  # Процентные доходы (валовые, до вычета процентных расходов), млн
+    interest_expense: Mapped[Optional[float]] = mapped_column(
+        Numeric(15, 3), nullable=True
+    )  # Процентные расходы, млн — положительным числом
+
+    # Кредитный портфель. Баланс показывает кредиты ЗА ВЫЧЕТОМ резерва;
+    # валовая сумма и накопленный резерв раскрываются в примечании «Кредиты
+    # клиентам». Без валовой суммы не считается стоимость риска: резерв за
+    # период нужно делить на портфель, а не на активы.
+    gross_loans: Mapped[Optional[float]] = mapped_column(
+        Numeric(15, 3), nullable=True
+    )  # Кредиты клиентам до вычета резерва, млн
+    loan_loss_allowance: Mapped[Optional[float]] = mapped_column(
+        Numeric(15, 3), nullable=True
+    )  # Накопленный резерв под кредитные убытки (ECL), млн — положительным числом
+    npl_loans: Mapped[Optional[float]] = mapped_column(
+        Numeric(15, 3), nullable=True
+    )  # Обесцененные кредиты: Stage 3 или просрочка 90+, млн (валовые)
+    customer_deposits: Mapped[Optional[float]] = mapped_column(
+        Numeric(15, 3), nullable=True
+    )  # Средства клиентов (депозиты), млн
+
+    # Разбивка портфеля и фондирования на розницу и корпоратив. Один и тот же
+    # уровень риска у розничного и корпоративного банка означает разное:
+    # розничные депозиты дешевле и устойчивее, розничные кредиты доходнее и
+    # рискованнее. Заполняется по сегментной части примечаний.
+    loans_retail: Mapped[Optional[float]] = mapped_column(
+        Numeric(15, 3), nullable=True
+    )  # Кредиты физическим лицам (валовые), млн
+    loans_corporate: Mapped[Optional[float]] = mapped_column(
+        Numeric(15, 3), nullable=True
+    )  # Кредиты юридическим лицам (валовые), млн
+    deposits_retail: Mapped[Optional[float]] = mapped_column(
+        Numeric(15, 3), nullable=True
+    )  # Средства физических лиц, млн
+    deposits_corporate: Mapped[Optional[float]] = mapped_column(
+        Numeric(15, 3), nullable=True
+    )  # Средства юридических лиц, млн
+
+    # Достаточность капитала: главный ограничитель роста банка и его дивидендов.
+    risk_weighted_assets: Mapped[Optional[float]] = mapped_column(
+        Numeric(15, 3), nullable=True
+    )  # Активы, взвешенные по риску (RWA), млн
+    capital_adequacy_ratio: Mapped[Optional[float]] = mapped_column(
+        Numeric(6, 2), nullable=True
+    )  # Н1.0 или Total capital ratio по Базелю, % — как раскрыто эмитентом
+    # Убытки поглощает именно основной капитал: общий норматив включает
+    # субординированные займы, которые списываются не сразу и не всегда.
+    capital_adequacy_core: Mapped[Optional[float]] = mapped_column(
+        Numeric(6, 2), nullable=True
+    )  # Н1.1 / CET1 — достаточность основного капитала, %
 
     # ─── Денежные потоки (ОДДС) ──────────────────────────────────────────────
     # Все значения в МИЛЛИОНАХ валюты отчёта (как и остальные P&L-показатели).

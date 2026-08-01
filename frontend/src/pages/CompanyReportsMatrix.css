@@ -357,3 +357,49 @@
   font-size: 12px;
   color: var(--color-text-secondary);
 }
+
+/* ── Быстрое создание отчётов ──────────────────────────────────────────
+   Год и дата окончания периода связаны однозначно, поэтому спрашиваем
+   только год: колонка появляется сразу и заполняется прямо в таблице. */
+.crm-quick-add {
+  display: inline-flex;
+  align-items: stretch;
+  gap: 1px;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.crm-quick-period,
+.crm-quick-year {
+  appearance: none;
+  border: 1px solid var(--color-border-default);
+  background: var(--color-bg-input);
+  color: var(--color-text-primary);
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
+.crm-quick-period {
+  border-radius: var(--radius-md) 0 0 var(--radius-md);
+  color: var(--color-text-secondary);
+}
+
+.crm-quick-year {
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  border-left: none;
+  font-weight: 600;
+  background: var(--color-accent-indigo-soft);
+  border-color: var(--color-border-accent);
+}
+
+.crm-quick-year:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.crm-quick-period:hover,
+.crm-quick-year:hover:not(:disabled) {
+  background: var(--color-bg-hover);
+}

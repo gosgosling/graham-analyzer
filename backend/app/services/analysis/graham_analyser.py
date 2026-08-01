@@ -22,10 +22,8 @@ from app.services.analysis.sector_profiles import (
     resolve_profile,
 )
 
-# Cost-to-Income — банковская метрика операционной эффективности,
-# в отраслевые профили не входит: она применима только к банкам.
-_CIR_GOOD = 45.0
-_CIR_NORMAL = 55.0
+# Cost-to-Income применим только к банкам, поэтому порог задан лишь в
+# профиле BANK: у остальных профилей ключа "cir" нет и метрика получает "n/a".
 
 
 def classify_company(
@@ -77,11 +75,10 @@ def classify_company(
 
 
 def _evaluate_cir(profile: SectorProfile, cost_to_income: Optional[float]) -> str:
+    """CIR оценивается по тому же профилю, что и остальные метрики."""
     if profile.key != "bank" or cost_to_income is None:
         return "n/a"
-    if cost_to_income <= _CIR_GOOD:
-        return "good"
-    return "normal" if cost_to_income <= _CIR_NORMAL else "bad"
+    return evaluate_metric(profile, "cir", cost_to_income)
 
 
 def _verdict(statuses: Dict[str, str], cir_status: str) -> str:
