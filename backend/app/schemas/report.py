@@ -4,12 +4,44 @@
 самих схем: они же служат документацией на /docs.
 """
 from datetime import date, datetime
-from typing import Optional, Union
+from typing import Dict, Optional, Union
 
 from pydantic import BaseModel, computed_field, field_serializer, model_validator
 
 from app.models.enums import AccountingStandard, PeriodType, ReportSource
+from app.services.analysis.bank_metrics import (
+    bank_metric_hint,
+    compute_bank_metrics,
+    evaluate_all,
+)
+from app.services.analysis.payout import compute_dividend_payout
 from app.services.analysis.share_counts import compute_circulation_shares
+
+
+class BankMetricsOut(BaseModel):
+    """Банковские показатели отчёта вместе со светофором.
+
+    Пороги считает бэкенд, а не интерфейс: иначе одна и та же метрика
+    покрасится по-разному в карточке и в таблице, как это уже случалось
+    с отраслевыми порогами.
+    """
+
+    roa: Optional[float] = None
+    net_interest_margin: Optional[float] = None
+    cost_of_risk: Optional[float] = None
+    npl_ratio: Optional[float] = None
+    npl_coverage: Optional[float] = None
+    loans_to_deposits: Optional[float] = None
+    cost_of_funding: Optional[float] = None
+    capital_adequacy_ratio: Optional[float] = None
+    capital_adequacy_core: Optional[float] = None
+    capital_to_rwa: Optional[float] = None
+    retail_loans_share: Optional[float] = None
+    retail_deposits_share: Optional[float] = None
+    net_loans: Optional[float] = None
+
+    statuses: Dict[str, str] = {}   # метрика → good | normal | bad | n/a
+    hints: Dict[str, str] = {}      # метрика → пояснение к порогу
 
 
 class ReportFigures(BaseModel):
@@ -59,7 +91,26 @@ class ReportFigures(BaseModel):
     net_interest_income: Optional[float] = None      # Чистые процентные доходы, млн
     fee_commission_income: Optional[float] = None    # Чистые комиссионные доходы, млн
     operating_expenses: Optional[float] = None       # Операционные расходы (до резервов), млн
-    provisions: Optional[float] = None               # Резервы под обесценение, млн
+    provisions: Optional[float] = None               # Резерв ЗА ПЕРИОД, млн (положительное число)
+    # Валовые процентные потоки — из них видна стоимость фондирования.
+    interest_income: Optional[float] = None          # Процентные доходы (валовые), млн
+    interest_expense: Optional[float] = None         # Процентные расходы, млн (положительное число)
+    # Кредитный портфель: баланс показывает его за вычетом резерва, валовая
+    # сумма и накопленный резерв — в примечании «Кредиты клиентам».
+    gross_loans: Optional[float] = None              # Кредиты клиентам до вычета резерва, млн
+    loan_loss_allowance: Optional[float] = None      # Накопленный резерв (ECL), млн
+    npl_loans: Optional[float] = None                # Обесцененные кредиты (Stage 3 / 90+), млн
+    customer_deposits: Optional[float] = None        # Средства клиентов, млн
+    # Разбивка на розницу и корпоратив: розничные депозиты дешевле и устойчивее,
+    # розничные кредиты доходнее и рискованнее.
+    loans_retail: Optional[float] = None             # Кредиты физлицам (валовые), млн
+    loans_corporate: Optional[float] = None          # Кредиты юрлицам (валовые), млн
+    deposits_retail: Optional[float] = None          # Средства физлиц, млн
+    deposits_corporate: Optional[float] = None       # Средства юрлиц, млн
+    # Достаточность капитала — ограничитель роста и дивидендов банка.
+    risk_weighted_assets: Optional[float] = None     # Активы, взвешенные по риску, млн
+    capital_adequacy_ratio: Optional[float] = None   # Н1.0 общий / Total capital ratio, %
+    capital_adequacy_core: Optional[float] = None    # Н1.1 / CET1 — основной капитал, %
 
     # ─── Денежные потоки (ОДДС) ───────────────────────────────────────────────
     # Для банков FCF концептуально неприменим, поля оставляем None.
@@ -197,6 +248,42 @@ class FinancialReport(ReportFigures):
         if isinstance(v, datetime):
             return v.isoformat()
         return str(v)
+
+    @computed_field  # type: ignore
+    @property
+    def dividend_payout(self) -> Optional[float]:
+        """Доля прибыли, выплаченная дивидендами, %.
+
+        Не банковский показатель: выплата сверх заработанного одинаково
+        тревожна у банка и у металлурга. Для убытка не считается — payout от
+        отрицательной прибыли выглядит как аккуратное число вместо
+        предупреждения.
+        """
+        return compute_dividend_payout(self)
+
+    # ─── Банковский блок ─────────────────────────────────────────────────────
+
+    @computed_field  # type: ignore
+    @property
+    def bank_metrics(self) -> Optional[BankMetricsOut]:
+        """Стоимость риска, качество портфеля, фондирование и капитал.
+
+        Считается только для банковских отчётов: у промышленной компании нет
+        ни кредитного портфеля, ни Н1.0, и пустой блок в карточке лишний.
+        Отношения не зависят от валюты — числитель и знаменатель из одного
+        отчёта, — поэтому конвертация в рубли здесь не нужна.
+        """
+        if (self.report_type or "general") != "bank":
+            return None
+
+        metrics = compute_bank_metrics(self)
+        statuses = evaluate_all(metrics)
+        hints = {
+            name: hint
+            for name in statuses
+            if (hint := bank_metric_hint(name)) is not None
+        }
+        return BankMetricsOut(**metrics.as_dict(), statuses=statuses, hints=hints)
 
     # Вспомогательный метод конвертации
     def _convert_to_rub(self, value: Optional[float]) -> Optional[float]:

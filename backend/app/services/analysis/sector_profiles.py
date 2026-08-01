@@ -30,7 +30,7 @@ from dataclasses import dataclass
 from typing import Dict, Optional, Tuple
 
 # Ключи метрик, для которых профиль задаёт пороги.
-METRIC_KEYS: Tuple[str, ...] = ("pe", "pb", "de", "cr", "roe", "dy")
+METRIC_KEYS: Tuple[str, ...] = ("pe", "pb", "de", "cr", "roe", "dy", "cir")
 
 
 @dataclass(frozen=True)
@@ -150,6 +150,12 @@ BANK = SectorProfile(
         ),
         "roe": _band(15, 10, True, "≥ 15% — хорошо"),
         "dy": _band(8, 4, True, "≥ 8% — хорошо"),
+        # Cost-to-Income: операционная эффективность банка. Порог жил
+        # константами в graham_analyser — теперь здесь, вместе с остальными.
+        "cir": _band(
+            45, 55, False, "≤ 45% — эффективный банк",
+            note="Операционные расходы к операционным доходам.",
+        ),
     },
 )
 
@@ -179,6 +185,12 @@ OIL_GAS_MINING = SectorProfile(
         ),
         "roe": _band(15, 10, True, "≥ 15% — хорошо"),
         "dy": _band(8, 4, True, "≥ 8% — хорошо"),
+        # Cost-to-Income: операционная эффективность банка. Порог жил
+        # константами в graham_analyser — теперь здесь, вместе с остальными.
+        "cir": _band(
+            45, 55, False, "≤ 45% — эффективный банк",
+            note="Операционные расходы к операционным доходам.",
+        ),
     },
 )
 
