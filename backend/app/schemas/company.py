@@ -16,6 +16,7 @@ class Company(BaseModel):
     # Профиль порогов, закреплённый аналитиком (см. /companies/sector-profiles).
     # Пусто → определяется автоматически по сектору.
     sector_profile_key: Optional[str] = None
+    company_type: str = "industrial"  # метод анализа: industrial|lender|insurance|holding|hybrid
     currency: str  # Валюта
     lot: int  # Размер лота
     api_trade_available_flag: bool = False  # Доступность для торговли через API

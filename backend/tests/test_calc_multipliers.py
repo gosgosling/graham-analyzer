@@ -191,13 +191,30 @@ def test_bank_skips_leverage_and_liquidity(report_factory):
     assert m["pb_ratio"] == 2.0
 
 
-def test_bank_cir_uses_ltm_revenue(report_factory):
+def test_bank_cir_uses_ltm_pair(report_factory):
+    """CIR берёт LTM-выручку только вместе с LTM-расходами."""
+    m = calculate_multipliers(
+        report_factory(report_type="bank", operating_expenses=20_000.0, revenue=50_000.0),
+        ltm_revenue=40_000.0,
+        ltm_operating_expenses=16_000.0,
+    )
+
+    assert m["cost_to_income"] == 40.0
+
+
+def test_bank_cir_falls_back_to_report_pair(report_factory):
+    """Без LTM-расходов считаем по отчёту целиком, а не смешиваем периоды.
+
+    Раньше LTM-выручка за год делилась на расходы из отчёта: у полугодового
+    отчёта это занижало CIR вдвое — банк выглядел вдвое эффективнее ровно в
+    момент выхода промежуточной отчётности.
+    """
     m = calculate_multipliers(
         report_factory(report_type="bank", operating_expenses=20_000.0, revenue=50_000.0),
         ltm_revenue=40_000.0,
     )
 
-    assert m["cost_to_income"] == 50.0
+    assert m["cost_to_income"] == 40.0  # 20 000 / 50 000, обе величины из отчёта
 
 
 # ─── Валюта отчёта ──────────────────────────────────────────────────────────
@@ -255,3 +272,61 @@ def test_penny_stock_keeps_price_and_ratios(report_factory):
     assert m["pe_ratio"] == pytest.approx(1.78, abs=0.01)
     assert m["pb_ratio"] == pytest.approx(0.31, abs=0.01)
     assert m["dividend_yield"] == pytest.approx(7.9, abs=0.1)
+
+
+# ─── FCF-мультипликаторы гибрида ────────────────────────────────────────────
+
+
+def test_hybrid_fcf_ratios_use_core_flow(report_factory):
+    """Приток клиентских денег не должен удешевлять компанию по P/FCF.
+
+    Цифры близки к Яндексу за 2025: поток 118 345 при банковском притоке
+    76 996 — ядро зарабатывает 41 349, то есть втрое меньше.
+    """
+    report = report_factory(
+        operating_cash_flow=282_330.0, capex=145_868.0, lease_principal=18_117.0,
+        net_income=79_579.0, debt=360_215.0, cash_and_equivalents=250_210.0,
+        price_per_share=4_582.5, shares_outstanding=380_783_546,
+    )
+
+    core = calculate_multipliers(report, banking_flow=76_996.0)
+    gross = calculate_multipliers(report)
+
+    assert core["ltm_fcf"] == 118_345.0          # поток по отчёту не подменяется
+    assert core["ltm_core_fcf"] == 41_349.0
+    assert core["fcf_basis"] == "core"
+
+    # Все три отношения считаются от ядра, поэтому строже «валовых»
+    assert core["price_to_fcf"] > gross["price_to_fcf"]
+    assert core["net_debt_to_fcf"] > gross["net_debt_to_fcf"]
+    assert core["fcf_to_net_income"] < gross["fcf_to_net_income"]
+    assert core["fcf_to_net_income"] == round(41_349.0 / 79_579.0, 4)
+
+
+def test_company_without_finance_segment_is_untouched(report_factory):
+    """У промышленной компании banking_flow=None — расчёт прежний."""
+    report = report_factory(
+        operating_cash_flow=100_000.0, capex=40_000.0, net_income=50_000.0,
+    )
+
+    m = calculate_multipliers(report)
+
+    assert m["fcf_basis"] == "reported"
+    assert m["ltm_core_fcf"] is None
+    assert m["price_to_fcf"] == round(
+        m["market_cap"] * 1_000_000 / (60_000.0 * 1_000_000), 2
+    )
+
+
+def test_hybrid_without_cash_flow_lines_falls_back(report_factory):
+    """Строки ОДДС не заполнены → банковский поток неизвестен.
+
+    Тогда честнее считать по общему потоку, чем не показать ничего; признак
+    `fcf_basis` даёт интерфейсу отличить это от очищенного расчёта.
+    """
+    report = report_factory(operating_cash_flow=100_000.0, capex=40_000.0)
+
+    m = calculate_multipliers(report, banking_flow=None)
+
+    assert m["fcf_basis"] == "reported"
+    assert m["price_to_fcf"] is not None

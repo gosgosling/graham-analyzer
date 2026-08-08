@@ -18,6 +18,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from app.config import settings
 from app.models.company import Company
 from app.models.stock_price import StockPrice
+from app.utils.http_session import external_session, tls_hint
 
 logger = logging.getLogger(__name__)
 
@@ -61,11 +62,9 @@ def get_last_prices(figis: List[str]) -> Dict[str, Optional[float]]:
     payload = {"figi": figis}
 
     try:
-        # Явно обходим системный прокси (HTTPS_PROXY / HTTP_PROXY из окружения):
-        # requests.Session с trust_env=False игнорирует все env-переменные прокси.
-        _session = requests.Session()
-        _session.trust_env = False
-        response = _session.post(url, json=payload, headers=headers, timeout=15)
+        # Сессия без прокси из окружения и с бандлом сертификатов из настроек —
+        # см. app/utils/http_session.py.
+        response = external_session().post(url, json=payload, headers=headers, timeout=15)
         response.raise_for_status()
         data = response.json()
 
@@ -83,7 +82,11 @@ def get_last_prices(figis: List[str]) -> Dict[str, Optional[float]]:
         logger.error("T-Invest API HTTP ошибка: %s — %s", e.response.status_code, e.response.text)
         return {}
     except requests.exceptions.RequestException as e:
-        logger.error("T-Invest API ошибка соединения: %s", e)
+        hint = tls_hint(e)
+        if hint:
+            logger.error("T-Invest API: %s Исходная ошибка: %s", hint, e)
+        else:
+            logger.error("T-Invest API ошибка соединения: %s", e)
         return {}
 
 
