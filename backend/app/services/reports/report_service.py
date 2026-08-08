@@ -7,7 +7,7 @@ from app.models.company import Company
 from app.schemas import FinancialReportCreate
 from app.schemas.report import ReportFigures
 from app.services.analysis import multiplier_service
-from app.models.enums import sector_to_report_type
+from app.models.enums import company_type_to_report_type
 from app.utils.date_parse import parse_date
 
 
@@ -54,7 +54,7 @@ def create_report(db: Session, report_data: FinancialReportCreate) -> FinancialR
 
     # Автоматически определяем report_type из сектора компании
     company = db.query(Company).filter(Company.id == report_data.company_id).first()
-    resolved_report_type = sector_to_report_type(company.sector if company else None)
+    resolved_report_type = company_type_to_report_type(company.company_type if company else None)
 
     db_report = FinancialReport(
         company_id=report_data.company_id,
@@ -205,7 +205,9 @@ def update_report(
     db_report.source = report_data.source.value  # type: ignore
     # report_type переопределяем из сектора компании (не из запроса)
     update_company = db.query(Company).filter(Company.id == report_data.company_id).first()
-    db_report.report_type = sector_to_report_type(update_company.sector if update_company else None)  # type: ignore
+    db_report.report_type = company_type_to_report_type(
+        update_company.company_type if update_company else None
+    )  # type: ignore
     # Даты
     db_report.report_date = report_date_obj  # type: ignore
     db_report.filing_date = filing_date_obj  # type: ignore

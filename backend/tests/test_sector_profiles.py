@@ -24,8 +24,10 @@ from app.services.analysis.sector_profiles import (
 @pytest.mark.parametrize(
     "sector, expected_key",
     [
-        ("banks", "bank"),
-        ("Финансы и банки", "bank"),
+        # Сектор «банки» больше НЕ даёт банковский профиль: в него же попадают
+        # страховщики, биржи и холдинги. Профиль следует из типа компании.
+        ("banks", "industrial"),
+        ("Финансы и банки", "industrial"),
         ("it", "it_telecom"),
         ("telecom", "it_telecom"),
         ("consumer", "retail_general"),
@@ -60,8 +62,8 @@ def test_manual_override_beats_auto_detection():
 
 def test_unknown_override_key_falls_back_to_auto_detection():
     """Опечатка в ключе не должна молча сбрасывать пороги в классического Грэма."""
-    profile = resolve_profile("banks", override_key="retail_grosery")
-    assert profile is BANK
+    profile = resolve_profile("consumer", override_key="retail_grosery")
+    assert profile.key == "retail_general"
 
 
 def test_empty_override_uses_sector():
@@ -126,3 +128,20 @@ def test_profile_serialization_keeps_contract():
     for band in data["bands"].values():
         assert set(band) >= {"good", "warn", "higher_is_better", "applicable"}
     assert data["bands"]["de"]["applicable"] is False
+
+# ─── Сектор «financial» ≠ банк ──────────────────────────────────────────────
+
+
+def test_financial_sector_alone_does_not_make_a_bank():
+    """АФК Система и SFI имеют сектор financial, но банковского бизнеса не ведут.
+
+    Раньше строка сектора назначала банковский профиль, и холдинг получал
+    пороги P/B, ROE и норматив достаточности капитала, которого у него нет.
+    """
+    for sector in ("financial", "banks", "Финансы и банки", "insurance"):
+        assert resolve_sector_profile(sector).key != "bank"
+
+
+def test_bank_profile_comes_from_report_type_only():
+    assert resolve_sector_profile("financial", report_type="bank") is BANK
+    assert resolve_sector_profile("financial", report_type="general").key != "bank"

@@ -14,6 +14,8 @@ from typing import Dict, List, Optional
 import requests
 from dotenv import load_dotenv
 
+from app.utils.http_session import external_session
+
 BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent.parent
 load_dotenv(dotenv_path=BASE_DIR / '.env')
 
@@ -122,7 +124,7 @@ def _fetch_from_api() -> List[Dict]:
     payload = {"instrument_status": "INSTRUMENT_STATUS_BASE"}
 
     try:
-        response = requests.post(url, json=payload, headers=headers, timeout=30)
+        response = external_session().post(url, json=payload, headers=headers, timeout=30)
         response.raise_for_status()
         data = response.json()
     except requests.exceptions.RequestException as e:
@@ -186,7 +188,7 @@ def get_bond_by_figi(figi: str) -> Optional[Dict]:
     payload = {"idType": "INSTRUMENT_ID_TYPE_FIGI", "id": figi}
 
     try:
-        response = requests.post(url, json=payload, headers=headers, timeout=20)
+        response = external_session().post(url, json=payload, headers=headers, timeout=20)
         response.raise_for_status()
         data = response.json()
     except requests.exceptions.RequestException as e:

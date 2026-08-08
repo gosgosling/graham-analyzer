@@ -29,6 +29,13 @@ class Settings(BaseSettings):
     # Tinkoff Invest API
     TINKOFF_TOKEN: str = "your_token_here"
 
+    # Дополнительные корневые сертификаты (PEM) — склеиваются с certifi.
+    # Нужны, когда сервер отдаёт цепочку от УЦ, которого нет в стандартном
+    # хранилище: так работает T-Invest с корнем Минцифры. Путь относительный
+    # считается от папки backend/. Пусто — только certifi.
+    # См. backend/certs/README.md
+    EXTRA_CA_CERTS: str = ""
+
     # ─── LLM для AI-парсера финансовых отчётов ───
     # Один OpenAI-совместимый API работает с несколькими провайдерами:
     #   * dashscope — Alibaba Qwen (DashScope OpenAI-compatible mode).

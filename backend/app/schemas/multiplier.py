@@ -79,6 +79,13 @@ class MultiplierResponse(BaseModel):
     dividend_yield: Optional[float] = None
     dividend_yield_regular: Optional[float] = None  # без разовых выплат
     cost_to_income: Optional[float] = None  # % — только для банков
+    # Гибрид (операционка + встроенный банк): приток от роста банковского
+    # баланса и свободный поток без него. У остальных типов — null.
+    banking_flow: Optional[float] = None      # млн ₽, прирост депозитов − прирост кредитов
+    ltm_core_fcf: Optional[float] = None      # млн ₽, FCF ядра
+    banking_flow_basis: Optional[str] = None  # 'cash_flow' | 'balance_delta'
+    # По какому потоку посчитаны P/FCF, ND/FCF и FCF/NI: 'core' | 'reported'
+    fcf_basis: Optional[str] = None
 
     # Денежные потоки LTM (NULL для банков)
     ltm_fcf: Optional[float] = None
@@ -138,6 +145,13 @@ class CurrentMultipliersResponse(BaseModel):
     dividend_yield: Optional[float] = None
     dividend_yield_regular: Optional[float] = None  # без разовых выплат
     cost_to_income: Optional[float] = None  # % — только для банков
+    # Гибрид (операционка + встроенный банк): приток от роста банковского
+    # баланса и свободный поток без него. У остальных типов — null.
+    banking_flow: Optional[float] = None      # млн ₽, прирост депозитов − прирост кредитов
+    ltm_core_fcf: Optional[float] = None      # млн ₽, FCF ядра
+    banking_flow_basis: Optional[str] = None  # 'cash_flow' | 'balance_delta'
+    # По какому потоку посчитаны P/FCF, ND/FCF и FCF/NI: 'core' | 'reported'
+    fcf_basis: Optional[str] = None
 
     # Денежные потоки LTM (NULL для банков)
     ltm_fcf: Optional[float] = None

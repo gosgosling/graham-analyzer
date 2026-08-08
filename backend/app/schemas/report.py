@@ -4,6 +4,7 @@
 самих схем: они же служат документацией на /docs.
 """
 from datetime import date, datetime
+from functools import lru_cache
 from typing import Dict, Optional, Union
 
 from pydantic import BaseModel, computed_field, field_serializer, model_validator
@@ -14,8 +15,41 @@ from app.services.analysis.bank_metrics import (
     compute_bank_metrics,
     evaluate_all,
 )
+from app.services.analysis.interest_coverage import compute_interest_coverage
 from app.services.analysis.payout import compute_dividend_payout
 from app.services.analysis.share_counts import compute_circulation_shares
+
+
+@lru_cache(maxsize=64)
+def _key_rate_for(year: int) -> Optional[float]:
+    """Средняя ключевая ставка ЦБ за год из справочника.
+
+    Кэшируется: справочник меняется раз в год, а схема строится на каждый
+    отчёт в списке. Отсутствие года — не ошибка: спред просто не считается.
+    """
+    from app.database import SessionLocal
+    from app.models.key_rate import KeyRate
+
+    db = SessionLocal()
+    try:
+        row = db.query(KeyRate).filter(KeyRate.year == year).first()
+        return float(row.avg_rate) if row else None
+    finally:
+        db.close()
+
+
+# Показатели, знаменатель которых — весь баланс или весь отчёт о прибыли.
+# Для банка это и есть финансовый бизнес, для гибрида — вся компания.
+_GROUP_LEVEL_METRICS = (
+    "roa",
+    "net_interest_margin",
+    "cost_of_funding",
+    "funding_spread",
+    "capital_adequacy_ratio",
+    "capital_adequacy_core",
+    "capital_to_rwa",
+    "key_rate",
+)
 
 
 class BankMetricsOut(BaseModel):
@@ -38,7 +72,20 @@ class BankMetricsOut(BaseModel):
     capital_to_rwa: Optional[float] = None
     retail_loans_share: Optional[float] = None
     retail_deposits_share: Optional[float] = None
+    funding_spread: Optional[float] = None
+    key_rate: Optional[float] = None
     net_loans: Optional[float] = None
+    # Откуда потоки: 'ltm' | 'annualised' | 'reported' — интерфейс подписывает
+    # период, чтобы удвоение полугодия не выдавалось за факт.
+    flow_basis: Optional[str] = None
+    # Чей это финансовый бизнес: 'lender' — вся компания, 'hybrid' — сегмент
+    # внутри обычной. У гибрида часть показателей намеренно пустая.
+    segment: Optional[str] = None
+    # Свободный поток ядра — только у гибрида (млн ₽)
+    reported_fcf: Optional[float] = None
+    banking_flow: Optional[float] = None
+    banking_flow_basis: Optional[str] = None
+    core_fcf: Optional[float] = None
 
     statuses: Dict[str, str] = {}   # метрика → good | normal | bad | n/a
     hints: Dict[str, str] = {}      # метрика → пояснение к порогу
@@ -69,6 +116,11 @@ class ReportFigures(BaseModel):
     revenue: Optional[float] = None
     net_income: Optional[float] = None
     net_income_reported: Optional[float] = None  # фактическая отчётная прибыль, млн
+    # Прибыль до процентов и налогов и стоимость обслуживания долга:
+    # их отношение — покрытие процентов.
+    operating_profit: Optional[float] = None   # Операционная прибыль (EBIT), млн
+    finance_costs: Optional[float] = None      # Финансовые расходы, млн (положительное число)
+
     total_assets: Optional[float] = None
     current_assets: Optional[float] = None
     total_liabilities: Optional[float] = None
@@ -107,6 +159,13 @@ class ReportFigures(BaseModel):
     loans_corporate: Optional[float] = None          # Кредиты юрлицам (валовые), млн
     deposits_retail: Optional[float] = None          # Средства физлиц, млн
     deposits_corporate: Optional[float] = None       # Средства юрлиц, млн
+    # Движение клиентских денег из ОДДС — для встроенного финсервиса.
+    # Переписываются из отчёта СО ЗНАКОМ: приток депозитов положительный,
+    # выдача кредитов отрицательная. Разница балансовых остатков для этого
+    # не годится: она включает секьюритизацию и списания.
+    cf_customer_deposits: Optional[float] = None   # Изменение средств клиентов (ОДДС), млн
+    cf_customer_loans: Optional[float] = None      # Изменение кредитов клиентам (ОДДС), млн
+
     # Достаточность капитала — ограничитель роста и дивидендов банка.
     risk_weighted_assets: Optional[float] = None     # Активы, взвешенные по риску, млн
     capital_adequacy_ratio: Optional[float] = None   # Н1.0 общий / Total capital ratio, %
@@ -261,6 +320,23 @@ class FinancialReport(ReportFigures):
         """
         return compute_dividend_payout(self)
 
+    @computed_field  # type: ignore
+    @property
+    def interest_coverage(self) -> Optional[float]:
+        """Во сколько раз операционная прибыль покрывает проценты по долгу.
+
+        Тест устойчивости у Грэма и главный показатель холдинга: своих
+        операций у него нет, а долг корпоративного центра обслуживать надо.
+
+        Для банка не считается: у него процентные расходы — себестоимость
+        основной деятельности, а не обслуживание долга. Сбер за 2025 год
+        получил бы покрытие 0,38 при прибыли 1,7 трлн ₽ — ложная тревога
+        у самого прибыльного банка страны.
+        """
+        if (self.report_type or "general") == "bank":
+            return None
+        return compute_interest_coverage(self)
+
     # ─── Банковский блок ─────────────────────────────────────────────────────
 
     @computed_field  # type: ignore
@@ -273,17 +349,34 @@ class FinancialReport(ReportFigures):
         Отношения не зависят от валюты — числитель и знаменатель из одного
         отчёта, — поэтому конвертация в рубли здесь не нужна.
         """
-        if (self.report_type or "general") != "bank":
+        is_bank = (self.report_type or "general") == "bank"
+        # У гибрида тип отчёта общий, но финсегмент внутри есть — его выдаёт
+        # заполненный кредитный портфель. Признак по данным, а не по типу
+        # компании: схема отчёта о компании ничего не знает.
+        has_segment = self.gross_loans is not None
+        if not is_bank and not has_segment:
             return None
 
-        metrics = compute_bank_metrics(self)
+        metrics = compute_bank_metrics(self, key_rate=_key_rate_for(self.fiscal_year))
+        values = metrics.as_dict()
         statuses = evaluate_all(metrics)
+        if not is_bank:
+            # Знаменатели этих показателей — активы и капитал всей компании,
+            # вместе с основным бизнесом. К финсегменту они не относятся.
+            for name in _GROUP_LEVEL_METRICS:
+                values[name] = None
+                statuses[name] = "n/a"
         hints = {
             name: hint
             for name in statuses
             if (hint := bank_metric_hint(name)) is not None
         }
-        return BankMetricsOut(**metrics.as_dict(), statuses=statuses, hints=hints)
+        return BankMetricsOut(
+            **values,
+            segment="lender" if is_bank else "hybrid",
+            statuses=statuses,
+            hints=hints,
+        )
 
     # Вспомогательный метод конвертации
     def _convert_to_rub(self, value: Optional[float]) -> Optional[float]:

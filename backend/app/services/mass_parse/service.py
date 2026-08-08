@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.models.company import Company
-from app.models.enums import sector_to_report_type
+from app.models.enums import company_type_to_report_type
 from app.models.mass_parse import MassParseItem, MassParseJob
 from app.services.mass_parse.scanner import ScanPreview, scan_reports_dir
 from app.services.mass_parse.worker import is_worker_alive, start_worker
@@ -288,12 +288,12 @@ def drop_banks_from_job(db: Session, job_id: int) -> tuple[MassParseJob, int]:
     bank_company_ids = {
         int(c.id)
         for c in db.query(Company).all()
-        if c.id is not None and sector_to_report_type(c.sector) == "bank"
+        if c.id is not None and company_type_to_report_type(c.company_type) == "bank"
     }
     bank_tickers = {
         str(c.ticker).strip().upper()
         for c in db.query(Company).all()
-        if c.ticker and sector_to_report_type(c.sector) == "bank"
+        if c.ticker and company_type_to_report_type(c.company_type) == "bank"
     }
 
     items = (

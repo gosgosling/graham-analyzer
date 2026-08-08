@@ -225,7 +225,10 @@ export function snapshotFromRecord(r: MultiplierRecord): HistRowSnapshot {
     current_ratio: r.current_ratio,
     ltm_dividends_per_share: r.ltm_dividends_per_share,
     price_to_fcf: r.price_to_fcf,
-    ltm_fcf: r.ltm_fcf,
+    // У гибрида колонка FCF показывает поток ядра — тот же, от которого
+    // считаются P/FCF, ND/FCF и FCF/NI. Иначе в строке стоят сырое число
+    // и очищенные от него отношения.
+    ltm_fcf: r.ltm_core_fcf ?? r.ltm_fcf,
     ltm_capex: r.ltm_capex,
     fcf_to_net_income: r.fcf_to_net_income,
     net_debt_to_fcf: r.net_debt_to_fcf,
@@ -251,7 +254,10 @@ export function snapshotFromCurrent(r: CurrentMultipliers): HistRowSnapshot {
     current_ratio: r.current_ratio,
     ltm_dividends_per_share: r.ltm_dividends_per_share,
     price_to_fcf: r.price_to_fcf,
-    ltm_fcf: r.ltm_fcf,
+    // У гибрида колонка FCF показывает поток ядра — тот же, от которого
+    // считаются P/FCF, ND/FCF и FCF/NI. Иначе в строке стоят сырое число
+    // и очищенные от него отношения.
+    ltm_fcf: r.ltm_core_fcf ?? r.ltm_fcf,
     ltm_capex: r.ltm_capex,
     fcf_to_net_income: r.fcf_to_net_income,
     net_debt_to_fcf: r.net_debt_to_fcf,
@@ -263,5 +269,64 @@ export function snapshotFromCurrent(r: CurrentMultipliers): HistRowSnapshot {
     dividend_yield: r.dividend_yield,
     dividend_yield_regular: r.dividend_yield_regular ?? r.dividend_yield,
     ltm_special_dividends_per_share: r.ltm_special_dividends_per_share ?? null,
+  };
+}
+
+/**
+ * Изменение банковских показателей к прошлому году, в процентных пунктах.
+ *
+ * Все они уже проценты, поэтому «выросло на 30%» было бы двусмысленно:
+ * считаем разницу в пунктах, как для ROE. Направление у каждого своё —
+ * рост стоимости риска это плохо, а рост покрытия резервом хорошо.
+ */
+export interface BankYoY {
+  roa: YoYDisplay;
+  cir: YoYDisplay;
+  cost_of_risk: YoYDisplay;
+  npl_ratio: YoYDisplay;
+  npl_coverage: YoYDisplay;
+  loans_to_deposits: YoYDisplay;
+  capital_adequacy_core: YoYDisplay;
+}
+
+/** Показатель → куда лучше двигаться. */
+const BANK_DIRECTIONS: Record<keyof BankYoY, { direction: YoYDirection; label: string }> = {
+  roa: { direction: 'higher_better', label: 'ROA' },
+  cir: { direction: 'lower_better', label: 'Cost/Income' },
+  cost_of_risk: { direction: 'lower_better', label: 'Стоимость риска' },
+  npl_ratio: { direction: 'lower_better', label: 'Доля проблемных' },
+  npl_coverage: { direction: 'higher_better', label: 'Покрытие резервом' },
+  // Кредиты сверх депозитов финансируются рынком — дороже и капризнее.
+  loans_to_deposits: { direction: 'lower_better', label: 'Кредиты / депозиты' },
+  capital_adequacy_core: { direction: 'higher_better', label: 'Основной капитал Н1.1' },
+};
+
+export function computeBankYoY(
+  current: Record<string, number | null> | null | undefined,
+  previous: Record<string, number | null> | null | undefined,
+  currentCir: number | null | undefined,
+  previousCir: number | null | undefined,
+): BankYoY {
+  const value = (
+    source: Record<string, number | null> | null | undefined,
+    key: string,
+  ): number | null => (source?.[key] ?? null);
+
+  const build = (key: keyof BankYoY): YoYDisplay => {
+    const { direction, label } = BANK_DIRECTIONS[key];
+    if (key === 'cir') {
+      return metricPp(currentCir ?? null, previousCir ?? null, direction, label);
+    }
+    return metricPp(value(current, key), value(previous, key), direction, label);
+  };
+
+  return {
+    roa: build('roa'),
+    cir: build('cir'),
+    cost_of_risk: build('cost_of_risk'),
+    npl_ratio: build('npl_ratio'),
+    npl_coverage: build('npl_coverage'),
+    loans_to_deposits: build('loans_to_deposits'),
+    capital_adequacy_core: build('capital_adequacy_core'),
   };
 }

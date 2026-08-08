@@ -8,16 +8,20 @@ import {
 import {
   getCompanyCurrentMultipliers,
   getCompanyMultipliersHistory,
+  getLtmBankMetrics,
   getSectorProfiles,
   refreshCompanyMultipliers,
   updateCompanySectorProfile,
+  updateCompanyType,
 } from '../services';
-import { MultiplierRecord, CurrentMultipliers, Company, SectorProfile, BankMetrics, FinancialReport } from '../types';
+import { MultiplierRecord, CurrentMultipliers, Company, SectorProfile, BankMetrics, FinancialReport, CompanyType } from '../types';
 import { useChartColors, ChartColors } from '../contexts/ThemeContext';
 import SharesCapHover from './SharesCapHover';
 import { formatPerShare } from '../utils/perShare';
+import { formatApiErrorMessage } from '../utils/apiErrors';
 import { formatMln } from '../utils/format';
 import {
+  computeBankYoY,
   computeHistRowYoY,
   snapshotFromCurrent,
   snapshotFromRecord,
@@ -325,6 +329,10 @@ function MetricBadge({
 }) {
   const hoverTip = tip ?? nullHint;
   const tipClass = hoverTip ? ' mult-cell-tip' : '';
+  // `nullHint` объясняет ПУСТУЮ ячейку и на заполненную попадать не должен:
+  // иначе над числом всплывает «поле не заполнено в отчёте».
+  const filledTip = tip;
+  const filledTipClass = filledTip ? ' mult-cell-tip' : '';
 
   const wrap = (node: React.ReactElement) =>
     centered ? <span className="mult-cell-center">{node}</span> : node;
@@ -361,7 +369,7 @@ function MetricBadge({
     );
   }
   return (
-    <span className={`mult-cell ${level}${tipClass}`} title={hoverTip}>
+    <span className={`mult-cell ${level}${filledTipClass}`} title={filledTip}>
       {value.toFixed(2)}{suffix}
     </span>
   );
@@ -581,6 +589,12 @@ interface CurrentCardsProps {
   previous?: HistRowSnapshot | null;
   /** Тикер компании — привилегированные акции (TRNFP, BANEP, SBERP …) */
   isPreferredShare?: boolean;
+  /**
+   * Банковские показатели того отчёта, с которого взят баланс.
+   * Из них в карточки идут три, которых нет среди классических: отдача
+   * активов, стоимость риска и запас основного капитала.
+   */
+  bankMetrics?: BankMetrics | null;
 }
 
 interface DashboardCard {
@@ -620,6 +634,7 @@ const CurrentCards: React.FC<CurrentCardsProps> = ({
   profile,
   previous,
   isPreferredShare = false,
+  bankMetrics,
 }) => {
   const [pfcfCardMode, setPfcfCardMode] = React.useState<PfcfColMode>('pfcf');
   const income = data.ltm_net_income;
@@ -800,7 +815,33 @@ const CurrentCards: React.FC<CurrentCardsProps> = ({
     },
   ] : [];
 
-  const cards: DashboardCard[] = [...baseCards, ...fcfCards];
+  /**
+   * Банковская карточка: ROA — единственное, чего нет в классическом наборе.
+   *
+   * Отдачу активов, в отличие от ROE, нельзя поднять плечом, и именно она
+   * отличает хороший банк от просто закредитованного. ROE и Cost/Income уже
+   * есть выше, а стоимость риска и Н1.1 живут в банковской панели и в
+   * истории — в динамике они говорят больше, чем точкой.
+   */
+  const bankCards: DashboardCard[] = isBank && bankMetrics
+    ? ([
+        { key: 'roa', label: 'ROA', hint: 'Прибыль / активы' },
+      ] as const).map(({ key, label, hint }) => {
+        const value = (bankMetrics[key] ?? null) as number | null;
+        const status = bankMetrics.statuses?.[key] ?? 'n/a';
+        return {
+          label,
+          value,
+          level: (status === 'good' ? 'good' : status === 'normal' ? 'warn' : status === 'bad' ? 'bad' : 'neutral') as Level,
+          hint,
+          threshold: bankMetrics.hints?.[key] ?? '',
+          suffix: '%',
+          nullHint: 'Поле не заполнено в отчёте',
+        };
+      })
+    : [];
+
+  const cards: DashboardCard[] = [...baseCards, ...fcfCards, ...bankCards];
 
   return (
     <div className="current-cards-grid">
@@ -967,6 +1008,13 @@ interface HistTableProps {
   isPreferredShare?: boolean;
   /** report_id → банковские показатели этого отчёта (пусто у небанков) */
   bankMetricsByReport?: Map<number, BankMetrics>;
+  /**
+   * Банковские показатели строки LTM. Отдельно от `bankMetricsByReport`,
+   * потому что считаются не по одному отчёту: потоки берутся за скользящий
+   * год, а баланс — с последнего отчёта. Без этого строка LTM показывала бы
+   * удвоенное полугодие рядом с честными годовыми строками.
+   */
+  ltmBankMetrics?: BankMetrics | null;
 }
 
 /** Всплывающая подсказка: цена в ячейке — на конец периода; рядом — на дату публикации отчёта. */
@@ -1164,15 +1212,29 @@ function histYoYCell(
 function bankMetricCell(
   metrics: BankMetrics | null | undefined,
   key: keyof BankMetrics,
+  pctMode = false,
+  change?: YoYDisplay | null,
 ): React.ReactNode {
+  // В режиме «Δ к прошлому году» банковские колонки показывают изменение
+  // в процентных пунктах — иначе они одни оставались бы с абсолютными
+  // значениями, и строка читалась бы как смесь двух разных величин.
+  if (pctMode) {
+    return (
+      <td className="col-mult col-compact col-bank">
+        <HistChangeCell change={change ?? YOY_NA} />
+      </td>
+    );
+  }
+
   const value = (metrics?.[key] ?? null) as number | null;
   const status = metrics?.statuses?.[key as string] ?? 'n/a';
   const level = status === 'good' ? 'good' : status === 'normal' ? 'warn' : status === 'bad' ? 'bad' : 'neutral';
   return (
-    <td className="col-mult col-compact">
+    <td className="col-mult col-compact col-bank">
       <MetricBadge
         value={value}
         level={level as Level}
+        tip={metrics?.hints?.[key as string]}
         nullHint={metrics ? 'Поле не заполнено в отчёте' : 'Нет банковских данных за период'}
       />
     </td>
@@ -1194,6 +1256,14 @@ interface HistTableRowProps {
   isPreferredShare: boolean;
   /** Банковские показатели этого периода; у строки LTM их нет. */
   bankMetrics?: BankMetrics | null;
+  /**
+   * Cost/Income приходит не из `bank_metrics`, а из кэша мультипликаторов:
+   * он считается в общем расчёте вместе с P/E и ROE.
+   */
+  costToIncome?: number | null;
+  /** Банковские показатели прошлого периода — для режима «Δ к прошлому году». */
+  previousBankMetrics?: BankMetrics | null;
+  previousCostToIncome?: number | null;
 }
 
 const HistTableRow: React.FC<HistTableRowProps> = ({
@@ -1209,7 +1279,21 @@ const HistTableRow: React.FC<HistTableRowProps> = ({
   previous,
   isPreferredShare,
   bankMetrics,
+  costToIncome,
+  previousBankMetrics,
+  previousCostToIncome,
 }) => {
+  // Изменения банковских показателей считаются только в режиме процентов:
+  // в обычном режиме предыдущий период не нужен.
+  const bankYoY = pctMode
+    ? computeBankYoY(
+        bankMetrics as unknown as Record<string, number | null> | null,
+        previousBankMetrics as unknown as Record<string, number | null> | null,
+        costToIncome,
+        previousCostToIncome,
+      )
+    : null;
+
   const income = snapshot.ltm_net_income;
   const isLoss = income !== null && income < 0;
   const negEquity = snapshot.equity !== null && snapshot.equity < 0;
@@ -1371,11 +1455,27 @@ const HistTableRow: React.FC<HistTableRowProps> = ({
         fmtMlnBln(snapshot.ltm_capex),
         'col-compact',
       )}
-      {isBank && bankMetricCell(bankMetrics, 'cost_of_risk')}
-      {isBank && bankMetricCell(bankMetrics, 'npl_ratio')}
-      {isBank && bankMetricCell(bankMetrics, 'npl_coverage')}
-      {isBank && bankMetricCell(bankMetrics, 'loans_to_deposits')}
-      {isBank && bankMetricCell(bankMetrics, 'capital_adequacy_core')}
+      {isBank && bankMetricCell(bankMetrics, 'roa', pctMode, bankYoY?.roa)}
+      {isBank && (
+        <td className="col-mult col-compact col-bank">
+          {pctMode ? (
+            <HistChangeCell change={bankYoY?.cir ?? YOY_NA} />
+          ) : (
+            <MetricBadge
+              value={costToIncome ?? null}
+              level={levelFor(profile, 'cir', costToIncome ?? null)}
+              suffix="%"
+              tip={hintFor(profile, 'cir')}
+              nullHint="Нет операционных расходов или доходов в отчёте"
+            />
+          )}
+        </td>
+      )}
+      {isBank && bankMetricCell(bankMetrics, 'cost_of_risk', pctMode, bankYoY?.cost_of_risk)}
+      {isBank && bankMetricCell(bankMetrics, 'npl_ratio', pctMode, bankYoY?.npl_ratio)}
+      {isBank && bankMetricCell(bankMetrics, 'npl_coverage', pctMode, bankYoY?.npl_coverage)}
+      {isBank && bankMetricCell(bankMetrics, 'loans_to_deposits', pctMode, bankYoY?.loans_to_deposits)}
+      {isBank && bankMetricCell(bankMetrics, 'capital_adequacy_core', pctMode, bankYoY?.capital_adequacy_core)}
       {histYoYCell(pctMode, yoy?.revenue, fmtMlnBln(snapshot.ltm_revenue))}
       {histYoYCell(
         pctMode,
@@ -1394,6 +1494,7 @@ const HistTable: React.FC<HistTableProps & { pctMode: boolean }> = ({
   isPreferredShare = false,
   pctMode,
   bankMetricsByReport,
+  ltmBankMetrics,
 }) => {
   const [crTooltipVisible, setCrTooltipVisible] = React.useState(false);
   const [pfcfColMode, setPfcfColMode] = React.useState<PfcfColMode>('pfcf');
@@ -1403,6 +1504,10 @@ const HistTable: React.FC<HistTableProps & { pctMode: boolean }> = ({
   // нормативами ЦБ, а FCF неприменим концептуально. Показывать эти колонки
   // прочерками — значит заставлять объяснять их словами.
   const isBank = profile?.key === 'bank';
+  // Поток ядра приходит только у гибридов. Если он есть хоть в одной строке,
+  // колонка показывает именно его — и заголовок обязан об этом сказать.
+  const hasCoreFcf =
+    rows.some((r) => r.ltm_core_fcf != null) || currentRow?.ltm_core_fcf != null;
 
   return (
     <div className={`hist-table-wrapper${pctMode ? ' hist-table-wrapper--pct' : ''}`}>
@@ -1452,8 +1557,15 @@ const HistTable: React.FC<HistTableProps & { pctMode: boolean }> = ({
               </th>
             )}
             {!isBank && (
-              <th className="col-rev col-header-unit-col" title="FCF = Операционный поток − CAPEX">
-                <ColHeaderWithUnit title="FCF" />
+              <th
+                className="col-rev col-header-unit-col"
+                title={
+                  hasCoreFcf
+                    ? 'FCF ядра = Операционный поток − CAPEX − приток от роста банковского баланса'
+                    : 'FCF = Операционный поток − CAPEX'
+                }
+              >
+                <ColHeaderWithUnit title={hasCoreFcf ? 'FCF ЯДРА' : 'FCF'} />
               </th>
             )}
             {!isBank && (
@@ -1465,19 +1577,30 @@ const HistTable: React.FC<HistTableProps & { pctMode: boolean }> = ({
                 FCF-семейство: риск и капитал — то, чем банк заменяет
                 свободный денежный поток в оценке. */}
             {isBank && (
-              <th className="col-mult col-compact" title="Стоимость риска: резерв за период / кредитный портфель">CoR, %</th>
+              <th
+                className="col-mult col-compact col-bank"
+                title="Отдача активов: прибыль / активы. В отличие от ROE её нельзя поднять плечом"
+              >
+                ROA, %
+              </th>
             )}
             {isBank && (
-              <th className="col-mult col-compact" title="Доля обесцененных кредитов (Stage 3 / 90+) в портфеле">NPL, %</th>
+              <th className="col-mult col-compact col-bank" title="Cost/Income: операционные расходы к операционным доходам">CIR, %</th>
             )}
             {isBank && (
-              <th className="col-mult col-compact" title="Накопленный резерв к обесцененным кредитам">Покрытие, %</th>
+              <th className="col-mult col-compact col-bank" title="Стоимость риска: резерв за период / кредитный портфель">CoR, %</th>
             )}
             {isBank && (
-              <th className="col-mult col-compact" title="Чистые кредиты к средствам клиентов">LDR, %</th>
+              <th className="col-mult col-compact col-bank" title="Доля обесцененных кредитов (Stage 3 / 90+) в портфеле">NPL, %</th>
             )}
             {isBank && (
-              <th className="col-mult col-compact" title="Достаточность основного капитала (Н1.1 / CET1)">Н1.1, %</th>
+              <th className="col-mult col-compact col-bank" title="Накопленный резерв к обесцененным кредитам">Покрытие, %</th>
+            )}
+            {isBank && (
+              <th className="col-mult col-compact col-bank" title="Чистые кредиты к средствам клиентов">LDR, %</th>
+            )}
+            {isBank && (
+              <th className="col-mult col-compact col-bank" title="Достаточность основного капитала (Н1.1 / CET1)">Н1.1, %</th>
             )}
             <th className="col-rev col-header-unit-col">
               <ColHeaderWithUnit title="Выручка" />
@@ -1508,6 +1631,23 @@ const HistTable: React.FC<HistTableProps & { pctMode: boolean }> = ({
               profile={profile}
               previous={rows.length > 0 ? snapshotFromRecord(rows[0]) : null}
               isPreferredShare={isPreferredShare}
+              // Потоковые показатели (ROA, маржа, стоимость риска) — за
+              // скользящий год, балансовые — с отчёта `balance_report_id`.
+              // Всё это уже посчитано на бэкенде; отчёт остаётся запасным
+              // источником, если LTM-показателей нет.
+              bankMetrics={
+                ltmBankMetrics ??
+                (currentRow.balance_report_id != null
+                  ? bankMetricsByReport?.get(currentRow.balance_report_id)
+                  : null)
+              }
+              costToIncome={currentRow.cost_to_income}
+              previousBankMetrics={
+                rows.length > 0 && rows[0].report_id != null
+                  ? bankMetricsByReport?.get(rows[0].report_id)
+                  : null
+              }
+              previousCostToIncome={rows.length > 0 ? rows[0].cost_to_income : null}
             />
           )}
 
@@ -1533,6 +1673,13 @@ const HistTable: React.FC<HistTableProps & { pctMode: boolean }> = ({
               previous={index + 1 < rows.length ? snapshotFromRecord(rows[index + 1]) : null}
               isPreferredShare={isPreferredShare}
               bankMetrics={r.report_id != null ? bankMetricsByReport?.get(r.report_id) : null}
+              costToIncome={r.cost_to_income}
+              previousBankMetrics={
+                index + 1 < rows.length && rows[index + 1].report_id != null
+                  ? bankMetricsByReport?.get(rows[index + 1].report_id!)
+                  : null
+              }
+              previousCostToIncome={index + 1 < rows.length ? rows[index + 1].cost_to_income : null}
             />
           ))}
 
@@ -1896,6 +2043,19 @@ const ChartsPager: React.FC<ChartsPairProps> = ({ rows, currentRow, profile }) =
 
 // ─── Главный компонент панели ─────────────────────────────────────────────────
 
+/**
+ * Метод анализа компании. Порядок — от самого частого к редкому; подсказки
+ * объясняют, чем тип отличается, потому что цена ошибки высокая: не тот тип
+ * даёт компании чужие метрики.
+ */
+const COMPANY_TYPE_OPTIONS: { value: CompanyType; label: string; hint: string }[] = [
+  { value: 'industrial', label: 'Обычный бизнес', hint: 'Полный набор тестов Грэма' },
+  { value: 'lender', label: 'Кредитор (банк, МФО, лизинг)', hint: 'Активы — займы: CoR, NPL, Н1; без FCF, D/E и Current Ratio' },
+  { value: 'insurance', label: 'Страховщик', hint: 'Резервы и комбинированный коэффициент; банковские метрики неприменимы' },
+  { value: 'holding', label: 'Холдинг', hint: 'Владеет долями и сам не оперирует: оценка по NAV, а не по мультипликаторам консолидации' },
+  { value: 'hybrid', label: 'Гибрид (операционка + финбизнес)', hint: 'Яндекс, МОЕХ: финсегмент раздувает баланс и поток — оценивать отдельно' },
+];
+
 interface MultipliersPanelProps {
   company: Company;
   /**
@@ -1925,6 +2085,16 @@ const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company, reports })
     return map;
   }, [reports]);
 
+  // Банковские показатели за скользящий год: собираются из трёх отчётов, а
+  // значит только на бэкенде. Ключ тот же, что у карточки банка, — React Query
+  // отдаст обоим один ответ.
+  const { data: ltmBankMetrics } = useQuery({
+    queryKey: ['bank-metrics-ltm', companyId],
+    queryFn: () => getLtmBankMetrics(companyId),
+    enabled: bankMetricsByReport.size > 0,
+    retry: false,
+  });
+
   const { data: currentData, isLoading: currentLoading, error: currentError } = useQuery({
     queryKey: ['multipliers-current', companyId],
     queryFn: () => getCompanyCurrentMultipliers(companyId),
@@ -1949,6 +2119,18 @@ const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company, reports })
 
   // Закрепление профиля за компанией: сектор из T-Invest слишком крупный,
   // поэтому аналитик может выбрать пороги вручную и сразу увидеть перекраску.
+  const typeMutation = useMutation({
+    mutationFn: (value: CompanyType) => updateCompanyType(companyId, value),
+    onSuccess: () => {
+      // Тип меняет набор полей отчётов, значит и мультипликаторы, и историю.
+      queryClient.invalidateQueries({ queryKey: ['multipliers-current', companyId] });
+      queryClient.invalidateQueries({ queryKey: ['multipliers-history', companyId] });
+      queryClient.invalidateQueries({ queryKey: ['reports'] });
+      queryClient.invalidateQueries({ queryKey: ['company'] });
+    },
+    onError: (e: unknown) => window.alert(formatApiErrorMessage(e, 'Не удалось сменить тип компании')),
+  });
+
   const profileMutation = useMutation({
     mutationFn: (key: string | null) => updateCompanySectorProfile(companyId, key),
     onSuccess: () => {
@@ -2062,6 +2244,28 @@ const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company, reports })
         </div>
       </div>
 
+      {/* Холдинг и гибрид: честное предупреждение вместо правдоподобных цифр.
+          У АФК Системы консолидация складывает выручку МТС, Segezha и прочих
+          с долгом корпоративного центра — P/E по такой сумме не значит ничего.
+          У гибрида (Яндекс, МОЕХ) встроенный финбизнес раздувает баланс. */}
+      {(company.company_type === 'holding' || company.company_type === 'hybrid') && (
+        <div className="mult-type-warning">
+          {company.company_type === 'holding' ? (
+            <>
+              <b>Холдинг.</b> Мультипликаторы посчитаны по консолидированной отчётности:
+              выручка и долг дочерних компаний сложены вместе. Для холдинга корректна
+              оценка по сумме частей (NAV и дисконт к нему), а не P/E консолидации.
+            </>
+          ) : (
+            <>
+              <b>Гибрид.</b> Внутри компании есть финансовый бизнес: клиентские средства
+              раздувают баланс, а их приток попадает в операционный поток. Current Ratio,
+              чистый долг и FCF здесь искажены — финсегмент оценивается отдельно.
+            </>
+          )}
+        </div>
+      )}
+
       {/* Легенда и применённый отраслевой профиль */}
       <div className="legend-bar">
         <span className="legend-item good">● Норма профиля</span>
@@ -2069,6 +2273,24 @@ const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company, reports })
         <span className="legend-item bad">● Превышение</span>
         <span className="legend-item loss">● Убыток</span>
         <span className="legend-item neutral">● Нет данных</span>
+        <label
+          className="legend-profile"
+          title="Метод анализа: какие метрики применимы. Отрасль задаётся отдельно — в секторе «financial» есть и банки, и холдинги."
+        >
+          <span className="legend-profile-label">Тип:</span>
+          <select
+            className="legend-profile-select"
+            value={company.company_type ?? 'industrial'}
+            onChange={(e) => typeMutation.mutate(e.target.value as CompanyType)}
+            disabled={typeMutation.isPending}
+          >
+            {COMPANY_TYPE_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value} title={opt.hint}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </label>
         <label className="legend-profile" title={profile.summary}>
           <span className="legend-profile-label">Пороги:</span>
           <select
@@ -2118,6 +2340,15 @@ const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company, reports })
                       profile={profile}
                       previous={rows.length > 0 ? snapshotFromRecord(rows[0]) : null}
                       isPreferredShare={!!company.is_preferred_share}
+                      // Карточки описывают LTM — значит и ROA здесь должен быть
+                      // от прибыли за скользящий год, как P/E и ROE рядом.
+                      // Показатели отчёта остаются запасным источником.
+                      bankMetrics={
+                        ltmBankMetrics ??
+                        (currentData.balance_report_id != null
+                          ? bankMetricsByReport?.get(currentData.balance_report_id)
+                          : null)
+                      }
                     />
                     <div className="ltm-financials">
                       <h3 className="ltm-fin-title">Финансовые показатели LTM</h3>
@@ -2201,6 +2432,7 @@ const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company, reports })
                   isPreferredShare={!!company.is_preferred_share}
                   pctMode={histPctMode}
                   bankMetricsByReport={bankMetricsByReport}
+                  ltmBankMetrics={ltmBankMetrics}
                 />
               </div>
             )}

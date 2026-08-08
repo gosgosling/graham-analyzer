@@ -1,5 +1,21 @@
 import { api } from './companies.api';
-import { MultiplierRecord, CurrentMultipliers } from '../types';
+import { BankMetrics, MultiplierRecord, CurrentMultipliers } from '../types';
+
+/**
+ * Банковские показатели по скользящему году.
+ *
+ * Отдельный запрос, а не поле отчёта: LTM собирается из трёх отчётов, и
+ * посчитать его в списке отчётов можно было бы только запросом на каждую
+ * строку. null — компания не банк или отчётов нет.
+ */
+export const getLtmBankMetrics = async (
+    companyId: number,
+): Promise<BankMetrics | null> => {
+    const response = await api.get<BankMetrics | null>(
+        `/companies/${companyId}/bank-metrics/ltm`,
+    );
+    return response.data ?? null;
+};
 
 export const getCompanyCurrentMultipliers = async (
     companyId: number,

@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.models.company import Company
-from app.models.enums import sector_to_report_type
+from app.models.enums import company_type_to_report_type
 from app.models.financial_report import FinancialReport
 from app.schemas import FinancialReportCreate
 from app.services.reports import report_service
@@ -968,7 +968,7 @@ def parse_pdf_to_report(
             f"«Отчётный год» в форме загрузки."
         )
 
-    resolved_report_type = sector_to_report_type(company.sector)
+    resolved_report_type = company_type_to_report_type(company.company_type)
 
     if isinstance(pdf_source, Path):
         label = pdf_label or pdf_source.name
@@ -1441,7 +1441,7 @@ def compare_pdf_with_existing(
         LLMNotConfiguredError / LLMParseError / LLMTransientError: см. parse_pdf_to_report.
         RuntimeError: если PDF не содержит финансовых таблиц.
     """
-    resolved_report_type = sector_to_report_type(company.sector)
+    resolved_report_type = company_type_to_report_type(company.company_type)
 
     if isinstance(pdf_source, Path):
         label = pdf_label or pdf_source.name

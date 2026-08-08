@@ -16,6 +16,7 @@ from app.schemas.company import (  # noqa: F401
     CompanyWithPrice,
 )
 from app.schemas.report import (  # noqa: F401
+    BankMetricsOut,
     FinancialReportCreate,
     FinancialReport,
 )
@@ -26,6 +27,13 @@ from app.schemas.multiplier import (  # noqa: F401
     MultiplierResponse,
     CurrentMultipliersResponse,
 )
+from app.schemas.holding import (  # noqa: F401
+    CorporateDebtUpdate,
+    HoldingNavOut,
+    HoldingStakeIn,
+    HoldingStakeOut,
+    StakeValuationOut,
+)
 from app.schemas.dividend import (  # noqa: F401
     DividendContinuityResult,
 )
@@ -34,6 +42,12 @@ from app.schemas.admin import (  # noqa: F401
 )
 
 __all__ = [
+    "BankMetricsOut",
+    "CorporateDebtUpdate",
+    "HoldingNavOut",
+    "HoldingStakeIn",
+    "HoldingStakeOut",
+    "StakeValuationOut",
     "Security",
     "StockPriceResponse",
     "PriceUpdateResponse",

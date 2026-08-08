@@ -1,6 +1,6 @@
 from app.models.financial_report import FinancialReport
 from app.services.analysis.share_counts import resolve_shares_for_multipliers
-from app.services.analysis.fcf import compute_fcf
+from app.services.analysis.fcf import compute_core_fcf, compute_fcf
 from app.services.analysis.net_debt import compute_net_debt
 from app.utils.currency_converter import convert_to_rub
 from typing import Dict, Optional
@@ -34,6 +34,8 @@ def calculate_multipliers(
     ltm_lease_interest: Optional[float] = None,
     ltm_interest_paid: Optional[float] = None,
     ltm_debt_principal: Optional[float] = None,
+    ltm_operating_expenses: Optional[float] = None,
+    banking_flow: Optional[float] = None,
 ) -> Dict[str, Optional[float]]:
     """
     Рассчитывает финансовые мультипликаторы.
@@ -54,6 +56,13 @@ def calculate_multipliers(
         ltm_special_dividends_per_share: разовая часть LTM-дивидендов в ₽/$ (None → из отчёта)
         ltm_operating_cash_flow: LTM операционный поток в млн валюты отчёта (None → из отчёта)
         ltm_capex: LTM CAPEX (положит. число) в млн валюты отчёта (None → из отчёта)
+        ltm_operating_expenses: LTM операционные расходы банка в млн (пара к ltm_revenue
+            для Cost-to-Income; без неё CIR считается по одному отчёту)
+        banking_flow: приток от роста банковского баланса гибрида, млн РУБЛЕЙ
+            (уже сконвертирован). Если передан — P/FCF, ND/FCF и FCF/NI
+            считаются от потока ядра: приток клиентских денег акционеру не
+            принадлежит и долг им не погасить. None — у компании нет
+            финсегмента либо строки ОДДС не заполнены.
 
     Returns:
         Словарь с мультипликаторами. market_cap — в МИЛЛИОНАХ рублей.
@@ -147,6 +156,8 @@ def calculate_multipliers(
     current_ratio: Optional[float] = None
     cost_to_income: Optional[float] = None
     ltm_fcf_mln: Optional[float] = None
+    ltm_core_fcf_mln: Optional[float] = None
+    fcf_basis: str = "reported"
     ltm_ocf_mln: Optional[float] = None
     ltm_capex_mln: Optional[float] = None
     price_to_fcf: Optional[float] = None
@@ -165,11 +176,18 @@ def calculate_multipliers(
         #
         # CIR = Operating Expenses / Total Operating Income × 100%
         # revenue хранит Total Operating Income для банков
-        revenue_for_cir = (
-            to_rub_mln(ltm_revenue) if ltm_revenue is not None
-            else to_rub_mln(report.revenue)
-        )
-        opex_mln = to_rub_mln(report.operating_expenses)
+        #
+        # Числитель и знаменатель обязаны покрывать один период. Раньше здесь
+        # бралась LTM-выручка за двенадцать месяцев и расходы прямо из отчёта:
+        # для полугодового отчёта это давало CIR вдвое ниже настоящего — банк
+        # выглядел бы вдвое эффективнее ровно в момент выхода промежуточной
+        # отчётности. Поэтому пара берётся целиком либо LTM, либо из отчёта.
+        if ltm_revenue is not None and ltm_operating_expenses is not None:
+            revenue_for_cir = to_rub_mln(ltm_revenue)
+            opex_mln = to_rub_mln(ltm_operating_expenses)
+        else:
+            revenue_for_cir = to_rub_mln(report.revenue)
+            opex_mln = to_rub_mln(report.operating_expenses)
         if opex_mln and revenue_for_cir and revenue_for_cir > 0:
             cost_to_income = round(opex_mln / revenue_for_cir * 100, 2)
         # FCF/CAPEX для банков концептуально неприменим — оставляем None.
@@ -222,21 +240,36 @@ def calculate_multipliers(
                 debt_p_mln,
             )
 
+        # ─── База для FCF-мультипликаторов ───────────────────────────────────
+        # У гибрида часть операционного потока — прирост клиентских депозитов.
+        # Эти деньги придётся вернуть: ими не выплатить дивиденд и не погасить
+        # долг, а в год, когда приток остановится, показатель схлопнется без
+        # всякого ухудшения бизнеса. Поэтому отношения считаем от потока ядра.
+        # У компаний без финсегмента banking_flow=None, и база остаётся прежней.
+        if ltm_fcf_mln is not None and banking_flow is not None:
+            ltm_core_fcf_mln = compute_core_fcf(ltm_fcf_mln, banking_flow)
+            fcf_basis = "core"
+        else:
+            ltm_core_fcf_mln = None
+            fcf_basis = "reported"
+
+        fcf_for_ratios = ltm_core_fcf_mln if ltm_core_fcf_mln is not None else ltm_fcf_mln
+
         # P/FCF = Market Cap / LTM FCF  (только если FCF > 0)
-        if market_cap_full and ltm_fcf_mln is not None and ltm_fcf_mln > 0:
-            price_to_fcf = round(market_cap_full / (ltm_fcf_mln * MILLION), 2)
+        if market_cap_full and fcf_for_ratios is not None and fcf_for_ratios > 0:
+            price_to_fcf = round(market_cap_full / (fcf_for_ratios * MILLION), 2)
 
         # FCF / Net Income — детектор качества прибыли (только при NI > 0).
         # Безразмерное соотношение: 1.0 = FCF равен прибыли, 1.25 = FCF на 25% выше NI.
-        if ltm_fcf_mln is not None and net_income_mln is not None and net_income_mln > 0:
-            fcf_to_net_income = round(ltm_fcf_mln / net_income_mln, 4)
+        if fcf_for_ratios is not None and net_income_mln is not None and net_income_mln > 0:
+            fcf_to_net_income = round(fcf_for_ratios / net_income_mln, 4)
 
         if (
             net_debt_mln is not None
-            and ltm_fcf_mln is not None
-            and ltm_fcf_mln != 0
+            and fcf_for_ratios is not None
+            and fcf_for_ratios != 0
         ):
-            net_debt_to_fcf = round(net_debt_mln / ltm_fcf_mln, 2)
+            net_debt_to_fcf = round(net_debt_mln / fcf_for_ratios, 2)
 
     return {
         "pe_ratio": pe_ratio,
@@ -253,6 +286,9 @@ def calculate_multipliers(
         "shares_used": shares,
         # FCF (None для банков)
         "ltm_fcf": ltm_fcf_mln,
+        "ltm_core_fcf": ltm_core_fcf_mln,
+        # По какому потоку посчитаны P/FCF, ND/FCF и FCF/NI: "core" | "reported"
+        "fcf_basis": fcf_basis,
         "ltm_operating_cash_flow": ltm_ocf_mln,
         "ltm_capex": ltm_capex_mln,
         "price_to_fcf": price_to_fcf,

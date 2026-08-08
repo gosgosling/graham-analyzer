@@ -4,6 +4,8 @@ from sqlalchemy.exc import IntegrityError
 from typing import List, Optional
 from datetime import datetime, timezone
 from app.models.company import Company
+from app.models.financial_report import FinancialReport
+from app.models.enums import CompanyType, company_type_to_report_type
 from app.schemas import CompanyCreate
 from app.services.analysis.sector_profiles import available_profiles
 from app.services.companies.share_class import (
@@ -176,6 +178,37 @@ def set_sector_profile_key(
     if cleaned and cleaned not in {p["key"] for p in available_profiles()}:
         raise ValueError(f"Неизвестный профиль: {profile_key}")
     db_company.sector_profile_key = cleaned or None  # type: ignore[assignment]
+    db.commit()
+    db.refresh(db_company)
+    return db_company
+
+
+def set_company_type(
+    db: Session, company_id: int, company_type: str
+) -> Optional[Company]:
+    """Задаёт метод анализа компании.
+
+    Тип определяет набор метрик и потому правится только вручную: сектор из
+    T-Invest для этого непригоден — в `financial` лежат и Сбер, и АФК Система.
+    При смене типа пересчитывается набор полей уже сохранённых отчётов, иначе
+    у бывшего «банка» останутся банковские отчёты без банковского бизнеса.
+    """
+    db_company = get_company_by_id(db, company_id)
+    if not db_company:
+        return None
+
+    cleaned = (company_type or "").strip().lower()
+    allowed = {t.value for t in CompanyType}
+    if cleaned not in allowed:
+        raise ValueError(
+            f"Неизвестный тип компании: {company_type!r}. Допустимо: {', '.join(sorted(allowed))}"
+        )
+
+    db_company.company_type = cleaned  # type: ignore[assignment]
+    resolved = company_type_to_report_type(cleaned)
+    db.query(FinancialReport).filter(FinancialReport.company_id == company_id).update(
+        {FinancialReport.report_type: resolved}, synchronize_session=False
+    )
     db.commit()
     db.refresh(db_company)
     return db_company

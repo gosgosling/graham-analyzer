@@ -511,8 +511,10 @@ def resolve_sector_profile(
     if not s:
         return GRAHAM_DEFAULT
 
-    if _contains_any(s, _BANK_WORDS):
-        return BANK
+    # Сектор «financial» объединяет банки, страховщиков, биржи и холдинги,
+    # поэтому банковский профиль по нему НЕ назначается: он следует только из
+    # типа компании (report_type='bank'). Раньше отсюда АФК Система получала
+    # банковские пороги и норматив достаточности капитала.
     if s == "it" or _contains_any(s, _IT_GICS_WORDS) or _contains_any(s, _IT_WORDS):
         return IT_TELECOM
     if _contains_any(s, _GROCERY_WORDS):

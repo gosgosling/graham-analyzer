@@ -84,6 +84,9 @@ class Multiplier(Base):
 
     # ─── Денежные потоки LTM (NULL для банков) ────────────────────────────────
     ltm_fcf: Mapped[Optional[float]] = mapped_column(Numeric(20, 2), nullable=True)
+    # Поток ядра — FCF без притока от роста банковского баланса. Заполняется
+    # только у гибридов: у остальных он совпал бы с ltm_fcf.
+    ltm_core_fcf: Mapped[Optional[float]] = mapped_column(Numeric(20, 2), nullable=True)
     ltm_operating_cash_flow: Mapped[Optional[float]] = mapped_column(Numeric(20, 2), nullable=True)
     ltm_capex: Mapped[Optional[float]] = mapped_column(Numeric(20, 2), nullable=True)
 

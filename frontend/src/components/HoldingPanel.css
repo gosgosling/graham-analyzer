@@ -1,0 +1,212 @@
+/* Панель холдинга. Цвета — только из токенов (styles/tokens.css),
+   поэтому блок живёт в светлой и тёмной теме без отдельных правил. */
+
+.holding-panel {
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-xl);
+  padding: var(--space-5);
+  margin: var(--space-5) 0;
+  box-shadow: var(--shadow-1);
+}
+
+.holding-header {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-4);
+}
+
+.holding-header h2 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.holding-subtitle {
+  font-size: 0.82rem;
+  color: var(--color-text-tertiary);
+}
+
+.holding-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.holding-card {
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-bg-subtle);
+}
+
+.holding-card.emphasis {
+  background: var(--color-accent-indigo-soft, var(--color-bg-subtle));
+  border-color: var(--color-border-accent, var(--color-border-default));
+}
+
+.holding-card.level-good { background: var(--color-success-soft); border-color: var(--color-success-border); }
+.holding-card.level-warn { background: var(--color-warning-soft); border-color: var(--color-warning-border); }
+.holding-card.level-bad  { background: var(--color-error-soft);   border-color: var(--color-error-border); }
+
+.holding-card-label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-tertiary);
+}
+
+.holding-card-value {
+  font-size: 1.35rem;
+  font-weight: 600;
+  margin: var(--space-1) 0;
+  color: var(--color-text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.holding-card.level-good .holding-card-value { color: var(--color-success-text); }
+.holding-card.level-warn .holding-card-value { color: var(--color-warning-text); }
+.holding-card.level-bad  .holding-card-value { color: var(--color-error-text); }
+
+.holding-card-hint {
+  font-size: 0.72rem;
+  line-height: 1.4;
+  color: var(--color-text-quaternary);
+}
+
+/* Незаполненные карточки дочек — обычное дело на этапе набора базы,
+   поэтому предупреждение спокойное, а не тревожное. */
+.holding-warning {
+  font-size: 0.82rem;
+  color: var(--color-warning-text);
+  background: var(--color-warning-soft);
+  border: 1px solid var(--color-warning-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-3);
+  margin: 0 0 var(--space-4);
+}
+
+.holding-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+
+.holding-table th,
+.holding-table td {
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--color-border-subtle);
+  text-align: left;
+}
+
+.holding-table th {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-tertiary);
+  font-weight: 600;
+}
+
+.holding-table td.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.holding-table td.strong { font-weight: 600; color: var(--color-text-primary); }
+
+.holding-row-unvalued { opacity: 0.75; }
+
+.holding-missing {
+  font-size: 0.78rem;
+  color: var(--color-text-quaternary);
+  font-style: italic;
+}
+
+.holding-ticker {
+  margin-left: var(--space-2);
+  font-size: 0.72rem;
+  color: var(--color-text-quaternary);
+}
+
+.holding-empty {
+  text-align: center;
+  color: var(--color-text-tertiary);
+  padding: var(--space-5);
+}
+
+.holding-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  margin-top: var(--space-4);
+}
+
+.holding-debt {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 0.82rem;
+  color: var(--color-text-secondary);
+}
+
+.holding-btn {
+  border: 1px solid var(--color-border-default);
+  background: var(--color-bg-input);
+  color: var(--color-text-primary);
+  border-radius: var(--radius-md);
+  padding: 6px 12px;
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.holding-btn:hover { background: var(--color-bg-hover); }
+.holding-btn.primary { background: var(--color-accent-indigo-soft); border-color: var(--color-border-accent); }
+.holding-btn.small { padding: 2px 8px; }
+
+.holding-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--space-3);
+  align-items: end;
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.holding-form label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: 0.78rem;
+  color: var(--color-text-secondary);
+}
+
+.holding-form input,
+.holding-form select {
+  border: 1px solid var(--color-border-default);
+  background: var(--color-bg-input);
+  color: var(--color-text-primary);
+  border-radius: var(--radius-md);
+  padding: 6px 10px;
+  font: inherit;
+  font-size: 0.85rem;
+}
+
+.holding-form input:disabled { opacity: 0.5; }
+
+.holding-debt input {
+  border: 1px solid var(--color-border-default);
+  background: var(--color-bg-input);
+  color: var(--color-text-primary);
+  border-radius: var(--radius-md);
+  padding: 6px 10px;
+  font: inherit;
+  font-size: 0.85rem;
+  width: 140px;
+}
