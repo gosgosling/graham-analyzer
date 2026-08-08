@@ -15,6 +15,7 @@ import {
 import { FinancialReport, FinancialReportCreate } from '../types';
 import MultipliersPanel from '../components/MultipliersPanel';
 import BankMetricsPanel from '../components/BankMetricsPanel';
+import HoldingPanel from '../components/HoldingPanel';
 import VerificationBadge from '../components/VerificationBadge';
 import ReportDetailModal from '../components/ReportDetailModal';
 import AiParsePdfModal from '../components/AiParsePdfModal';
@@ -392,12 +393,25 @@ const CompanyDetail: React.FC = () => {
       {/* Мультипликаторы — сразу под шапкой */}
       <MultipliersPanel company={company} reports={reports} />
 
-      {/* Банковский блок: риск, качество портфеля, фондирование, капитал.
-          Показывается только у банков — определяется типом отчёта, который
-          бэкенд проставляет по сектору компании. */}
-      {reports && reports.some((r) => r.report_type === 'bank') && (
-        <BankMetricsPanel reports={reports} />
+      {/* Холдинг: стоимость складывается из долей, а не из консолидированной
+          отчётности — там результаты дочек, а не доля акционера. */}
+      {company.company_type === 'holding' && (
+        <HoldingPanel company={company} reports={reports} />
       )}
+
+      {/* Блок финансового бизнеса: риск, качество портфеля, фондирование,
+          капитал. У кредитора это вся компания (определяется типом отчёта),
+          у гибрида — сегмент внутри обычной: тип отчёта у него общий, поэтому
+          проверяем тип компании отдельно. */}
+      {reports &&
+        (reports.some((r) => r.report_type === 'bank') ||
+          company.company_type === 'hybrid') && (
+          <BankMetricsPanel
+            companyId={company.id!}
+            reports={reports}
+            companyType={company.company_type}
+          />
+        )}
 
       {/* Основная сетка с информацией */}
       <div className="company-content-grid">

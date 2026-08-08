@@ -11,7 +11,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.models.company import Company
-from app.models.enums import sector_to_report_type
+from app.models.enums import company_type_to_report_type
 from app.models.financial_report import FinancialReport
 
 _YEAR_RE = re.compile(r"(19|20)\d{2}")
@@ -133,7 +133,7 @@ def scan_reports_dir(
                     )
             continue
 
-        if skip_banks and sector_to_report_type(company.sector) == "bank":
+        if skip_banks and company_type_to_report_type(company.company_type) == "bank":
             skipped_banks += len(pdfs)
             pdf_files += len(pdfs)
             if include_skipped_in_items:

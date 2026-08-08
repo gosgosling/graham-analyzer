@@ -246,12 +246,28 @@ def test_bank_fields_are_aggregated_for_bank_reports(db, company):
     assert ltm["ltm_net_interest_income"] == 800.0
 
 
-def test_general_report_leaves_bank_fields_empty(db, company):
+def test_hybrid_report_aggregates_bank_fields_too(db, company):
+    """Гибриду финсегмент нужен, хотя тип отчёта у него общий.
+
+    У Яндекса банк живёт внутри обычной отчётности: `report_type` остаётся
+    general, но портфель и резервы заполнены. Раньше агрегация смотрела на
+    тип отчёта и такие поля отбрасывала.
+    """
     _add_report(db, company, year=2025, net_income=1_000.0, net_interest_income=800.0)
 
     ltm = get_ltm_data(db, company.id)
 
+    assert ltm["ltm_net_interest_income"] == 800.0
+
+
+def test_industrial_report_has_no_bank_flows(db, company):
+    """У промышленной компании банковских полей нет — и в LTM их не появится."""
+    _add_report(db, company, year=2025, net_income=1_000.0)
+
+    ltm = get_ltm_data(db, company.id)
+
     assert ltm["ltm_net_interest_income"] is None
+    assert ltm["ltm_provisions"] is None
 
 
 def test_company_without_reports_returns_none(db, company):

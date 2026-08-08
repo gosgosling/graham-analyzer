@@ -31,11 +31,18 @@ from app.models.multiplier import Multiplier
 from app.models.company import Company
 from app.models.enums import PeriodType
 from app.services.analysis.calc_multipliers import calculate_multipliers
-from app.services.analysis.fcf import compute_fcf
+from app.models.enums import CompanyType
+from app.services.analysis.fcf import compute_banking_flow, compute_core_fcf, compute_fcf
 from app.services.analysis.sector_profiles import (
     profile_to_dict,
     resolve_profile,
 )
+from app.services.analysis.bank_metrics import (
+    bank_metric_hint,
+    compute_bank_metrics,
+    evaluate_all,
+)
+from app.services.analysis.periods import is_full_year
 from app.services.analysis.share_counts import (
     compute_circulation_shares,
     resolve_shares_for_multipliers,
@@ -70,7 +77,18 @@ _LTM_FLOW_ATTRS: Tuple[str, ...] = (
     "interest_paid",
     "debt_principal",
 )
-_LTM_BANK_ATTRS: Tuple[str, ...] = ("net_interest_income", "fee_commission_income")
+# operating_expenses здесь ради Cost-to-Income: он должен считаться по той же
+# паре периодов, что и выручка, иначе полугодовой отчёт делает банк вдвое
+# эффективнее на бумаге. provisions и interest_expense — ради стоимости риска
+# и фондирования: их тоже делят на баланс, и полугодие без пары исказило бы
+# результат.
+_LTM_BANK_ATTRS: Tuple[str, ...] = (
+    "net_interest_income",
+    "fee_commission_income",
+    "operating_expenses",
+    "provisions",
+    "interest_expense",
+)
 
 
 _DIVIDEND_ATTRS = ("dividends_per_share", "special_dividends_per_share")
@@ -85,9 +103,15 @@ def _field_rub(report: FinancialReport, attr: str) -> Optional[float]:
     return _convert(val, report.currency, _to_float(report.exchange_rate))
 
 
-def _flow_fields_rub(report: FinancialReport, is_bank: bool) -> Dict[str, Optional[float]]:
-    """Потоковые поля одного отчёта за полный год — как есть, без агрегации."""
-    attrs = _LTM_FLOW_ATTRS + (_LTM_BANK_ATTRS if is_bank else ())
+def _flow_fields_rub(report: FinancialReport, is_bank: bool = False) -> Dict[str, Optional[float]]:
+    """Потоковые поля одного отчёта за полный год — как есть, без агрегации.
+
+    Банковские поля собираются всегда, а не только для report_type='bank':
+    у гибрида финсегмент живёт внутри обычной отчётности, и его портфель с
+    резервами тоже нужен в LTM. У промышленной компании эти поля пустые,
+    поэтому лишними значениями это не оборачивается.
+    """
+    attrs = _LTM_FLOW_ATTRS + _LTM_BANK_ATTRS
     return {attr: _field_rub(report, attr) for attr in attrs}
 
 
@@ -187,12 +211,11 @@ def _try_interim_ltm(
     if prior_fy is None or prior_ytd is None:
         return None
 
-    flow = _ltm_from_interim_formula(latest, prior_fy, prior_ytd, _LTM_FLOW_ATTRS)
-    is_bank = getattr(latest, "report_type", "general") == "bank"
-    if is_bank:
-        bank = _ltm_from_interim_formula(latest, prior_fy, prior_ytd, _LTM_BANK_ATTRS)
-        flow.update(bank)
-
+    # Банковские потоки собираем для любой компании: у гибрида финсегмент
+    # сидит внутри обычной отчётности, а у промышленной эти поля пустые.
+    flow = _ltm_from_interim_formula(
+        latest, prior_fy, prior_ytd, _LTM_FLOW_ATTRS + _LTM_BANK_ATTRS
+    )
     return flow, _interim_ltm_source_label(latest)
 
 
@@ -210,6 +233,9 @@ def _flow_to_ltm_payload(flow: Dict[str, Optional[float]]) -> Dict[str, Optional
         "ltm_debt_principal": flow.get("debt_principal"),
         "ltm_net_interest_income": flow.get("net_interest_income"),
         "ltm_fee_commission_income": flow.get("fee_commission_income"),
+        "ltm_operating_expenses": flow.get("operating_expenses"),
+        "ltm_provisions": flow.get("provisions"),
+        "ltm_interest_expense": flow.get("interest_expense"),
     }
 
 
@@ -297,6 +323,51 @@ def get_ltm_data(db: Session, company_id: int) -> Optional[Dict]:
 # Multiplier calculation & persistence
 # ---------------------------------------------------------------------------
 
+def _previous_comparable_report(
+    db: Session, report: FinancialReport
+) -> Optional[FinancialReport]:
+    """Предыдущий отчёт того же типа периода — для приростов баланса.
+
+    Приросты (депозиты, кредиты) считаются только между сопоставимыми
+    периодами: разница между полугодием и годом дала бы бессмыслицу.
+    """
+    return (
+        db.query(FinancialReport)
+        .filter(
+            FinancialReport.company_id == report.company_id,
+            FinancialReport.period_type == report.period_type,
+            FinancialReport.report_date < report.report_date,
+        )
+        .order_by(FinancialReport.report_date.desc())
+        .first()
+    )
+
+
+def _hybrid_banking_flow(
+    db: Session,
+    company: Company,
+    balance_report: FinancialReport,
+) -> Tuple[Optional[float], Optional[str]]:
+    """Приток от роста банковского баланса гибрида, млн ₽, и его основание.
+
+    У компании со встроенным банком (Яндекс, МОЕХ) операционный поток включает
+    прирост клиентских депозитов — чужие деньги, которые нельзя раздать
+    акционерам. Считается до мультипликаторов: от этой величины зависит, по
+    какому потоку строятся P/FCF, ND/FCF и FCF/NI. Для остальных типов
+    компаний очистка не нужна — возвращаем None, и база остаётся прежней.
+    """
+    if getattr(company, "company_type", None) != CompanyType.HYBRID.value:
+        return None, None
+
+    previous = _previous_comparable_report(db, balance_report)
+    banking_flow, basis = compute_banking_flow(balance_report, previous)
+    if banking_flow is None:
+        return None, None
+
+    rate = _to_float(balance_report.exchange_rate)
+    return _convert(banking_flow, balance_report.currency, rate), basis
+
+
 def calculate_current_multipliers(
     db: Session,
     company_id: int,
@@ -331,9 +402,14 @@ def calculate_current_multipliers(
     if price is None:
         logger.warning("Нет текущей цены для компании id=%d (%s)", company_id, company.ticker)
 
+    # Банковский поток считается ДО мультипликаторов: от него зависит, по
+    # какому свободному потоку строить P/FCF, ND/FCF и FCF/NI у гибрида.
+    banking_flow, banking_flow_basis = _hybrid_banking_flow(db, company, balance_report)
+
     # Кол-во акций для market cap — приоритет: в обращении → средневзв. → размещённые.
     mults = calculate_multipliers(
         report=balance_report,
+        banking_flow=banking_flow,
         override_price=price,
         ltm_net_income=_ltm_back_to_report_currency(
             ltm["ltm_net_income"], balance_report
@@ -365,6 +441,9 @@ def calculate_current_multipliers(
         ltm_debt_principal=_ltm_back_to_report_currency(
             ltm.get("ltm_debt_principal"), balance_report
         ),
+        ltm_operating_expenses=_ltm_back_to_report_currency(
+            ltm.get("ltm_operating_expenses"), balance_report
+        ),
     )
 
     rate = _to_float(balance_report.exchange_rate)
@@ -376,6 +455,8 @@ def calculate_current_multipliers(
 
     return {
         **mults,
+        "banking_flow": banking_flow,
+        "banking_flow_basis": banking_flow_basis,
         "ltm_net_income": ltm["ltm_net_income"],
         "ltm_revenue": ltm["ltm_revenue"],
         "ltm_dividends_per_share": ltm["ltm_dividends_per_share"],
@@ -429,6 +510,179 @@ def _ltm_back_to_report_currency(
     return round(rub_value / rate, 4)
 
 
+# Потоки, которые банковские показатели делят на баланс.
+_BANK_METRIC_FLOWS = (
+    ("net_income", "ltm_net_income"),
+    ("net_interest_income", "ltm_net_interest_income"),
+    ("provisions", "ltm_provisions"),
+    ("interest_expense", "ltm_interest_expense"),
+)
+
+
+def compute_ltm_bank_metrics(db: Session, company_id: int) -> Optional[Dict]:
+    """Показатели финансового бизнеса по скользящим двенадцати месяцам.
+
+    Работает для двух типов компаний, и набор показателей у них разный:
+
+    * **Кредитор** (`lender`) — весь набор: ROA, маржа, стоимость риска,
+      фондирование, достаточность капитала. Отчётность банка целиком описывает
+      финансовый бизнес, поэтому групповые показатели к нему и относятся.
+    * **Гибрид** (`hybrid`) — только то, что относится к финсегменту:
+      качество портфеля, стоимость риска, кредиты к депозитам, доли розницы.
+      ROA, маржа и фондирование остаются пустыми намеренно: их знаменатели
+      групповые, и «прибыль всего Яндекса ÷ активы всего Яндекса» ничего не
+      говорит о его банке. Достаточность капитала гибрид не раскрывает вовсе —
+      её показывает только сам банк в отчётности перед ЦБ.
+
+    Отличие от `bank_metrics` в схеме отчёта — в числителе. Там показатели
+    описывают один отчёт, и у полугодового приходится домножать поток на два,
+    допуская, что второе полугодие будет как первое. Здесь берутся фактические
+    двенадцать месяцев из формулы LTM, и допущения не нужно: ROA и стоимость
+    риска считаются от того же периода, что P/E и ROE рядом в карточке.
+
+    Знаменатели — балансовые, с самого свежего отчёта: портфель и депозиты
+    берутся на отчётную дату, а не усредняются.
+
+    Возвращает None, если у компании нет финансового бизнеса или отчётов нет.
+    """
+    company = db.query(Company).filter(Company.id == company_id).first()
+    if company is None:
+        return None
+
+    company_type = (getattr(company, "company_type", None) or "").strip().lower()
+    is_hybrid = company_type == CompanyType.HYBRID.value
+
+    ltm = get_ltm_data(db, company_id)
+    if ltm is None:
+        return None
+
+    balance_report: FinancialReport = ltm["balance_report"]
+    is_lender = getattr(balance_report, "report_type", "general") == "bank"
+    if not is_lender and not is_hybrid:
+        return None
+
+    flows = {
+        attr: _ltm_back_to_report_currency(ltm.get(key), balance_report)
+        for attr, key in _BANK_METRIC_FLOWS
+    }
+
+    metrics = compute_bank_metrics(
+        balance_report,
+        key_rate=_key_rate_for_year(db, balance_report.fiscal_year),
+        ltm_flows=flows,
+    )
+    values = metrics.as_dict()
+
+    if is_hybrid:
+        # Групповые знаменатели к финсегменту не относятся — см. docstring.
+        for name in _GROUP_LEVEL_METRICS:
+            values[name] = None
+
+    statuses = evaluate_all(metrics)
+    for name in values:
+        if values.get(name) is None and name in statuses:
+            statuses[name] = "n/a"
+    hints = {
+        name: hint
+        for name in statuses
+        if (hint := bank_metric_hint(name)) is not None
+    }
+
+    payload = {
+        **values,
+        "segment": "hybrid" if is_hybrid else "lender",
+        "flow_basis": _flow_basis(metrics.flow_basis, ltm.get("source"), balance_report),
+        "statuses": statuses,
+        "hints": hints,
+    }
+    if is_hybrid:
+        payload.update(_core_flow_summary(db, company, balance_report, ltm))
+    return payload
+
+
+# Показатели, знаменатель которых — весь баланс или весь отчёт о прибыли.
+# Для банка это и есть финансовый бизнес, для гибрида — вся компания вместе с
+# такси, доставкой и рекламой, поэтому финсегменту они не принадлежат.
+_GROUP_LEVEL_METRICS = (
+    "roa",
+    "net_interest_margin",
+    "cost_of_funding",
+    "funding_spread",
+    "capital_adequacy_ratio",
+    "capital_adequacy_core",
+    "capital_to_rwa",
+    # Ключевая ставка — контекст для стоимости фондирования; без неё в шапке
+    # это просто число, не относящееся к сегменту.
+    "key_rate",
+)
+
+
+def _core_flow_summary(
+    db: Session,
+    company: Company,
+    balance_report: FinancialReport,
+    ltm: Dict,
+) -> Dict[str, Optional[float]]:
+    """Свободный поток ядра для панели финсегмента.
+
+    Ровно те же три числа, что раньше жили в карточке мультипликаторов:
+    поток по отчёту, приток от роста банковского баланса и разница между
+    ними. Место у них здесь — рядом с портфелем и депозитами, из движения
+    которых этот приток и складывается.
+    """
+    banking_flow, basis = _hybrid_banking_flow(db, company, balance_report)
+
+    rate = _to_float(balance_report.exchange_rate)
+    ocf = ltm.get("ltm_operating_cash_flow")
+    capex = ltm.get("ltm_capex")
+    lease = ltm.get("ltm_lease_principal")
+    if ocf is None:
+        ocf = _convert(balance_report.operating_cash_flow, balance_report.currency, rate)
+    if capex is None:
+        capex = _convert(balance_report.capex, balance_report.currency, rate)
+    if lease is None:
+        lease = _convert(balance_report.lease_principal, balance_report.currency, rate)
+
+    reported_fcf = compute_fcf(ocf, capex, lease) if ocf is not None and capex is not None else None
+
+    return {
+        "reported_fcf": reported_fcf,
+        "banking_flow": banking_flow,
+        "banking_flow_basis": basis,
+        "core_fcf": compute_core_fcf(reported_fcf, banking_flow),
+    }
+
+
+def _flow_basis(
+    computed: Optional[str],
+    ltm_source: Optional[str],
+    balance_report: FinancialReport,
+) -> Optional[str]:
+    """Уточняет, чем на самом деле оказались потоки.
+
+    `get_ltm_data` при нехватке прошлогоднего промежуточного отчёта отдаёт не
+    скользящий год, а последний полный — те же двенадцать месяцев, но
+    закончившиеся раньше отчётной даты. Числа настоящие, поэтому берём их (так
+    же считаются P/E и ROE рядом), но называть это скользящим годом нельзя:
+    прибыль за 2025 год, делённая на баланс середины 2026, занижает отдачу.
+    """
+    if computed != "ltm":
+        return computed
+    if is_full_year(balance_report):
+        return "reported"
+    if ltm_source == "annual":
+        return "prior_full_year"
+    return "ltm"
+
+
+def _key_rate_for_year(db: Session, year: int) -> Optional[float]:
+    """Средняя ключевая ставка ЦБ за год из справочника."""
+    from app.models.key_rate import KeyRate
+
+    row = db.query(KeyRate).filter(KeyRate.year == year).first()
+    return float(row.avg_rate) if row else None
+
+
 # ---------------------------------------------------------------------------
 # Раскладка расчёта по колонкам Multiplier
 # ---------------------------------------------------------------------------
@@ -447,6 +701,7 @@ _METRIC_FIELDS: Tuple[str, ...] = (
     "dividend_yield_regular",
     "cost_to_income",
     "ltm_fcf",
+    "ltm_core_fcf",
     "ltm_operating_cash_flow",
     "ltm_capex",
     "price_to_fcf",
@@ -675,7 +930,15 @@ def save_report_based_multiplier(
         db.commit()
         return None
 
-    mults = calculate_multipliers(report)
+    # Поток ядра считается и для строк по годам, иначе колонка FCF в таблице
+    # показывала бы сырой поток рядом с отношениями, посчитанными от ядра.
+    # Приток берётся из ОДДС самого отчёта — за тот же период, что и поток.
+    company = db.query(Company).filter(Company.id == report.company_id).first()
+    banking_flow, _basis = (
+        _hybrid_banking_flow(db, company, report) if company else (None, None)
+    )
+
+    mults = calculate_multipliers(report, banking_flow=banking_flow)
 
     # 1) Основная запись: ищем ранее созданную для ЭТОГО report_id.
     existing: Optional[Multiplier] = (

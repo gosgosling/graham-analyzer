@@ -6,6 +6,8 @@ from typing import List, Dict, Optional
 from pathlib import Path
 from dotenv import load_dotenv
 
+from app.utils.http_session import external_session
+
 # Определяем путь к корню проекта (на два уровня выше от этого файла)
 # backend/app/utils/tinkoff_client.py -> graham-analyzer/
 BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
@@ -160,7 +162,7 @@ def fetch_share_instrument_by_figi(token: str, base_url: str, figi: str) -> Opti
     }
     payload = {"idType": "INSTRUMENT_ID_TYPE_FIGI", "id": figi}
     try:
-        response = requests.post(url, json=payload, headers=headers, timeout=20)
+        response = external_session().post(url, json=payload, headers=headers, timeout=20)
         response.raise_for_status()
         data = response.json()
     except requests.exceptions.RequestException:
@@ -244,7 +246,7 @@ def get_tinkoff_companies() -> List[Dict]:
     }
     
     try:
-        response = requests.post(url, json=payload, headers=headers, timeout=30)
+        response = external_session().post(url, json=payload, headers=headers, timeout=30)
         response.raise_for_status()
         
         data = response.json()

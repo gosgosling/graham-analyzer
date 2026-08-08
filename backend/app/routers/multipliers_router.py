@@ -23,6 +23,7 @@ from app.models.company import Company
 from app.models.financial_report import FinancialReport
 from app.models.multiplier import Multiplier
 from app.schemas import (
+    BankMetricsOut,
     MultiplierResponse,
     CurrentMultipliersResponse,
     PriceUpdateResponse,
@@ -203,6 +204,32 @@ def get_multipliers_history(
                 limit=limit,
             )
     return [_multiplier_to_response(m) for m in history]
+
+
+# ---------------------------------------------------------------------------
+# Банковские показатели по скользящему году
+# ---------------------------------------------------------------------------
+
+@router.get(
+    "/companies/{company_id}/bank-metrics/ltm",
+    response_model=Optional[BankMetricsOut],
+    summary="Банковские показатели за последние 12 месяцев",
+    description=(
+        "Стоимость риска, маржа, ROA и фондирование по скользящему году "
+        "(LTM), балансовые знаменатели — с последнего отчёта. Отличие от "
+        "показателей в самом отчёте: там полугодие пришлось бы умножать на "
+        "два, здесь берутся фактические двенадцать месяцев. "
+        "null — если компания не банк или отчётов нет."
+    ),
+)
+def get_ltm_bank_metrics(company_id: int, db: Session = Depends(get_db)):
+    company = db.query(Company).filter(Company.id == company_id).first()
+    if not company:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Компания с ID {company_id} не найдена",
+        )
+    return multiplier_service.compute_ltm_bank_metrics(db, company_id)
 
 
 # ---------------------------------------------------------------------------

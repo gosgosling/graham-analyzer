@@ -1,4 +1,5 @@
 .env
+.env.bak.*
 # e-disclosure Playwright cookies (may contain session secrets)
 tools/edisclosure-scraper/.edisclosure_storage_state.json
 

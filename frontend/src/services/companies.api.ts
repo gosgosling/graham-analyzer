@@ -90,6 +90,24 @@ export const updateCompanySectorProfile = async (
     return response.data;
 };
 
+/**
+ * Метод анализа компании: industrial | lender | insurance | holding | hybrid.
+ *
+ * Не выводится из сектора: в `financial` у T-Invest лежат и банки, и
+ * страховщики, и биржи, и холдинги. Смена типа пересчитывает набор полей
+ * у всех отчётов компании.
+ */
+export const updateCompanyType = async (
+    companyId: number,
+    companyType: string,
+): Promise<Company> => {
+    const response = await api.patch<Company>(
+        `/companies/${companyId}/company-type`,
+        { company_type: companyType },
+    );
+    return response.data;
+};
+
 /** Ручное описание деятельности компании (имеет приоритет над LLM). */
 export const updateCompanyDescription = async (
     companyId: number,

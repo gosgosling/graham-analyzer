@@ -12,6 +12,7 @@ from app.services.companies.company_service import (
     get_company_by_id,
     set_business_description_manual,
     set_preferred_share_flag,
+    set_company_type,
     set_sector_profile_key,
 )
 from app.services.companies.sync_service import sync_companies_from_tinkoff
@@ -21,6 +22,11 @@ from app.models.company import Company as CompanyModel
 class PreferredShareUpdate(BaseModel):
     """Тело PATCH /companies/{id}/preferred-share: новое значение флажка."""
     is_preferred_share: bool
+
+
+class CompanyTypeUpdate(BaseModel):
+    """Тело PATCH /companies/{id}/company-type: метод анализа компании."""
+    company_type: str
 
 
 class SectorProfileUpdate(BaseModel):
@@ -172,6 +178,28 @@ def update_sector_profile(
     """
     try:
         company = set_sector_profile_key(db, company_id, payload.sector_profile_key)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+    return company
+
+
+@router.patch("/{company_id}/company-type", response_model=Company)
+def update_company_type(
+    company_id: int,
+    payload: CompanyTypeUpdate,
+    db: Session = Depends(get_db),
+):
+    """
+    Задаёт метод анализа компании: industrial | lender | insurance | holding | hybrid.
+
+    Тип не выводится из сектора и правится только вручную: в секторе
+    `financial` живут и банки, и страховщики, и биржи, и холдинги. Смена типа
+    пересчитывает набор полей у всех отчётов компании.
+    """
+    try:
+        company = set_company_type(db, company_id, payload.company_type)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
     if not company:

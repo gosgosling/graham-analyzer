@@ -36,6 +36,17 @@ interface MatrixRowDef {
   kind: CellKind;
   bankOnly?: boolean;
   nonBankOnly?: boolean;
+  /**
+   * Есть только в отчётности самого банка перед ЦБ, а не в консолидации
+   * группы. У гибрида (Яндекс, Озон) такие строки заполнить нечем.
+   */
+  lenderOnly?: boolean;
+  /**
+   * Нужно только гибриду: очистка потока от встроенного финсервиса.
+   * У чистого банка весь денежный поток и есть движение клиентских денег —
+   * вычитать не из чего, FCF ему не считается вовсе.
+   */
+  hybridOnly?: boolean;
   selectOptions?: { value: string; label: string }[];
 }
 
@@ -86,6 +97,10 @@ const MATRIX_ROWS: MatrixRowDef[] = [
     kind: 'readonly',
     hint: 'NI − див. по префам',
   },
+  // У банка процентные расходы — себестоимость основной деятельности, а не
+  // обслуживание долга, поэтому покрытие процентов ему не считается.
+  { key: 'operating_profit', label: 'Операционная прибыль (EBIT)', kind: 'number', hint: 'млн', nonBankOnly: true },
+  { key: 'finance_costs', label: 'Финансовые расходы', kind: 'number', hint: 'млн, положит.', nonBankOnly: true },
   { key: 'net_income_reported', label: 'Прибыль отчётная', kind: 'number', hint: 'млн' },
   { key: 'total_assets', label: 'Активы всего', kind: 'number', hint: 'млн' },
   { key: 'current_assets', label: 'Оборотные активы', kind: 'number', hint: 'млн', bankOnly: false },
@@ -114,12 +129,12 @@ const MATRIX_ROWS: MatrixRowDef[] = [
     kind: 'number',
     hint: 'млн валюты отчёта',
   },
-  { key: 'net_interest_income', label: 'NII (банк)', kind: 'number', hint: 'млн', bankOnly: true },
-  { key: 'fee_commission_income', label: 'Комиссионные доходы', kind: 'number', hint: 'млн', bankOnly: true },
-  { key: 'operating_expenses', label: 'Опер. расходы (до резервов)', kind: 'number', hint: 'млн', bankOnly: true },
+  { key: 'net_interest_income', label: 'NII (банк)', kind: 'number', hint: 'млн', bankOnly: true, lenderOnly: true },
+  { key: 'fee_commission_income', label: 'Комиссионные доходы', kind: 'number', hint: 'млн', bankOnly: true, lenderOnly: true },
+  { key: 'operating_expenses', label: 'Опер. расходы (до резервов)', kind: 'number', hint: 'млн', bankOnly: true, lenderOnly: true },
   { key: 'provisions', label: 'Резервы под ОК', kind: 'number', hint: 'млн', bankOnly: true },
-  { key: 'interest_income', label: 'Процентные доходы (валовые)', kind: 'number', hint: 'млн', bankOnly: true },
-  { key: 'interest_expense', label: 'Процентные расходы', kind: 'number', hint: 'млн, положит.', bankOnly: true },
+  { key: 'interest_income', label: 'Процентные доходы (валовые)', kind: 'number', hint: 'млн', bankOnly: true, lenderOnly: true },
+  { key: 'interest_expense', label: 'Процентные расходы', kind: 'number', hint: 'млн, положит.', bankOnly: true, lenderOnly: true },
   { key: 'gross_loans', label: 'Кредиты до резерва', kind: 'number', hint: 'млн, примечание', bankOnly: true },
   { key: 'loan_loss_allowance', label: 'Накопленный резерв (ECL)', kind: 'number', hint: 'млн, положит.', bankOnly: true },
   { key: 'npl_loans', label: 'Обесцененные (Stage 3)', kind: 'number', hint: 'млн', bankOnly: true },
@@ -128,9 +143,11 @@ const MATRIX_ROWS: MatrixRowDef[] = [
   { key: 'loans_corporate', label: '— кредиты юрлицам', kind: 'number', hint: 'млн', bankOnly: true },
   { key: 'deposits_retail', label: '— средства физлиц', kind: 'number', hint: 'млн', bankOnly: true },
   { key: 'deposits_corporate', label: '— средства юрлиц', kind: 'number', hint: 'млн', bankOnly: true },
-  { key: 'risk_weighted_assets', label: 'Активы под риском (RWA)', kind: 'number', hint: 'млн', bankOnly: true },
-  { key: 'capital_adequacy_ratio', label: 'Достаточность общая Н1.0', kind: 'number', hint: '%', bankOnly: true },
-  { key: 'capital_adequacy_core', label: 'Достаточность основного Н1.1', kind: 'number', hint: '%', bankOnly: true },
+  { key: 'risk_weighted_assets', label: 'Активы под риском (RWA)', kind: 'number', hint: 'млн', bankOnly: true, lenderOnly: true },
+  { key: 'capital_adequacy_ratio', label: 'Достаточность общая Н1.0', kind: 'number', hint: '%', bankOnly: true, lenderOnly: true },
+  { key: 'capital_adequacy_core', label: 'Достаточность основного Н1.1', kind: 'number', hint: '%', bankOnly: true, lenderOnly: true },
+  { key: 'cf_customer_deposits', label: 'Δ средств клиентов (ОДДС)', kind: 'number', hint: 'млн, со знаком из отчёта', bankOnly: true, hybridOnly: true },
+  { key: 'cf_customer_loans', label: 'Δ кредитов клиентам (ОДДС)', kind: 'number', hint: 'млн, обычно отрицательное', bankOnly: true, hybridOnly: true },
   { key: 'operating_cash_flow', label: 'Опер. денежный поток', kind: 'number', hint: 'млн', nonBankOnly: true },
   { key: 'capex', label: 'CAPEX', kind: 'number', hint: 'млн, положит.', nonBankOnly: true },
   { key: 'lease_principal', label: 'Тело аренды', kind: 'number', hint: 'млн, опц.', nonBankOnly: true },
@@ -379,16 +396,27 @@ const CompanyReportsMatrix: React.FC = () => {
   });
 
   const sectorKind = detectSectorDisplayKind(company?.sector);
-  const isBank = sectorKind === 'bank';
+  // Набор строк определяет тип компании, а не сектор: в «financial» у T-Invest
+  // лежат и банки, и холдинги. У гибрида (Яндекс, МОЕХ) финансовый сегмент
+  // существует внутри обычной компании — банковские поля ему тоже нужны,
+  // но вместе с обычными: FCF и оборотные активы у ядра никуда не делись.
+  const isLender = company?.company_type === 'lender';
+  const isHybrid = company?.company_type === 'hybrid';
+  const showBankRows = isLender || isHybrid;
 
   const isPreferred = company?.is_preferred_share ?? false;
 
   const visibleRows = useMemo(
     () =>
       MATRIX_ROWS.filter((row) => {
-        if (row.bankOnly && !isBank) return false;
-        if (row.nonBankOnly && isBank) return false;
-        if (isBank && (row.key === 'current_assets' || row.key === 'current_liabilities')) return false;
+        if (row.bankOnly && !showBankRows) return false;
+        // Гибриду показываем только то, что реально есть в консолидации МСФО:
+        // NII, комиссии, RWA и нормативы Н1 раскрывает лишь сам банк в
+        // отчётности перед ЦБ. Пустая строка на экране хуже её отсутствия.
+        if (row.lenderOnly && !isLender) return false;
+        if (row.hybridOnly && !isHybrid) return false;
+        if (row.nonBankOnly && isLender) return false;
+        if (isLender && (row.key === 'current_assets' || row.key === 'current_liabilities')) return false;
         // На префовом тикере «обычные» корректировки на префы бессмысленны:
         // dividends_per_share уже хранит дивиденд по префам, разделения нет.
         if (isPreferred && (row.key === 'has_preferred_shares' || row.key === 'preferred_share_dividends')) {
@@ -399,7 +427,11 @@ const CompanyReportsMatrix: React.FC = () => {
         }
         return true;
       }),
-    [isBank, isPreferred],
+    [showBankRows, isLender, isHybrid, isPreferred],
+  ).map((row) =>
+    isHybrid && row.bankOnly
+      ? { ...row, label: `${row.label} · финсегмент`, hint: `${row.hint ?? ''} встроенный банк`.trim() }
+      : row,
   );
 
   const sortedReports = useMemo(() => {

@@ -42,7 +42,23 @@
 .bank-metric-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  /* Ряды одной высоты: у справочных показателей нет строки с порогом,
+     и без выравнивания их ряд получается ниже соседнего. */
+  grid-auto-rows: 1fr;
   gap: var(--space-3);
+}
+
+/* Справочный показатель: порога нет по существу, а не «нет данных». */
+.bank-metric-note {
+  display: inline-block;
+  margin-top: var(--space-2);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-quaternary);
+  border: 1px dashed var(--color-border-subtle);
+  border-radius: var(--radius-sm, 4px);
+  padding: 1px 6px;
 }
 
 .bank-metric-card {
@@ -172,3 +188,176 @@
 .bank-history-cell.level-warn { color: var(--color-warning-text); }
 .bank-history-cell.level-bad  { color: var(--color-error-text); }
 .bank-history-cell.level-na   { color: var(--color-text-quaternary); }
+
+/* Значок в углу карточки: показатель, который осмыслен только в сравнении.
+   Стоимость фондирования без ключевой ставки не оценить, поэтому вердикт
+   несёт спред — маленьким цветным значком, не занимая отдельную карточку. */
+.bank-metric-card {
+  position: relative;
+}
+
+.bank-metric-badge {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  font-size: 0.72rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  padding: 2px 7px;
+  border-radius: var(--radius-sm, 4px);
+  border: 1px solid var(--color-border-subtle);
+  background: var(--color-bg-surface);
+  color: var(--color-text-secondary);
+  cursor: help;
+}
+
+.bank-metric-badge.level-good {
+  background: var(--color-success-soft);
+  border-color: var(--color-success-border);
+  color: var(--color-success-text);
+}
+
+.bank-metric-badge.level-warn {
+  background: var(--color-warning-soft);
+  border-color: var(--color-warning-border);
+  color: var(--color-warning-text);
+}
+
+.bank-metric-badge.level-bad {
+  background: var(--color-error-soft);
+  border-color: var(--color-error-border);
+  color: var(--color-error-text);
+}
+
+/* Значение не должно заезжать под значок */
+.bank-metric-card:has(.bank-metric-badge) .bank-metric-label {
+  padding-right: 72px;
+}
+
+/* Переключатель периода: свежий отчёт против последнего полного года.
+   Появляется только когда это разные отчёты — у компании с одними годовыми
+   отчётами выбирать не из чего. */
+.bank-period-switch {
+  /* Прижимает переключатель к заголовку, а период отчёта — к правому краю:
+     у шапки space-between, и без этого кнопки повисают посередине. */
+  margin-right: auto;
+  display: inline-flex;
+  align-self: center;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md, 6px);
+  background: var(--color-bg-subtle);
+}
+
+.bank-period-switch button {
+  border: none;
+  background: transparent;
+  color: var(--color-text-tertiary);
+  font: inherit;
+  font-size: 0.78rem;
+  padding: 3px 10px;
+  border-radius: var(--radius-sm, 4px);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--transition-fast, 0.15s ease), color var(--transition-fast, 0.15s ease);
+}
+
+.bank-period-switch button:hover {
+  color: var(--color-text-primary);
+}
+
+.bank-period-switch button.is-active {
+  background: var(--color-bg-surface);
+  color: var(--color-text-primary);
+  box-shadow: var(--shadow-1);
+}
+
+/* Пометка, что потоковые показатели умножены на 12/длину периода */
+.bank-panel-flag {
+  margin-left: var(--space-2);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-quaternary);
+  border: 1px dashed var(--color-border-subtle);
+  border-radius: var(--radius-sm, 4px);
+  padding: 1px 6px;
+  cursor: help;
+}
+
+/* Свободный поток ядра — только у гибрида. Стоит рядом с портфелем и
+   депозитами, потому что вычитаемый приток складывается из их движения. */
+.bank-core-flow {
+  margin-top: var(--space-5);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-subtle);
+}
+
+.bank-core-flow-title {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-tertiary);
+  margin-bottom: var(--space-3);
+}
+
+.bank-core-flow-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-4);
+  padding: var(--space-2) 0;
+  font-size: 0.88rem;
+  color: var(--color-text-secondary);
+}
+
+.bank-core-flow-row b {
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-primary);
+  white-space: nowrap;
+}
+
+.bank-core-flow-row.is-total {
+  border-top: 1px solid var(--color-border-subtle);
+  margin-top: var(--space-1);
+  padding-top: var(--space-3);
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.bank-core-flow-row.is-total b {
+  font-size: 1.1rem;
+}
+
+.bank-core-flow .bank-panel-note {
+  margin-top: var(--space-3);
+}
+
+/* Расчёт ядра и динамика сегмента — рядом: одно объясняет другое.
+   На узком экране столбцы схлопываются в один. */
+.bank-bottom-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: var(--space-4);
+  align-items: start;
+}
+
+.bank-bottom-grid > .bank-core-flow {
+  margin-top: var(--space-5);
+}
+
+.bank-segment-history .bank-history-table {
+  width: 100%;
+}
+
+.bank-segment-history .bank-history-table th:first-child {
+  width: 45%;
+}
+
+.bank-segment-history .bank-history-table td,
+.bank-segment-history .bank-history-table th {
+  padding: var(--space-2);
+}

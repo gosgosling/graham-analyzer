@@ -252,6 +252,9 @@
 .current-cards-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  /* Ряды одной высоты: у карточек разной длины пояснения (у P/E короткое,
+     у Cost/Income в три строки), и без этого второй ряд визуально «сжимается». */
+  grid-auto-rows: 1fr;
   gap: 12px;
   margin-bottom: 24px;
 }
@@ -1116,4 +1119,34 @@
 [data-theme='light'] .cr-tooltip-na,
 .theme-light .cr-tooltip-na {
   color: #555f6e;
+}
+
+
+/* ── Предупреждение о типе компании ────────────────────────────────────
+   Холдинг и гибрид считаются по консолидации, которая для них вводит
+   в заблуждение. Честная плашка лучше правдоподобной цифры. */
+.mult-type-warning {
+  margin: var(--space-3) 0 0;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  font-size: 0.84rem;
+  line-height: 1.5;
+  border: 1px solid var(--color-warning-border);
+  background: var(--color-warning-soft);
+  color: var(--color-warning-text);
+}
+
+.mult-type-warning b { font-weight: 600; }
+
+
+/* ─── Банковские колонки истории ────────────────────────────────────────────
+   Заголовки здесь длиннее значений («Покрытие, %» против «106.61»), поэтому
+   ширину колонки задаёт подпись, а прижатое вправо число визуально уходит
+   из-под неё. Центрирование ставит значение под середину заголовка.
+
+   Класс отдельный, не col-compact: тот же класс носят FCF/NI, ND/FCF и CAPEX
+   у обычных компаний, где правое выравнивание чисел уместно. */
+.hist-table th.col-bank,
+.hist-table td.col-bank {
+  text-align: center;
 }

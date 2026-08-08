@@ -2,6 +2,7 @@
 Enum-типы для моделей приложения.
 """
 from enum import Enum
+from typing import Optional
 
 
 class PeriodType(str, Enum):
@@ -29,6 +30,22 @@ class ReportSource(str, Enum):
     OTHER = "other"  # Другой источник
 
 
+class CompanyType(str, Enum):
+    """Метод анализа компании — не отрасль.
+
+    Отрасль (`Company.sector`) отвечает на вопрос «с кем сравнивать», тип —
+    «как считать». Их смешение стоило дорого: АФК Система и SFI имеют сектор
+    `financial`, из-за чего получали банковские метрики и норматив
+    достаточности капитала, которого у холдинга не существует.
+    """
+
+    INDUSTRIAL = "industrial"  # обычный бизнес: весь набор тестов Грэма
+    LENDER = "lender"          # банки, МФО, лизинг, ломбарды: активы — займы
+    INSURANCE = "insurance"    # страховщики: резервы и комбинированный коэффициент
+    HOLDING = "holding"        # владеет долями, сам не оперирует: NAV, а не P/E
+    HYBRID = "hybrid"          # операционка со встроенным финбизнесом (Яндекс, МОЕХ)
+
+
 class ReportType(str, Enum):
     """Тип компании/отрасли — определяет набор полей и алгоритм анализа по Грэму"""
     GENERAL = "general"  # Промышленные, нефтегаз, ритейл и т.д.
@@ -50,26 +67,24 @@ _BANK_SECTOR_KEYWORDS = frozenset({
 })
 
 
-def sector_to_report_type(sector: str | None) -> str:
+def company_type_to_report_type(company_type: Optional[str]) -> str:
+    """Набор полей отчёта по типу компании.
+
+    Банковский набор (портфель, резервы, Н1) нужен только кредиторам.
+    Гибрид (Яндекс с банком внутри, биржа с клиентскими остатками) остаётся
+    в общем наборе: его финсегмент оценивается отдельно, а не подменяет
+    отчётность всей компании.
     """
-    Определяет report_type компании по её сектору из T-Invest API.
-
-    Возвращает 'bank' если сектор относится к банковскому/финансовому сектору,
-    иначе 'general'.
-
-    Args:
-        sector: строка сектора из поля Company.sector (может быть None)
-
-    Returns:
-        'bank' или 'general'
-    """
-    if not sector:
-        return ReportType.GENERAL.value
-    normalized = sector.strip().lower()
-    if normalized in _BANK_SECTOR_KEYWORDS:
+    if (company_type or "").strip().lower() == CompanyType.LENDER.value:
         return ReportType.BANK.value
-    # Частичное совпадение: "financial_services", "bank_of_russia" и т.п.
-    for keyword in _BANK_SECTOR_KEYWORDS:
-        if keyword in normalized:
-            return ReportType.BANK.value
     return ReportType.GENERAL.value
+
+
+def sector_to_company_type(sector: str | None) -> str:
+    """Первичная догадка о типе по сектору — только для новых компаний.
+
+    Сектор `financial` объединяет банки, страховщиков, биржи и холдинги,
+    поэтому догадка всегда требует ручной проверки: по умолчанию ставим
+    `industrial`, чтобы новая компания молча не получила чужие метрики.
+    """
+    return CompanyType.INDUSTRIAL.value

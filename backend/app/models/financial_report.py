@@ -102,6 +102,17 @@ class FinancialReport(Base):
     # Отчёт о прибылях и убытках (млн валюты)
     revenue: Mapped[Optional[float]] = mapped_column(Numeric(15, 3), nullable=True)  # Выручка, млн
     net_income: Mapped[Optional[float]] = mapped_column(Numeric(15, 3), nullable=True)  # Чистая прибыль, млн
+    # Прибыль до процентов и налогов и стоимость обслуживания долга.
+    # Их отношение — покрытие процентов: у Грэма это один из тестов
+    # финансовой устойчивости, а для холдинга — единственная метрика
+    # его собственной жизнеспособности.
+    operating_profit: Mapped[Optional[float]] = mapped_column(
+        Numeric(15, 3), nullable=True
+    )  # Операционная прибыль (EBIT), млн
+    finance_costs: Mapped[Optional[float]] = mapped_column(
+        Numeric(15, 3), nullable=True
+    )  # Финансовые расходы (проценты), млн — положительным числом
+
     net_income_reported: Mapped[Optional[float]] = mapped_column(
         Numeric(15, 3), nullable=True
     )  # Фактическая (отчётная) прибыль по раскрытию, млн — если отличается от net_income
@@ -185,6 +196,22 @@ class FinancialReport(Base):
     deposits_corporate: Mapped[Optional[float]] = mapped_column(
         Numeric(15, 3), nullable=True
     )  # Средства юридических лиц, млн
+
+    # Движение клиентских денег из ОДДС — для компаний со встроенным
+    # финансовым сервисом (Яндекс Банк, Озон Банк и подобные). Берутся прямо
+    # из отчёта о движении денежных средств СО ЗНАКОМ, как напечатано:
+    # приток средств клиентов положительный, выдача кредитов отрицательная.
+    #
+    # Почему не разница балансовых остатков: она включает секьюритизацию,
+    # списания и прекращение признания активов, которые меняют баланс, но
+    # через денежный поток не проходят. У Яндекса за 2025 год расхождение
+    # 23 млрд ₽ — 77 против 100.
+    cf_customer_deposits: Mapped[Optional[float]] = mapped_column(
+        Numeric(15, 3), nullable=True
+    )  # Изменение средств клиентов финсегмента в ОДДС, млн
+    cf_customer_loans: Mapped[Optional[float]] = mapped_column(
+        Numeric(15, 3), nullable=True
+    )  # Изменение кредитов клиентам в ОДДС, млн (обычно отрицательное)
 
     # Достаточность капитала: главный ограничитель роста банка и его дивидендов.
     risk_weighted_assets: Mapped[Optional[float]] = mapped_column(

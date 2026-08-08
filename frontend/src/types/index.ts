@@ -135,6 +135,14 @@ export interface MultiplierRecord {
     dividend_yield_regular?: number | null;
     /** Cost-to-Income ratio (%), только для банков */
     cost_to_income: number | null;
+    /** Гибрид: приток от роста банковского баланса, млн ₽ (депозиты − кредиты). */
+    banking_flow?: number | null;
+    /** Гибрид: свободный поток ядра — без движения клиентских денег, млн ₽. */
+    ltm_core_fcf?: number | null;
+    /** По какому потоку посчитаны P/FCF, ND/FCF, FCF/NI */
+    fcf_basis?: 'core' | 'reported' | null;
+    /** Откуда взят приток: 'cash_flow' — строки ОДДС, 'balance_delta' — приросты остатков. */
+    banking_flow_basis?: 'cash_flow' | 'balance_delta' | null;
 
     // Денежные потоки LTM (NULL для банков)
     ltm_fcf: number | null;
@@ -198,6 +206,14 @@ export interface CurrentMultipliers {
     /** Дивидендная доходность без разовых выплат */
     dividend_yield_regular?: number | null;
     cost_to_income: number | null;
+    /** Гибрид: приток от роста банковского баланса, млн ₽ (депозиты − кредиты). */
+    banking_flow?: number | null;
+    /** Гибрид: свободный поток ядра — без движения клиентских денег, млн ₽. */
+    ltm_core_fcf?: number | null;
+    /** По какому потоку посчитаны P/FCF, ND/FCF, FCF/NI */
+    fcf_basis?: 'core' | 'reported' | null;
+    /** Откуда взят приток: 'cash_flow' — строки ОДДС, 'balance_delta' — приросты остатков. */
+    banking_flow_basis?: 'cash_flow' | 'balance_delta' | null;
 
     // Денежные потоки LTM (NULL для банков)
     ltm_fcf: number | null;
@@ -232,6 +248,46 @@ export interface CompaniesSyncResponse {
     statistics: CompaniesSyncStatistics;
 }
 
+/** Метод анализа компании — не отрасль. */
+export type CompanyType = 'industrial' | 'lender' | 'insurance' | 'holding' | 'hybrid';
+
+/** Доля холдинга в дочерней компании. */
+export interface HoldingStake {
+    id: number;
+    name: string;
+    share_pct: number;
+    subsidiary_company_id?: number | null;
+    /** Стоимость ВСЕЙ дочки, млн ₽ — для непубличных активов. */
+    manual_valuation?: number | null;
+    valuation_note?: string | null;
+}
+
+/** Доля с посчитанной стоимостью. */
+export interface StakeValuation {
+    stake_id: number;
+    name: string;
+    ticker?: string | null;
+    subsidiary_company_id?: number | null;
+    share_pct: number;
+    company_value: number | null;
+    stake_value: number | null;
+    source: 'market' | 'manual' | 'unknown';
+    missing?: string | null;
+}
+
+/** Оценка холдинга: сумма долей минус долг центра, и дисконт к ней. */
+export interface HoldingNav {
+    company_id: number;
+    stakes: StakeValuation[];
+    stakes_value: number | null;
+    corporate_center_net_debt: number | null;
+    nav: number | null;
+    market_cap: number | null;
+    discount_pct: number | null;
+    valued_stakes: number;
+    total_stakes: number;
+}
+
 export interface Company {
     id?: number;
     figi: string;
@@ -244,6 +300,11 @@ export interface Company {
      * определяется по сектору, который T-Invest отдаёт крупными группами.
      */
     sector_profile_key?: string | null;
+    /**
+     * Метод анализа: определяет набор метрик. Отдельно от сектора —
+     * в `financial` попадают и банки, и холдинги, и страховщики.
+     */
+    company_type?: CompanyType;
     currency: string;
     lot: number;
     api_trade_available_flag: boolean;
@@ -298,6 +359,8 @@ export interface FinancialReportCreate {
     net_income?: number | null;
     /** Фактическая отчётная прибыль по раскрытию, млн (если отличается от net_income) */
     net_income_reported?: number | null;
+    operating_profit?: number | null;      // Операционная прибыль (EBIT), млн
+    finance_costs?: number | null;         // Финансовые расходы, млн (положительное число)
     total_assets?: number | null;
     current_assets?: number | null;
     total_liabilities?: number | null;
@@ -335,6 +398,8 @@ export interface FinancialReportCreate {
     loan_loss_allowance?: number | null;   // Накопленный резерв (ECL), млн
     npl_loans?: number | null;             // Обесцененные кредиты (Stage 3 / 90+), млн
     customer_deposits?: number | null;     // Средства клиентов, млн
+    cf_customer_deposits?: number | null;  // Δ средств клиентов из ОДДС, млн (со знаком)
+    cf_customer_loans?: number | null;     // Δ кредитов клиентам из ОДДС, млн (обычно < 0)
     loans_retail?: number | null;          // Кредиты физлицам (валовые), млн
     loans_corporate?: number | null;       // Кредиты юрлицам (валовые), млн
     deposits_retail?: number | null;       // Средства физлиц, млн
@@ -388,7 +453,26 @@ export interface BankMetrics {
     capital_to_rwa: number | null;          // Капитал / RWA, % — сверка Н1.0
     retail_loans_share: number | null;      // Доля розницы в портфеле, %
     retail_deposits_share: number | null;   // Доля физлиц в средствах клиентов, %
+    funding_spread: number | null;          // Стоимость фондирования − ключевая ставка, п.п.
+    key_rate: number | null;                // Средняя ключевая ставка ЦБ за период, %
     net_loans: number | null;               // Портфель за вычетом резерва, млн
+    /**
+     * Откуда взяты потоковые числители (прибыль, ЧПД, резервы, процентные расходы):
+     *   'ltm'              — фактические 12 месяцев из трёх отчётов, допущений нет;
+     *   'prior_full_year'  — прошлогоднего промежуточного отчёта нет, взят
+     *                        последний полный год: числа настоящие, но период
+     *                        закончился раньше отчётной даты;
+     *   'annualised'       — период умножен на 12/длину периода;
+     *   'reported'         — годовой отчёт, приводить нечего.
+     */
+    flow_basis?: 'ltm' | 'prior_full_year' | 'annualised' | 'reported' | null;
+    /** Чей финансовый бизнес описан: вся компания или сегмент внутри неё */
+    segment?: 'lender' | 'hybrid' | null;
+    /** Свободный поток ядра — только у гибрида, млн ₽ */
+    reported_fcf?: number | null;
+    banking_flow?: number | null;
+    banking_flow_basis?: 'cash_flow' | 'balance_delta' | null;
+    core_fcf?: number | null;
     statuses: Record<string, 'good' | 'normal' | 'bad' | 'n/a'>;
     hints: Record<string, string>;
 }
@@ -398,6 +482,8 @@ export interface FinancialReport extends FinancialReportCreate {
     bank_metrics?: BankMetrics | null;
     /** Доля прибыли, выплаченная дивидендами, % — считает бэкенд для всех компаний. */
     dividend_payout?: number | null;
+    /** Во сколько раз операционная прибыль покрывает проценты по долгу. */
+    interest_coverage?: number | null;
     id: number;
     created_at?: string;
     updated_at?: string | null;
