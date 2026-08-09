@@ -35,7 +35,12 @@ class BankMetrics:
     roa: Optional[float] = None                     # Прибыль / активы, %
     net_interest_margin: Optional[float] = None     # ЧПД / активы, %
     cost_of_risk: Optional[float] = None            # Резерв за период / портфель, %
-    npl_ratio: Optional[float] = None               # Обесцененные / портфель, %
+    npl_ratio: Optional[float] = None               # Проблемные / портфель, %
+    # Чем считали долю проблемных и покрытие: 'stage3' — Стадия 3 + POCI,
+    # 'overdue_90' — просрочка свыше 90 дней, когда стадий эмитент не раскрыл.
+    # Просрочка уже Стадии 3 на величину реструктуризаций, поэтому такие годы
+    # интерфейс помечает: показатель занижен, но это лучшее, что раскрыто.
+    npl_basis: Optional[str] = None
     npl_coverage: Optional[float] = None            # Накопленный резерв / обесцененные, %
     loans_to_deposits: Optional[float] = None       # Чистые кредиты / средства клиентов, %
     cost_of_funding: Optional[float] = None         # Процентные расходы / средства клиентов, %
@@ -46,6 +51,7 @@ class BankMetrics:
     retail_deposits_share: Optional[float] = None   # Доля физлиц в средствах клиентов, %
     funding_spread: Optional[float] = None          # Стоимость фондирования − ключевая ставка, п.п.
     key_rate: Optional[float] = None                # Средняя ключевая ставка за период, %
+    gross_loans: Optional[float] = None             # Портфель до резерва, млн
     net_loans: Optional[float] = None               # Портфель за вычетом резерва, млн
     # Откуда взяты потоки: 'ltm' — фактические 12 месяцев, 'annualised' —
     # период умножен на 12/длину, 'reported' — годовой отчёт как есть.
@@ -85,6 +91,7 @@ _INFORMATIONAL = (
     "cost_of_funding",
     "key_rate",
     "capital_to_rwa",
+    "gross_loans",
     "net_loans",
     # Доля розницы — не «хорошо/плохо», а профиль банка: розничные депозиты
     # дешевле и устойчивее, розничные кредиты доходнее и рискованнее.
@@ -171,6 +178,17 @@ def compute_bank_metrics(
 
     flows, flow_basis = _year_flows(report, ltm_flows)
 
+    # Проблемные кредиты: Стадия 3 + POCI, а при её отсутствии — просрочка 90+.
+    # Вторая уже первой (в неё не попадают реструктуризации, по которым платежи
+    # идут), поэтому доля и покрытие в такие годы выходят оптимистичнее. Чтобы
+    # это не выдавалось за факт, признак уезжает в интерфейс.
+    problem_loans = _num(getattr(report, "npl_loans", None))
+    npl_basis: Optional[str] = "stage3" if problem_loans is not None else None
+    if problem_loans is None:
+        problem_loans = _num(getattr(report, "npl_overdue_90", None))
+        if problem_loans is not None:
+            npl_basis = "overdue_90"
+
     cost_of_funding = _ratio_pct(
         flows["interest_expense"],
         getattr(report, "customer_deposits", None),
@@ -187,8 +205,9 @@ def compute_bank_metrics(
             getattr(report, "total_assets", None),
         ),
         cost_of_risk=_ratio_pct(flows["provisions"], gross_loans),
-        npl_ratio=_ratio_pct(getattr(report, "npl_loans", None), gross_loans),
-        npl_coverage=_ratio_pct(allowance, getattr(report, "npl_loans", None)),
+        npl_ratio=_ratio_pct(problem_loans, gross_loans),
+        npl_basis=npl_basis,
+        npl_coverage=_ratio_pct(allowance, problem_loans),
         loans_to_deposits=_ratio_pct(net_loans, getattr(report, "customer_deposits", None)),
         cost_of_funding=cost_of_funding,
         capital_adequacy_ratio=_num(getattr(report, "capital_adequacy_ratio", None)),
@@ -208,6 +227,7 @@ def compute_bank_metrics(
             getattr(report, "equity", None),
             getattr(report, "risk_weighted_assets", None),
         ),
+        gross_loans=gross_loans,
         net_loans=net_loans,
         flow_basis=flow_basis,
     )

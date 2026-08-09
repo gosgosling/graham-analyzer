@@ -558,6 +558,20 @@ function fmtMln(n: number | null): string {
   return formatMln(n);
 }
 
+/**
+ * Портфель крупного банка в млрд — пятизначное число, которое глазом не
+ * читается: 48 473 против 46 710 отличить труднее, чем 48,47 и 46,71. Поэтому
+ * колонка целиком переключается на триллионы, как только хотя бы одно значение
+ * в ней доходит до пяти знаков. Именно колонка целиком, а не отдельная ячейка:
+ * иначе в одном столбце оказались бы соседние годы в разных единицах.
+ */
+const PORTFOLIO_TRILLION_THRESHOLD_MLN = 10_000_000; // 10 000 млрд = 5 знаков
+
+function fmtPortfolio(n: number | null, inTrillions: boolean): string {
+  if (n === null || n === undefined) return '—';
+  return (n / (inTrillions ? 1_000_000 : 1_000)).toFixed(2);
+}
+
 /** Значение в млн ₽ → число в млрд (без единицы; единица в заголовке колонки). */
 function fmtMlnBln(n: number | null): string {
   if (n === null) return '—';
@@ -1229,14 +1243,29 @@ function bankMetricCell(
   const value = (metrics?.[key] ?? null) as number | null;
   const status = metrics?.statuses?.[key as string] ?? 'n/a';
   const level = status === 'good' ? 'good' : status === 'normal' ? 'warn' : status === 'bad' ? 'bad' : 'neutral';
+  // Доля проблемных и покрытие могут быть посчитаны по просрочке 90+, когда
+  // эмитент не раскрыл стадии. Просрочка уже Стадии 3 — в неё не попадают
+  // реструктуризации, — поэтому такие значения занижены и помечаются.
+  const byOverdue =
+    metrics?.npl_basis === 'overdue_90' && (key === 'npl_ratio' || key === 'npl_coverage');
   return (
     <td className="col-mult col-compact col-bank">
-      <MetricBadge
-        value={value}
-        level={level as Level}
-        tip={metrics?.hints?.[key as string]}
-        nullHint={metrics ? 'Поле не заполнено в отчёте' : 'Нет банковских данных за период'}
-      />
+      <span className={byOverdue ? 'metric-with-flag' : undefined}>
+        <MetricBadge
+          value={value}
+          level={level as Level}
+          tip={metrics?.hints?.[key as string]}
+          nullHint={metrics ? 'Поле не заполнено в отчёте' : 'Нет банковских данных за период'}
+        />
+        {byOverdue && (
+          <span
+            className="metric-flag"
+            title="Посчитано по ссудам с задержкой платежа свыше 90 дней: разбивку по стадиям эмитент за этот год не раскрыл. Просрочка уже Стадии 3 — реструктурированные кредиты, по которым платежи идут, в неё не попадают, поэтому доля проблемных занижена, а покрытие завышено."
+          >
+            !
+          </span>
+        )}
+      </span>
     </td>
   );
 }
@@ -1254,6 +1283,8 @@ interface HistTableRowProps {
   /** Строка за предыдущий год — для атрибуции изменения ROE */
   previous?: HistRowSnapshot | null;
   isPreferredShare: boolean;
+  /** Портфель показывать в триллионах — решается на уровне всей колонки. */
+  portfolioInTrillions?: boolean;
   /** Банковские показатели этого периода; у строки LTM их нет. */
   bankMetrics?: BankMetrics | null;
   /**
@@ -1278,6 +1309,7 @@ const HistTableRow: React.FC<HistTableRowProps> = ({
   profile,
   previous,
   isPreferredShare,
+  portfolioInTrillions,
   bankMetrics,
   costToIncome,
   previousBankMetrics,
@@ -1476,6 +1508,15 @@ const HistTableRow: React.FC<HistTableRowProps> = ({
       {isBank && bankMetricCell(bankMetrics, 'npl_coverage', pctMode, bankYoY?.npl_coverage)}
       {isBank && bankMetricCell(bankMetrics, 'loans_to_deposits', pctMode, bankYoY?.loans_to_deposits)}
       {isBank && bankMetricCell(bankMetrics, 'capital_adequacy_core', pctMode, bankYoY?.capital_adequacy_core)}
+      {/* Портфель — знаменатель трёх колонок слева. Без него не отличить
+          «риск снизился» от «портфель раздули». */}
+      {isBank &&
+        histYoYCell(
+          pctMode,
+          bankYoY?.gross_loans,
+          fmtPortfolio((bankMetrics?.gross_loans ?? null) as number | null, !!portfolioInTrillions),
+          'col-portfolio',
+        )}
       {histYoYCell(pctMode, yoy?.revenue, fmtMlnBln(snapshot.ltm_revenue))}
       {histYoYCell(
         pctMode,
@@ -1508,6 +1549,18 @@ const HistTable: React.FC<HistTableProps & { pctMode: boolean }> = ({
   // колонка показывает именно его — и заголовок обязан об этом сказать.
   const hasCoreFcf =
     rows.some((r) => r.ltm_core_fcf != null) || currentRow?.ltm_core_fcf != null;
+
+  // Масштаб колонки портфеля — по самому крупному значению в ней.
+  const portfolioInTrillions = React.useMemo(() => {
+    const values: number[] = [];
+    const push = (m: BankMetrics | null | undefined) => {
+      const v = m?.gross_loans;
+      if (typeof v === 'number') values.push(Math.abs(v));
+    };
+    push(ltmBankMetrics);
+    rows.forEach((r) => r.report_id != null && push(bankMetricsByReport?.get(r.report_id)));
+    return values.some((v) => v >= PORTFOLIO_TRILLION_THRESHOLD_MLN);
+  }, [rows, bankMetricsByReport, ltmBankMetrics]);
 
   return (
     <div className={`hist-table-wrapper${pctMode ? ' hist-table-wrapper--pct' : ''}`}>
@@ -1594,13 +1647,24 @@ const HistTable: React.FC<HistTableProps & { pctMode: boolean }> = ({
               <th className="col-mult col-compact col-bank" title="Доля обесцененных кредитов (Stage 3 / 90+) в портфеле">NPL, %</th>
             )}
             {isBank && (
-              <th className="col-mult col-compact col-bank" title="Накопленный резерв к обесцененным кредитам">Покрытие, %</th>
+              <th className="col-mult col-compact col-bank" title="Накопленный резерв к обесцененным кредитам (Стадия 3 + POCI)">Покрытие, %</th>
             )}
             {isBank && (
               <th className="col-mult col-compact col-bank" title="Чистые кредиты к средствам клиентов">LDR, %</th>
             )}
             {isBank && (
               <th className="col-mult col-compact col-bank" title="Достаточность основного капитала (Н1.1 / CET1)">Н1.1, %</th>
+            )}
+            {isBank && (
+              <th
+                className="col-rev col-portfolio col-header-unit-col"
+                title="Кредитный портфель до вычета резерва — знаменатель ROA, стоимости риска и доли проблемных"
+              >
+                <ColHeaderWithUnit
+                  title="Портфель"
+                  unit={portfolioInTrillions ? 'трлн ₽' : 'млрд ₽'}
+                />
+              </th>
             )}
             <th className="col-rev col-header-unit-col">
               <ColHeaderWithUnit title="Выручка" />
@@ -1631,6 +1695,7 @@ const HistTable: React.FC<HistTableProps & { pctMode: boolean }> = ({
               profile={profile}
               previous={rows.length > 0 ? snapshotFromRecord(rows[0]) : null}
               isPreferredShare={isPreferredShare}
+              portfolioInTrillions={portfolioInTrillions}
               // Потоковые показатели (ROA, маржа, стоимость риска) — за
               // скользящий год, балансовые — с отчёта `balance_report_id`.
               // Всё это уже посчитано на бэкенде; отчёт остаётся запасным
@@ -1672,6 +1737,7 @@ const HistTable: React.FC<HistTableProps & { pctMode: boolean }> = ({
               profile={profile}
               previous={index + 1 < rows.length ? snapshotFromRecord(rows[index + 1]) : null}
               isPreferredShare={isPreferredShare}
+              portfolioInTrillions={portfolioInTrillions}
               bankMetrics={r.report_id != null ? bankMetricsByReport?.get(r.report_id) : null}
               costToIncome={r.cost_to_income}
               previousBankMetrics={

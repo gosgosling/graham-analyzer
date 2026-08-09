@@ -5,14 +5,13 @@ import {
   getCompanyById,
   getCompanyReports,
   createFinancialReport,
-  updateFinancialReport,
   deleteFinancialReport,
   refreshCompanyMultipliers,
   verifyReport,
   updateCompanyPreferredShare,
   updateCompanyDescription,
 } from '../services';
-import { FinancialReport, FinancialReportCreate } from '../types';
+import { FinancialReport } from '../types';
 import MultipliersPanel from '../components/MultipliersPanel';
 import BankMetricsPanel from '../components/BankMetricsPanel';
 import HoldingPanel from '../components/HoldingPanel';
@@ -22,7 +21,6 @@ import AiParsePdfModal from '../components/AiParsePdfModal';
 import { formatPerShare } from '../utils/perShare';
 import { formatMln } from '../utils/format';
 import { shadeHex, isLightBrandHex, isNeutralBrandForHero } from '../utils/brandColor';
-import { computeNetDebt } from '../utils/netDebt';
 import { resolveSharesForMultipliers, explainSharesCapBasis } from '../utils/shareCounts';
 import SharesCapHover from '../components/SharesCapHover';
 import { getCompanyLogoCandidates } from '../utils/companyLogo';
@@ -64,27 +62,6 @@ const CompanyDetail: React.FC = () => {
           : Array.isArray(d)
             ? d.map((e: { msg?: string }) => e?.msg).filter(Boolean).join('; ')
             : 'Ошибка при создании отчёта';
-      alert(msg);
-    },
-  });
-
-  const updateReportMutation = useMutation({
-    mutationFn: ({ id, data }: { id: number; data: FinancialReportCreate }) =>
-      updateFinancialReport(id, data),
-    onSuccess: async (_, variables) => {
-      // Инвалидируем кэш отчётов и мультипликаторов
-      queryClient.invalidateQueries({ queryKey: ['reports', companyId] });
-      queryClient.invalidateQueries({ queryKey: ['reports-counts-by-company'] });
-      queryClient.invalidateQueries({ queryKey: ['reports-unverified-counts'] });
-      queryClient.invalidateQueries({ queryKey: ['multipliers', companyId] });
-      // Пересчитываем мультипликаторы на сервере
-      await refreshCompanyMultipliers(Number(companyId), true);
-      queryClient.invalidateQueries({ queryKey: ['multipliers', companyId] });
-      setSelectedReport(null);
-    },
-    onError: (err: any) => {
-      const detail = err?.response?.data?.detail;
-      const msg = typeof detail === 'string' ? detail : 'Ошибка при обновлении отчёта';
       alert(msg);
     },
   });

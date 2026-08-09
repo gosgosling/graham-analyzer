@@ -36,7 +36,7 @@ interface MetricSpec {
 
 const METRICS: MetricSpec[] = [
   { key: 'cost_of_risk', label: 'Стоимость риска', unit: 'pct', meaning: 'Сколько портфеля банк списывает за год' },
-  { key: 'npl_ratio', label: 'Доля проблемных', unit: 'pct', meaning: 'Обесцененные кредиты к портфелю' },
+  { key: 'npl_ratio', label: 'Доля проблемных', unit: 'pct', meaning: 'Стадия 3 и POCI к портфелю' },
   { key: 'npl_coverage', label: 'Покрытие резервом', unit: 'pct', meaning: 'Резерв к обесцененным кредитам' },
   { key: 'capital_adequacy_core', label: 'Основной капитал Н1.1', unit: 'pct', meaning: 'Ядро, которое поглощает убытки первым' },
   { key: 'capital_adequacy_ratio', label: 'Достаточность общая Н1.0', unit: 'pct', meaning: 'Включает суборды — списываются не сразу' },
@@ -72,7 +72,10 @@ const HYBRID_METRIC_KEYS = new Set<keyof BankMetrics>([
 ]);
 
 /** Показатели сегмента в истории по годам — те же ключи, что и в карточках. */
-const HISTORY_ROWS: { key: keyof BankMetrics; label: string }[] = [
+const HISTORY_ROWS: { key: keyof BankMetrics; label: string; unit?: 'pct' | 'mln' }[] = [
+  // Портфель первым: он знаменатель трёх строк ниже. Рост портфеля при
+  // падающем покрытии объясняет ухудшение лучше, чем каждый коэффициент сам.
+  { key: 'gross_loans', label: 'Портфель до резерва', unit: 'mln' },
   { key: 'cost_of_risk', label: 'Стоимость риска' },
   { key: 'npl_ratio', label: 'Доля проблемных' },
   { key: 'npl_coverage', label: 'Покрытие резервом' },
@@ -368,7 +371,7 @@ const BankMetricsPanel: React.FC<Props> = ({ companyId, reports, companyType }) 
                           key={rep.id}
                           className={`bank-history-cell level-${levelClass(status)}`}
                         >
-                          {fmtValue(value, 'pct')}
+                          {fmtValue(value, row.unit ?? 'pct')}
                         </td>
                       );
                     })}

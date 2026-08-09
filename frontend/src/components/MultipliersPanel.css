@@ -1150,3 +1150,39 @@
 .hist-table td.col-bank {
   text-align: center;
 }
+
+/* Портфель в триллионах — короткое число (48.47) в колонке, ширину которой
+   задаёт слово «ПОРТФЕЛЬ». При выравнивании вправо весь запас собирался слева
+   одним провалом между Н1.1 и значением. По центру он расходится на две
+   половины и в глаза не бросается. */
+.hist-table th.col-portfolio,
+.hist-table td.col-portfolio {
+  text-align: center;
+  padding-left: 6px;
+  padding-right: 6px;
+}
+
+/* Значение посчитано по более узкой метрике, чем обычно: эмитент не раскрыл
+   разбивку по стадиям, и доля проблемных считается по просрочке 90+.
+   Маленький значок в углу — чтобы это не выдавалось за ту же величину. */
+.metric-with-flag {
+  position: relative;
+  display: inline-block;
+}
+
+.metric-flag {
+  position: absolute;
+  top: -5px;
+  right: -9px;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: var(--color-warning-soft);
+  border: 1px solid var(--color-warning-border);
+  color: var(--color-warning-text);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 11px;
+  text-align: center;
+  cursor: help;
+}
