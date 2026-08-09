@@ -285,3 +285,37 @@ def test_flow_basis_names_the_source():
 def test_flow_basis_is_not_a_metric_with_a_verdict():
     """Служебной пометке не место в светофоре."""
     assert "flow_basis" not in evaluate_all(compute_bank_metrics(_bank()))
+
+
+# ─── Откат на просрочку 90+ ────────────────────────────────────────────────
+
+
+def test_stage3_is_preferred_over_overdue_90():
+    """Когда эмитент раскрыл стадии, считаем по ним — они шире."""
+    m = compute_bank_metrics(_bank(npl_loans=1_600_000, npl_overdue_90=900_000))
+
+    assert m.npl_basis == "stage3"
+    assert m.npl_ratio == pytest.approx(3.72, abs=0.01)      # 1 600 / 43 000
+    assert m.npl_coverage == pytest.approx(93.75, abs=0.01)  # 1 500 / 1 600
+
+
+def test_falls_back_to_overdue_90_and_marks_it():
+    """Стадий нет — считаем по просрочке, но признак обязан это выдать.
+
+    Просрочка уже Стадии 3: в неё не попадают реструктурированные кредиты,
+    по которым платежи идут. Доля и покрытие выходят оптимистичнее, и молча
+    выдавать их за то же самое нельзя.
+    """
+    m = compute_bank_metrics(_bank(npl_loans=None, npl_overdue_90=900_000))
+
+    assert m.npl_basis == "overdue_90"
+    assert m.npl_ratio == pytest.approx(2.09, abs=0.01)
+    assert m.npl_coverage == pytest.approx(166.67, abs=0.01)
+
+
+def test_no_problem_loans_at_all_leaves_basis_empty():
+    m = compute_bank_metrics(_bank(npl_loans=None, npl_overdue_90=None))
+
+    assert m.npl_basis is None
+    assert m.npl_ratio is None
+    assert m.npl_coverage is None
