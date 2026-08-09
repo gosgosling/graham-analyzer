@@ -287,6 +287,7 @@ export interface BankYoY {
   npl_coverage: YoYDisplay;
   loans_to_deposits: YoYDisplay;
   capital_adequacy_core: YoYDisplay;
+  gross_loans: YoYDisplay;
 }
 
 /** Показатель → куда лучше двигаться. */
@@ -299,6 +300,10 @@ const BANK_DIRECTIONS: Record<keyof BankYoY, { direction: YoYDirection; label: s
   // Кредиты сверх депозитов финансируются рынком — дороже и капризнее.
   loans_to_deposits: { direction: 'lower_better', label: 'Кредиты / депозиты' },
   capital_adequacy_core: { direction: 'higher_better', label: 'Основной капитал Н1.1' },
+  // Портфель — абсолютная величина, поэтому изменение относительное, а не в
+  // пунктах. Рост сам по себе не «хорошо»: быстрый рост при падающем покрытии —
+  // классический предвестник проблем, но направление всё же вверх.
+  gross_loans: { direction: 'higher_better', label: 'Портфель' },
 };
 
 export function computeBankYoY(
@@ -328,5 +333,12 @@ export function computeBankYoY(
     npl_coverage: build('npl_coverage'),
     loans_to_deposits: build('loans_to_deposits'),
     capital_adequacy_core: build('capital_adequacy_core'),
+    // Не через build: у портфеля меняются рубли, а не проценты.
+    gross_loans: metricPct(
+      value(current, 'gross_loans'),
+      value(previous, 'gross_loans'),
+      BANK_DIRECTIONS.gross_loans.direction,
+      BANK_DIRECTIONS.gross_loans.label,
+    ),
   };
 }

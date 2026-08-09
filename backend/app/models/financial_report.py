@@ -173,6 +173,13 @@ class FinancialReport(Base):
     loan_loss_allowance: Mapped[Optional[float]] = mapped_column(
         Numeric(15, 3), nullable=True
     )  # Накопленный резерв под кредитные убытки (ECL), млн — положительным числом
+    # Просрочка свыше 90 дней — механический признак: платёж не пришёл.
+    # Отличается от Стадии 3, которая шире: та включает реструктуризации и
+    # прочие случаи, где банк сам не ждёт полного возврата, а платежи идут.
+    # У ВТБ за 2025 год 866 против 1 610 млрд — почти вдвое.
+    npl_overdue_90: Mapped[Optional[float]] = mapped_column(
+        Numeric(15, 3), nullable=True
+    )  # Ссуды с задержкой платежа свыше 90 дней, млн
     npl_loans: Mapped[Optional[float]] = mapped_column(
         Numeric(15, 3), nullable=True
     )  # Обесцененные кредиты: Stage 3 или просрочка 90+, млн (валовые)

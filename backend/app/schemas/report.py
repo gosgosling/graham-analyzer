@@ -64,6 +64,7 @@ class BankMetricsOut(BaseModel):
     net_interest_margin: Optional[float] = None
     cost_of_risk: Optional[float] = None
     npl_ratio: Optional[float] = None
+    npl_basis: Optional[str] = None
     npl_coverage: Optional[float] = None
     loans_to_deposits: Optional[float] = None
     cost_of_funding: Optional[float] = None
@@ -74,6 +75,7 @@ class BankMetricsOut(BaseModel):
     retail_deposits_share: Optional[float] = None
     funding_spread: Optional[float] = None
     key_rate: Optional[float] = None
+    gross_loans: Optional[float] = None
     net_loans: Optional[float] = None
     # Откуда потоки: 'ltm' | 'annualised' | 'reported' — интерфейс подписывает
     # период, чтобы удвоение полугодия не выдавалось за факт.
@@ -151,7 +153,10 @@ class ReportFigures(BaseModel):
     # сумма и накопленный резерв — в примечании «Кредиты клиентам».
     gross_loans: Optional[float] = None              # Кредиты клиентам до вычета резерва, млн
     loan_loss_allowance: Optional[float] = None      # Накопленный резерв (ECL), млн
-    npl_loans: Optional[float] = None                # Обесцененные кредиты (Stage 3 / 90+), млн
+    npl_loans: Optional[float] = None                # Обесцененные кредиты (Стадия 3 + POCI), млн
+    # Просрочка 90+ — механический признак неплатежа. Уже Стадии 3: та
+    # включает реструктурированные кредиты, по которым платежи идут.
+    npl_overdue_90: Optional[float] = None            # Ссуды с задержкой свыше 90 дней, млн
     customer_deposits: Optional[float] = None        # Средства клиентов, млн
     # Разбивка на розницу и корпоратив: розничные депозиты дешевле и устойчивее,
     # розничные кредиты доходнее и рискованнее.

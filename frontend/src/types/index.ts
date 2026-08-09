@@ -396,7 +396,10 @@ export interface FinancialReportCreate {
     interest_expense?: number | null;      // Процентные расходы, млн (положительное число)
     gross_loans?: number | null;           // Кредиты клиентам до вычета резерва, млн
     loan_loss_allowance?: number | null;   // Накопленный резерв (ECL), млн
-    npl_loans?: number | null;             // Обесцененные кредиты (Stage 3 / 90+), млн
+    npl_loans?: number | null;                  // Обесцененные: Стадия 3 + POCI, млн
+    /** Ссуды с задержкой платежа свыше 90 дней, млн. Уже Стадии 3: та включает
+     *  реструктуризации, по которым платежи идут. */
+    npl_overdue_90?: number | null;
     customer_deposits?: number | null;     // Средства клиентов, млн
     cf_customer_deposits?: number | null;  // Δ средств клиентов из ОДДС, млн (со знаком)
     cf_customer_loans?: number | null;     // Δ кредитов клиентам из ОДДС, млн (обычно < 0)
@@ -444,7 +447,9 @@ export interface BankMetrics {
     roa: number | null;                     // Прибыль / активы, %
     net_interest_margin: number | null;     // ЧПД / активы, %
     cost_of_risk: number | null;            // Резерв за период / портфель, %
-    npl_ratio: number | null;               // Обесцененные / портфель, %
+    npl_ratio: number | null;
+    /** Чем посчитаны доля проблемных и покрытие: стадиями или просрочкой 90+ */
+    npl_basis?: 'stage3' | 'overdue_90' | null;               // Обесцененные / портфель, %
     npl_coverage: number | null;            // Накопленный резерв / обесцененные, %
     loans_to_deposits: number | null;       // Чистые кредиты / средства клиентов, %
     cost_of_funding: number | null;         // Процентные расходы / средства клиентов, %
@@ -455,6 +460,7 @@ export interface BankMetrics {
     retail_deposits_share: number | null;   // Доля физлиц в средствах клиентов, %
     funding_spread: number | null;          // Стоимость фондирования − ключевая ставка, п.п.
     key_rate: number | null;                // Средняя ключевая ставка ЦБ за период, %
+    gross_loans: number | null;             // Портфель до вычета резерва, млн
     net_loans: number | null;               // Портфель за вычетом резерва, млн
     /**
      * Откуда взяты потоковые числители (прибыль, ЧПД, резервы, процентные расходы):
