@@ -67,7 +67,14 @@ def calculate_multipliers(
     Returns:
         Словарь с мультипликаторами. market_cap — в МИЛЛИОНАХ рублей.
     """
-    is_bank = getattr(report, 'report_type', 'general') == 'bank'
+    report_type = getattr(report, 'report_type', 'general')
+    is_bank = report_type == 'bank'
+    # Биржа: плечо и ликвидность неприменимы по той же причине, что у банка —
+    # обязательства это чужие деньги и зеркальные позиции клиринга. Но
+    # кредитного портфеля у неё нет, а свободный поток есть и осмыслен,
+    # поэтому FCF считается, в отличие от банка.
+    is_exchange = report_type == 'exchange'
+    no_leverage = is_bank or is_exchange
 
     rate = float(report.exchange_rate) if report.exchange_rate else None
     currency = report.currency
@@ -167,10 +174,14 @@ def calculate_multipliers(
 
     debt_mln = to_rub_mln(report.debt)
     cash_mln = to_rub_mln(report.cash_and_equivalents)
-    net_debt_mln = compute_net_debt(debt_mln, cash_mln)
+    # У биржи чистый долг считать нельзя: в «денежных средствах» лежат деньги
+    # участников торгов и депонентов. У МОЕХ это дало бы −692 млрд, то есть
+    # «свободная денежная позиция размером в три капитализации», хотя вернуть
+    # эти деньги придётся по первому требованию.
+    net_debt_mln = None if is_exchange else compute_net_debt(debt_mln, cash_mln)
 
-    if is_bank:
-        # Для банков D/E и Current Ratio не применяются:
+    if no_leverage:
+        # Для банков и бирж D/E и Current Ratio не применяются:
         # депозиты — обязательства по природе, D/E 8-10x — норма.
         # Вместо них рассчитываем Cost-to-Income (CIR).
         #
@@ -191,7 +202,8 @@ def calculate_multipliers(
         if opex_mln and revenue_for_cir and revenue_for_cir > 0:
             cost_to_income = round(opex_mln / revenue_for_cir * 100, 2)
         # FCF/CAPEX для банков концептуально неприменим — оставляем None.
-    else:
+
+    if not no_leverage:
         # Стандартные показатели для промышленных компаний
         if total_liabilities_mln and equity_mln and equity_mln != 0:
             debt_to_equity = round(total_liabilities_mln / equity_mln, 2)
@@ -199,7 +211,8 @@ def calculate_multipliers(
         if current_assets_mln and current_liabilities_mln and current_liabilities_mln != 0:
             current_ratio = round(current_assets_mln / current_liabilities_mln, 2)
 
-        # ─── FCF-показатели (только non-bank) ────────────────────────────────
+    if not is_bank:
+        # ─── FCF-показатели (у банка неприменимы концептуально) ──────────────
         # LTM операционный поток и CAPEX: сначала берём LTM-агрегат, затем fallback на отчёт
         ocf_raw = ltm_operating_cash_flow if ltm_operating_cash_flow is not None else getattr(report, 'operating_cash_flow', None)
         cap_raw = ltm_capex if ltm_capex is not None else getattr(report, 'capex', None)

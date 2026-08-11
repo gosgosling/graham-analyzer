@@ -330,3 +330,70 @@ def test_hybrid_without_cash_flow_lines_falls_back(report_factory):
 
     assert m["fcf_basis"] == "reported"
     assert m["price_to_fcf"] is not None
+
+
+# ─── Биржа ──────────────────────────────────────────────────────────────────
+
+
+def test_exchange_skips_leverage_but_keeps_fcf(report_factory):
+    """У биржи обязательства — чужие деньги, но свободный поток свой.
+
+    Цифры порядка МОЕХ за 2025: активы 13 трлн, из них 10,2 трлн — зеркальные
+    позиции центрального контрагента, свой капитал 0,27 трлн. D/E вышел бы 47×,
+    и это способ учёта, а не плечо.
+    """
+    m = calculate_multipliers(
+        report_factory(
+            report_type="exchange",
+            total_liabilities=12_758_250.0,
+            equity=269_061.0,
+            current_assets=None,
+            current_liabilities=None,
+            operating_expenses=30_000.0,
+            revenue=100_000.0,
+            operating_cash_flow=80_000.0,
+            capex=12_000.0,
+        )
+    )
+
+    # Плечо и ликвидность отключены, как у банка
+    assert m["debt_to_equity"] is None
+    assert m["current_ratio"] is None
+    # Эффективность считается
+    assert m["cost_to_income"] == 30.0
+    # А FCF — в отличие от банка — остаётся
+    assert m["ltm_fcf"] == 68_000.0
+    assert m["price_to_fcf"] is not None
+
+
+def test_exchange_fcf_ratios_use_core_flow(report_factory):
+    """Приток средств участников торгов вычищается так же, как у гибрида."""
+    report = report_factory(
+        report_type="exchange", operating_cash_flow=80_000.0, capex=12_000.0
+    )
+
+    m = calculate_multipliers(report, banking_flow=50_000.0)
+
+    assert m["ltm_fcf"] == 68_000.0
+    assert m["ltm_core_fcf"] == 18_000.0
+    assert m["fcf_basis"] == "core"
+
+
+def test_bank_still_has_no_fcf(report_factory):
+    """Разделение биржи и банка не должно вернуть банку FCF."""
+    m = calculate_multipliers(
+        report_factory(report_type="bank", operating_cash_flow=80_000.0, capex=12_000.0)
+    )
+
+    assert m["ltm_fcf"] is None
+    assert m["debt_to_equity"] is None
+
+
+def test_exchange_has_no_net_debt(report_factory):
+    """Наличность биржи — деньги клиентов, чистым долгом её считать нельзя."""
+    m = calculate_multipliers(
+        report_factory(report_type="exchange", debt=0.0, cash_and_equivalents=691_623.0)
+    )
+
+    assert m["net_debt"] is None
+    assert m["net_debt_to_fcf"] is None

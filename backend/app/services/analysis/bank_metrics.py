@@ -51,6 +51,13 @@ class BankMetrics:
     retail_deposits_share: Optional[float] = None   # Доля физлиц в средствах клиентов, %
     funding_spread: Optional[float] = None          # Стоимость фондирования − ключевая ставка, п.п.
     key_rate: Optional[float] = None                # Средняя ключевая ставка за период, %
+    # ─── Биржа: инфраструктурный бизнес без кредитного портфеля ───
+    # Доля комиссий показывает, насколько доход зависит от ставочного цикла:
+    # процентные доходы с клиентских остатков растут и падают вместе с ключевой.
+    fee_share: Optional[float] = None               # Комиссии / операционные доходы, %
+    opex_to_fees: Optional[float] = None            # Опер. расходы / комиссии, %
+    client_funds: Optional[float] = None            # Средства клиентов, млн
+    client_funds_to_equity: Optional[float] = None  # Средства клиентов / капитал, ×
     gross_loans: Optional[float] = None             # Портфель до резерва, млн
     net_loans: Optional[float] = None               # Портфель за вычетом резерва, млн
     # Откуда взяты потоки: 'ltm' — фактические 12 месяцев, 'annualised' —
@@ -84,6 +91,10 @@ _BANDS: Dict[str, Tuple[Optional[float], Optional[float], bool, str]] = {
     # ценил в банках выше прочего: заработать на активах может каждый,
     # привлечь дешевле конкурентов — единицы. Меньше (отрицательнее) — лучше.
     "funding_spread": (-3.0, 0.0, False, "на 3+ п.п. ниже ключевой — сильное преимущество; выше ставки — тревога"),
+    # 100% — объективная граница: покрывают ли комиссии операционные расходы
+    # без процентных доходов. Ниже — инфраструктура окупается сама, выше —
+    # держится на высокой ставке. 80% как «с запасом» — уже суждение.
+    "opex_to_fees": (80.0, 100.0, False, "≤ 100% — комиссии покрывают расходы без процентных доходов"),
 }
 
 # Показатели без светофора: смысл зависит от фазы ставочного цикла.
@@ -91,6 +102,11 @@ _INFORMATIONAL = (
     "cost_of_funding",
     "key_rate",
     "capital_to_rwa",
+    # Профиль бизнеса, а не оценка: высокая доля комиссий — устойчивость
+    # к ставочному циклу, высокая доля процентных доходов — зависимость от него.
+    "fee_share",
+    "client_funds",
+    "client_funds_to_equity",
     "gross_loans",
     "net_loans",
     # Доля розницы — не «хорошо/плохо», а профиль банка: розничные депозиты
@@ -119,7 +135,17 @@ def _ratio_pct(numerator: Any, denominator: Any) -> Optional[float]:
 
 
 # Потоковые величины: их нельзя делить на баланс, не приведя к году.
-_FLOW_ATTRS = ("net_income", "net_interest_income", "provisions", "interest_expense")
+_FLOW_ATTRS = (
+    "net_income",
+    "net_interest_income",
+    "provisions",
+    "interest_expense",
+    # Для биржи: доля комиссий и покрытие расходов комиссиями — отношения
+    # «поток к потоку», но обе величины должны быть за один период.
+    "revenue",
+    "fee_commission_income",
+    "operating_expenses",
+)
 
 
 def _year_flows(
@@ -226,6 +252,15 @@ def compute_bank_metrics(
         capital_to_rwa=_ratio_pct(
             getattr(report, "equity", None),
             getattr(report, "risk_weighted_assets", None),
+        ),
+        fee_share=_ratio_pct(flows["fee_commission_income"], flows["revenue"]),
+        opex_to_fees=_ratio_pct(flows["operating_expenses"], flows["fee_commission_income"]),
+        client_funds=_num(getattr(report, "customer_deposits", None)),
+        client_funds_to_equity=(
+            round(cf / eq, 2)
+            if (cf := _num(getattr(report, "customer_deposits", None))) is not None
+            and (eq := _num(getattr(report, "equity", None)))
+            else None
         ),
         gross_loans=gross_loans,
         net_loans=net_loans,

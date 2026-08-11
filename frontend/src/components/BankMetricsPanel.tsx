@@ -24,7 +24,7 @@ interface MetricSpec {
   key: keyof BankMetrics;
   label: string;
   /** Единица: проценты или миллионы валюты отчёта. */
-  unit: 'pct' | 'mln' | 'pp';
+  unit: 'pct' | 'mln' | 'pp' | 'x';
   /** Что метрика говорит по существу — видно без наведения. */
   meaning: string;
   /**
@@ -71,17 +71,171 @@ const HYBRID_METRIC_KEYS = new Set<keyof BankMetrics>([
   'retail_deposits_share',
 ]);
 
+/**
+ * Динамика биржи по годам. Здесь и посчитанные показатели, и сырые строки
+ * отчёта: без комиссионных и процентных доходов в рублях не видно, почему
+ * доля комиссий выросла — то ли комиссии прибавили, то ли проценты упали.
+ * У МОЕХ за 2025 это ровно второе, и по одним процентам этого не понять.
+ */
+const EXCHANGE_HISTORY_ROWS: {
+  key: keyof BankMetrics | 'fee_commission_income' | 'interest_income';
+  label: string;
+  unit: 'pct' | 'mln';
+  /**
+   * Куда «лучше» при росте. `null` — показатель описывает профиль бизнеса,
+   * а не его качество: приток клиентских денег сам по себе ни хорош, ни плох.
+   */
+  higherIsBetter: boolean | null;
+  /** Откуда взята величина — иначе расчёт ядра выглядит как магия. */
+  tip: string;
+  fromReport?: boolean;
+}[] = [
+  {
+    key: 'fee_commission_income',
+    higherIsBetter: true,
+    label: 'Комиссионные доходы',
+    unit: 'mln',
+    fromReport: true,
+    tip: 'ОПУ, «Комиссионные доходы». Плата за сделки, клиринг и депозитарий — то, что биржа зарабатывает своей инфраструктурой независимо от ставки.',
+  },
+  {
+    key: 'interest_income',
+    higherIsBetter: true,
+    label: 'Процентные доходы',
+    unit: 'mln',
+    fromReport: true,
+    tip: 'ОПУ, процентный и финансовый доход от размещения клиентских остатков. Зависит от ключевой ставки, а не от работы биржи.',
+  },
+  {
+    key: 'fee_share',
+    higherIsBetter: true,
+    label: 'Доля комиссий',
+    unit: 'pct',
+    tip: 'Комиссионные доходы ÷ операционные доходы. Чем выше, тем меньше прибыль зависит от ставки.',
+  },
+  {
+    key: 'opex_to_fees',
+    higherIsBetter: false,
+    label: 'Расходы к комиссиям',
+    unit: 'pct',
+    tip: 'Операционные расходы ÷ комиссионные доходы. Ниже 100% — инфраструктура окупается без процентных доходов.',
+  },
+  {
+    key: 'client_funds',
+    higherIsBetter: true,
+    label: 'Средства клиентов',
+    unit: 'mln',
+    tip: 'Баланс: обязательства перед участниками торгов и депонентами. Чужие деньги, которые биржа держит у себя и размещает.',
+  },
+  {
+    key: 'reported_fcf',
+    higherIsBetter: null,
+    label: 'FCF по отчёту',
+    unit: 'mln',
+    tip: 'Операционный поток минус CAPEX и погашение тела аренды — как считается у любой компании.',
+  },
+  {
+    key: 'banking_flow',
+    higherIsBetter: null,
+    label: '− приток клиентских средств',
+    unit: 'mln',
+    tip: 'Сумма двух строк ОДДС: изменение обязательств перед участниками торгов и депонентами плюс изменение размещения этих денег, каждая со своим знаком. Деньги проходят баланс насквозь и попадают в операционный поток как приток, хотя вернуть их придётся по первому требованию.',
+  },
+  {
+    key: 'core_fcf',
+    higherIsBetter: true,
+    label: 'FCF ядра',
+    unit: 'mln',
+    tip: 'FCF по отчёту минус приток клиентских средств. Только он сопоставим с дивидендами — по нему же считаются P/FCF и FCF/Прибыль.',
+  },
+];
+
 /** Показатели сегмента в истории по годам — те же ключи, что и в карточках. */
-const HISTORY_ROWS: { key: keyof BankMetrics; label: string; unit?: 'pct' | 'mln' }[] = [
+const HISTORY_ROWS: {
+  key: keyof BankMetrics;
+  label: string;
+  unit?: 'pct' | 'mln';
+  higherIsBetter: boolean | null;
+  tip: string;
+}[] = [
   // Портфель первым: он знаменатель трёх строк ниже. Рост портфеля при
   // падающем покрытии объясняет ухудшение лучше, чем каждый коэффициент сам.
-  { key: 'gross_loans', label: 'Портфель до резерва', unit: 'mln' },
-  { key: 'cost_of_risk', label: 'Стоимость риска' },
-  { key: 'npl_ratio', label: 'Доля проблемных' },
-  { key: 'npl_coverage', label: 'Покрытие резервом' },
-  { key: 'loans_to_deposits', label: 'Кредиты / депозиты' },
-  { key: 'retail_loans_share', label: 'Розница в портфеле' },
+  {
+    key: 'gross_loans',
+    label: 'Портфель до резерва',
+    unit: 'mln',
+    higherIsBetter: null,
+    tip: 'Кредиты клиентам по амортизированной стоимости до вычета резерва — знаменатель трёх строк ниже.',
+  },
+  {
+    key: 'cost_of_risk',
+    label: 'Стоимость риска',
+    higherIsBetter: false,
+    tip: 'Резервы под кредитные убытки ÷ портфель до резерва. Сколько портфеля банк списывает за год.',
+  },
+  {
+    key: 'npl_ratio',
+    label: 'Доля проблемных',
+    higherIsBetter: false,
+    tip: 'Обесцененные кредиты (Стадия 3 и POCI) ÷ портфель до резерва.',
+  },
+  {
+    key: 'npl_coverage',
+    label: 'Покрытие резервом',
+    higherIsBetter: true,
+    tip: 'Накопленный резерв ÷ обесцененные кредиты. Ниже 100% — часть потерь ещё не признана.',
+  },
+  {
+    key: 'loans_to_deposits',
+    label: 'Кредиты / депозиты',
+    higherIsBetter: null,
+    tip: 'Портфель ÷ средства клиентов. Выше 100% — банк занимает недостающее на рынке.',
+  },
+  {
+    key: 'retail_loans_share',
+    label: 'Розница в портфеле',
+    higherIsBetter: null,
+    tip: 'Кредиты физлицам ÷ портфель до резерва. Профиль риска: розница доходнее и рискованнее.',
+  },
 ];
+
+/**
+ * Изменение год к году. У процентных показателей — в пунктах: рост доли
+ * комиссий с 43% до 61% это +17,54 п.п., а не «+40%», иначе величина
+ * выглядит вчетверо крупнее, чем она есть. У денежных — относительное,
+ * но если прошлый год ушёл в минус, делить не на что: показываем разницу.
+ */
+function formatChange(
+  current: number | null,
+  previous: number | null,
+  unit: 'pct' | 'mln',
+): { text: string; direction: number; tip?: string } {
+  if (current === null || current === undefined) return { text: '—', direction: 0 };
+  if (previous === null || previous === undefined) return { text: '—', direction: 0 };
+  const diff = current - previous;
+  const direction = Math.sign(diff);
+  const sign = diff > 0 ? '+' : '';
+  if (unit === 'pct') {
+    return { text: `${sign}${diff.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} п.п.`, direction };
+  }
+  if (previous <= 0) {
+    // Делить на отрицательное нельзя: рост с −79 до +535 млрд дал бы «−776%»,
+    // то есть падение там, где величина выросла. Показываем саму разницу.
+    return {
+      text: `${sign}${formatMln(diff)}`,
+      direction,
+      tip: `Год назад величина была отрицательной (${formatMln(previous)}), относительное изменение от неё считать нельзя — показана разница в рублях.`,
+    };
+  }
+  const pct = (diff / previous) * 100;
+  return { text: `${sign}${pct.toLocaleString('ru-RU', { maximumFractionDigits: 1 })}%`, direction };
+}
+
+/** Цвет изменения: направление × «куда лучше». Профильные строки не красим. */
+function changeLevel(direction: number, higherIsBetter: boolean | null): 'good' | 'bad' | 'na' {
+  if (higherIsBetter === null || direction === 0) return 'na';
+  return direction > 0 === higherIsBetter ? 'good' : 'bad';
+}
 
 interface Props {
   companyId: number;
@@ -109,9 +263,10 @@ function payoutLevel(value: number): Status {
   return value <= 100 ? 'normal' : 'bad';
 }
 
-function fmtValue(value: number | null, unit: 'pct' | 'mln' | 'pp'): string {
+function fmtValue(value: number | null, unit: 'pct' | 'mln' | 'pp' | 'x'): string {
   if (value === null || value === undefined) return '—';
   if (unit === 'mln') return formatMln(value);
+  if (unit === 'x') return `${value.toLocaleString('ru-RU', { maximumFractionDigits: 2 })}×`;
   const num = value.toLocaleString('ru-RU', { maximumFractionDigits: 2 });
   // Спред показываем со знаком: минус — привлекает дешевле ключевой ставки.
   if (unit === 'pp') return `${value > 0 ? '+' : ''}${num} п.п.`;
@@ -119,11 +274,20 @@ function fmtValue(value: number | null, unit: 'pct' | 'mln' | 'pp'): string {
 }
 
 const BankMetricsPanel: React.FC<Props> = ({ companyId, reports, companyType }) => {
-  const isHybrid = companyType === 'hybrid';
+  // У биржи и гибрида одинаково считается поток без клиентских денег, но
+  // кредитных показателей у биржи нет вовсе: она не выдаёт займы. Шесть
+  // пустых карточек — не «нет данных», а «показателя не существует», и
+  // рисовать их нельзя.
+  const isExchange = companyType === 'exchange';
+  const isHybrid = companyType === 'hybrid' || isExchange;
   // Свежий отчёт отвечает «как идёт сейчас», последний полный год — «чем
   // кончилось». Ответы расходятся, поэтому выбор оставлен пользователю.
   const { latest, lastFullYear } = pickBankPeriods(reports);
   const [showFullYear, setShowFullYear] = useState(false);
+  // Значения отвечают «сколько», изменения — «куда движется». Светофорить
+  // сами величины нечем: у комиссий и клиентских остатков нет порога, хорош
+  // или плох только их сдвиг, поэтому вердикт живёт в режиме изменений.
+  const [showChange, setShowChange] = useState(false);
 
   // Скользящий год: собирается из трёх отчётов на бэкенде, поэтому отдельным
   // запросом. Нужен только когда свежий отчёт неполный — у годового LTM
@@ -171,7 +335,13 @@ const BankMetricsPanel: React.FC<Props> = ({ companyId, reports, companyType }) 
   return (
     <div className="bank-panel">
       <div className="bank-panel-header">
-        <h2>{isHybrid ? 'Показатели финсегмента' : 'Банковские показатели'}</h2>
+        <h2>
+          {isExchange
+            ? 'Показатели биржи'
+            : isHybrid
+              ? 'Показатели финсегмента'
+              : 'Банковские показатели'}
+        </h2>
         {canSwitch && (
           <div className="bank-period-switch" role="group" aria-label="Период показателей">
             <button
@@ -227,6 +397,7 @@ const BankMetricsPanel: React.FC<Props> = ({ companyId, reports, companyType }) 
         </span>
       </div>
 
+      {!isExchange && (
       <div className="bank-metric-grid">
         {/* Payout всегда за последний полный год, каким бы период ни был
             выбран: дивиденд объявляют раз в год, и за полугодие карточка
@@ -288,32 +459,42 @@ const BankMetricsPanel: React.FC<Props> = ({ companyId, reports, companyType }) 
           );
         })}
       </div>
+      )}
 
       {/* Свободный поток ядра и динамика сегмента — в два столбца. Место у
           них здесь, рядом с портфелем и депозитами: приток, который
           вычитается, складывается ровно из их движения. Раньше расчёт жил в
           карточке мультипликаторов, где связь с финсегментом была неочевидна. */}
       {isHybrid && (metrics.core_fcf != null || segmentHistory.length > 0) && (
-        <div className="bank-bottom-grid">
-      {isHybrid && metrics.core_fcf != null && (
+        <div className={isExchange ? 'bank-exchange-bottom' : 'bank-bottom-grid'}>
+      {isHybrid && !isExchange && metrics.core_fcf != null && (
         <div className="bank-core-flow">
-          <div className="bank-core-flow-title">Свободный поток без финсегмента</div>
+          <div className="bank-core-flow-title">
+            {isExchange ? 'Поток без клиентских денег' : 'Свободный поток без финсегмента'}
+          </div>
           <div className="bank-core-flow-row">
             <span>FCF по отчёту</span>
             <b>{formatMln(metrics.reported_fcf ?? null)}</b>
           </div>
           <div className="bank-core-flow-row">
-            <span>− приток от роста банковского баланса</span>
+            <span>
+              {isExchange
+                ? '− приток клиентских средств'
+                : '− приток от роста банковского баланса'}
+            </span>
             <b>{formatMln(metrics.banking_flow ?? null)}</b>
           </div>
           <div className="bank-core-flow-row is-total">
             <span>FCF ядра</span>
             <b>{formatMln(metrics.core_fcf)}</b>
           </div>
+
           <p className="bank-panel-note">
-            Приток средств клиентов минус выдача кредитов. Эти деньги придётся
-            вернуть: с дивидендами и с долгом сопоставим только поток ядра —
-            по нему же считаются P/FCF, ND/FCF и FCF/Прибыль.
+            {isExchange
+              ? 'Прирост обязательств перед участниками торгов и депонентами минус размещение этих денег. Средства клиентов проходят через баланс насквозь и в отчётный поток попадают как приток — но вернуть их придётся по первому требованию.'
+              : 'Приток средств клиентов минус выдача кредитов. Эти деньги придётся вернуть.'}
+            {' '}С дивидендами сопоставим только поток ядра — по нему же
+            считаются P/FCF и FCF/Прибыль.
             {metrics.banking_flow_basis === 'balance_delta' && (
               <>
                 {' '}Посчитано по приростам остатков — приблизительно: в них попадают
@@ -346,8 +527,24 @@ const BankMetricsPanel: React.FC<Props> = ({ companyId, reports, companyType }) 
       )}
 
       {segmentHistory.length > 0 && (
-        <div className="bank-core-flow bank-segment-history">
-          <div className="bank-core-flow-title">Финсегмент по годам</div>
+        <div
+          className="bank-core-flow bank-segment-history"
+        >
+          <div className="bank-core-flow-title bank-history-title">
+            <span>
+              {isExchange ? 'Динамика по годам' : 'Финсегмент по годам'}
+              {showChange && ' — изменение г/г'}
+            </span>
+            <button
+              type="button"
+              className="bank-history-toggle"
+              onClick={() => setShowChange((v) => !v)}
+              aria-label={showChange ? 'Показать значения' : 'Показать изменение год к году'}
+              title="Переключить значения ↔ изменение год к году"
+            >
+              ⇄
+            </button>
+          </div>
           <div className="bank-history-scroll">
             <table className="bank-history-table">
               <thead>
@@ -359,24 +556,59 @@ const BankMetricsPanel: React.FC<Props> = ({ companyId, reports, companyType }) 
                 </tr>
               </thead>
               <tbody>
-                {HISTORY_ROWS.map((row) => (
+                {(isExchange ? EXCHANGE_HISTORY_ROWS : HISTORY_ROWS).map((row) => {
+                  // Сырые строки отчёта берём из самого отчёта: они не
+                  // показатели, а исходные величины, из которых те считаются.
+                  const fromReport = 'fromReport' in row && row.fromReport;
+                  const unit = row.unit ?? 'pct';
+                  const valueOf = (rep: FinancialReport): number | null =>
+                    (fromReport
+                      ? ((rep as unknown as Record<string, number | null>)[row.key as string] ?? null)
+                      : (((rep.bank_metrics as BankMetrics | null)?.[
+                          row.key as keyof BankMetrics
+                        ] ?? null) as number | null)) as number | null;
+                  return (
                   <tr key={String(row.key)}>
-                    <td className="bank-history-label">{row.label}</td>
-                    {segmentHistory.map((rep) => {
-                      const m = rep.bank_metrics as BankMetrics | null;
-                      const value = (m?.[row.key] ?? null) as number | null;
-                      const status = (m?.statuses?.[row.key as string] ?? 'n/a') as Status;
+                    <td className="bank-history-label has-tip" title={row.tip}>
+                      {row.label}
+                    </td>
+                    {segmentHistory.map((rep, i) => {
+                      const value = valueOf(rep);
+                      if (showChange) {
+                        // Первому году сравнивать не с чем — он остаётся пустым.
+                        const prev = i > 0 ? valueOf(segmentHistory[i - 1]) : null;
+                        const { text, direction, tip } = formatChange(value, prev, unit);
+                        const level = changeLevel(direction, row.higherIsBetter);
+                        return (
+                          <td
+                            key={rep.id}
+                            title={tip}
+                            className={`bank-history-cell level-${level}${
+                              text === '—' ? ' is-empty' : ''
+                            }${tip ? ' has-tip' : ''}`}
+                          >
+                            {text}
+                          </td>
+                        );
+                      }
+                      const status = (
+                        fromReport ? 'n/a' : (rep.bank_metrics as BankMetrics | null)
+                          ?.statuses?.[row.key as string] ?? 'n/a'
+                      ) as Status;
                       return (
                         <td
                           key={rep.id}
-                          className={`bank-history-cell level-${levelClass(status)}`}
+                          className={`bank-history-cell level-${levelClass(status)}${
+                            value === null ? ' is-empty' : ''
+                          }`}
                         >
-                          {fmtValue(value, row.unit ?? 'pct')}
+                          {fmtValue(value, unit)}
                         </td>
                       );
                     })}
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -385,7 +617,18 @@ const BankMetricsPanel: React.FC<Props> = ({ companyId, reports, companyType }) 
         </div>
       )}
 
-      {isHybrid && (
+      {isExchange && (
+        <p className="bank-panel-note">
+          Кредитных показателей у биржи нет: она не выдаёт займы, поэтому доля
+          проблемных, стоимость риска и покрытие резервом к ней неприменимы.
+          Плечо и текущая ликвидность тоже не считаются — обязательства состоят
+          из чужих денег и зеркальных позиций центрального контрагента, у
+          которых актив и обязательство совпадают до рубля. Чистый долг не
+          выводится по той же причине: в наличности лежат средства клиентов.
+        </p>
+      )}
+
+      {isHybrid && !isExchange && (
         <p className="bank-panel-note">
           Показатели считаются по портфелю и депозитам финансового сегмента, а не
           по всей компании. ROA, процентная маржа и достаточность капитала здесь

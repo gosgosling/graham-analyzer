@@ -15,6 +15,7 @@ from app.services.analysis.bank_metrics import (
     compute_bank_metrics,
     evaluate_all,
 )
+from app.services.analysis.fcf import compute_banking_flow, compute_core_fcf, compute_fcf
 from app.services.analysis.interest_coverage import compute_interest_coverage
 from app.services.analysis.payout import compute_dividend_payout
 from app.services.analysis.share_counts import compute_circulation_shares
@@ -40,6 +41,20 @@ def _key_rate_for(year: int) -> Optional[float]:
 
 # Показатели, знаменатель которых — весь баланс или весь отчёт о прибыли.
 # Для банка это и есть финансовый бизнес, для гибрида — вся компания.
+_CREDIT_METRICS = (
+    "cost_of_risk",
+    "npl_ratio",
+    "npl_basis",
+    "npl_coverage",
+    "loans_to_deposits",
+    "retail_loans_share",
+    "retail_deposits_share",
+    "gross_loans",
+    "net_loans",
+)
+
+_EXCHANGE_METRICS = ("fee_share", "opex_to_fees", "client_funds", "client_funds_to_equity")
+
 _GROUP_LEVEL_METRICS = (
     "roa",
     "net_interest_margin",
@@ -65,6 +80,10 @@ class BankMetricsOut(BaseModel):
     cost_of_risk: Optional[float] = None
     npl_ratio: Optional[float] = None
     npl_basis: Optional[str] = None
+    fee_share: Optional[float] = None
+    opex_to_fees: Optional[float] = None
+    client_funds: Optional[float] = None
+    client_funds_to_equity: Optional[float] = None
     npl_coverage: Optional[float] = None
     loans_to_deposits: Optional[float] = None
     cost_of_funding: Optional[float] = None
@@ -354,18 +373,31 @@ class FinancialReport(ReportFigures):
         Отношения не зависят от валюты — числитель и знаменатель из одного
         отчёта, — поэтому конвертация в рубли здесь не нужна.
         """
-        is_bank = (self.report_type or "general") == "bank"
+        report_type = self.report_type or "general"
+        is_bank = report_type == "bank"
+        is_exchange = report_type == "exchange"
         # У гибрида тип отчёта общий, но финсегмент внутри есть — его выдаёт
         # заполненный кредитный портфель. Признак по данным, а не по типу
         # компании: схема отчёта о компании ничего не знает.
         has_segment = self.gross_loans is not None
-        if not is_bank and not has_segment:
+        if not is_bank and not is_exchange and not has_segment:
             return None
 
         metrics = compute_bank_metrics(self, key_rate=_key_rate_for(self.fiscal_year))
         values = metrics.as_dict()
         statuses = evaluate_all(metrics)
-        if not is_bank:
+        if is_exchange:
+            # Биржа не выдаёт займы: показателей риска у неё нет.
+            for name in _CREDIT_METRICS:
+                values[name] = None
+                statuses[name] = "n/a"
+        else:
+            # Комиссии и клиентские остатки описывают инфраструктурный бизнес;
+            # у банка доход от кредитования, и те же отношения значат другое.
+            for name in _EXCHANGE_METRICS:
+                values[name] = None
+                statuses[name] = "n/a"
+        if not is_bank and not is_exchange:
             # Знаменатели этих показателей — активы и капитал всей компании,
             # вместе с основным бизнесом. К финсегменту они не относятся.
             for name in _GROUP_LEVEL_METRICS:
@@ -376,9 +408,24 @@ class FinancialReport(ReportFigures):
             for name in statuses
             if (hint := bank_metric_hint(name)) is not None
         }
+        # Поток ядра по этому отчёту — чтобы динамику по годам можно было
+        # показать рядом с показателями, а не только за скользящий год.
+        # Считается теми же функциями, что и в сервисе: формула живёт в fcf.py.
+        if is_bank:
+            reported_fcf = banking_flow = core_fcf = None
+        else:
+            reported_fcf = compute_fcf(
+                self.operating_cash_flow, self.capex, self.lease_principal
+            )
+            banking_flow, _basis = compute_banking_flow(self)
+            core_fcf = compute_core_fcf(reported_fcf, banking_flow)
+
         return BankMetricsOut(
             **values,
-            segment="lender" if is_bank else "hybrid",
+            reported_fcf=reported_fcf,
+            banking_flow=banking_flow,
+            core_fcf=core_fcf,
+            segment="lender" if is_bank else "exchange" if is_exchange else "hybrid",
             statuses=statuses,
             hints=hints,
         )

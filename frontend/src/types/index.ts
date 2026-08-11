@@ -249,7 +249,7 @@ export interface CompaniesSyncResponse {
 }
 
 /** Метод анализа компании — не отрасль. */
-export type CompanyType = 'industrial' | 'lender' | 'insurance' | 'holding' | 'hybrid';
+export type CompanyType = 'industrial' | 'lender' | 'insurance' | 'holding' | 'hybrid' | 'exchange';
 
 /** Доля холдинга в дочерней компании. */
 export interface HoldingStake {
@@ -449,7 +449,15 @@ export interface BankMetrics {
     cost_of_risk: number | null;            // Резерв за период / портфель, %
     npl_ratio: number | null;
     /** Чем посчитаны доля проблемных и покрытие: стадиями или просрочкой 90+ */
-    npl_basis?: 'stage3' | 'overdue_90' | null;               // Обесцененные / портфель, %
+    npl_basis?: 'stage3' | 'overdue_90' | null;
+    /** Биржа: комиссии / операционные доходы, % */
+    fee_share?: number | null;
+    /** Биржа: операционные расходы / комиссии, % */
+    opex_to_fees?: number | null;
+    /** Биржа: средства клиентов на балансе, млн ₽ */
+    client_funds?: number | null;
+    /** Биржа: средства клиентов к капиталу, × */
+    client_funds_to_equity?: number | null;               // Обесцененные / портфель, %
     npl_coverage: number | null;            // Накопленный резерв / обесцененные, %
     loans_to_deposits: number | null;       // Чистые кредиты / средства клиентов, %
     cost_of_funding: number | null;         // Процентные расходы / средства клиентов, %
@@ -473,7 +481,7 @@ export interface BankMetrics {
      */
     flow_basis?: 'ltm' | 'prior_full_year' | 'annualised' | 'reported' | null;
     /** Чей финансовый бизнес описан: вся компания или сегмент внутри неё */
-    segment?: 'lender' | 'hybrid' | null;
+    segment?: 'lender' | 'hybrid' | 'exchange' | null;
     /** Свободный поток ядра — только у гибрида, млн ₽ */
     reported_fcf?: number | null;
     banking_flow?: number | null;
