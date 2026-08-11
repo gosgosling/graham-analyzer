@@ -1362,6 +1362,15 @@ const HistTableRow: React.FC<HistTableRowProps> = ({
   // Тот же признак, что и в заголовке: колонки строки обязаны совпадать
   // с колонками шапки, иначе таблица «поедет».
   const isBank = profile?.key === 'bank';
+  // Биржа: обязательства — чужие деньги и зеркальные позиции клиринга, поэтому
+  // плечо, ликвидность и чистый долг не выводятся, как у банка. Но кредитных
+  // показателей у неё нет, а свободный поток есть — колонки набираются
+  // тремя признаками, а не одним «банк / не банк».
+  const isExchange = profile?.key === 'exchange';
+  const noLeverage = isBank || isExchange;   // D/E, Current Ratio, Net Debt, ND/FCF
+  const showCir = isBank || isExchange;      // Cost/Income
+  const showFcf = !isBank;                   // P/FCF, FCF/NI, FCF, CAPEX
+
 
   const priceContent = record
     ? <HistPriceCell row={record} />
@@ -1408,7 +1417,7 @@ const HistTableRow: React.FC<HistTableRowProps> = ({
           misleading={roeInfo.driver.misleading}
         />,
       )}
-      {!isBank && histYoYCell(
+      {!noLeverage && histYoYCell(
         pctMode,
         yoy?.de,
         <DeMetricBadge
@@ -1418,7 +1427,7 @@ const HistTableRow: React.FC<HistTableRowProps> = ({
           fallbackHint={deHint}
         />,
       )}
-      {!isBank && histYoYCell(
+      {!noLeverage && histYoYCell(
         pctMode,
         yoy?.cr,
         <MetricBadge
@@ -1446,49 +1455,7 @@ const HistTableRow: React.FC<HistTableRowProps> = ({
           isPreferredShare={isPreferredShare}
         />,
       )}
-      {!isBank && histYoYCell(
-        pctMode,
-        yoy?.pfcf,
-        <HistPfcfCell mode={pfcfColMode} pfcf={snapshot.price_to_fcf} fcf={snapshot.ltm_fcf} />,
-      )}
-      {!isBank && histYoYCell(
-        pctMode,
-        yoy?.fcfNi,
-        <MetricBadge
-          value={fcfNiRow.value}
-          level={fcfNiRow.level}
-          nullHint={fcfNiRow.nullHint}
-        />,
-      )}
-      {!isBank && histYoYCell(
-        pctMode,
-        yoy?.ndFcf,
-        <HistNetDebtFcfCell
-          ratio={snapshot.net_debt_to_fcf}
-          netDebt={snapshot.net_debt}
-          fcf={snapshot.ltm_fcf}
-        />,
-      )}
-      {!isBank && histYoYCell(
-        pctMode,
-        yoy?.netDebt,
-        <HistNetDebtCell netDebtMln={snapshot.net_debt} />,
-        'col-compact',
-      )}
-      {!isBank && histYoYCell(
-        pctMode,
-        yoy?.fcf,
-        fmtMlnBln(snapshot.ltm_fcf),
-        snapshot.ltm_fcf !== null && snapshot.ltm_fcf < 0 ? 'cell-loss' : undefined,
-      )}
-      {!isBank && histYoYCell(
-        pctMode,
-        yoy?.capex,
-        fmtMlnBln(snapshot.ltm_capex),
-        'col-compact',
-      )}
-      {isBank && bankMetricCell(bankMetrics, 'roa', pctMode, bankYoY?.roa)}
-      {isBank && (
+      {showCir && (
         <td className="col-mult col-compact col-bank">
           {pctMode ? (
             <HistChangeCell change={bankYoY?.cir ?? YOY_NA} />
@@ -1503,6 +1470,48 @@ const HistTableRow: React.FC<HistTableRowProps> = ({
           )}
         </td>
       )}
+      {showFcf && histYoYCell(
+        pctMode,
+        yoy?.pfcf,
+        <HistPfcfCell mode={pfcfColMode} pfcf={snapshot.price_to_fcf} fcf={snapshot.ltm_fcf} />,
+      )}
+      {showFcf && histYoYCell(
+        pctMode,
+        yoy?.fcfNi,
+        <MetricBadge
+          value={fcfNiRow.value}
+          level={fcfNiRow.level}
+          nullHint={fcfNiRow.nullHint}
+        />,
+      )}
+      {!noLeverage && histYoYCell(
+        pctMode,
+        yoy?.ndFcf,
+        <HistNetDebtFcfCell
+          ratio={snapshot.net_debt_to_fcf}
+          netDebt={snapshot.net_debt}
+          fcf={snapshot.ltm_fcf}
+        />,
+      )}
+      {!noLeverage && histYoYCell(
+        pctMode,
+        yoy?.netDebt,
+        <HistNetDebtCell netDebtMln={snapshot.net_debt} />,
+        'col-compact',
+      )}
+      {showFcf && histYoYCell(
+        pctMode,
+        yoy?.fcf,
+        fmtMlnBln(snapshot.ltm_fcf),
+        snapshot.ltm_fcf !== null && snapshot.ltm_fcf < 0 ? 'cell-loss' : undefined,
+      )}
+      {showFcf && histYoYCell(
+        pctMode,
+        yoy?.capex,
+        fmtMlnBln(snapshot.ltm_capex),
+        'col-compact',
+      )}
+      {isBank && bankMetricCell(bankMetrics, 'roa', pctMode, bankYoY?.roa)}
       {isBank && bankMetricCell(bankMetrics, 'cost_of_risk', pctMode, bankYoY?.cost_of_risk)}
       {isBank && bankMetricCell(bankMetrics, 'npl_ratio', pctMode, bankYoY?.npl_ratio)}
       {isBank && bankMetricCell(bankMetrics, 'npl_coverage', pctMode, bankYoY?.npl_coverage)}
@@ -1545,6 +1554,15 @@ const HistTable: React.FC<HistTableProps & { pctMode: boolean }> = ({
   // нормативами ЦБ, а FCF неприменим концептуально. Показывать эти колонки
   // прочерками — значит заставлять объяснять их словами.
   const isBank = profile?.key === 'bank';
+  // Биржа: обязательства — чужие деньги и зеркальные позиции клиринга, поэтому
+  // плечо, ликвидность и чистый долг не выводятся, как у банка. Но кредитных
+  // показателей у неё нет, а свободный поток есть — колонки набираются
+  // тремя признаками, а не одним «банк / не банк».
+  const isExchange = profile?.key === 'exchange';
+  const noLeverage = isBank || isExchange;   // D/E, Current Ratio, Net Debt, ND/FCF
+  const showCir = isBank || isExchange;      // Cost/Income
+  const showFcf = !isBank;                   // P/FCF, FCF/NI, FCF, CAPEX
+
   // Поток ядра приходит только у гибридов. Если он есть хоть в одной строке,
   // колонка показывает именно его — и заголовок обязан об этом сказать.
   const hasCoreFcf =
@@ -1580,8 +1598,8 @@ const HistTable: React.FC<HistTableProps & { pctMode: boolean }> = ({
             <th className="col-mult">P/E</th>
             <th className="col-mult">P/B</th>
             <th className="col-mult">ROE, %</th>
-            {!isBank && <th className="col-mult">D/E</th>}
-            {!isBank && (
+            {!noLeverage && <th className="col-mult">D/E</th>}
+            {!noLeverage && (
               <th
                 ref={crThRef}
                 className="col-mult col-cr-header"
@@ -1596,20 +1614,23 @@ const HistTable: React.FC<HistTableProps & { pctMode: boolean }> = ({
               </th>
             )}
             <th className="col-mult">Div, %</th>
-            {!isBank && (
+            {showCir && (
+              <th className="col-mult col-compact col-bank" title="Cost/Income: операционные расходы к операционным доходам">CIR, %</th>
+            )}
+            {showFcf && (
               <HistPfcfHeader
                 mode={pfcfColMode}
                 onToggle={() => setPfcfColMode((m) => (m === 'pfcf' ? 'yield' : 'pfcf'))}
               />
             )}
-            {!isBank && <th className="col-mult col-compact" title="FCF / Net Income — качество прибыли (безразмерное соотношение)">FCF/NI</th>}
-            {!isBank && <th className="col-mult col-compact" title="Net Debt / LTM FCF — лет погашения">ND/FCF</th>}
-            {!isBank && (
+            {showFcf && <th className="col-mult col-compact" title="FCF / Net Income — качество прибыли (безразмерное соотношение)">FCF/NI</th>}
+            {!noLeverage && <th className="col-mult col-compact" title="Net Debt / LTM FCF — лет погашения">ND/FCF</th>}
+            {!noLeverage && (
               <th className="col-rev col-compact col-net-debt-header col-header-unit-col" title="Чистый долг = Долг − Наличность">
                 <ColHeaderWithUnit title="Net Debt" uppercase={false} align="right" />
               </th>
             )}
-            {!isBank && (
+            {showFcf && (
               <th
                 className="col-rev col-header-unit-col"
                 title={
@@ -1621,7 +1642,7 @@ const HistTable: React.FC<HistTableProps & { pctMode: boolean }> = ({
                 <ColHeaderWithUnit title={hasCoreFcf ? 'FCF ЯДРА' : 'FCF'} />
               </th>
             )}
-            {!isBank && (
+            {showFcf && (
               <th className="col-rev col-compact col-header-unit-col" title="Капитальные затраты (положительное число)">
                 <ColHeaderWithUnit title="CAPEX" />
               </th>
@@ -1636,9 +1657,6 @@ const HistTable: React.FC<HistTableProps & { pctMode: boolean }> = ({
               >
                 ROA, %
               </th>
-            )}
-            {isBank && (
-              <th className="col-mult col-compact col-bank" title="Cost/Income: операционные расходы к операционным доходам">CIR, %</th>
             )}
             {isBank && (
               <th className="col-mult col-compact col-bank" title="Стоимость риска: резерв за период / кредитный портфель">CoR, %</th>
@@ -2119,7 +2137,8 @@ const COMPANY_TYPE_OPTIONS: { value: CompanyType; label: string; hint: string }[
   { value: 'lender', label: 'Кредитор (банк, МФО, лизинг)', hint: 'Активы — займы: CoR, NPL, Н1; без FCF, D/E и Current Ratio' },
   { value: 'insurance', label: 'Страховщик', hint: 'Резервы и комбинированный коэффициент; банковские метрики неприменимы' },
   { value: 'holding', label: 'Холдинг', hint: 'Владеет долями и сам не оперирует: оценка по NAV, а не по мультипликаторам консолидации' },
-  { value: 'hybrid', label: 'Гибрид (операционка + финбизнес)', hint: 'Яндекс, МОЕХ: финсегмент раздувает баланс и поток — оценивать отдельно' },
+  { value: 'hybrid', label: 'Гибрид (операционка + финбизнес)', hint: 'Яндекс: финсегмент раздувает баланс и поток — оценивать отдельно' },
+  { value: 'exchange', label: 'Биржа / клиринг / депозитарий', hint: 'МОЕХ: баланс раздут чужими деньгами и зеркальными позициями клиринга — без D/E и Current Ratio, но с FCF без клиентских денег' },
 ];
 
 interface MultipliersPanelProps {
@@ -2313,14 +2332,23 @@ const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company, reports })
       {/* Холдинг и гибрид: честное предупреждение вместо правдоподобных цифр.
           У АФК Системы консолидация складывает выручку МТС, Segezha и прочих
           с долгом корпоративного центра — P/E по такой сумме не значит ничего.
-          У гибрида (Яндекс, МОЕХ) встроенный финбизнес раздувает баланс. */}
-      {(company.company_type === 'holding' || company.company_type === 'hybrid') && (
+          У гибрида (Яндекс) встроенный финбизнес раздувает баланс, у биржи —
+          средства участников торгов и позиции клиринга. */}
+      {(company.company_type === 'holding' || company.company_type === 'hybrid' || company.company_type === 'exchange') && (
         <div className="mult-type-warning">
           {company.company_type === 'holding' ? (
             <>
               <b>Холдинг.</b> Мультипликаторы посчитаны по консолидированной отчётности:
               выручка и долг дочерних компаний сложены вместе. Для холдинга корректна
               оценка по сумме частей (NAV и дисконт к нему), а не P/E консолидации.
+            </>
+          ) : company.company_type === 'exchange' ? (
+            <>
+              <b>Биржа.</b> Обязательства — это средства участников торгов и депонентов
+              плюс зеркальные позиции центрального контрагента, где актив и обязательство
+              совпадают до рубля. Поэтому плечо, текущая ликвидность и чистый долг не
+              считаются: они описывали бы чужие деньги, а не биржу. Свободный поток
+              очищается от прироста клиентских остатков — по нему и оценивается.
             </>
           ) : (
             <>

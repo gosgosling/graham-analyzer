@@ -187,7 +187,10 @@
 .bank-history-cell.level-good { color: var(--color-success-text); }
 .bank-history-cell.level-warn { color: var(--color-warning-text); }
 .bank-history-cell.level-bad  { color: var(--color-error-text); }
-.bank-history-cell.level-na   { color: var(--color-text-quaternary); }
+/* Без порога — не значит «неважно»: величина читается наравне с остальными.
+   Приглушается только прочерк, там действительно нечего показывать. */
+.bank-history-cell.level-na   { color: var(--color-text-primary); }
+.bank-history-cell.is-empty   { color: var(--color-text-quaternary); }
 
 /* Значок в углу карточки: показатель, который осмыслен только в сравнении.
    Стоимость фондирования без ключевой ставки не оценить, поэтому вердикт
@@ -360,4 +363,46 @@
 .bank-segment-history .bank-history-table td,
 .bank-segment-history .bank-history-table th {
   padding: var(--space-2);
+}
+
+
+
+/* У биржи внизу только таблица динамики — сетка не нужна, но отступ от
+   предыдущего блока остаётся тем же, что и у колонок гибрида. */
+.bank-exchange-bottom {
+  margin-top: var(--space-5);
+}
+
+/* Строка с подсказкой об источнике величины: пунктир зовёт навести мышь. */
+.bank-history-label.has-tip {
+  cursor: help;
+  text-decoration: underline dotted var(--color-border-subtle);
+  text-underline-offset: 3px;
+}
+
+/* Переключатель значения ↔ изменение г/г — в строке заголовка таблицы. */
+.bank-history-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.bank-history-toggle {
+  border: 1px solid var(--color-border-subtle);
+  background: var(--color-bg-surface);
+  color: var(--color-text-tertiary);
+  font: inherit;
+  font-size: 0.85rem;
+  line-height: 1;
+  padding: 3px 8px;
+  border-radius: var(--radius-sm, 4px);
+  cursor: pointer;
+  transition: color var(--transition-fast, 0.15s ease),
+    border-color var(--transition-fast, 0.15s ease);
+}
+
+.bank-history-toggle:hover {
+  color: var(--color-text-primary);
+  border-color: var(--color-border-strong, var(--color-border-subtle));
 }
