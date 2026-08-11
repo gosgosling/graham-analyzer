@@ -12,7 +12,7 @@ import {
   getMoexPrice,
   getMoexShares,
 } from '../services';
-import type { FinancialReport, FinancialReportCreate } from '../types';
+import type { CompanyType, FinancialReport, FinancialReportCreate } from '../types';
 import { detectSectorDisplayKind } from '../utils/sectorDisplayKind';
 import { financialReportToCreatePayload, emptyFinancialReportPayload } from '../utils/financialReportPayload';
 import { formatApiErrorMessage } from '../utils/apiErrors';
@@ -34,19 +34,18 @@ interface MatrixRowDef {
   label: string;
   hint?: string;
   kind: CellKind;
-  bankOnly?: boolean;
-  nonBankOnly?: boolean;
   /**
-   * Есть только в отчётности самого банка перед ЦБ, а не в консолидации
-   * группы. У гибрида (Яндекс, Озон) такие строки заполнить нечем.
+   * Каким типам компаний строка нужна. Отсутствие — всем.
+   *
+   * Раньше здесь были флаги bankOnly / lenderOnly / hybridOnly, и они
+   * оказались слишком грубыми: биржа получила кредитный портфель и нормативы
+   * Н1, которых у неё нет, и одновременно потеряла операционные расходы,
+   * без которых не считается Cost-to-Income. Явный список читается прямо и
+   * не ломается при добавлении шестого типа.
    */
-  lenderOnly?: boolean;
-  /**
-   * Нужно только гибриду: очистка потока от встроенного финсервиса.
-   * У чистого банка весь денежный поток и есть движение клиентских денег —
-   * вычитать не из чего, FCF ему не считается вовсе.
-   */
-  hybridOnly?: boolean;
+  only?: CompanyType[];
+  /** Кому строка не нужна, хотя нужна остальным. */
+  hideFor?: CompanyType[];
   selectOptions?: { value: string; label: string }[];
 }
 
@@ -99,11 +98,11 @@ const MATRIX_ROWS: MatrixRowDef[] = [
   },
   // У банка процентные расходы — себестоимость основной деятельности, а не
   // обслуживание долга, поэтому покрытие процентов ему не считается.
-  { key: 'operating_profit', label: 'Операционная прибыль (EBIT)', kind: 'number', hint: 'млн', nonBankOnly: true },
-  { key: 'finance_costs', label: 'Финансовые расходы', kind: 'number', hint: 'млн, положит.', nonBankOnly: true },
+  { key: 'operating_profit', label: 'Операционная прибыль (EBIT)', kind: 'number', hint: 'млн', hideFor: ['lender', 'exchange']},
+  { key: 'finance_costs', label: 'Финансовые расходы', kind: 'number', hint: 'млн, положит.', hideFor: ['lender', 'exchange']},
   { key: 'net_income_reported', label: 'Прибыль отчётная', kind: 'number', hint: 'млн' },
   { key: 'total_assets', label: 'Активы всего', kind: 'number', hint: 'млн' },
-  { key: 'current_assets', label: 'Оборотные активы', kind: 'number', hint: 'млн', bankOnly: false },
+  { key: 'current_assets', label: 'Оборотные активы', kind: 'number', hint: 'млн', hideFor: ['lender', 'exchange']},
   { key: 'cash_and_equivalents', label: 'Наличность', kind: 'number', hint: 'ДС и эквиваленты, млн' },
   { key: 'debt', label: 'Долг', kind: 'number', hint: 'млн' },
   {
@@ -113,7 +112,7 @@ const MATRIX_ROWS: MatrixRowDef[] = [
     hint: 'Долг − наличность',
   },
   { key: 'total_liabilities', label: 'Обязательства всего', kind: 'number', hint: 'млн' },
-  { key: 'current_liabilities', label: 'Краткоср. обязательства', kind: 'number', hint: 'млн', bankOnly: false },
+  { key: 'current_liabilities', label: 'Краткоср. обязательства', kind: 'number', hint: 'млн', hideFor: ['lender', 'exchange']},
   { key: 'equity', label: 'Капитал', kind: 'number', hint: 'млн' },
   { key: 'dividends_per_share', label: 'Дивиденд на акцию', kind: 'number', hint: 'полные единицы валюты' },
   { key: 'dividends_paid', label: 'Дивиденды выплачивались', kind: 'bool' },
@@ -129,40 +128,40 @@ const MATRIX_ROWS: MatrixRowDef[] = [
     kind: 'number',
     hint: 'млн валюты отчёта',
   },
-  { key: 'net_interest_income', label: 'NII (банк)', kind: 'number', hint: 'млн', bankOnly: true, lenderOnly: true },
-  { key: 'fee_commission_income', label: 'Комиссионные доходы', kind: 'number', hint: 'млн', bankOnly: true, lenderOnly: true },
-  { key: 'operating_expenses', label: 'Опер. расходы (до резервов)', kind: 'number', hint: 'млн', bankOnly: true, lenderOnly: true },
-  { key: 'provisions', label: 'Резервы под ОК', kind: 'number', hint: 'млн', bankOnly: true },
-  { key: 'interest_income', label: 'Процентные доходы (валовые)', kind: 'number', hint: 'млн', bankOnly: true, lenderOnly: true },
-  { key: 'interest_expense', label: 'Процентные расходы', kind: 'number', hint: 'млн, положит.', bankOnly: true, lenderOnly: true },
-  { key: 'gross_loans', label: 'Кредиты до резерва', kind: 'number', hint: 'млн, примечание', bankOnly: true },
-  { key: 'loan_loss_allowance', label: 'Накопленный резерв (ECL)', kind: 'number', hint: 'млн, положит.', bankOnly: true },
-  { key: 'npl_loans', label: 'Обесцененные (Стадия 3 + POCI)', kind: 'number', hint: 'млн', bankOnly: true },
-  { key: 'npl_overdue_90', label: '— в т.ч. просрочка 90+', kind: 'number', hint: 'млн, уже Стадии 3', bankOnly: true },
-  { key: 'customer_deposits', label: 'Средства клиентов', kind: 'number', hint: 'млн', bankOnly: true },
-  { key: 'loans_retail', label: '— кредиты физлицам', kind: 'number', hint: 'млн', bankOnly: true },
-  { key: 'loans_corporate', label: '— кредиты юрлицам', kind: 'number', hint: 'млн', bankOnly: true },
-  { key: 'deposits_retail', label: '— средства физлиц', kind: 'number', hint: 'млн', bankOnly: true },
-  { key: 'deposits_corporate', label: '— средства юрлиц', kind: 'number', hint: 'млн', bankOnly: true },
-  { key: 'risk_weighted_assets', label: 'Активы под риском (RWA)', kind: 'number', hint: 'млн', bankOnly: true, lenderOnly: true },
-  { key: 'capital_adequacy_ratio', label: 'Достаточность общая Н1.0', kind: 'number', hint: '%', bankOnly: true, lenderOnly: true },
-  { key: 'capital_adequacy_core', label: 'Достаточность основного Н1.1', kind: 'number', hint: '%', bankOnly: true, lenderOnly: true },
-  { key: 'cf_customer_deposits', label: 'Δ средств клиентов (ОДДС)', kind: 'number', hint: 'млн, со знаком из отчёта', bankOnly: true, hybridOnly: true },
-  { key: 'cf_customer_loans', label: 'Δ кредитов клиентам (ОДДС)', kind: 'number', hint: 'млн, обычно отрицательное', bankOnly: true, hybridOnly: true },
-  { key: 'operating_cash_flow', label: 'Опер. денежный поток', kind: 'number', hint: 'млн', nonBankOnly: true },
-  { key: 'capex', label: 'CAPEX', kind: 'number', hint: 'млн, положит.', nonBankOnly: true },
-  { key: 'lease_principal', label: 'Тело аренды', kind: 'number', hint: 'млн, опц.', nonBankOnly: true },
-  { key: 'lease_interest', label: '% по аренде', kind: 'number', hint: 'млн, опц.', nonBankOnly: true },
-  { key: 'interest_paid', label: 'Проценты уплаченные', kind: 'number', hint: 'млн, financing', nonBankOnly: true },
-  { key: 'debt_principal', label: 'Тело долга (долг. ЦБ)', kind: 'number', hint: 'млн, не в FCF', nonBankOnly: true },
-  { key: 'depreciation_amortization', label: 'Амортизация и износ (D&A)', kind: 'number', hint: 'млн', nonBankOnly: true },
-  { key: 'fcf_display', label: 'FCF (расчётное)', kind: 'readonly', hint: 'OCF − CAPEX − аренда − %', nonBankOnly: true },
+  { key: 'net_interest_income', label: 'NII (банк)', kind: 'number', hint: 'млн', only: ['lender']},
+  { key: 'fee_commission_income', label: 'Комиссионные доходы', kind: 'number', hint: 'млн', only: ['lender', 'exchange']},
+  { key: 'operating_expenses', label: 'Опер. расходы (до резервов)', kind: 'number', hint: 'млн', only: ['lender', 'exchange']},
+  { key: 'provisions', label: 'Резервы под ОК', kind: 'number', hint: 'млн', only: ['lender', 'hybrid']},
+  { key: 'interest_income', label: 'Процентные доходы (валовые)', kind: 'number', hint: 'млн', only: ['lender', 'exchange']},
+  { key: 'interest_expense', label: 'Процентные расходы', kind: 'number', hint: 'млн, положит.', only: ['lender', 'exchange']},
+  { key: 'gross_loans', label: 'Кредиты до резерва', kind: 'number', hint: 'млн, примечание', only: ['lender', 'hybrid']},
+  { key: 'loan_loss_allowance', label: 'Накопленный резерв (ECL)', kind: 'number', hint: 'млн, положит.', only: ['lender', 'hybrid']},
+  { key: 'npl_loans', label: 'Обесцененные (Стадия 3 + POCI)', kind: 'number', hint: 'млн', only: ['lender', 'hybrid']},
+  { key: 'npl_overdue_90', label: '— в т.ч. просрочка 90+', kind: 'number', hint: 'млн, уже Стадии 3', only: ['lender', 'hybrid']},
+  { key: 'customer_deposits', label: 'Средства клиентов', kind: 'number', hint: 'млн', only: ['lender', 'hybrid', 'exchange']},
+  { key: 'loans_retail', label: '— кредиты физлицам', kind: 'number', hint: 'млн', only: ['lender', 'hybrid']},
+  { key: 'loans_corporate', label: '— кредиты юрлицам', kind: 'number', hint: 'млн', only: ['lender', 'hybrid']},
+  { key: 'deposits_retail', label: '— средства физлиц', kind: 'number', hint: 'млн', only: ['lender', 'hybrid']},
+  { key: 'deposits_corporate', label: '— средства юрлиц', kind: 'number', hint: 'млн', only: ['lender', 'hybrid']},
+  { key: 'risk_weighted_assets', label: 'Активы под риском (RWA)', kind: 'number', hint: 'млн', only: ['lender']},
+  { key: 'capital_adequacy_ratio', label: 'Достаточность общая Н1.0', kind: 'number', hint: '%', only: ['lender']},
+  { key: 'capital_adequacy_core', label: 'Достаточность основного Н1.1', kind: 'number', hint: '%', only: ['lender']},
+  { key: 'cf_customer_deposits', label: 'Δ средств клиентов (ОДДС)', kind: 'number', hint: 'млн, со знаком из отчёта', only: ['hybrid', 'exchange']},
+  { key: 'cf_customer_loans', label: 'Δ кредитов клиентам (ОДДС)', kind: 'number', hint: 'млн, обычно отрицательное', only: ['hybrid', 'exchange']},
+  { key: 'operating_cash_flow', label: 'Опер. денежный поток', kind: 'number', hint: 'млн', hideFor: ['lender']},
+  { key: 'capex', label: 'CAPEX', kind: 'number', hint: 'млн, положит.', hideFor: ['lender']},
+  { key: 'lease_principal', label: 'Тело аренды', kind: 'number', hint: 'млн, опц.', hideFor: ['lender']},
+  { key: 'lease_interest', label: '% по аренде', kind: 'number', hint: 'млн, опц.', hideFor: ['lender']},
+  { key: 'interest_paid', label: 'Проценты уплаченные', kind: 'number', hint: 'млн, financing', hideFor: ['lender']},
+  { key: 'debt_principal', label: 'Тело долга (долг. ЦБ)', kind: 'number', hint: 'млн, не в FCF', hideFor: ['lender']},
+  { key: 'depreciation_amortization', label: 'Амортизация и износ (D&A)', kind: 'number', hint: 'млн', hideFor: ['lender']},
+  { key: 'fcf_display', label: 'FCF (расчётное)', kind: 'readonly', hint: 'OCF − CAPEX − аренда − %', hideFor: ['lender']},
   {
     key: 'adjusted_fcf_display',
     label: 'FCF (обыкнов.)',
     kind: 'readonly',
     hint: 'OCF − CAPEX − див. префов',
-    nonBankOnly: true,
+    hideFor: ['lender'],
   },
   { key: 'extraction_notes', label: 'Заметки / проверка', kind: 'textarea' },
 ];
@@ -401,23 +400,19 @@ const CompanyReportsMatrix: React.FC = () => {
   // лежат и банки, и холдинги. У гибрида (Яндекс, МОЕХ) финансовый сегмент
   // существует внутри обычной компании — банковские поля ему тоже нужны,
   // но вместе с обычными: FCF и оборотные активы у ядра никуда не делись.
-  const isLender = company?.company_type === 'lender';
-  const isHybrid = company?.company_type === 'hybrid';
-  const showBankRows = isLender || isHybrid;
+  const kind: CompanyType = (company?.company_type as CompanyType) ?? 'industrial';
+  const isLender = kind === 'lender';
+  // Финсегмент внутри обычной компании: у гибрида встроенный банк, у биржи —
+  // средства участников торгов. Обоим нужна очистка потока от чужих денег.
+  const hasClientMoney = kind === 'hybrid' || kind === 'exchange';
 
   const isPreferred = company?.is_preferred_share ?? false;
 
   const visibleRows = useMemo(
     () =>
       MATRIX_ROWS.filter((row) => {
-        if (row.bankOnly && !showBankRows) return false;
-        // Гибриду показываем только то, что реально есть в консолидации МСФО:
-        // NII, комиссии, RWA и нормативы Н1 раскрывает лишь сам банк в
-        // отчётности перед ЦБ. Пустая строка на экране хуже её отсутствия.
-        if (row.lenderOnly && !isLender) return false;
-        if (row.hybridOnly && !isHybrid) return false;
-        if (row.nonBankOnly && isLender) return false;
-        if (isLender && (row.key === 'current_assets' || row.key === 'current_liabilities')) return false;
+        if (row.only && !row.only.includes(kind)) return false;
+        if (row.hideFor?.includes(kind)) return false;
         // На префовом тикере «обычные» корректировки на префы бессмысленны:
         // dividends_per_share уже хранит дивиденд по префам, разделения нет.
         if (isPreferred && (row.key === 'has_preferred_shares' || row.key === 'preferred_share_dividends')) {
@@ -428,12 +423,32 @@ const CompanyReportsMatrix: React.FC = () => {
         }
         return true;
       }),
-    [showBankRows, isLender, isHybrid, isPreferred],
-  ).map((row) =>
-    isHybrid && row.bankOnly
-      ? { ...row, label: `${row.label} · финсегмент`, hint: `${row.hint ?? ''} встроенный банк`.trim() }
-      : row,
-  );
+    [kind, isPreferred],
+  ).map((row) => {
+    // У биржи чужие деньги не выдаются в кредит, а размещаются в банках и
+    // бумагах. Подпись «кредиты клиентам» здесь сбивает с толку: строка
+    // отвечает на вопрос «куда эти деньги вложены», а не «кому одолжены».
+    if (kind === 'exchange' && row.key === 'cf_customer_loans') {
+      return {
+        ...row,
+        label: 'Δ размещения клиентских средств (ОДДС)',
+        hint: 'млн, со знаком: рост размещений — отток',
+      };
+    }
+    if (kind === 'exchange' && row.key === 'cf_customer_deposits') {
+      return {
+        ...row,
+        label: 'Δ обязательств перед клиентами (ОДДС)',
+        hint: 'млн, без зеркальных позиций клиринга',
+      };
+    }
+    // У гибрида и биржи эти строки описывают не всю компанию, а её финансовую
+    // часть — подпись должна это говорить, иначе «средства клиентов» рядом с
+    // выручкой от такси читаются как одно целое.
+    return hasClientMoney && row.only && !row.only.includes('industrial')
+      ? { ...row, label: `${row.label} · финсегмент`, hint: `${row.hint ?? ''}`.trim() }
+      : row;
+  });
 
   const sortedReports = useMemo(() => {
     if (!reports?.length) return [];

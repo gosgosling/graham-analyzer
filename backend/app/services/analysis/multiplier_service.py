@@ -348,15 +348,21 @@ def _hybrid_banking_flow(
     company: Company,
     balance_report: FinancialReport,
 ) -> Tuple[Optional[float], Optional[str]]:
-    """Приток от роста банковского баланса гибрида, млн ₽, и его основание.
+    """Приток от роста клиентских остатков, млн ₽, и его основание.
 
-    У компании со встроенным банком (Яндекс, МОЕХ) операционный поток включает
+    У компании со встроенным финбизнесом (Яндекс) и у биржи операционный поток включает
     прирост клиентских депозитов — чужие деньги, которые нельзя раздать
     акционерам. Считается до мультипликаторов: от этой величины зависит, по
     какому потоку строятся P/FCF, ND/FCF и FCF/NI. Для остальных типов
     компаний очистка не нужна — возвращаем None, и база остаётся прежней.
     """
-    if getattr(company, "company_type", None) != CompanyType.HYBRID.value:
+    # Биржа — тот же случай, что гибрид: в операционный поток попадает движение
+    # средств участников торгов и депонентов. Это чужие деньги, их нельзя
+    # раздать акционерам и ими нельзя погасить долг.
+    if getattr(company, "company_type", None) not in (
+        CompanyType.HYBRID.value,
+        CompanyType.EXCHANGE.value,
+    ):
         return None, None
 
     previous = _previous_comparable_report(db, balance_report)
@@ -516,6 +522,9 @@ _BANK_METRIC_FLOWS = (
     ("net_interest_income", "ltm_net_interest_income"),
     ("provisions", "ltm_provisions"),
     ("interest_expense", "ltm_interest_expense"),
+    ("revenue", "ltm_revenue"),
+    ("fee_commission_income", "ltm_fee_commission_income"),
+    ("operating_expenses", "ltm_operating_expenses"),
 )
 
 
@@ -550,7 +559,8 @@ def compute_ltm_bank_metrics(db: Session, company_id: int) -> Optional[Dict]:
         return None
 
     company_type = (getattr(company, "company_type", None) or "").strip().lower()
-    is_hybrid = company_type == CompanyType.HYBRID.value
+    is_exchange = company_type == CompanyType.EXCHANGE.value
+    is_hybrid = company_type in (CompanyType.HYBRID.value, CompanyType.EXCHANGE.value)
 
     ltm = get_ltm_data(db, company_id)
     if ltm is None:
@@ -577,6 +587,16 @@ def compute_ltm_bank_metrics(db: Session, company_id: int) -> Optional[Dict]:
         # Групповые знаменатели к финсегменту не относятся — см. docstring.
         for name in _GROUP_LEVEL_METRICS:
             values[name] = None
+    if is_exchange:
+        # У биржи нет кредитного портфеля: показатели риска к ней неприменимы,
+        # и пустые карточки читались бы как «данные не заполнены».
+        for name in _CREDIT_METRICS:
+            values[name] = None
+    else:
+        # Комиссии и клиентские остатки у банка описывают не то же самое:
+        # у него доход от кредитования, а не от инфраструктуры.
+        for name in _EXCHANGE_METRICS:
+            values[name] = None
 
     statuses = evaluate_all(metrics)
     for name in values:
@@ -590,7 +610,7 @@ def compute_ltm_bank_metrics(db: Session, company_id: int) -> Optional[Dict]:
 
     payload = {
         **values,
-        "segment": "hybrid" if is_hybrid else "lender",
+        "segment": "exchange" if is_exchange else "hybrid" if is_hybrid else "lender",
         "flow_basis": _flow_basis(metrics.flow_basis, ltm.get("source"), balance_report),
         "statuses": statuses,
         "hints": hints,
@@ -603,6 +623,22 @@ def compute_ltm_bank_metrics(db: Session, company_id: int) -> Optional[Dict]:
 # Показатели, знаменатель которых — весь баланс или весь отчёт о прибыли.
 # Для банка это и есть финансовый бизнес, для гибрида — вся компания вместе с
 # такси, доставкой и рекламой, поэтому финсегменту они не принадлежат.
+# Показатели, которых у биржи нет: кредитного портфеля она не ведёт.
+_CREDIT_METRICS = (
+    "cost_of_risk",
+    "npl_ratio",
+    "npl_coverage",
+    "npl_basis",
+    "loans_to_deposits",
+    "retail_loans_share",
+    "retail_deposits_share",
+    "gross_loans",
+    "net_loans",
+)
+
+# Биржевые показатели: у банка и гибрида смысла не имеют.
+_EXCHANGE_METRICS = ("fee_share", "opex_to_fees", "client_funds", "client_funds_to_equity")
+
 _GROUP_LEVEL_METRICS = (
     "roa",
     "net_interest_margin",

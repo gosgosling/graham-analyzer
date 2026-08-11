@@ -382,7 +382,8 @@ const CompanyDetail: React.FC = () => {
           проверяем тип компании отдельно. */}
       {reports &&
         (reports.some((r) => r.report_type === 'bank') ||
-          company.company_type === 'hybrid') && (
+          company.company_type === 'hybrid' ||
+          company.company_type === 'exchange') && (
           <BankMetricsPanel
             companyId={company.id!}
             reports={reports}
