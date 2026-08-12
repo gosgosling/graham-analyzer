@@ -408,6 +408,40 @@ def get_closing_price_on_or_before(
     return None
 
 
+
+
+def get_first_trade_date(ticker: str) -> Optional[str]:
+    """
+    Дата первой сделки по бумаге — «YYYY-MM-DD» или None.
+
+    Нужна, чтобы отличить две причины пустой котировки: бумага тогда
+    торговалась под другим символом (лечится прежними тикерами) или её ещё
+    не было на бирже вовсе (IPO позже отчёта — цены не существует, и
+    подставлять туда нечего).
+    """
+    url = (
+        f"https://iss.moex.com/iss/history/engines/stock/markets/shares"
+        f"/securities/{ticker}.json"
+    )
+    params = {
+        "from": "1997-01-01",
+        "limit": 1,
+        "sort_order": "asc",
+        "iss.meta": "off",
+    }
+    try:
+        resp = _moex_get(url, params=params, timeout=15)
+        resp.raise_for_status()
+        history = resp.json().get("history", {})
+    except (requests.exceptions.RequestException, ValueError):
+        return None
+
+    columns = history.get("columns", [])
+    rows = history.get("data", [])
+    if not rows or "TRADEDATE" not in columns:
+        return None
+    return rows[0][columns.index("TRADEDATE")]
+
 # ─── Курсы валют (USD/RUB, EUR/RUB …) ────────────────────────────────────────
 #
 # Биржевой курс берём с рынка selt (Система электронных торгов валютой) по

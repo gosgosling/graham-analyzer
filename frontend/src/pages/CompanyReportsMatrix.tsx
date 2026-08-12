@@ -540,7 +540,7 @@ const CompanyReportsMatrix: React.FC = () => {
             );
             return;
           }
-          const rubResult = await getMoexPrice(tk, sliceIsoDate(dateIso));
+          const rubResult = await getMoexPrice(tk, sliceIsoDate(dateIso), company?.id);
           const converted = moexRubPriceToReportFieldValue(
             rubResult.price,
             prev.currency,
@@ -565,7 +565,7 @@ const CompanyReportsMatrix: React.FC = () => {
       if (!dateIso) return;
       setSavingKey(`${reportId}:moex`);
       try {
-        const rubResult = await getMoexPrice(tk, sliceIsoDate(dateIso));
+        const rubResult = await getMoexPrice(tk, sliceIsoDate(dateIso), company?.id);
         const converted = moexRubPriceToReportFieldValue(
           rubResult.price,
           basePayload.currency,
@@ -601,8 +601,17 @@ const CompanyReportsMatrix: React.FC = () => {
         try {
           const prev = draftRef.current;
           if (!prev) return;
-          const result = await getMoexShares(tk);
-          setDraftPayload({ ...prev, shares_issued: result.issuesize });
+          const result = await getMoexShares(
+            tk, company?.id, sliceIsoDate(prev.report_date ?? undefined),
+          );
+          // Реестр отдаёт сегодняшний выпуск. Если после отчётной даты был
+          // сплит, в отчёт идёт тогдашнее число, иначе капитализация вырастет
+          // во столько же раз.
+          if (result.split_note) alert(result.split_note);
+          setDraftPayload({
+            ...prev,
+            shares_issued: result.issuesize_at_date ?? result.issuesize,
+          });
         } catch (e) {
           alert(extractMoexError(e));
         } finally {
@@ -614,10 +623,13 @@ const CompanyReportsMatrix: React.FC = () => {
       const payload = financialReportToCreatePayload(report, companyId);
       setSavingKey(`${report.id}:moex`);
       try {
-        const result = await getMoexShares(tk);
+        const result = await getMoexShares(
+          tk, company?.id, sliceIsoDate(payload.report_date ?? undefined),
+        );
+        if (result.split_note) alert(result.split_note);
         await updateFinancialReport(report.id, {
           ...payload,
-          shares_issued: result.issuesize,
+          shares_issued: result.issuesize_at_date ?? result.issuesize,
         });
         await invalidateAll();
       } catch (e) {

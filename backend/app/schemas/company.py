@@ -24,6 +24,12 @@ class Company(BaseModel):
     brand_color: Optional[str] = None  # Основной цвет бренда (#RRGGBB)
     # Тикер представляет привилегированные акции (см. модель Company)
     is_preferred_share: bool = False
+    # Прежние тикеры: [{"ticker": "YNDX", "until": "2024-07-07"}, …].
+    # Нужны, чтобы найти котировку за период, когда бумага звалась иначе.
+    former_tickers: Optional[list] = None
+    # Дробления акций: [{"date": "2026-04-17", "ratio": 10}, …]. Нужны, чтобы
+    # перевести сегодняшний выпуск Мосбиржи в тогдашний.
+    share_splits: Optional[list] = None
     business_description: Optional[str] = None
     business_description_source: Optional[str] = None  # manual | llm
     business_description_updated_at: Optional[Union[datetime, str]] = None

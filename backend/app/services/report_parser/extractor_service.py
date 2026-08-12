@@ -18,6 +18,8 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.models.company import Company
+from app.services.share_splits import shares_at_date, shares_factor
+from app.services.ticker_history import resolve_ticker
 from app.models.enums import company_type_to_report_type
 from app.models.financial_report import FinancialReport
 from app.schemas import FinancialReportCreate
@@ -216,8 +218,17 @@ def _resolve_report_date(
     return f"{year}-12-31"
 
 
-def _fetch_moex_shares_issued(ticker: Optional[str]) -> Optional[int]:
-    """ISSUESIZE из реестра MOEX → shares_issued (best-effort)."""
+def _fetch_moex_shares_issued(
+    ticker: Optional[str],
+    report_date: Optional[date] = None,
+    splits: Any = None,
+) -> Optional[int]:
+    """ISSUESIZE из реестра MOEX → shares_issued (best-effort).
+
+    Реестр отдаёт выпуск на сегодня. Если после отчётной даты компания дробила
+    акции, сегодняшнее число больше тогдашнего в `ratio` раз, и класть его
+    в старый отчёт нельзя: капитализация вырастет во столько же.
+    """
     if not ticker:
         return None
     try:
@@ -231,7 +242,9 @@ def _fetch_moex_shares_issued(ticker: Optional[str]) -> Optional[int]:
         value = int(info["issuesize"])
     except (TypeError, ValueError):
         return None
-    return value if value > 0 else None
+    if value <= 0:
+        return None
+    return shares_at_date(value, splits, report_date)
 
 
 def _parse_iso_date(raw: Optional[str]) -> Optional[date]:
@@ -246,7 +259,9 @@ def _parse_iso_date(raw: Optional[str]) -> Optional[date]:
 
 
 def _fetch_moex_price_for_report(
-    ticker: Optional[str], target: Optional[date],
+    ticker: Optional[str],
+    target: Optional[date],
+    former_tickers: Any = None,
 ) -> Optional[float]:
     """Тихо запросить у MOEX цену закрытия на дату (или ближайший торговый день).
 
@@ -255,6 +270,9 @@ def _fetch_moex_price_for_report(
     """
     if not ticker or target is None:
         return None
+    # Отчёт может быть старше нынешнего символа: за 2022 год цену Яндекса
+    # надо спрашивать у YNDX, под YDEX история начинается только с 2024-го.
+    ticker = resolve_ticker(ticker, former_tickers, target)
     try:
         info = get_closing_price_on_or_before(ticker, target)
     except Exception as exc:  # noqa: BLE001 — внешний HTTP, падать не имеем права
@@ -274,6 +292,7 @@ def _enrich_with_moex_prices(
     extracted: ExtractedReport,
     *,
     ticker: Optional[str],
+    former_tickers: Any = None,
     exchange_rate: Optional[float] = None,
     period_type: Optional[str] = None,
     fiscal_year: Optional[int] = None,
@@ -301,8 +320,8 @@ def _enrich_with_moex_prices(
     report_d = _parse_iso_date(report_iso)
     filing_d = _parse_iso_date(extracted.filing_date)
 
-    price_on_report_rub = _fetch_moex_price_for_report(ticker, report_d)
-    price_on_filing_rub = _fetch_moex_price_for_report(ticker, filing_d)
+    price_on_report_rub = _fetch_moex_price_for_report(ticker, report_d, former_tickers)
+    price_on_filing_rub = _fetch_moex_price_for_report(ticker, filing_d, former_tickers)
 
     # Для RUB-отчёта возвращаем цены как есть.
     currency = (extracted.currency or "RUB").upper()
@@ -1115,6 +1134,7 @@ def parse_pdf_to_report(
     moex_price_on_report, moex_price_on_filing = _enrich_with_moex_prices(
         extracted,
         ticker=company.ticker,  # type: ignore[arg-type]
+        former_tickers=company.former_tickers,
         exchange_rate=auto_exchange_rate,
         period_type=period_type,
         fiscal_year=fiscal_year,
@@ -1129,11 +1149,20 @@ def parse_pdf_to_report(
 
     # 7.3) Реестр акций (ISSUESIZE) с MOEX → shares_issued. Не путать со
     # средневзвешенным из примечания к EPS (то кладём в shares_weighted_avg).
-    moex_shares_issued = _fetch_moex_shares_issued(company.ticker)  # type: ignore[arg-type]
+    report_date_for_shares = _parse_iso_date(
+        _resolve_report_date(extracted, period_type=period_type, fiscal_year=fiscal_year)
+    )
+    moex_shares_issued = _fetch_moex_shares_issued(
+        company.ticker,  # type: ignore[arg-type]
+        report_date_for_shares,
+        company.share_splits,
+    )
     if moex_shares_issued is not None:
         logger.info(
-            "[%s %s] MOEX ISSUESIZE → shares_issued=%s.",
+            "[%s %s] MOEX ISSUESIZE → shares_issued=%s%s.",
             company.ticker, fiscal_year, f"{moex_shares_issued:,}",
+            " (пересчитано на отчётную дату: после неё был сплит)"
+            if shares_factor(company.share_splits, report_date_for_shares) != 1.0 else "",
         )
 
     payload = FinancialReportCreate(
