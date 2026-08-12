@@ -1,4 +1,9 @@
-from sqlalchemy import Integer, String, Boolean, DateTime, Numeric, Text
+from sqlalchemy import Integer, String, Boolean, DateTime, Numeric, Text, JSON
+from sqlalchemy.dialects.postgresql import JSONB
+
+# JSONB в проде, JSON в SQLite под тестами: у SQLite нет JSONB, и без варианта
+# метаданные не компилируются вовсе.
+JSONVariant = JSONB().with_variant(JSON(), "sqlite")
 from sqlalchemy.orm import Mapped, mapped_column, relationship 
 from sqlalchemy.sql import func
 from typing import Optional, List, TYPE_CHECKING
@@ -39,6 +44,21 @@ class Company(Base):
     brand_logo_url: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
     brand_color: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
     
+    # Прежние тикеры: [{"ticker": "YNDX", "until": "2024-07-07"}, …].
+    # ISS хранит котировки под символом, действовавшим в тот день, и связи
+    # между старым и новым тикером не даёт — у Яндекса сменился даже ISIN.
+    # Без этой цепочки цена за 2022 год по тикеру YDEX просто не находится.
+    # Разбор и подстановка — в app/services/ticker_history.py.
+    former_tickers: Mapped[Optional[list]] = mapped_column(JSONVariant, nullable=True)
+
+    # Дробления акций: [{"date": "2026-04-17", "ratio": 10}, …].
+    # Цены и количество акций хранятся так, как было тогда, поэтому сплит
+    # ничего не переписывает задним числом. Но реестр Мосбиржи отдаёт
+    # ISSUESIZE всегда сегодняшний, и для отчёта за прошлый год его надо
+    # делить на коэффициенты дроблений, случившихся после отчётной даты.
+    # Арифметика — в app/services/share_splits.py.
+    share_splits: Mapped[Optional[list]] = mapped_column(JSONVariant, nullable=True)
+
     # Год начала выплаты дивидендов (для анализа непрерывности по Грэму)
     dividend_start_year: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 
