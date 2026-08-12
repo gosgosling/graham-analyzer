@@ -18,8 +18,11 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.company import Company
 from app.services.market.price_history_service import backfill_company_prices, backfill_all_companies
+from app.services.share_splits import price_scale_hint, shares_at_date
+from app.services.ticker_history import resolve_ticker
 from app.utils.moex_client import (
     get_closing_price_on_or_before,
+    get_first_trade_date,
     get_shares_outstanding,
     get_dividends_for_period,
     get_fx_rate_on_or_before,
@@ -38,6 +41,11 @@ class MoexSharesResponse(BaseModel):
         "Текущее значение из реестра Мосбиржи. "
         "Для точности проверьте значение в отчёте компании."
     )
+    # Выпуск на отчётную дату: сегодняшний ISSUESIZE, поделённый на дробления,
+    # случившиеся после неё. Пусто — сплитов не было и делить нечего.
+    issuesize_at_date: Optional[int] = None
+    # Пояснение про смену масштаба — показывается рядом со значением.
+    split_note: Optional[str] = None
 
 
 @router.get(
@@ -52,6 +60,18 @@ class MoexSharesResponse(BaseModel):
 )
 def get_moex_shares(
     ticker: str = Query(..., description="Тикер (SECID) на Мосбирже, например: SBER, GAZP"),
+    company_id: Optional[int] = Query(
+        None, description="ID компании — нужен, чтобы учесть дробления акций",
+    ),
+    date: Optional[str] = Query(
+        None,
+        description=(
+            "Отчётная дата YYYY-MM-DD. Реестр Мосбиржи отдаёт выпуск на "
+            "сегодня; с этой датой ответ дополняется выпуском, действовавшим "
+            "тогда — после сплита это разные числа."
+        ),
+    ),
+    db: Session = Depends(get_db),
 ):
     result = get_shares_outstanding(ticker.upper())
 
@@ -64,12 +84,30 @@ def get_moex_shares(
             ),
         )
 
+    target_date: Optional[date_type] = None
+    if date:
+        try:
+            target_date = date_type.fromisoformat(date)
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Неверный формат даты: '{date}'. Используйте YYYY-MM-DD.",
+            )
+
+    splits = None
+    if company_id is not None:
+        company = db.query(Company).filter(Company.id == company_id).first()
+        if company is not None:
+            splits = company.share_splits
+
     return MoexSharesResponse(
         ticker=result["ticker"],
         issuesize=result["issuesize"],
         secname=result["secname"],
         lotsize=result["lotsize"],
         board=result["board"],
+        issuesize_at_date=shares_at_date(result["issuesize"], splits, target_date),
+        split_note=price_scale_hint(splits, target_date),
     )
 
 
@@ -178,7 +216,44 @@ class MoexPriceResponse(BaseModel):
     price: float
     board: str
     is_adjusted: bool   # True если фактическая дата отличается от запрошенной
+    # Символ, под которым бумага торговалась в тот день, если он отличается
+    # от нынешнего: цена за 2022 год у Яндекса лежит под YNDX, а не YDEX.
+    resolved_from: Optional[str] = None
+    # Если после этой даты был сплит — цена в другом масштабе, чем сегодняшняя.
+    split_note: Optional[str] = None
 
+
+
+def _price_not_found_detail(lookup: str, requested: str, target_date: date_type) -> str:
+    """
+    Объясняет пустую котировку вместо «проверьте тикер».
+
+    Две разные причины требуют разных действий: если бумага вышла на биржу
+    позже отчёта, цены не существует и вносить туда нечего; если раньше —
+    скорее всего сменился символ, и нужна цепочка прежних тикеров.
+    """
+    prefix = f"Цена для '{lookup}'"
+    if lookup != requested:
+        prefix += f" (прежний тикер для {requested})"
+    prefix += f" на {target_date.isoformat()} не найдена."
+
+    first_trade = get_first_trade_date(lookup)
+    if first_trade is None:
+        return (
+            f"{prefix} Бумага с таким тикером на Мосбирже не торгуется — "
+            f"проверьте символ."
+        )
+    if first_trade > target_date.isoformat():
+        return (
+            f"{prefix} Первая сделка по бумаге — {first_trade}, то есть отчёт "
+            f"старше выхода на биржу: рыночной цены за этот период не существует. "
+            f"Если компания торговалась под другим символом, добавьте его "
+            f"в «Прежние тикеры» карточки компании."
+        )
+    return (
+        f"{prefix} Торги идут с {first_trade}, но на эту дату сделок нет — "
+        f"возможно, бумага была приостановлена. Увеличьте окно поиска."
+    )
 
 @router.get(
     "/price/moex",
@@ -193,12 +268,21 @@ class MoexPriceResponse(BaseModel):
 def get_moex_price(
     ticker: str = Query(..., description="Тикер (SECID) на Мосбирже, например: SBER, GAZP"),
     date: str = Query(..., description="Дата в формате YYYY-MM-DD"),
+    company_id: Optional[int] = Query(
+        None,
+        description=(
+            "ID компании. Если передан, тикер подменяется на действовавший "
+            "в запрошенную дату — иначе после переименования (YNDX → YDEX) "
+            "исторические цены не находятся."
+        ),
+    ),
     lookback_days: int = Query(
         10,
         ge=1,
         le=30,
         description="Максимум дней назад для поиска последней торговой сессии",
     ),
+    db: Session = Depends(get_db),
 ):
     # Парсинг даты
     try:
@@ -209,8 +293,18 @@ def get_moex_price(
             detail=f"Неверный формат даты: '{date}'. Используйте YYYY-MM-DD.",
         )
 
+    requested = ticker.upper()
+    lookup = requested
+    company = None
+    if company_id is not None:
+        company = db.query(Company).filter(Company.id == company_id).first()
+        if company is not None:
+            lookup = resolve_ticker(
+                str(company.ticker), company.former_tickers, target_date
+            ).upper()
+
     result = get_closing_price_on_or_before(
-        ticker=ticker.upper(),
+        ticker=lookup,
         target_date=target_date,
         lookback_days=lookback_days,
     )
@@ -218,10 +312,7 @@ def get_moex_price(
     if result is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=(
-                f"Цена для тикера '{ticker}' не найдена. "
-                f"Проверьте правильность тикера и убедитесь, что бумага торгуется на Мосбирже."
-            ),
+            detail=_price_not_found_detail(lookup, requested, target_date),
         )
 
     return MoexPriceResponse(
@@ -231,6 +322,11 @@ def get_moex_price(
         price=result["price"],
         board=result["board"],
         is_adjusted=result["date"] != date,
+        resolved_from=lookup if lookup != requested else None,
+        split_note=price_scale_hint(
+            company.share_splits if company_id is not None and company else None,
+            target_date,
+        ),
     )
 
 
