@@ -147,6 +147,8 @@ class ReportFigures(BaseModel):
     total_liabilities: Optional[float] = None
     current_liabilities: Optional[float] = None
     equity: Optional[float] = None
+    # Гудвил из баланса, млн — вычитается при расчёте материального капитала
+    goodwill: Optional[float] = None
     cash_and_equivalents: Optional[float] = None  # наличность, млн
     debt: Optional[float] = None                  # долг, млн
     dividends_per_share: Optional[float] = None   # ₽/$ за акцию, ВСЕГО (полные единицы)

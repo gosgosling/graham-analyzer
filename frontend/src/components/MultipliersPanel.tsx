@@ -375,6 +375,76 @@ function MetricBadge({
   );
 }
 
+/** Порог, за которым гудвил перестаёт быть мелочью в балансе. */
+const GOODWILL_FLAG_PCT = 20;
+
+function fmt2(value: number): string {
+  return value.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+/**
+ * P/B по материальной балансовой стоимости — как у Грэма.
+ *
+ * Гудвил вычтен из капитала: это не имущество, а разница между уплаченной за
+ * компанию ценой и её чистыми активами. Продать его отдельно нельзя, денег он
+ * не приносит, а при неудачной сделке списывается разом — и балансовая
+ * стоимость падает сразу на всю сумму. Поэтому в таблице стоит очищенное
+ * число, а отчётное уходит в подсказку.
+ *
+ * Когда гудвила нет, оба значения совпадают и показывать нечего.
+ */
+function PbMetricBadge({
+  profile, pb, equity, pbTangible, goodwillShare, nullHint,
+}: {
+  profile: SectorProfile | null | undefined;
+  pb: number | null;
+  equity: number | null | undefined;
+  pbTangible?: number | null;
+  goodwillShare?: number | null;
+  nullHint?: string;
+}) {
+  const hasGoodwill = goodwillShare != null;
+  // Пустой материальный P/B при наличии гудвила означает одно: гудвил съел
+  // капитал целиком. Это не «нет данных», и молчать об этом нельзя.
+  const wipedOut = hasGoodwill && pbTangible == null;
+  const shown = hasGoodwill ? pbTangible ?? null : pb;
+
+  const share = hasGoodwill ? goodwillShare!.toLocaleString('ru-RU', { maximumFractionDigits: 1 }) : '';
+  const tip = wipedOut
+    ? `Гудвил (${share}% активов) больше собственного капитала: по материальным активам `
+      + `компания в минусе, поэтому P/B не считается. С гудвилом было бы `
+      + `${pb != null ? fmt2(pb) : '—'}.`
+    : hasGoodwill
+      ? `Балансовая стоимость без гудвила, как у Грэма. С гудвилом — `
+        + `${pb != null ? fmt2(pb) : '—'}, сам гудвил — ${share}% активов.`
+      : undefined;
+
+  const badge = (
+    <MetricBadge
+      value={shown}
+      level={pbLevelContext(profile, shown, equity ?? null)}
+      nullHint={shown === null ? tip ?? nullHint : undefined}
+      tip={shown !== null ? tip : undefined}
+    />
+  );
+
+  if (!hasGoodwill || goodwillShare! < GOODWILL_FLAG_PCT) return badge;
+  return (
+    <span className="metric-with-flag">
+      {badge}
+      <span
+        className="metric-flag"
+        title={`Гудвил — ${share}% активов, и он уже вычтен из показанного P/B. `
+          + `С гудвилом было бы ${pb != null ? fmt2(pb) : '—'}. `
+          + `Чем крупнее эта доля, тем сильнее балансовая стоимость зависит от одной оценки: `
+          + `гудвил проверяют на обесценение раз в год, и списывают его целиком, а не постепенно.`}
+      >
+        !
+      </span>
+    </span>
+  );
+}
+
 function DeMetricBadge({
   profile,
   de,
@@ -670,6 +740,11 @@ const CurrentCards: React.FC<CurrentCardsProps> = ({
   const fcfNi = (data as any).fcf_to_net_income as number | null | undefined;
   const fcfNiUi = fcfNiBadge(fcfNi ?? null, income ?? null);
 
+  // При наличии гудвила на виду материальная балансовая стоимость, отчётная —
+  // в подписи. Светофор считается по тому числу, которое видит человек.
+  const pbShown: number | null =
+    data.goodwill_to_assets != null ? data.pb_tangible ?? null : data.pb_ratio;
+
   const baseCards = [
     {
       label: 'P/E',
@@ -681,9 +756,14 @@ const CurrentCards: React.FC<CurrentCardsProps> = ({
     },
     {
       label: 'P/B',
-      value: data.pb_ratio,
-      level: pbLevelContext(profile, data.pb_ratio, data.equity ?? null),
-      hint: 'Цена / Балансовая стоимость',
+      // При наличии гудвила показываем материальную балансовую стоимость:
+      // отчётная уходит в подпись. Светофор — по тому же числу, что на виду.
+      value: pbShown,
+      level: pbLevelContext(profile, pbShown, data.equity ?? null),
+      hint:
+        data.goodwill_to_assets != null
+          ? `Цена / Балансовая стоимость без гудвила. С гудвилом — ${data.pb_ratio != null ? fmt2(data.pb_ratio) : '—'}`
+          : 'Цена / Балансовая стоимость',
       threshold: hintFor(profile, 'pb'),
       tip: getBand(profile, 'pb').note ?? undefined,
     },
@@ -1400,9 +1480,12 @@ const HistTableRow: React.FC<HistTableRowProps> = ({
       {histYoYCell(
         pctMode,
         yoy?.pb,
-        <MetricBadge
-          value={snapshot.pb_ratio}
-          level={pbLevelContext(profile, snapshot.pb_ratio, snapshot.equity)}
+        <PbMetricBadge
+          profile={profile}
+          pb={snapshot.pb_ratio}
+          equity={snapshot.equity}
+          pbTangible={snapshot.pb_tangible}
+          goodwillShare={snapshot.goodwill_to_assets}
           nullHint={pbHint}
         />,
       )}

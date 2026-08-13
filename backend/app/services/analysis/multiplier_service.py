@@ -730,6 +730,9 @@ _METRIC_FIELDS: Tuple[str, ...] = (
     "market_cap",
     "pe_ratio",
     "pb_ratio",
+    "pb_tangible",
+    "goodwill",
+    "goodwill_to_assets",
     "roe",
     "debt_to_equity",
     "current_ratio",
@@ -959,7 +962,19 @@ def save_report_based_multiplier(
         db.commit()
         return None
 
-    if report.price_per_share is None and resolve_shares_for_multipliers(report) is None:
+    # Без цены год всё равно нужен в истории. До выхода на биржу цены не
+    # существует, но выручка, прибыль, капитал и поток существуют — и именно
+    # по ним видно, чем компания была до IPO. Подставлять вместо цены цену
+    # размещения (так делают некоторые скринеры) нельзя: получится P/E, где
+    # числитель из 2024 года, а знаменатель из 2021-го.
+    #
+    # Пропускаем только пустые черновики: если нет ни одной итоговой величины,
+    # строка не несёт ничего, кроме года.
+    has_content = any(
+        getattr(report, field, None) is not None
+        for field in ("revenue", "net_income", "equity", "total_assets")
+    )
+    if not has_content:
         # Мы не можем посчитать мультипликаторы — но «протухшие» записи
         # от предыдущих версий отчёта всё равно нужно вычистить.
         _delete_stale_report_based(db, report.id, keep_date=None)

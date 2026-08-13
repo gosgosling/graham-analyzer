@@ -29,6 +29,7 @@ _DEFAULTS: dict[str, Any] = {
     "net_income_reported": 10_000.0,
     # Баланс, млн ₽
     "equity": 50_000.0,
+    "goodwill": None,
     "total_assets": 100_000.0,
     "total_liabilities": 25_000.0,
     "current_assets": 30_000.0,
