@@ -127,6 +127,10 @@ export interface MultiplierRecord {
     // Мультипликаторы
     pe_ratio: number | null;
     pb_ratio: number | null;
+    /** P/B по материальному капиталу — из капитала вычтен гудвил */
+    pb_tangible?: number | null;
+    /** Доля гудвила в активах, % */
+    goodwill_to_assets?: number | null;
     roe: number | null;
     debt_to_equity: number | null;
     current_ratio: number | null;
@@ -199,6 +203,10 @@ export interface CurrentMultipliers {
 
     pe_ratio: number | null;
     pb_ratio: number | null;
+    /** P/B по материальному капиталу — из капитала вычтен гудвил */
+    pb_tangible?: number | null;
+    /** Доля гудвила в активах, % */
+    goodwill_to_assets?: number | null;
     roe: number | null;
     debt_to_equity: number | null;
     current_ratio: number | null;

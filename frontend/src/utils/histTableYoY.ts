@@ -15,6 +15,10 @@ export interface HistRowSnapshot {
   market_cap: number | null;
   pe_ratio: number | null;
   pb_ratio: number | null;
+  /** P/B без гудвила — показывается по наведению и включает значок */
+  pb_tangible: number | null;
+  /** Доля гудвила в активах, % */
+  goodwill_to_assets: number | null;
   roe: number | null;
   debt_to_equity: number | null;
   current_ratio: number | null;
@@ -220,6 +224,8 @@ export function snapshotFromRecord(r: MultiplierRecord): HistRowSnapshot {
     market_cap: r.market_cap,
     pe_ratio: r.pe_ratio,
     pb_ratio: r.pb_ratio,
+    pb_tangible: r.pb_tangible ?? null,
+    goodwill_to_assets: r.goodwill_to_assets ?? null,
     roe: r.roe,
     debt_to_equity: r.debt_to_equity,
     current_ratio: r.current_ratio,
@@ -249,6 +255,8 @@ export function snapshotFromCurrent(r: CurrentMultipliers): HistRowSnapshot {
     market_cap: r.market_cap,
     pe_ratio: r.pe_ratio,
     pb_ratio: r.pb_ratio,
+    pb_tangible: r.pb_tangible ?? null,
+    goodwill_to_assets: r.goodwill_to_assets ?? null,
     roe: r.roe,
     debt_to_equity: r.debt_to_equity,
     current_ratio: r.current_ratio,

@@ -92,6 +92,11 @@ class FinancialReport(Base):
     current_assets: Mapped[Optional[float]] = mapped_column(Numeric(15, 3), nullable=True)  # Итого оборотные активы, млн
     current_liabilities: Mapped[Optional[float]] = mapped_column(Numeric(15, 3), nullable=True)  # Итого краткосрочные обязательства, млн
     equity: Mapped[Optional[float]] = mapped_column(Numeric(15, 3), nullable=True)  # Итого собственный капитал, млн
+    # Гудвил из баланса, млн. По Грэму вычитается из капитала: это не актив,
+    # который можно продать, а разница между уплаченной ценой и чистыми
+    # активами купленной компании. Пока сделка удачна — он просто стоит,
+    # неудачна — списывается разом и уносит с собой балансовую стоимость.
+    goodwill: Mapped[Optional[float]] = mapped_column(Numeric(15, 3), nullable=True)
     cash_and_equivalents: Mapped[Optional[float]] = mapped_column(
         Numeric(15, 3), nullable=True
     )  # Денежные средства и эквиваленты (наличность), млн

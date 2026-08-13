@@ -397,3 +397,75 @@ def test_exchange_has_no_net_debt(report_factory):
 
     assert m["net_debt"] is None
     assert m["net_debt_to_fcf"] is None
+
+
+# ─── Гудвил и материальная балансовая стоимость ────────────────────────────
+#
+# Грэм считал балансовую стоимость без гудвила: продать его отдельно нельзя,
+# денег он не приносит, а при неудачной сделке списывается разом. Поэтому в
+# таблице показывается P/B по материальному капиталу, а отчётный уходит в
+# подсказку. База: капитализация 100 млрд, капитал 50 млрд, активы 100 млрд.
+
+
+def test_no_goodwill_leaves_tangible_fields_empty(report):
+    """Без гудвила материального P/B не существует — он совпал бы с обычным."""
+    m = calculate_multipliers(report)
+
+    assert m["pb_ratio"] == 2.0
+    assert m["goodwill"] is None
+    assert m["pb_tangible"] is None
+    assert m["goodwill_to_assets"] is None
+
+
+def test_goodwill_raises_pb_and_reports_share(report_factory):
+    """Гудвил уменьшает капитал, поэтому материальный P/B всегда выше отчётного."""
+    m = calculate_multipliers(report_factory(goodwill=10_000.0))
+
+    assert m["pb_ratio"] == 2.0                    # 100 000 / 50 000
+    assert m["tangible_equity"] == 40_000.0        # 50 000 − 10 000
+    assert m["pb_tangible"] == 2.5                 # 100 000 / 40 000
+    assert m["goodwill_to_assets"] == 10.0         # 10 000 / 100 000
+
+
+def test_goodwill_share_counted_from_assets_not_equity(report_factory):
+    """Доля считается от активов: порог значка в интерфейсе привязан к ним."""
+    m = calculate_multipliers(report_factory(goodwill=25_000.0))
+
+    assert m["goodwill_to_assets"] == 25.0         # 25 000 / 100 000, не 50%
+    assert m["pb_tangible"] == 4.0                 # 100 000 / 25 000
+
+
+def test_goodwill_equal_to_equity_gives_no_tangible_pb(report_factory):
+    """Материальный капитал ушёл в ноль — делить не на что, но доля видна."""
+    m = calculate_multipliers(report_factory(goodwill=50_000.0))
+
+    assert m["tangible_equity"] == 0.0
+    assert m["pb_tangible"] is None
+    assert m["goodwill_to_assets"] == 50.0
+    assert m["pb_ratio"] == 2.0                    # отчётный не пострадал
+
+
+def test_goodwill_above_equity_gives_negative_tangible_equity(report_factory):
+    """Гудвил больше капитала: по материальным активам компания в минусе."""
+    m = calculate_multipliers(report_factory(goodwill=60_000.0))
+
+    assert m["tangible_equity"] == -10_000.0
+    assert m["pb_tangible"] is None
+
+
+def test_goodwill_without_assets_still_gives_tangible_pb(report_factory):
+    """Доля неизвестна без активов, но сам материальный P/B считается."""
+    m = calculate_multipliers(report_factory(goodwill=10_000.0, total_assets=None))
+
+    assert m["pb_tangible"] == 2.5
+    assert m["goodwill_to_assets"] is None
+
+
+def test_goodwill_ignored_without_equity(report_factory):
+    """Нет капитала — нет и материального: вычитать не из чего."""
+    m = calculate_multipliers(report_factory(goodwill=10_000.0, equity=None))
+
+    assert m["pb_ratio"] is None
+    assert m["pb_tangible"] is None
+    assert m["tangible_equity"] is None
+    assert m["goodwill_to_assets"] == 10.0

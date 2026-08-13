@@ -237,9 +237,37 @@ def test_interim_report_gets_no_report_based_row(db, company):
     assert db.query(Multiplier).count() == 0
 
 
-def test_report_without_price_and_shares_is_skipped(db, company):
-    """Без цены и без акций мультипликаторы не считаются — записи нет."""
+def test_report_without_price_still_gets_row(db, company):
+    """До выхода на биржу цены нет, но год обязан быть в истории.
+
+    Подставлять вместо неё цену размещения нельзя: получился бы P/E, где
+    числитель из года IPO, а знаменатель из года, когда бумага не торговалась.
+    Поэтому цена и всё, что от неё зависит, остаются пустыми, а выручка,
+    капитал, ROE и поток считаются как обычно — по ним и видно динамику.
+    """
     report = _report(db, company, price_per_share=None, shares_outstanding=None)
+
+    saved = save_report_based_multiplier(db, report)
+
+    assert saved is not None
+    assert saved.price_used is None
+    assert saved.market_cap is None
+    assert saved.pe_ratio is None
+    assert saved.pb_ratio is None
+    # Не зависят от цены — обязаны посчитаться
+    assert float(saved.roe) == 20.0
+    assert float(saved.debt_to_equity) == 0.5
+    assert float(saved.current_ratio) == 2.0
+    assert float(saved.ltm_revenue) == 50_000.0
+
+
+def test_empty_draft_report_is_skipped(db, company):
+    """Пустой черновик в историю не попадает: строка несла бы только год."""
+    report = _report(
+        db, company,
+        price_per_share=None, shares_outstanding=None,
+        revenue=None, net_income=None, equity=None, total_assets=None,
+    )
 
     assert save_report_based_multiplier(db, report) is None
     assert db.query(Multiplier).count() == 0

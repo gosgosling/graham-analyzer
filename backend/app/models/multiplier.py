@@ -70,6 +70,12 @@ class Multiplier(Base):
     # Рассчитанные мультипликаторы
     pe_ratio: Mapped[Optional[float]] = mapped_column(Numeric(12, 4), nullable=True)
     pb_ratio: Mapped[Optional[float]] = mapped_column(Numeric(12, 4), nullable=True)
+    # P/B по материальному капиталу — тот же расчёт, но из капитала вычтен
+    # гудвил. Заполняется только когда гудвил есть; иначе совпал бы с pb_ratio.
+    pb_tangible: Mapped[Optional[float]] = mapped_column(Numeric(12, 4), nullable=True)
+    goodwill: Mapped[Optional[float]] = mapped_column(Numeric(20, 2), nullable=True)
+    # Доля гудвила в активах, %. Выше 20% — рядом с P/B встаёт значок.
+    goodwill_to_assets: Mapped[Optional[float]] = mapped_column(Numeric(8, 2), nullable=True)
     roe: Mapped[Optional[float]] = mapped_column(Numeric(12, 4), nullable=True)
     debt_to_equity: Mapped[Optional[float]] = mapped_column(Numeric(12, 4), nullable=True)
     current_ratio: Mapped[Optional[float]] = mapped_column(Numeric(12, 4), nullable=True)

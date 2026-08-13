@@ -73,6 +73,9 @@ class MultiplierResponse(BaseModel):
     # Мультипликаторы
     pe_ratio: Optional[float] = None
     pb_ratio: Optional[float] = None
+    pb_tangible: Optional[float] = None       # P/B без гудвила
+    goodwill: Optional[float] = None          # млн ₽
+    goodwill_to_assets: Optional[float] = None  # %
     roe: Optional[float] = None
     debt_to_equity: Optional[float] = None
     current_ratio: Optional[float] = None
@@ -139,6 +142,9 @@ class CurrentMultipliersResponse(BaseModel):
     # Мультипликаторы
     pe_ratio: Optional[float] = None
     pb_ratio: Optional[float] = None
+    pb_tangible: Optional[float] = None       # P/B без гудвила
+    goodwill: Optional[float] = None          # млн ₽
+    goodwill_to_assets: Optional[float] = None  # %
     roe: Optional[float] = None
     debt_to_equity: Optional[float] = None
     current_ratio: Optional[float] = None
