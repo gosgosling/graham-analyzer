@@ -120,6 +120,7 @@ def calculate_multipliers(
 
     # Балансовые (в млн валюты → млн рублей)
     equity_mln = to_rub_mln(report.equity)
+    total_assets_mln = to_rub_mln(report.total_assets)
     total_liabilities_mln = to_rub_mln(report.total_liabilities)
     current_assets_mln = to_rub_mln(report.current_assets)
     current_liabilities_mln = to_rub_mln(report.current_liabilities)
@@ -140,6 +141,28 @@ def calculate_multipliers(
     pb_ratio: Optional[float] = None
     if market_cap_full and equity_mln and equity_mln > 0:
         pb_ratio = round(market_cap_full / (equity_mln * MILLION), 2)
+
+    # P/B по материальному капиталу — Грэм считал балансовую стоимость без
+    # гудвила. Гудвил не продаётся отдельно и не приносит денег: это разница
+    # между уплаченной ценой и чистыми активами купленной компании. Пока
+    # сделка себя оправдывает, он просто стоит в балансе; когда перестаёт —
+    # списывается разом, и балансовая стоимость падает на всю сумму.
+    #
+    # Основной P/B остаётся по отчётному капиталу, чтобы сходиться с отчётом
+    # и внешними источниками. Материальный показывается в пояснении, а когда
+    # гудвил перевешивает пятую часть активов — рядом с P/B встаёт значок.
+    goodwill_mln = to_rub_mln(getattr(report, "goodwill", None))
+    tangible_equity_mln: Optional[float] = None
+    pb_tangible: Optional[float] = None
+    goodwill_to_assets: Optional[float] = None
+
+    if goodwill_mln:
+        if equity_mln is not None:
+            tangible_equity_mln = round(equity_mln - goodwill_mln, 3)
+            if market_cap_full and tangible_equity_mln > 0:
+                pb_tangible = round(market_cap_full / (tangible_equity_mln * MILLION), 2)
+        if total_assets_mln:
+            goodwill_to_assets = round(goodwill_mln / total_assets_mln * 100, 2)
 
     # ROE = Net Income / Equity × 100%  (миллионы сокращаются)
     roe: Optional[float] = None
@@ -287,6 +310,10 @@ def calculate_multipliers(
     return {
         "pe_ratio": pe_ratio,
         "pb_ratio": pb_ratio,
+        "goodwill": goodwill_mln,
+        "tangible_equity": tangible_equity_mln,
+        "pb_tangible": pb_tangible,
+        "goodwill_to_assets": goodwill_to_assets,
         "roe": roe,
         "debt_to_equity": debt_to_equity,
         "current_ratio": current_ratio,
