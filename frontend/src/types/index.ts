@@ -106,6 +106,8 @@ export interface MultiplierRecord {
     // Рыночные данные
     price_used: number | null;
     shares_used: number | null;
+    /** Прибыль на акцию, ₽ — от тех же акций, что и капитализация */
+    eps: number | null;
     shares_cap_explanation?: string | null;
     market_cap: number | null;
 
@@ -188,6 +190,8 @@ export interface CurrentMultipliers {
 
     price_used: number | null;
     shares_used: number | null;
+    /** Прибыль на акцию, ₽ — от тех же акций, что и капитализация */
+    eps: number | null;
     /** Размещённое (общее) количество из балансового отчёта */
     shares_issued: number | null;
     /** Акции в обращении (явные или issued − treasury) */

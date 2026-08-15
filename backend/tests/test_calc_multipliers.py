@@ -469,3 +469,64 @@ def test_goodwill_ignored_without_equity(report_factory):
     assert m["pb_tangible"] is None
     assert m["tangible_equity"] is None
     assert m["goodwill_to_assets"] == 10.0
+
+
+# ─── Прибыль на акцию ──────────────────────────────────────────────────────
+#
+# EPS считается от тех же акций, что и капитализация, а не от
+# средневзвешенного из отчёта. Иначе Цена / EPS не сходилась бы с P/E той же
+# строки, и таблица противоречила бы сама себе. База: прибыль 10 млрд ₽,
+# 1 млрд акций, цена 100 ₽ → EPS 10 ₽, P/E 10.
+
+
+def test_eps_is_price_divided_by_pe(report):
+    """Ключевое свойство: Цена / EPS в точности равна P/E той же строки."""
+    m = calculate_multipliers(report)
+
+    assert m["eps"] == 10.0
+    assert round(m["price_used"] / m["eps"], 2) == m["pe_ratio"]
+
+
+def test_eps_uses_market_cap_shares_not_weighted_average(report_factory):
+    """Средневзвешенное не влияет: EPS считается от акций капитализации.
+
+    После допэмиссии эти базы расходятся ровно на размытие, и брать нужно
+    ту, за которую платит покупатель сегодня.
+    """
+    m = calculate_multipliers(
+        report_factory(shares_outstanding=2_000_000_000, shares_weighted_avg=1_000_000_000)
+    )
+
+    assert m["eps"] == 5.0
+
+
+def test_eps_follows_ltm_net_income(report):
+    """У неполного года прибыль берётся за скользящий год — EPS вместе с ней."""
+    m = calculate_multipliers(report, ltm_net_income=20_000.0)
+
+    assert m["eps"] == 20.0
+
+
+def test_eps_negative_on_loss(report_factory):
+    """При убытке EPS отрицательный, хотя P/E не считается вовсе."""
+    m = calculate_multipliers(report_factory(net_income=-5_000.0))
+
+    assert m["eps"] == -5.0
+    assert m["pe_ratio"] is None
+
+
+def test_eps_absent_without_shares(report_factory):
+    """Нет акций — делить не на что; цена при этом не важна."""
+    m = calculate_multipliers(
+        report_factory(shares_outstanding=None, shares_issued=None, shares_weighted_avg=None)
+    )
+
+    assert m["eps"] is None
+
+
+def test_eps_survives_missing_price(report_factory):
+    """До выхода на биржу цены нет, а прибыль на акцию есть."""
+    m = calculate_multipliers(report_factory(price_per_share=None))
+
+    assert m["eps"] == 10.0
+    assert m["pe_ratio"] is None

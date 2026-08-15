@@ -731,6 +731,7 @@ _METRIC_FIELDS: Tuple[str, ...] = (
     "pe_ratio",
     "pb_ratio",
     "pb_tangible",
+    "eps",
     "goodwill",
     "goodwill_to_assets",
     "roe",

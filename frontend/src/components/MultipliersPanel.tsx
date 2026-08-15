@@ -601,6 +601,16 @@ function fmt(n: number | null, decimals = 2): string {
 }
 
 /** Заголовок колонки: название + единица измерения меньшим шрифтом снизу. */
+/**
+ * Заголовок из названия и единицы измерения.
+ *
+ * Длинные названия набираются мельче. Ширину колонки задаёт самое длинное из
+ * двух — название или значение, — и у «Покрытия» с «Портфелем» слово вдвое
+ * шире числа под ним. Коротким заголовкам (P/E, ROA, CIR) мельчить нечего:
+ * их колонки давно определяются значениями.
+ */
+const LONG_TITLE_CHARS = 6;
+
 function ColHeaderWithUnit({
   title,
   unit = 'млрд ₽',
@@ -612,9 +622,11 @@ function ColHeaderWithUnit({
   uppercase?: boolean;
   align?: 'center' | 'right';
 }) {
+  const base = uppercase ? 'col-header-title' : 'col-header-title-plain';
+  const long = title.length > LONG_TITLE_CHARS ? ' col-header-title--long' : '';
   return (
     <span className={`col-header-stacked${align === 'right' ? ' col-header-stacked-right' : ''}`}>
-      <span className={uppercase ? 'col-header-title' : 'col-header-title-plain'}>{title}</span>
+      <span className={`${base}${long}`}>{title}</span>
       <span className="col-header-unit">{unit}</span>
     </span>
   );
@@ -646,6 +658,52 @@ function fmtPortfolio(n: number | null, inTrillions: boolean): string {
 function fmtMlnBln(n: number | null): string {
   if (n === null) return '—';
   return (n / 1_000).toFixed(2);
+}
+
+const SHARE_SCALE: [number, string][] = [
+  [1e12, 'трлн'],
+  [1e9, 'млрд'],
+  [1e6, 'млн'],
+  [1e3, 'тыс'],
+];
+
+/** Порядок величины числа акций: множитель и подпись. */
+function shareScaleOf(n: number): [number, string] {
+  const abs = Math.abs(n);
+  for (const [factor, unit] of SHARE_SCALE) {
+    if (abs >= factor) return [factor, unit];
+  }
+  return [1, 'шт'];
+}
+
+/**
+ * Как подписывать колонку с числом акций.
+ *
+ * Обычно единица одна на всю колонку и стоит в заголовке — так короче и
+ * ровнее. Но дробление может развести значения на порядки: у ВТБ в 2023 году
+ * было 26 трлн акций, а после консолидации 2024 года — 5,3 млрд, разница в
+ * пять тысяч раз. Одна единица тогда либо превращает свежие годы в 0,01,
+ * либо старые в пятизначное число, поэтому для таких компаний единица
+ * переезжает в ячейку, к своему значению.
+ *
+ * Порог — три порядка. Список исключений не нужен: признак виден из данных,
+ * и следующий такой сплит определится сам.
+ */
+const SHARE_SPREAD_LIMIT = 1000;
+
+function shareColumnScale(values: number[]): { factor: number; unit: string } | null {
+  const positive = values.filter((v) => v > 0);
+  if (positive.length === 0) return null;
+  const max = Math.max(...positive);
+  if (max / Math.min(...positive) >= SHARE_SPREAD_LIMIT) return null;
+  const [factor, unit] = shareScaleOf(max);
+  return { factor, unit };
+}
+
+/** Число с фиксированной точностью; пусто — прочерк. */
+function fmtNum(n: number | null, digits: number): string {
+  if (n === null || n === undefined) return '—';
+  return n.toFixed(digits);
 }
 
 /** Год из даты YYYY-MM-DD — подпись периода в таблице и на графике.
@@ -1365,6 +1423,8 @@ interface HistTableRowProps {
   isPreferredShare: boolean;
   /** Портфель показывать в триллионах — решается на уровне всей колонки. */
   portfolioInTrillions?: boolean;
+  /** Единица числа акций, общая на колонку. null — у каждой ячейки своя. */
+  sharesScale?: { factor: number; unit: string } | null;
   /** Банковские показатели этого периода; у строки LTM их нет. */
   bankMetrics?: BankMetrics | null;
   /**
@@ -1390,6 +1450,7 @@ const HistTableRow: React.FC<HistTableRowProps> = ({
   previous,
   isPreferredShare,
   portfolioInTrillions,
+  sharesScale,
   bankMetrics,
   costToIncome,
   previousBankMetrics,
@@ -1616,7 +1677,71 @@ const HistTableRow: React.FC<HistTableRowProps> = ({
         fmtMlnBln(snapshot.ltm_net_income),
         isLoss ? 'cell-loss' : undefined,
       )}
+      {/* EPS и число акций — пара, которая объясняет разрыв между «прибыль
+          выросла» и «моя прибыль выросла». Без них допэмиссия невидима:
+          все остальные колонки от неё не меняются. */}
+      {histYoYCell(
+        pctMode,
+        yoy?.eps,
+        formatPerShare(snapshot.eps),
+        isLoss ? 'cell-loss' : undefined,
+      )}
+      {histYoYCell(
+        pctMode,
+        yoy?.shares,
+        (() => {
+          const n = snapshot.shares_used;
+          if (n === null || n === undefined) return '—';
+          if (sharesScale) return (n / sharesScale.factor).toFixed(2);
+          const [factor, unit] = shareScaleOf(n);
+          return (
+            <>
+              {(n / factor).toFixed(2)}
+              <span className="hist-shares-unit">{unit}</span>
+            </>
+          );
+        })(),
+      )}
     </tr>
+  );
+};
+
+/**
+ * Глубина истории: сколько полных лет стоит за показателями.
+ *
+ * Все пороги в карточках — проверки одного среза: P/E ≤ 20, ROE ≥ 20%.
+ * Компания с двумя годами данных проходит их автоматически, потому что
+ * проверять нечего. Грэм требовал десять лет прибыли и двадцать дивидендов
+ * именно поэтому: его критерии про устойчивость, а не про уровень.
+ *
+ * Зелёный экран без этой строки читается как «проверка пройдена», хотя
+ * означает лишь «сейчас в норме». Здесь мы честно говорим, на скольких годах
+ * основан вывод.
+ */
+const GRAHAM_YEARS = 10;
+const ENOUGH_YEARS = 7;
+
+const HistoryDepth: React.FC<{ years: number }> = ({ years }) => {
+  if (years <= 0) return null;
+  const level = years >= GRAHAM_YEARS ? 'good' : years >= ENOUGH_YEARS ? 'warn' : 'thin';
+  const word = years === 1 ? 'год' : years >= 2 && years <= 4 ? 'года' : 'лет';
+  return (
+    <div
+      className={`mult-depth mult-depth--${level}`}
+      title={
+        years >= GRAHAM_YEARS
+          ? `${years} ${word} годовых отчётов — Грэм считал достаточным десять.`
+          : `${years} ${word} годовых отчётов. Грэм требовал десять лет прибыли: ` +
+            'пороги ниже проверяют только текущий срез и на короткой истории ' +
+            'проходятся почти автоматически. Устойчивость по ним не видна.'
+      }
+    >
+      <span className="mult-depth-value">{years}</span>
+      <span className="mult-depth-label">
+        {word} данных
+        {years < GRAHAM_YEARS && <span className="mult-depth-of"> из 10 по Грэму</span>}
+      </span>
+    </div>
   );
 };
 
@@ -1652,6 +1777,15 @@ const HistTable: React.FC<HistTableProps & { pctMode: boolean }> = ({
     rows.some((r) => r.ltm_core_fcf != null) || currentRow?.ltm_core_fcf != null;
 
   // Масштаб колонки портфеля — по самому крупному значению в ней.
+  // Единица числа акций — одна на колонку, если значения одного порядка.
+  // Компанию с масштабным дроблением (ВТБ) определяем по самим данным.
+  const sharesScale = React.useMemo(() => {
+    const values: number[] = [];
+    if (currentRow?.shares_used != null) values.push(currentRow.shares_used);
+    rows.forEach((r) => r.shares_used != null && values.push(r.shares_used));
+    return shareColumnScale(values);
+  }, [rows, currentRow]);
+
   const portfolioInTrillions = React.useMemo(() => {
     const values: number[] = [];
     const push = (m: BankMetrics | null | undefined) => {
@@ -1670,17 +1804,17 @@ const HistTable: React.FC<HistTableProps & { pctMode: boolean }> = ({
           <tr>
             <th className="col-year">Период</th>
             <th
-              className="col-price"
+              className="col-price col-header-unit-col"
               title="В ячейке — цена на дату окончания отчётного периода. Наведите для цены на дату публикации (если заполнено в отчёте)."
             >
-              Цена, ₽
+              <ColHeaderWithUnit title="Цена" unit="₽" align="right" />
             </th>
             <th className="col-mkt col-header-unit-col">
               <ColHeaderWithUnit title="Кап." />
             </th>
             <th className="col-mult">P/E</th>
             <th className="col-mult">P/B</th>
-            <th className="col-mult">ROE, %</th>
+            <th className="col-mult col-header-unit-col"><ColHeaderWithUnit title="ROE" unit="%" align="right" /></th>
             {!noLeverage && <th className="col-mult">D/E</th>}
             {!noLeverage && (
               <th
@@ -1696,9 +1830,11 @@ const HistTable: React.FC<HistTableProps & { pctMode: boolean }> = ({
                 )}
               </th>
             )}
-            <th className="col-mult">Div, %</th>
+            <th className="col-mult col-header-unit-col"><ColHeaderWithUnit title="Div" unit="%" align="right" /></th>
             {showCir && (
-              <th className="col-mult col-compact col-bank" title="Cost/Income: операционные расходы к операционным доходам">CIR, %</th>
+              <th className="col-mult col-compact col-bank col-header-unit-col" title="Cost/Income: операционные расходы к операционным доходам">
+                <ColHeaderWithUnit title="CIR" unit="%" align="right" />
+              </th>
             )}
             {showFcf && (
               <HistPfcfHeader
@@ -1735,26 +1871,36 @@ const HistTable: React.FC<HistTableProps & { pctMode: boolean }> = ({
                 свободный денежный поток в оценке. */}
             {isBank && (
               <th
-                className="col-mult col-compact col-bank"
+                className="col-mult col-compact col-bank col-header-unit-col"
                 title="Отдача активов: прибыль / активы. В отличие от ROE её нельзя поднять плечом"
               >
-                ROA, %
+                <ColHeaderWithUnit title="ROA" unit="%" align="right" />
               </th>
             )}
             {isBank && (
-              <th className="col-mult col-compact col-bank" title="Стоимость риска: резерв за период / кредитный портфель">CoR, %</th>
+              <th className="col-mult col-compact col-bank col-header-unit-col" title="Стоимость риска: резерв за период / кредитный портфель">
+                <ColHeaderWithUnit title="CoR" unit="%" align="right" />
+              </th>
             )}
             {isBank && (
-              <th className="col-mult col-compact col-bank" title="Доля обесцененных кредитов (Stage 3 / 90+) в портфеле">NPL, %</th>
+              <th className="col-mult col-compact col-bank col-header-unit-col" title="Доля обесцененных кредитов (Stage 3 / 90+) в портфеле">
+                <ColHeaderWithUnit title="NPL" unit="%" align="right" />
+              </th>
             )}
             {isBank && (
-              <th className="col-mult col-compact col-bank" title="Накопленный резерв к обесцененным кредитам (Стадия 3 + POCI)">Покрытие, %</th>
+              <th className="col-mult col-compact col-bank col-header-unit-col" title="Накопленный резерв к обесцененным кредитам (Стадия 3 + POCI)">
+                <ColHeaderWithUnit title="Покрытие" unit="%" align="right" />
+              </th>
             )}
             {isBank && (
-              <th className="col-mult col-compact col-bank" title="Чистые кредиты к средствам клиентов">LDR, %</th>
+              <th className="col-mult col-compact col-bank col-header-unit-col" title="Чистые кредиты к средствам клиентов">
+                <ColHeaderWithUnit title="LDR" unit="%" align="right" />
+              </th>
             )}
             {isBank && (
-              <th className="col-mult col-compact col-bank" title="Достаточность основного капитала (Н1.1 / CET1)">Н1.1, %</th>
+              <th className="col-mult col-compact col-bank col-header-unit-col" title="Достаточность основного капитала (Н1.1 / CET1)">
+                <ColHeaderWithUnit title="Н1.1" unit="%" align="right" />
+              </th>
             )}
             {isBank && (
               <th
@@ -1772,6 +1918,28 @@ const HistTable: React.FC<HistTableProps & { pctMode: boolean }> = ({
             </th>
             <th className="col-ni col-header-unit-col">
               <ColHeaderWithUnit title="Прибыль" />
+            </th>
+            <th
+              className="col-mult col-compact col-header-unit-col"
+              title="Прибыль на акцию. Считается от тех же акций, что и капитализация, поэтому Цена / EPS в точности равна P/E этой строки"
+            >
+              <ColHeaderWithUnit title="EPS" unit="₽" align="right" />
+            </th>
+            <th
+              className={`col-mult col-compact col-shares-header${sharesScale ? ' col-header-unit-col' : ''}`}
+              title={
+                'Число акций, использованных в капитализации. ' +
+                (sharesScale
+                  ? ''
+                  : 'После дробления счёт меняется на порядки, поэтому единица стоит у каждого значения. ') +
+                'В режиме % показывает размытие: рост — доля акционера уменьшилась, выкуп — увеличилась'
+              }
+            >
+              {sharesScale ? (
+                <ColHeaderWithUnit title="Акций" unit={sharesScale.unit} align="right" />
+              ) : (
+                'Акций'
+              )}
             </th>
           </tr>
         </thead>
@@ -1797,6 +1965,7 @@ const HistTable: React.FC<HistTableProps & { pctMode: boolean }> = ({
               previous={rows.length > 0 ? snapshotFromRecord(rows[0]) : null}
               isPreferredShare={isPreferredShare}
               portfolioInTrillions={portfolioInTrillions}
+              sharesScale={sharesScale}
               // Потоковые показатели (ROA, маржа, стоимость риска) — за
               // скользящий год, балансовые — с отчёта `balance_report_id`.
               // Всё это уже посчитано на бэкенде; отчёт остаётся запасным
@@ -1839,6 +2008,7 @@ const HistTable: React.FC<HistTableProps & { pctMode: boolean }> = ({
               previous={index + 1 < rows.length ? snapshotFromRecord(rows[index + 1]) : null}
               isPreferredShare={isPreferredShare}
               portfolioInTrillions={portfolioInTrillions}
+              sharesScale={sharesScale}
               bankMetrics={r.report_id != null ? bankMetricsByReport?.get(r.report_id) : null}
               costToIncome={r.cost_to_income}
               previousBankMetrics={
@@ -2512,6 +2682,7 @@ const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company, reports })
                 {currentData && (
                   <>
                     <LtmMeta data={currentData} />
+                    <HistoryDepth years={rows.length} />
                     <CurrentCards
                       data={currentData}
                       profile={profile}
