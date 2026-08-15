@@ -100,6 +100,9 @@ class Multiplier(Base):
     price_to_fcf: Mapped[Optional[float]] = mapped_column(Numeric(12, 4), nullable=True)
     # FCF/Net Income = LTM FCF / LTM Net Income × 100%  (детектор качества прибыли)
     fcf_to_net_income: Mapped[Optional[float]] = mapped_column(Numeric(12, 4), nullable=True)
+    # Прибыль на акцию, ₽. Считается от тех же акций, что и капитализация,
+    # поэтому Цена / EPS в точности равна P/E той же строки.
+    eps: Mapped[Optional[float]] = mapped_column(Numeric(18, 6), nullable=True)
 
     # Чистый долг (млн ₽) и отношение Net Debt / LTM FCF (non-bank, FCF > 0)
     net_debt: Mapped[Optional[float]] = mapped_column(Numeric(20, 2), nullable=True)

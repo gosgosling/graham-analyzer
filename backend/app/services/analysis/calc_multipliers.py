@@ -164,6 +164,19 @@ def calculate_multipliers(
         if total_assets_mln:
             goodwill_to_assets = round(goodwill_mln / total_assets_mln * 100, 2)
 
+    # EPS = Net Income / акции — те же акции, что и в капитализации.
+    #
+    # Не средневзвешенное из отчёта: тогда P/E ≠ Цена / EPS, и две строки
+    # таблицы противоречили бы друг другу. Средневзвешенное отвечает на вопрос
+    # «сколько прибыли пришлось на акцию за период», а здесь нужен другой:
+    # «сколько прибыли стоит за акцией, которую покупают сегодня». После
+    # допэмиссии это разные числа, и расходятся они ровно на размытие.
+    # Шесть знаков — как у цены: у ВТБ до дробления акция стоила 0,0228 ₽, и
+    # при округлении до копеек EPS обнулялся вместе со смыслом колонки.
+    eps: Optional[float] = None
+    if net_income_mln is not None and shares:
+        eps = round(net_income_mln * MILLION / shares, 6)
+
     # ROE = Net Income / Equity × 100%  (миллионы сокращаются)
     roe: Optional[float] = None
     if net_income_mln is not None and equity_mln and equity_mln != 0:
@@ -310,6 +323,7 @@ def calculate_multipliers(
     return {
         "pe_ratio": pe_ratio,
         "pb_ratio": pb_ratio,
+        "eps": eps,
         "goodwill": goodwill_mln,
         "tangible_equity": tangible_equity_mln,
         "pb_tangible": pb_tangible,

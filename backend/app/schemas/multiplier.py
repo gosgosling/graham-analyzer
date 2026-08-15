@@ -97,6 +97,7 @@ class MultiplierResponse(BaseModel):
     # Мультипликаторы FCF (NULL для банков)
     price_to_fcf: Optional[float] = None
     fcf_to_net_income: Optional[float] = None  # FCF/NI, безразмерное соотношение
+    eps: Optional[float] = None  # Прибыль на акцию, ₽ (от тех же акций, что и капитализация)
     net_debt: Optional[float] = None  # млн ₽
     net_debt_to_fcf: Optional[float] = None  # Net Debt / LTM FCF
 
@@ -166,5 +167,6 @@ class CurrentMultipliersResponse(BaseModel):
     # Мультипликаторы FCF (NULL для банков)
     price_to_fcf: Optional[float] = None
     fcf_to_net_income: Optional[float] = None  # FCF/NI, безразмерное соотношение
+    eps: Optional[float] = None  # Прибыль на акцию, ₽ (от тех же акций, что и капитализация)
     net_debt: Optional[float] = None  # млн ₽
     net_debt_to_fcf: Optional[float] = None  # Net Debt / LTM FCF

@@ -464,6 +464,7 @@
   border-collapse: collapse;
   font-size: 0.85rem;
   min-width: 800px;
+  table-layout: auto;
 }
 
 .hist-table thead tr {
@@ -471,13 +472,13 @@
 }
 
 .hist-table th {
-  padding: 10px 12px;
+  padding: 9px 6px;
   text-align: right;
   font-weight: 600;
   color: var(--color-table-header-text);
-  font-size: 0.78rem;
+  font-size: 0.81rem;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.025em;
   white-space: nowrap;
   border-bottom: 1px solid var(--color-border-default);
 }
@@ -489,15 +490,15 @@
 .hist-table th.col-header-unit-col {
   white-space: normal;
   vertical-align: bottom;
-  text-align: center;
+  text-align: right;
 }
 
 .col-header-stacked {
   display: inline-flex;
   flex-direction: column;
-  align-items: center;
-  gap: 3px;
-  line-height: 1.2;
+  align-items: flex-end;
+  gap: 2px;
+  line-height: 1.15;
   width: 100%;
 }
 
@@ -520,16 +521,16 @@
 }
 
 .col-header-unit {
-  font-size: 0.7rem;
+  font-size: 0.72rem;
   font-weight: 700;
   text-transform: none;
-  letter-spacing: 0.01em;
+  letter-spacing: 0;
   color: var(--color-table-header-text);
   opacity: 0.85;
 }
 
 .hist-table td {
-  padding: 9px 12px;
+  padding: 9px 6px;
   text-align: right;
   color: var(--color-text-secondary);
   border-bottom: 1px solid var(--color-table-border);
@@ -639,7 +640,7 @@
 
 .mult-cell {
   display: inline-block;
-  padding: 2px 8px;
+  padding: 2px 7px;
   border-radius: var(--radius-xs);
   font-weight: 600;
   font-size: 0.83rem;
@@ -950,15 +951,21 @@
 
 .hist-table th.col-compact,
 .hist-table td.col-compact {
-  padding-left: 6px;
-  padding-right: 6px;
+  padding-left: 3px;
+  padding-right: 3px;
+}
+
+/* Цифры в колонках одной ширины — иначе столбец «прыгает» между строками
+   и приходится закладывать запас под самый широкий вариант. */
+.hist-table td {
+  font-variant-numeric: tabular-nums;
 }
 
 /* ─── P/FCF ↔ FCF yield ─────────────────────────────────────────────────── */
 
 .col-pfcf-header {
   position: relative;
-  text-align: center;
+  text-align: right;
   white-space: normal;
   vertical-align: bottom;
 }
@@ -1185,4 +1192,78 @@
   line-height: 11px;
   text-align: center;
   cursor: help;
+}
+
+/* Глубина истории: сколько полных лет стоит за показателями.
+   Стоит над карточками намеренно — чтобы прочиталось раньше зелёных цифр. */
+.mult-depth {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border-subtle);
+  border-left-width: 3px;
+  border-radius: var(--radius-md, 6px);
+  background: var(--color-bg-subtle);
+  cursor: help;
+}
+
+.mult-depth-value {
+  font-size: 1.05rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-primary);
+}
+
+.mult-depth-label {
+  font-size: 0.78rem;
+  color: var(--color-text-tertiary);
+}
+
+.mult-depth-of {
+  color: var(--color-text-quaternary);
+}
+
+/* Десять лет и больше — история достаточна по Грэму */
+.mult-depth--good {
+  border-left-color: var(--color-success-border);
+}
+.mult-depth--good .mult-depth-value { color: var(--color-success-text); }
+
+/* Семь-девять: судить можно, но цикл целиком не покрыт */
+.mult-depth--warn {
+  border-left-color: var(--color-warning-border);
+  background: var(--color-warning-soft);
+}
+.mult-depth--warn .mult-depth-value { color: var(--color-warning-text); }
+
+/* Меньше семи — пороги проходятся почти автоматически */
+.mult-depth--thin {
+  border-left-color: var(--color-error-border);
+  background: var(--color-error-soft);
+}
+.mult-depth--thin .mult-depth-value { color: var(--color-error-text); }
+
+/* Колонка акций стоит последней и не должна прижиматься к краю */
+.col-shares-header {
+  white-space: nowrap;
+}
+
+/* Единица у числа акций едет вместе со значением: после дробления счёт
+   меняется на порядки, и одна единица на всю колонку сделала бы свежие годы
+   нулями, а старые — пятизначными. Приглушена, чтобы не спорить с цифрой. */
+.hist-shares-unit {
+  margin-left: 3px;
+  font-size: 0.68rem;
+  font-weight: 400;
+  color: var(--color-text-quaternary);
+}
+
+/* Длинные названия колонок — мельче: ширину задаёт слово, а не число под ним.
+   «ПОКРЫТИЕ» занимало 95 px при значении в 49. Короткие заголовки остаются
+   в основном размере, им ужиматься незачем. */
+.col-header-title--long {
+  font-size: 0.72rem;
+  letter-spacing: 0.01em;
 }
