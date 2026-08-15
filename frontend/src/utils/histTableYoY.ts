@@ -31,6 +31,10 @@ export interface HistRowSnapshot {
   net_debt: number | null;
   ltm_revenue: number | null;
   ltm_net_income: number | null;
+  /** Прибыль на акцию, ₽ — от тех же акций, что и капитализация */
+  eps: number | null;
+  /** Акции, использованные в капитализации: их изменение и есть размытие */
+  shares_used: number | null;
   equity: number | null;
   total_assets: number | null;
   dividend_yield: number | null;
@@ -55,6 +59,8 @@ export interface HistRowYoY {
   capex: YoYDisplay;
   revenue: YoYDisplay;
   profit: YoYDisplay;
+  eps: YoYDisplay;
+  shares: YoYDisplay;
 }
 
 export const YOY_NA: YoYDisplay = {
@@ -215,6 +221,12 @@ export function computeHistRowYoY(
     capex: metricPct(current.ltm_capex, previous.ltm_capex, 'lower_better', 'CAPEX'),
     revenue: metricPct(current.ltm_revenue, previous.ltm_revenue, 'higher_better', 'Выручка'),
     profit: profitChange(current.ltm_net_income, previous.ltm_net_income),
+    // EPS растёт медленнее прибыли ровно на размытие — обе строки рядом,
+    // и разрыв между ними виден без вычислений.
+    eps: profitChange(current.eps, previous.eps),
+    // Рост числа акций — это размытие доли акционера, поэтому «меньше лучше».
+    // Выкуп даёт отрицательное изменение и красится зелёным.
+    shares: metricPct(current.shares_used, previous.shares_used, 'lower_better', 'Акций'),
   };
 }
 
@@ -241,6 +253,8 @@ export function snapshotFromRecord(r: MultiplierRecord): HistRowSnapshot {
     net_debt: r.net_debt,
     ltm_revenue: r.ltm_revenue,
     ltm_net_income: r.ltm_net_income,
+    eps: r.eps ?? null,
+    shares_used: r.shares_used,
     equity: r.equity,
     total_assets: r.total_assets ?? null,
     dividend_yield: r.dividend_yield,
@@ -272,6 +286,8 @@ export function snapshotFromCurrent(r: CurrentMultipliers): HistRowSnapshot {
     net_debt: r.net_debt,
     ltm_revenue: r.ltm_revenue,
     ltm_net_income: r.ltm_net_income,
+    eps: r.eps ?? null,
+    shares_used: r.shares_used,
     equity: r.equity,
     total_assets: r.total_assets ?? null,
     dividend_yield: r.dividend_yield,
