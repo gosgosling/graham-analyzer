@@ -12,13 +12,16 @@ import pytest
 from app.services.analysis.fcf import compute_banking_flow, compute_core_fcf, compute_fcf
 
 
-def _period(deposits=None, loans=None, cf_deposits=None, cf_loans=None) -> SimpleNamespace:
+def _period(
+    deposits=None, loans=None, cf_deposits=None, cf_loans=None, cf_other=None
+) -> SimpleNamespace:
     """Отчёт-заглушка: остатки баланса и, отдельно, строки ОДДС."""
     return SimpleNamespace(
         customer_deposits=deposits,
         gross_loans=loans,
         cf_customer_deposits=cf_deposits,
         cf_customer_loans=cf_loans,
+        cf_other_float=cf_other,
     )
 
 
@@ -187,3 +190,54 @@ def test_industrial_company_has_no_cleaning(db):
     assert result["banking_flow"] is None
     assert result["ltm_core_fcf"] is None
     assert result["ltm_fcf"] is not None
+
+
+# ─── Второй пул чужих денег ────────────────────────────────────────────────
+#
+# У Озона рядом с депозитами Финтеха живут обязательства перед продавцами
+# маркетплейса: покупатель заплатил, продавцу ещё не перечислили. На балансе
+# за 2025 год это 339 786 млн против 505 788 млн депозитов — сопоставимо.
+# Прирост такого флоата надувает операционный поток ровно как прирост
+# депозитов, поэтому входит в приток третьим слагаемым.
+#
+# Цифры из отчёта Озона за 2025: операционный поток 503 629, capex 58 164,
+# тело аренды 27 183, средства клиентов +362 728, кредиты клиентам -46 519,
+# обязательства перед продавцами +89 854.
+
+
+def test_marketplace_float_joins_banking_flow():
+    flow, basis = compute_banking_flow(
+        _period(cf_deposits=362_728, cf_loans=-46_519, cf_other=89_854)
+    )
+
+    assert flow == 406_063.0
+    assert basis == "cash_flow"
+
+
+def test_core_fcf_without_marketplace_float_is_overstated():
+    """Забыть про деньги продавцов — завысить собственный поток в восемь раз."""
+    fcf = compute_fcf(503_629, 58_164, 27_183)
+    assert fcf == 418_282.0
+
+    only_fintech, _ = compute_banking_flow(_period(cf_deposits=362_728, cf_loans=-46_519))
+    both, _ = compute_banking_flow(
+        _period(cf_deposits=362_728, cf_loans=-46_519, cf_other=89_854)
+    )
+
+    assert compute_core_fcf(fcf, only_fintech) == 102_073.0
+    assert compute_core_fcf(fcf, both) == 12_219.0
+
+
+def test_other_float_alone_is_enough_for_cash_flow_basis():
+    """Компании без банка, но с флоатом: депозитов нет, а поток чистить надо."""
+    flow, basis = compute_banking_flow(_period(cf_other=89_854))
+
+    assert flow == 89_854.0
+    assert basis == "cash_flow"
+
+
+def test_empty_other_float_keeps_previous_behaviour():
+    """У Яндекса и Мосбиржи поле пустое — приток считается как раньше."""
+    flow, _ = compute_banking_flow(_period(cf_deposits=148_939, cf_loans=-71_943))
+
+    assert flow == 76_996.0
