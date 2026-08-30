@@ -1,0 +1,444 @@
+/* Страница-разбор базового множителя.
+   Ширина ограничена: это текст с формулами, а не таблица данных, и длинные
+   строки здесь читаются хуже. */
+
+.mm-page {
+  max-width: 940px;
+  margin: 0 auto;
+  padding: var(--space-6) var(--space-5) var(--space-10);
+  color: var(--color-text-primary);
+}
+
+.mm-state {
+  max-width: 640px;
+  margin: var(--space-10) auto;
+  padding: var(--space-6);
+  text-align: center;
+  color: var(--color-text-tertiary);
+}
+.mm-state--error { color: var(--color-warning-text); }
+.mm-state code {
+  display: inline-block;
+  margin-top: var(--space-2);
+  font-size: 0.85rem;
+}
+
+/* ── Шапка ────────────────────────────────────────────────────────────── */
+
+.mm-head { margin-bottom: var(--space-8); }
+.mm-head h1 {
+  margin: 0 0 var(--space-2);
+  font-size: 1.75rem;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+.mm-lede {
+  margin: 0;
+  max-width: 62ch;
+  font-size: 1.02rem;
+  line-height: 1.6;
+  color: var(--color-text-secondary);
+}
+
+/* ── Блоки ────────────────────────────────────────────────────────────── */
+
+.mm-block {
+  margin-bottom: var(--space-10);
+  padding-top: var(--space-6);
+  border-top: 1px solid var(--color-border-subtle);
+}
+.mm-block h2 {
+  margin: 0 0 var(--space-4);
+  font-size: 1.15rem;
+  font-weight: 620;
+}
+.mm-block p {
+  margin: 0 0 var(--space-3);
+  max-width: 68ch;
+  line-height: 1.65;
+  color: var(--color-text-secondary);
+}
+.mm-block--honesty { border-top-color: var(--color-border-strong); }
+
+.mm-small {
+  font-size: 0.88rem;
+  color: var(--color-text-tertiary);
+}
+
+code {
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 0.9em;
+  padding: 0.1em 0.35em;
+  border-radius: var(--radius-xs);
+  background: var(--color-bg-subtle);
+}
+
+/* ── Происхождение величины ───────────────────────────────────────────── */
+
+.mm-origin {
+  display: inline-block;
+  padding: 0.12em 0.5em;
+  border-radius: var(--radius-pill);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  cursor: help;
+}
+.mm-origin--fact {
+  background: var(--color-success-soft);
+  color: var(--color-success-text);
+}
+.mm-origin--derived {
+  background: var(--color-primary-soft);
+  color: var(--color-primary-hover);
+}
+.mm-origin--judgement {
+  background: var(--color-warning-soft);
+  color: var(--color-warning-text);
+}
+
+/* ── Вывод формулы ────────────────────────────────────────────────────── */
+
+.mm-derivation {
+  list-style: none;
+  margin: var(--space-5) 0;
+  padding: 0;
+}
+.mm-derivation li {
+  display: flex;
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+}
+.mm-derivation p { margin-bottom: var(--space-2); }
+.mm-step {
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--color-bg-active);
+  color: var(--color-text-secondary);
+  font-size: 0.82rem;
+  font-weight: 650;
+}
+.mm-derivation code {
+  display: block;
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-bg-subtle);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border-subtle);
+  overflow-x: auto;
+}
+.mm-code-final {
+  border-color: var(--color-border-accent) !important;
+  font-size: 1.05em !important;
+  font-weight: 600;
+}
+
+.mm-note {
+  margin: var(--space-4) 0 0;
+  padding: var(--space-3) var(--space-4);
+  border-left: 3px solid var(--color-border-strong);
+  background: var(--color-bg-subtle);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  font-size: 0.92rem;
+  line-height: 1.6;
+  color: var(--color-text-secondary);
+}
+.mm-note--warn {
+  border-left-color: var(--color-warning);
+  background: var(--color-warning-soft);
+  color: var(--color-warning-text);
+}
+
+/* ── Аргумент формулы ─────────────────────────────────────────────────── */
+
+.mm-arg {
+  margin-bottom: var(--space-5);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-surface);
+  overflow: hidden;
+}
+.mm-arg-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  background: var(--color-bg-elevated);
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+.mm-arg-symbol {
+  flex: 0 0 auto;
+  min-width: 68px;
+  padding: 0.2em 0.6em;
+  text-align: center;
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-active);
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 0.95rem;
+  font-weight: 650;
+}
+.mm-arg-title { flex: 1 1 auto; min-width: 0; }
+.mm-arg-title h3 {
+  display: inline;
+  margin: 0 var(--space-2) 0 0;
+  font-size: 1rem;
+  font-weight: 600;
+}
+.mm-arg-value {
+  flex: 0 0 auto;
+  font-size: 1.3rem;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+.mm-arg-body { padding: var(--space-4); }
+.mm-arg-body p:last-child { margin-bottom: 0; }
+
+/* Разложение вычисления в строку. */
+.mm-calc {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  margin: var(--space-3) 0;
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-bg-subtle);
+  border-radius: var(--radius-sm);
+  font-variant-numeric: tabular-nums;
+}
+.mm-calc strong { font-size: 1.1em; }
+.mm-op { color: var(--color-text-quaternary); font-weight: 600; }
+.mm-calc-note {
+  margin-left: auto;
+  font-size: 0.8rem;
+  color: var(--color-text-quaternary);
+}
+
+/* K = ставка + премия. */
+.mm-split {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-4);
+  margin: var(--space-3) 0;
+}
+.mm-split > div:not(.mm-split-plus) {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-subtle);
+}
+.mm-split-plus {
+  align-self: center;
+  font-size: 1.4rem;
+  color: var(--color-text-quaternary);
+}
+.mm-split-label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  font-size: 0.85rem;
+  color: var(--color-text-tertiary);
+}
+.mm-split-value {
+  display: block;
+  margin: var(--space-1) 0 var(--space-2);
+  font-size: 1.3rem;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+.mm-split p { margin: 0; }
+
+/* ── Результат ────────────────────────────────────────────────────────── */
+
+.mm-results {
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+.mm-result {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-5);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-surface);
+}
+.mm-result-label {
+  font-size: 0.85rem;
+  color: var(--color-text-tertiary);
+}
+.mm-result-value {
+  font-size: 2.4rem;
+  font-weight: 680;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+.mm-result-sub {
+  font-size: 0.85rem;
+  color: var(--color-text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+.mm-result-arrow {
+  align-self: center;
+  padding: 0 var(--space-2);
+  font-size: 1.1rem;
+  font-weight: 650;
+  color: var(--color-text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Числовая ось ─────────────────────────────────────────────────────── */
+
+.mm-scale { margin: var(--space-6) 0 var(--space-5); }
+.mm-scale-track {
+  position: relative;
+  height: 6px;
+  margin: 0 var(--space-2) 44px;
+  border-radius: var(--radius-pill);
+  background: linear-gradient(
+    90deg,
+    var(--color-warning-soft),
+    var(--color-success-soft)
+  );
+  border: 1px solid var(--color-border-subtle);
+}
+.mm-scale-marker {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
+.mm-scale-dot {
+  display: block;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  border: 2px solid var(--color-bg-surface);
+  box-shadow: var(--shadow-1);
+}
+.mm-scale-label {
+  position: absolute;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.mm-scale-label em,
+.mm-scale-ends em {
+  font-style: normal;
+  font-size: 0.78rem;
+  font-weight: 400;
+  color: var(--color-text-tertiary);
+}
+.mm-scale-ends {
+  display: flex;
+  justify-content: space-between;
+}
+.mm-scale-ends span {
+  display: flex;
+  flex-direction: column;
+  font-variant-numeric: tabular-nums;
+}
+.mm-scale-ends .mm-scale-right {
+  align-items: flex-end;
+  text-align: right;
+}
+
+/* ── Таблицы ──────────────────────────────────────────────────────────── */
+
+.mm-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: var(--space-4) 0;
+  font-size: 0.94rem;
+}
+.mm-table th {
+  padding: var(--space-2) var(--space-3);
+  text-align: left;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-text-tertiary);
+  border-bottom: 1px solid var(--color-border-default);
+}
+.mm-table td {
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--color-border-subtle);
+  color: var(--color-text-secondary);
+}
+.mm-table--compact { max-width: 480px; }
+.mm-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-weight: 620;
+  color: var(--color-text-primary) !important;
+  white-space: nowrap;
+}
+.mm-vs {
+  font-size: 0.85rem;
+  color: var(--color-text-quaternary) !important;
+  white-space: nowrap;
+}
+.mm-row-current td {
+  background: var(--color-primary-soft);
+  font-weight: 620;
+}
+
+/* ── Что факт, а что суждение ─────────────────────────────────────────── */
+
+.mm-honesty {
+  list-style: none;
+  margin: 0 0 var(--space-4);
+  padding: 0;
+}
+.mm-honesty li {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--color-border-subtle);
+  line-height: 1.5;
+  color: var(--color-text-secondary);
+}
+.mm-honesty li .mm-origin { flex: 0 0 auto; }
+
+/* ── Исключённые из суммы ─────────────────────────────────────────────── */
+
+.mm-excluded {
+  list-style: none;
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  font-size: 0.9rem;
+}
+.mm-excluded li {
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--color-border-subtle);
+  color: var(--color-text-secondary);
+}
+.mm-excluded b { font-variant-numeric: tabular-nums; }
+
+/* ── Узкий экран ──────────────────────────────────────────────────────── */
+
+@media (max-width: 720px) {
+  .mm-page { padding: var(--space-4) var(--space-3) var(--space-8); }
+  .mm-results,
+  .mm-split { flex-direction: column; }
+  .mm-result-arrow,
+  .mm-split-plus { align-self: flex-start; }
+  .mm-arg-head { flex-wrap: wrap; }
+  .mm-arg-value { width: 100%; }
+  .mm-table { font-size: 0.88rem; }
+}
