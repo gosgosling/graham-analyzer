@@ -1,8 +1,8 @@
 import axios from 'axios';
+import type { HoldingNav, HoldingStake } from '../types';
 
 // Тот же базовый адрес, что и у остальных модулей API.
 const api = axios.create({ baseURL: 'http://localhost:8000' });
-import type { HoldingNav, HoldingStake } from '../types';
 
 /**
  * Оценка холдинга: доли, NAV и дисконт.

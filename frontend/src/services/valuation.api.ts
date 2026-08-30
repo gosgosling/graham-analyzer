@@ -16,6 +16,14 @@ export interface BaseMultipleOut {
   historic_range: number[];
 }
 
+export interface ExcludedCompany {
+  ticker: string;
+  market_cap: number;
+  reference_cap: number;
+  ratio: number;
+  reason: string;
+}
+
 export interface MarketSnapshotOut {
   year: number;
   tickers: string[];
@@ -30,6 +38,8 @@ export interface MarketSnapshotOut {
   profit_ltm: number;
   /** Фактический P/E проверенного подмножества — с чем сверяемся. */
   observed_multiple: number | null;
+  /** Выброшенные из суммы и почему: молча пропускать компанию нельзя. */
+  excluded: ExcludedCompany[];
 }
 
 export interface SensitivityRow {

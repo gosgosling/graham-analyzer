@@ -29,6 +29,31 @@ def test_overrides_win_over_report(report):
     assert m["shares_used"] == 500_000_000
 
 
+def test_exchange_price_is_not_converted_for_a_usd_reporter(report_factory):
+    """Цена с биржи рублёвая даже у компании, отчитывающейся в долларах.
+
+    Норникель ведёт отчётность в долларах, но торгуется на Мосбирже в рублях.
+    Пересчёт биржевой цены по курсу отчёта давал 9 395 ₽ вместо 120 ₽ и
+    капитализацию 143 трлн ₽ — больше всей биржи.
+    """
+    usd = report_factory(currency="USD", exchange_rate=78.2267)
+
+    m = calculate_multipliers(usd, override_price=120.10, override_shares=15_286_339_700)
+
+    assert m["price_used"] == pytest.approx(120.10)
+    # 120,10 × 15,29 млрд = 1,84 трлн ₽, а не 143 трлн.
+    assert m["market_cap"] == pytest.approx(1_835_889.4, rel=1e-4)
+
+
+def test_report_price_is_still_converted_from_report_currency(report_factory):
+    """А цена, записанная в отчёте, живёт в валюте отчёта и переводится."""
+    usd = report_factory(currency="USD", exchange_rate=80.0, price_per_share=2.0)
+
+    m = calculate_multipliers(usd)
+
+    assert m["price_used"] == pytest.approx(160.0)
+
+
 def test_ltm_values_win_over_report(report):
     m = calculate_multipliers(report, ltm_net_income=20_000.0)
 

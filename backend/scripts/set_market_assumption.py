@@ -25,68 +25,16 @@ from __future__ import annotations
 
 import argparse
 
-from sqlalchemy import text
-
 from app.database import SessionLocal
 from app.models.market_assumption import MarketAssumption
+from app.services.analysis import market_snapshot
 from app.services.analysis.market_multiple import (
     base_multiple,
-    observed_payout,
     paired_multiples,
     sensitivity,
-    sustainable_growth,
 )
 
-# Год, за который берётся фактическая выплата: последний полностью закрытый.
-PAYOUT_YEAR = 2024
-
-
-def trustworthy_tickers(db) -> list:
-    """Компании, за которые можно ручаться: проверены и без дефектов аудита."""
-    import scripts.audit_data as audit
-
-    verified = {
-        row[0]
-        for row in db.execute(text(
-            "select c.ticker from financial_reports r "
-            "join companies c on c.id = r.company_id "
-            "where r.period_type = 'ANNUAL' group by 1 "
-            "having sum(case when r.verified_by_analyst then 1 else 0 end) = count(*)"
-        ))
-    }
-    clean = {a.ticker for a in audit.collect(set()) if a.clean}
-    return sorted(verified & clean)
-
-
-def market_from_base(db, year: int = PAYOUT_YEAR):
-    """Выплата и отдача на капитал рынка за год по проверенному подмножеству.
-
-    Обе величины совокупные, а не средние по компаниям: множитель считается
-    для рынка, а рынок — взвешенная сумма.
-    """
-    tickers = trustworthy_tickers(db)
-    rows = db.execute(text(
-        "select m.ltm_dividends_per_share, m.shares_used, m.ltm_net_income, m.equity "
-        "from multipliers m join companies c on c.id = m.company_id "
-        "where m.type = 'report_based' and extract(year from m.date) = :y "
-        "and c.ticker = any(:t)"
-    ), {"y": year, "t": tickers}).fetchall()
-
-    pairs, profit_total, equity_total = [], 0.0, 0.0
-    for dps, shares, profit, equity in rows:
-        if profit is None:
-            continue
-        dividends = 0.0
-        if dps is not None and shares is not None:
-            dividends = float(dps) * float(shares) / 1_000_000
-        pairs.append((dividends, float(profit)))
-        if equity is not None:
-            profit_total += float(profit)
-            equity_total += float(equity)
-
-    observed = observed_payout(pairs)
-    roe = round(profit_total / equity_total * 100.0, 2) if equity_total > 0 else None
-    return observed, roe, len(tickers)
+PAYOUT_YEAR = market_snapshot.DEFAULT_YEAR
 
 
 def show(result, label: str) -> None:
@@ -139,22 +87,24 @@ def main() -> int:
 
     db = SessionLocal()
     try:
-        observed, roe, companies = market_from_base(db)
-        print(f"По базе за {PAYOUT_YEAR} ({observed.companies} компаний "
-              f"из {companies} проверенных):")
-        print(f"  дивиденды {observed.total_dividends:,.0f} млн ₽ / "
-              f"прибыль {observed.total_profit:,.0f} млн ₽".replace(",", " "))
-        print(f"  выплата {observed.payout}%   отдача на капитал {roe}%")
+        snap = market_snapshot.snapshot(db)
+        print(f"По базе за {PAYOUT_YEAR} ({snap.companies} компаний, "
+              f"проверенных и без дефектов аудита):")
+        print(f"  дивиденды {snap.total_dividends:,.0f} млн ₽ / "
+              f"прибыль {snap.total_profit:,.0f} млн ₽".replace(",", " "))
+        print(f"  выплата {snap.payout}%   отдача на капитал {snap.roe}%")
+        print(f"  рынок торгуется по {snap.observed_multiple} прибыли")
 
-        payout = args.payout if args.payout is not None else observed.payout
+        payout = args.payout if args.payout is not None else snap.payout
         if payout is None:
             print("Выплату определить не удалось — задайте --payout")
             return 1
 
         # Рост не угадывается: расти можно только на то, что не раздал.
-        derived_growth = sustainable_growth(roe, payout)
+        derived_growth = snap.growth
         if derived_growth is not None:
-            print(f"  устойчивый рост = {roe}% × (1 − {payout}%) = {derived_growth}%")
+            print(f"  устойчивый рост = {snap.roe}% × (1 − {snap.payout}%) "
+                  f"= {derived_growth}%")
 
         if args.grid:
             grid(payout)
