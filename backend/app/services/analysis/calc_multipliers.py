@@ -49,7 +49,7 @@ def calculate_multipliers(
 
     Args:
         report: Финансовый отчёт (источник балансовых данных и валюты)
-        override_price: Переопределить цену акции (в полных ₽/$ за акцию)
+        override_price: Цена акции с биржи, ВСЕГДА в полных рублях
         override_shares: Переопределить количество акций
         ltm_net_income: LTM чистая прибыль в млн валюты отчёта (None → из отчёта)
         ltm_revenue: LTM выручка / Total Operating Income в млн (None → из отчёта)
@@ -88,9 +88,19 @@ def calculate_multipliers(
         """Конвертировать значение в млн валюты → млн рублей."""
         return convert_to_rub(float(value) if value is not None else None, currency, rate)
 
-    # Цена и количество акций (полные единицы)
-    price_raw = override_price if override_price is not None else report.price_per_share
-    price_rub = to_rub_full(price_raw)
+    # Цена и количество акций (полные единицы).
+    #
+    # У двух источников цены разные валюты, и путать их нельзя. Цена в отчёте
+    # записана в валюте отчёта — её переводим. Цена, переданная извне, приходит
+    # с Мосбиржи и всегда рублёвая: биржа не торгует бумаги в долларах, даже
+    # когда компания отчитывается в них.
+    #
+    # Пропущенное различие давало у Норникеля (отчётность в долларах) цену
+    # 9 395 ₽ вместо 120 ₽ и капитализацию 143 трлн ₽ — больше всей биржи.
+    if override_price is not None:
+        price_rub = float(override_price)
+    else:
+        price_rub = to_rub_full(report.price_per_share)
     shares = override_shares if override_shares is not None else resolve_shares_for_multipliers(report)
 
     # P&L (в млн валюты → млн рублей)

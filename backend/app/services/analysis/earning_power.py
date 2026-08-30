@@ -493,7 +493,7 @@ def load_points(db, company_id: int) -> list:
     for mult, report in rows:
         shares = None if mult.shares_used is None else float(mult.shares_used)
         equity = None if mult.equity is None else float(mult.equity)
-        fcf = None if mult.ltm_fcf is None else float(mult.ltm_fcf)
+        fcf = own_cash_flow(mult)
 
         profit = _field_rub(report, "net_income_reported")
         depreciation = _field_rub(report, "depreciation_amortization")
@@ -518,6 +518,24 @@ def load_points(db, company_id: int) -> list:
             )
         )
     return points
+
+
+def own_cash_flow(row) -> Optional[float]:
+    """Свободный поток компании — без чужих денег.
+
+    У биржи, банка и маркетплейса в валовом FCF сидят клиентские депозиты и
+    обязательства перед продавцами. У Мосбиржи за 2022 год это 1 209 млрд
+    против 179 млрд собственных: разница в семь раз, и она ничего не говорит
+    о том, сколько компания заработала.
+
+    Поэтому очищенный поток имеет приоритет всегда, когда он посчитан, а
+    валовой остаётся для обычных компаний, у которых чужих денег нет.
+    """
+    core = getattr(row, "ltm_core_fcf", None)
+    if core is not None:
+        return float(core)
+    gross = getattr(row, "ltm_fcf", None)
+    return None if gross is None else float(gross)
 
 
 def _per_share(value_mln: Optional[float], shares: Optional[float]) -> Optional[float]:

@@ -43,6 +43,19 @@ function OriginTag({ origin }: { origin: Origin }) {
 const fmt = (v: number | null | undefined, digits = 2, suffix = '') =>
   v === null || v === undefined ? '—' : `${v.toFixed(digits)}${suffix}`;
 
+/** Согласование числительного: 1 компания, 2 компании, 5 компаний. */
+const plural = (n: number, one: string, few: string, many: string) => {
+  const mod100 = n % 100;
+  if (mod100 >= 11 && mod100 <= 14) return many;
+  const mod10 = n % 10;
+  if (mod10 === 1) return one;
+  if (mod10 >= 2 && mod10 <= 4) return few;
+  return many;
+};
+
+const companies = (n: number) =>
+  `${n} ${plural(n, 'компания', 'компании', 'компаний')}`;
+
 const money = (v: number | null | undefined) => {
   if (v === null || v === undefined) return '—';
   const trillions = v / 1_000_000;
@@ -274,7 +287,18 @@ function Content({ data }: { data: MarketMultipleOut }) {
             <span>(1 − {fmt(s.payout, 2, '%')})</span>
             <span className="mm-op">=</span>
             <strong>{fmt(s.sustainable_growth, 2, '%')}</strong>
+            <span className="mm-calc-note">по данным на сегодня</span>
           </div>
+          {s.sustainable_growth !== null &&
+            Math.abs(s.sustainable_growth - a.dividend_growth) > 0.01 && (
+              <div className="mm-note mm-note--warn">
+                <strong>Записанное допущение разошлось с данными.</strong> В формулу
+                подставлен рост {fmt(a.dividend_growth, 2, '%')} — таким он был,
+                когда допущения записывали за {a.year} год. Сейчас данные дают{' '}
+                {fmt(s.sustainable_growth, 2, '%')}: набор проверенных компаний с тех
+                пор изменился. Пересчитать: <code>scripts.set_market_assumption</code>.
+              </div>
+            )}
           <p className="mm-small">
             Поэтому рост не назначается суждением, а выводится. Величина{' '}
             <b>номинальная</b>, как и отдача на капитал: при инфляции около 7% рост
@@ -355,7 +379,7 @@ function Content({ data }: { data: MarketMultipleOut }) {
             high={normalized.value}
           />
           <p>
-            Проверенные {s.companies} компаний стоят {money(s.market_cap)} при
+            Проверенные {companies(s.companies)} стоят {money(s.market_cap)} при
             прибыли {money(s.profit_ltm)} за последние двенадцать месяцев — то есть{' '}
             <b>{fmt(s.observed_multiple)}</b> прибыли.
           </p>
@@ -364,6 +388,20 @@ function Content({ data }: { data: MarketMultipleOut }) {
             считает сегодняшнюю ставку вечной, но и полной нормализации не
             закладывает.
           </p>
+          {s.excluded.length > 0 && (
+            <div className="mm-note mm-note--warn">
+              <strong>Из суммы исключены:</strong>
+              <ul className="mm-excluded">
+                {s.excluded.map((e) => (
+                  <li key={e.ticker}>
+                    <b>{e.ticker}</b> — {e.reason}. Текущая{' '}
+                    {money(e.market_cap)} против {money(e.reference_cap)} по
+                    последнему отчёту.
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </section>
       )}
 
@@ -505,8 +543,8 @@ function Content({ data }: { data: MarketMultipleOut }) {
         <ul className="mm-honesty">
           <li>
             <OriginTag origin="fact" /> выплата {fmt(a.payout_used, 2, '%')} и отдача
-            на капитал {fmt(s.roe, 2, '%')} — посчитаны по отчётам {s.companies}{' '}
-            компаний
+            на капитал {fmt(s.roe, 2, '%')} — посчитаны по отчётам проверенных
+            компаний ({s.companies})
           </li>
           <li>
             <OriginTag origin="fact" /> безрисковая ставка{' '}
@@ -538,7 +576,7 @@ function Content({ data }: { data: MarketMultipleOut }) {
           пока суждения не названы явно, она отказывается считать.
         </p>
         <div className="mm-note mm-note--warn">
-          <strong>Осторожно с обобщением.</strong> {s.companies} компаний — не
+          <strong>Осторожно с обобщением.</strong> {companies(s.companies)} — не
           «российский рынок». В этой выборке доминируют нефтегаз и металлурги, и
           многие из них на дне цикла. Величины на этой странице описывают её, а не
           рынок целиком.

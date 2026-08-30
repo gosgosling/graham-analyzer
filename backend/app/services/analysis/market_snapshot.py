@@ -25,6 +25,20 @@ from app.services.analysis.market_multiple import observed_payout, sustainable_g
 # Год, за который берутся выплата и отдача: последний полностью закрытый.
 DEFAULT_YEAR = 2024
 
+# Во сколько раз текущая капитализация может отличаться от посчитанной по
+# последнему отчёту, прежде чем считать её испорченной. Цена ходит, но не в
+# разы за квартал; расхождение такого размера означает, что перемножены
+# величины из разных эпох — например, число акций после дробления на цену до
+# него. Такую строку нельзя ни показывать, ни складывать в сумму.
+CAP_SANITY_RATIO = 10.0
+
+
+def _times(n: int) -> str:
+    """Согласование числительного: 1 раз, 2 раза, 5 раз."""
+    if 11 <= n % 100 <= 14:
+        return "раз"
+    return {1: "раз", 2: "раза", 3: "раза", 4: "раза"}.get(n % 10, "раз")
+
 
 @dataclass
 class MarketSnapshot:
@@ -42,6 +56,9 @@ class MarketSnapshot:
     market_cap: float
     profit_ltm: float
     observed_multiple: Optional[float]
+    # Компании, выброшенные из суммы, и причина. Молча пропускать нельзя:
+    # исчезнувший Норникель меняет ответ, и читатель должен об этом знать.
+    excluded: list
 
     def as_dict(self) -> dict:
         return {
@@ -57,6 +74,7 @@ class MarketSnapshot:
             "market_cap": round(self.market_cap, 1),
             "profit_ltm": round(self.profit_ltm, 1),
             "observed_multiple": self.observed_multiple,
+            "excluded": self.excluded,
         }
 
 
@@ -109,14 +127,46 @@ def snapshot(db: Session, year: int = DEFAULT_YEAR) -> MarketSnapshot:
     # Фактический множитель — по последнему срезу цен, а не по срезу за год:
     # сравнивать надо с тем, что рынок думает сейчас.
     current = db.execute(text(
-        "select distinct on (m.company_id) m.market_cap, m.ltm_net_income "
+        "select distinct on (m.company_id) c.ticker, m.market_cap, m.ltm_net_income "
         "from multipliers m join companies c on c.id = m.company_id "
         "where m.type = 'current' and c.ticker = any(:t) "
         "order by m.company_id, m.date desc"
     ), {"t": tickers}).fetchall()
 
-    cap = sum(float(c) for c, p in current if c and p)
-    profit_ltm = sum(float(p) for c, p in current if c and p)
+    # Опора для проверки правдоподобия: капитализация по последнему отчёту.
+    reference = dict(db.execute(text(
+        "select distinct on (m.company_id) c.ticker, m.market_cap "
+        "from multipliers m join companies c on c.id = m.company_id "
+        "where m.type = 'report_based' and m.market_cap is not null "
+        "and c.ticker = any(:t) order by m.company_id, m.date desc"
+    ), {"t": tickers}).fetchall())
+
+    cap, profit_ltm, excluded = 0.0, 0.0, []
+    for ticker, market_cap, profit in current:
+        if not market_cap or not profit:
+            continue
+        market_cap, profit = float(market_cap), float(profit)
+        anchor = reference.get(ticker)
+        if anchor and float(anchor) > 0:
+            ratio = max(market_cap, float(anchor)) / min(market_cap, float(anchor))
+            if ratio > CAP_SANITY_RATIO:
+                excluded.append({
+                    "ticker": ticker,
+                    "market_cap": round(market_cap, 1),
+                    "reference_cap": round(float(anchor), 1),
+                    "ratio": round(ratio, 1),
+                    "reason": (
+                        "текущая капитализация отличается от посчитанной по "
+                        "последнему отчёту в {:.0f} {} — цена и число акций "
+                        "относятся к разным эпохам (дробление)".format(
+                            ratio, _times(int(round(ratio)))
+                        )
+                    ),
+                })
+                continue
+        cap += market_cap
+        profit_ltm += profit
+
     observed_multiple = round(cap / profit_ltm, 2) if profit_ltm > 0 else None
 
     return MarketSnapshot(
@@ -132,4 +182,5 @@ def snapshot(db: Session, year: int = DEFAULT_YEAR) -> MarketSnapshot:
         market_cap=cap,
         profit_ltm=profit_ltm,
         observed_multiple=observed_multiple,
+        excluded=excluded,
     )

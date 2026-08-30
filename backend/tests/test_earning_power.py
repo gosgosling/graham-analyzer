@@ -16,6 +16,7 @@ from app.services.analysis.earning_power import (
     estimate,
     graham_growth,
     latest_book_value,
+    own_cash_flow,
     passes_graham_growth,
     window_average,
     _per_share,
@@ -328,6 +329,41 @@ def test_per_share_and_return_guard_against_zero_and_none():
 
 def test_to_equity_is_percent():
     assert _to_equity(150.0, 1000.0) == pytest.approx(15.0)
+
+
+# ── Загрузка из кэша ───────────────────────────────────────────────────────
+
+class _Row:
+    """Строка кэша мультипликаторов — только поля про поток."""
+
+    def __init__(self, ltm_fcf=None, ltm_core_fcf=None):
+        self.ltm_fcf = ltm_fcf
+        self.ltm_core_fcf = ltm_core_fcf
+
+
+def test_core_flow_wins_over_gross():
+    """У биржи в валовом потоке сидят клиентские деньги, считать надо не их.
+
+    Мосбиржа за 2022 год: валовой поток 1 209 млрд против 179 млрд
+    собственных. Разница — движение чужих денег.
+    """
+    row = _Row(ltm_fcf=1_208_888.5, ltm_core_fcf=178_957.8)
+    assert own_cash_flow(row) == pytest.approx(178_957.8)
+
+
+def test_gross_flow_used_when_there_is_nothing_to_clean():
+    """У промышленной компании чужих денег нет — очищать нечего."""
+    assert own_cash_flow(_Row(ltm_fcf=500.0)) == pytest.approx(500.0)
+
+
+def test_negative_core_flow_is_not_treated_as_missing():
+    """Отрицательный собственный поток — факт, а не отсутствие данных."""
+    row = _Row(ltm_fcf=199_045.0, ltm_core_fcf=-57_645.0)   # Озон за 2024
+    assert own_cash_flow(row) == pytest.approx(-57_645.0)
+
+
+def test_no_flow_at_all():
+    assert own_cash_flow(_Row()) is None
 
 
 # ── Полный разбор ──────────────────────────────────────────────────────────
