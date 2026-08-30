@@ -1,0 +1,65 @@
+"""Допущения об уровне рынка — то, из чего считается базовый множитель.
+
+Коттл (гл. 32, с. 601) делит оценку надвое: сначала множитель рынка в целом,
+потом множитель конкретной компании относительно него. Смысл разделения в
+том, что P/E 12 на дорогом и на дешёвом рынке говорят о разном, и без
+рыночной опоры множитель отдельной бумаги повисает в воздухе.
+
+    Множитель = payout / (K − g),   K = безрисковая ставка + премия за риск
+
+Из четырёх величин три — суждение, а не расчёт. Премию за риск и темп роста
+дивидендов неоткуда взять вычислением, а безрисковая ставка зависит от того,
+какую бумагу считать безрисковой. Поэтому они живут в базе с датой и
+подписью, а не константами в коде: читатель вправе видеть, на чём стоит
+оценка, и не согласиться.
+
+Хранится по годам, как и ключевая ставка: отчёт 2022 года сравнивается с
+допущениями 2022-го, а не сегодняшними.
+"""
+
+from datetime import datetime
+from typing import Optional
+
+from sqlalchemy import DateTime, Integer, Numeric, String, Text
+from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.sql import func
+
+from app.database import Base
+
+
+class MarketAssumption(Base):
+    __tablename__ = "market_assumptions"
+
+    year: Mapped[int] = mapped_column(Integer, primary_key=True)
+
+    # Доходность длинных ОФЗ, % годовых. Российский аналог ставки по
+    # облигациям Aaa, от которой считает книга.
+    risk_free_rate: Mapped[float] = mapped_column(Numeric(6, 2), nullable=False)
+    # Та же ставка вне пика цикла, % годовых. Формула подставляет K как
+    # доходность на бесконечность, то есть предполагает сегодняшнюю ставку
+    # вечной. Когда кривая на многолетних максимумах, это занижает множитель
+    # вдвое, и вина тут не компаний, а момента. Поэтому множитель считается
+    # дважды, и вторая цифра честно помечена как «если ставки нормализуются».
+    normalized_risk_free_rate: Mapped[Optional[float]] = mapped_column(
+        Numeric(6, 2), nullable=True
+    )
+
+    # Надбавка за то, что акция не облигация, процентных пунктов.
+    # У авторов для США 2,75; для России величина заведомо больше, но
+    # насколько — вопрос суждения, и он должен быть виден.
+    risk_premium: Mapped[float] = mapped_column(Numeric(6, 2), nullable=False)
+    # Ожидаемый темп прироста дивидендов, % годовых. Обязан быть меньше
+    # K = risk_free_rate + risk_premium, иначе формула теряет смысл.
+    dividend_growth: Mapped[float] = mapped_column(Numeric(6, 2), nullable=False)
+
+    # Доля прибыли, уходящая на дивиденды, %. Пусто — считаем по базе
+    # (см. observed_payout), заполнено — ручное значение перекрывает расчёт.
+    payout: Mapped[Optional[float]] = mapped_column(Numeric(6, 2), nullable=True)
+
+    # Откуда взялись числа и почему именно такие. Не украшение: без этого
+    # через полгода нельзя понять, было это решение или случайность.
+    note: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    source: Mapped[str] = mapped_column(String(16), nullable=False, default="manual")
+    updated_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )

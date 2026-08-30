@@ -40,9 +40,11 @@ import {
 } from '../utils/sectorProfile';
 import {
   computeDupont,
+  computeRoeSource,
   computeRoeDriver,
   roeTooltipLines,
   type RoeDriver,
+  type RoeSourceVerdict,
 } from '../utils/roeBreakdown';
 import './MultipliersPanel.css';
 
@@ -272,14 +274,24 @@ function roeBadge(
 }
 
 /**
- * Пояснение к ROE: разложение по Дюпону плюс атрибуция изменения к прошлому
- * периоду. Нужно, чтобы скачок ROE вверх при падающей прибыли читался как
- * сжатие капитала, а не как рост эффективности.
+ * Пояснение к ROE — одно на карточку и на таблицу.
+ *
+ * Само число ничего не говорит: одинаковый ROE у разных компаний собран из
+ * разных множителей и означает разное. Поэтому в пояснении четыре слоя:
+ *
+ *   1. Разложение по Дюпону — из чего складывается уровень;
+ *   2. Что делает отдачу — прибыльность, оборот или заёмные деньги;
+ *   3. Сколько это даёт сверх ключевой ставки;
+ *   4. Чем вызвано движение к прошлому году — прибылью или капиталом.
+ *
+ * Четвёртый слой нужен, чтобы скачок ROE вверх при падающей прибыли читался
+ * как сжатие капитала, а не как рост эффективности.
  */
 function roeExplanation(
   snapshot: HistRowSnapshot,
   previous: HistRowSnapshot | null | undefined,
-): { driver: RoeDriver; tip?: string } {
+  profile: SectorProfile,
+): { driver: RoeDriver; source: RoeSourceVerdict | null; tip?: string } {
   const dupont = computeDupont({
     netIncome: snapshot.ltm_net_income,
     revenue: snapshot.ltm_revenue,
@@ -292,8 +304,58 @@ function roeExplanation(
       ? { roe: previous.roe, netIncome: previous.ltm_net_income, equity: previous.equity }
       : null,
   );
-  const lines = roeTooltipLines(dupont, driver);
-  return { driver, tip: lines.length > 0 ? lines.join('\n') : undefined };
+  const source = computeRoeSource(dupont, getBand(profile, 'de').good);
+
+  const blocks = [roeTooltipLines(dupont, driver).join('\n'), source?.tip, roeSpreadLine(snapshot)];
+  const tip = blocks.filter(Boolean).join('\n\n');
+  return { driver, source, tip: tip.length > 0 ? tip : undefined };
+}
+
+/** Строка про отдачу сверх безрисковой ставки — пусто, если ставки нет. */
+function roeSpreadLine(snapshot: HistRowSnapshot): string | undefined {
+  const { roe_spread: spread, key_rate: rate, roe } = snapshot;
+  if (spread === null || spread === undefined) return undefined;
+  const head =
+    roe !== null && rate !== null
+      ? `Сверх ключевой ставки: ${roe.toFixed(1)}% − ${rate.toFixed(2)}% = ${spread.toFixed(1)} п.п.`
+      : `Сверх ключевой ставки: ${spread.toFixed(1)} п.п.`;
+  if (spread <= 0) {
+    return head + ' Отдача не превышает безрисковую: держать ОФЗ выгоднее, чем владеть капиталом компании.';
+  }
+  if (spread < 5) {
+    return head + ' Запас над безрисковой невелик — при снижении ставки он вырастет, при росте исчезнет.';
+  }
+  return head;
+}
+
+/**
+ * Значок спреда ROE к ключевой ставке.
+ *
+ * Пороги отраслей («≥ 15% — хорошо») написаны безотносительно режима ставок и
+ * не переписываются при каждом решении ЦБ. Спред делает это сам: пять
+ * пунктов сверх безрисковой — уже вклад, ноль и ниже — повод держать ОФЗ.
+ */
+function roeSpreadBadge(
+  spread: number | null,
+  roe: number | null,
+  keyRate: number | null,
+  source: RoeSourceVerdict | null,
+): { text: string; level: Level; tip: string } | undefined {
+  if (spread === null || spread === undefined) return undefined;
+  const level: Level = spread <= 0 ? 'bad' : spread < 5 ? 'warn' : 'good';
+  const arithmetic =
+    roe !== null && keyRate !== null
+      ? `ROE ${roe.toFixed(1)}% − ключевая ${keyRate.toFixed(2)}% = ${spread.toFixed(1)} п.п.`
+      : `Сверх ключевой ставки: ${spread.toFixed(1)} п.п.`;
+  const verdict =
+    spread <= 0
+      ? ' Отдача не превышает безрисковую: держать ОФЗ выгоднее, чем владеть капиталом компании.'
+      : '';
+  return {
+    text: `${spread > 0 ? '+' : ''}${spread.toFixed(1)}`,
+    level,
+    tip: arithmetic + verdict + (source ? `\n\n${source.tip}` : ''),
+  };
 }
 
 /** UI для FCF/NI: при NI ≤ 0 — «убыток»; при NI > 0 — число и шкала fcfNiLevel. */
@@ -498,17 +560,158 @@ function RoeMetricBadge({
 }
 
 /** Нет дивидендной доходности: выплаты по обыкновенным не указаны или не было выплат */
-function NoDividendYieldMark({ className = '' }: { className?: string }) {
+/**
+ * Что показывать вместо доходности, когда дивиденда за скользящий год нет.
+ *
+ * Пустая доходность у Лукойла и у М.Видео означает совершенно разное: первый
+ * платит семь лет из семи и просто ещё не объявил за текущий период, второй не
+ * платил ни разу. Один и тот же прочерк на обоих — потеря главного, что здесь
+ * есть. Поэтому состояний три, и различает их привычка компании, а не текущее
+ * окно LTM.
+ */
+type DividendAbsence = {
+  mark: string;
+  label: string;
+  level: 'warn' | 'bad';
+  /** Короткая строка под значением — на месте порога */
+  threshold: string;
+  /** Развёрнутое пояснение, только по наведению */
+  tip: string;
+};
+
+/**
+ * Дивиденда за период нет.
+ *
+ * Ноль и пустота значат здесь одно и то же: выплаты не было. Раньше сумма LTM
+ * возвращала `null`, когда хоть одно слагаемое пустое, и проверка на `null`
+ * работала. Теперь пустое полугодие при флаге «не платили» читается как ноль —
+ * и ветка «дивиденда нет» перестала срабатывать, а строка проваливалась в
+ * «нет цены акции», хотя цена была на месте.
+ */
+function hasNoDividend(dps: number | null | undefined): boolean {
+  return dps === null || dps === undefined || dps === 0;
+}
+
+/**
+ * Откуда взялся дивиденд за скользящий год.
+ *
+ * У годового плательщика в окно LTM попадает выплата, объявленная по итогам
+ * прошлого года. Без пояснения непонятно, почему при пустых полугодиях
+ * доходность всё-таки есть.
+ */
+function dividendBasisTip(data: {
+  ltm_dividends_per_share?: number | null;
+  dividend_years_paid?: number | null;
+  dividend_years_total?: number | null;
+  dividend_last_year?: number | null;
+}): string | undefined {
+  const dps = data.ltm_dividends_per_share;
+  if (!dps) return undefined;
+  const paid = data.dividend_years_paid ?? 0;
+  const total = data.dividend_years_total ?? 0;
+  const year = data.dividend_last_year;
+  return (
+    `Дивиденд за скользящий год — ${formatPerShare(dps)} ₽` +
+    (year ? `, объявлен по итогам ${year} года.` : '.') +
+    (total > 0 ? ` Платила ${paid} ${paid === 1 ? 'год' : 'лет'} из ${total}.` : '')
+  );
+}
+
+/** Сколько лет молчания означают, что компания перестала платить. */
+const DIVIDEND_STOPPED_YEARS = 3;
+
+function dividendAbsence(data: {
+  dividend_is_regular?: boolean | null;
+  dividend_years_paid?: number | null;
+  dividend_years_total?: number | null;
+  dividend_years_since_last?: number | null;
+  dividend_last_per_share?: number | null;
+  dividend_last_year?: number | null;
+}): DividendAbsence {
+  const paid = data.dividend_years_paid ?? 0;
+  const total = data.dividend_years_total ?? 0;
+  const since = data.dividend_years_since_last;
+  const last =
+    data.dividend_last_per_share != null && data.dividend_last_year != null
+      ? ` Последний — ${formatPerShare(data.dividend_last_per_share)} ₽ за ${data.dividend_last_year} год.`
+      : '';
+  const history = total > 0 ? `Платила ${paid} ${paid === 1 ? 'год' : 'лет'} из ${total}.` : '';
+
+  // Никогда не платила.
+  if (paid === 0) {
+    return {
+      mark: '×',
+      label: 'не платит',
+      level: 'bad',
+      threshold: 'Дивиденды не выплачивались',
+      tip: 'За всю доступную историю дивидендов по обыкновенным акциям не было.',
+    };
+  }
+
+  // Свежесть важнее доли. У Газпрома три года из семи с выплатами, но
+  // последняя была за 2022-й — это не «нерегулярно платит», а «перестала».
+  // Прошлые заслуги на текущее решение не влияют.
+  if (since != null && since >= DIVIDEND_STOPPED_YEARS) {
+    return {
+      mark: '×',
+      label: 'не платит',
+      level: 'bad',
+      threshold: 'Дивиденды не выплачивались',
+      tip: `Выплат нет ${since} ${since < 5 ? 'года' : 'лет'} подряд. ${history}${last}`,
+    };
+  }
+
+  if (data.dividend_is_regular) {
+    return {
+      mark: '',
+      label: 'не объявлен',
+      level: 'warn',
+      threshold: 'Дивиденд за период не объявлен',
+      tip:
+        'Регулярный плательщик, но за скользящий год выплаты нет: либо ещё не ' +
+        `объявлена, либо не попала в окно. ${history}${last}`,
+    };
+  }
+
+  // Платила когда-то, но не регулярно — для решения это то же самое, что не
+  // платит. Отдельное «нерегулярно» вводило в заблуждение: у Делимобиля одна
+  // выплата в рубль за четыре года выглядела как повод чего-то ждать.
+  return {
+    mark: '×',
+    label: 'не платит',
+    level: 'bad',
+    threshold: 'Дивиденды не выплачивались',
+    tip: `Регулярных выплат нет. ${history}${last}`,
+  };
+}
+
+function NoDividendYieldMark({
+  className = '',
+  absence,
+}: {
+  className?: string;
+  absence?: DividendAbsence;
+}) {
   const isCard = className.includes('mult-div-none--card');
+  const a = absence;
   const mark = (
     <span
-      className={`mult-div-none mult-div-none--wrap mult-cell-tip${isCard ? ` ${className}` : ''}`}
-      title="Дивиденды по обыкновенным акциям за период не выплачивались или не указаны в отчётах"
-      aria-label="Дивиденды не выплачивались"
+      className={
+        `mult-div-none mult-div-none--wrap mult-cell-tip` +
+        `${a ? ` mult-div-none--${a.level}` : ''}${isCard ? ` ${className}` : ''}`
+      }
+      title={
+        a?.tip ??
+        'Дивиденды по обыкновенным акциям за период не выплачивались или не указаны в отчётах'
+      }
+      aria-label={a?.label ?? 'Дивиденды не выплачивались'}
     >
-      <span className="mult-div-none-box" aria-hidden>
-        ×
-      </span>
+      {(a?.mark ?? '×') !== '' && (
+        <span className="mult-div-none-box" aria-hidden>
+          {a?.mark ?? '×'}
+        </span>
+      )}
+      {isCard && a && <span className="mult-div-none-label">{a.label}</span>}
     </span>
   );
   if (isCard) return mark;
@@ -571,7 +774,7 @@ function DividendYieldBadge({
       </span>
     );
   }
-  if (ltmDividendsPerShare === null) {
+  if (hasNoDividend(ltmDividendsPerShare)) {
     if (isPreferredShare) {
       return (
         <span
@@ -750,6 +953,8 @@ interface DashboardCard {
   textLabel?: string;
   tip?: string;
   toggleable?: boolean;
+  /** Значок в углу: показатель, осмысленный только в сравнении. */
+  badge?: { text: string; level: Level; tip: string };
 }
 
 const PfcfCardToggleIcon: React.FC = () => (
@@ -782,7 +987,12 @@ const CurrentCards: React.FC<CurrentCardsProps> = ({
   const income = data.ltm_net_income;
   const isLoss = income !== null && income < 0;
   const roeUi = roeBadge(profile, data.roe, data.equity ?? null);
-  const roeInfo = roeExplanation(snapshotFromCurrent(data), previous);
+  const roeInfo = roeExplanation(snapshotFromCurrent(data), previous, profile);
+  // Откуда взялся ROE: прибыльность, оборот или заёмные деньги. Считается
+  // внутри roeExplanation, чтобы карточка и таблица объясняли одинаково.
+  const roeSource = roeInfo.source;
+  const roeSpread = data.roe_spread ?? null;
+  const roeKeyRate = data.key_rate ?? null;
   const roeLevelAdjusted: Level =
     roeInfo.driver.misleading && roeUi.level === 'good' ? 'warn' : roeUi.level;
   // Тип определяет бэкенд: профиль приходит в ответе /multipliers/current.
@@ -790,6 +1000,8 @@ const CurrentCards: React.FC<CurrentCardsProps> = ({
   // эти поля просто не заполнены.
   const isBank = profile?.key === 'bank' || data.cost_to_income !== null;
   const crBand = getBand(profile, 'cr');
+  // Два состояния «дивиденда нет»: не объявлен / не платит.
+  const divAbsence = dividendAbsence(data);
   const specialPerShare = data.ltm_special_dividends_per_share ?? 0;
   const hasSpecialDividend = specialPerShare > 0 && data.dividend_yield !== null;
   const regularYield = data.dividend_yield_regular ?? data.dividend_yield;
@@ -829,7 +1041,9 @@ const CurrentCards: React.FC<CurrentCardsProps> = ({
       label: 'ROE',
       value: roeUi.textLabel ? null : roeUi.value,
       level: roeLevelAdjusted,
-      hint: 'Рентабельность капитала',
+      hint: roeSource
+        ? `Рентабельность капитала · ${roeSource.label}`
+        : 'Рентабельность капитала',
       threshold:
         roeUi.textLabel === 'Н/Д'
           ? 'Капитал ≤ 0'
@@ -844,6 +1058,10 @@ const CurrentCards: React.FC<CurrentCardsProps> = ({
       nullHint: roeUi.nullHint,
       textLabel: roeUi.textLabel,
       tip: roeInfo.tip,
+      // В углу — сколько отдача даёт СВЕРХ безрисковой ставки. «ROE 15%» не
+      // значит ничего, пока неизвестно, сколько платит ОФЗ: при ключевой
+      // 14,98% это ноль, при 7,5% — вдвое больше безрисковой.
+      badge: roeSpreadBadge(roeSpread, data.roe ?? null, roeKeyRate, roeSource),
     },
     ...(isBank ? [] : [{
       label: 'Долг/Капитал',
@@ -895,10 +1113,10 @@ const CurrentCards: React.FC<CurrentCardsProps> = ({
       level:
         data.dividend_yield !== null
           ? levelFor(profile, 'dy', hasSpecialDividend ? regularYield : data.dividend_yield)
-          : data.ltm_dividends_per_share === null
+          : hasNoDividend(data.ltm_dividends_per_share)
             ? isPreferredShare
               ? 'neutral'
-              : 'bad'
+              : divAbsence.level
             : 'neutral',
       hint: hasSpecialDividend
         ? 'Дивидендная доходность (без разовых)'
@@ -910,15 +1128,15 @@ const CurrentCards: React.FC<CurrentCardsProps> = ({
           ? hasSpecialDividend
             ? `Всего ${data.dividend_yield.toFixed(2)}% с разовой выплатой`
             : hintFor(profile, 'dy')
-          : data.ltm_dividends_per_share === null
+          : hasNoDividend(data.ltm_dividends_per_share)
             ? isPreferredShare
               ? 'Дивиденды по префам в отчётах не указаны'
-              : 'Дивиденды не выплачивались'
+              : divAbsence.threshold
             : 'Нет цены / данных для расчёта',
       suffix: '%',
       tip: hasSpecialDividend
         ? specialDividendTip(data.dividend_yield, regularYield, specialPerShare)
-        : undefined,
+        : dividendBasisTip(data),
     },
   ];
 
@@ -997,7 +1215,7 @@ const CurrentCards: React.FC<CurrentCardsProps> = ({
 
   return (
     <div className="current-cards-grid">
-      {cards.map(({ label, value, level, hint, threshold, suffix = '', nullHint, textLabel, tip, toggleable }) => (
+      {cards.map(({ label, value, level, hint, threshold, suffix = '', nullHint, textLabel, tip, toggleable, badge }) => (
         <div
           key={toggleable ? 'pfcf-toggle' : label}
           className={`current-card level-${level}${toggleable ? ' current-card--toggleable' : ''}`}
@@ -1013,13 +1231,18 @@ const CurrentCards: React.FC<CurrentCardsProps> = ({
               <PfcfCardToggleIcon />
             </button>
           )}
+          {badge && (
+            <span className={`current-card-badge level-${badge.level}`} title={badge.tip}>
+              {badge.text}
+            </span>
+          )}
           <div className="current-card-label">{label}</div>
           <div className="current-card-value" title={tip ?? nullHint}>
-            {label === 'Div. Yield' && value === null && data.ltm_dividends_per_share === null ? (
+            {label === 'Div. Yield' && value === null && hasNoDividend(data.ltm_dividends_per_share) ? (
               isPreferredShare ? (
                 '—'
               ) : (
-                <NoDividendYieldMark className="mult-div-none--card" />
+                <NoDividendYieldMark className="mult-div-none--card" absence={divAbsence} />
               )
             ) : textLabel === 'убыток' || level === 'loss' ? (
               <span className="card-loss-badge">убыток</span>
@@ -1471,7 +1694,7 @@ const HistTableRow: React.FC<HistTableRowProps> = ({
   const isLoss = income !== null && income < 0;
   const negEquity = snapshot.equity !== null && snapshot.equity < 0;
   const fcfNiRow = fcfNiBadge(snapshot.fcf_to_net_income, income);
-  const roeInfo = roeExplanation(snapshot, previous);
+  const roeInfo = roeExplanation(snapshot, previous, profile);
   const crBand = getBand(profile, 'cr');
 
   const noPrice = snapshot.price_used === null || (record != null && record.shares_used === null);

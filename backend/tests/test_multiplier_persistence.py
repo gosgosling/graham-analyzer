@@ -21,6 +21,7 @@ from app.database import Base
 from app.models import Company, FinancialReport, Multiplier  # noqa: F401
 from app.models.enums import AccountingStandard, PeriodType, ReportSource
 from app.services.analysis.multiplier_service import (
+    calculate_current_multipliers,
     save_current_multiplier,
     save_report_based_multiplier,
 )
@@ -271,3 +272,113 @@ def test_empty_draft_report_is_skipped(db, company):
 
     assert save_report_based_multiplier(db, report) is None
     assert db.query(Multiplier).count() == 0
+
+
+# ─── Дивиденды: «не платит» против «в окно не попало» ──────────────────────
+#
+# У годового плательщика промежуточные отчёты дивиденда не несут. Одно пустое
+# слагаемое из трёх обнуляло сумму LTM целиком, и Лукойл с семью годами
+# непрерывных выплат показывал «дивиденды не выплачивались».
+
+
+def test_interim_without_dividends_does_not_erase_annual_one(db, company):
+    """LTM = 1П + прошлый год − 1П прошлого года; пустые полугодия это ноль."""
+    _report(db, company, fiscal_year=2025, dividends_per_share=675.0,
+            dividends_paid=True, report_date=date(2025, 12, 31))
+    _report(db, company, period_type=PeriodType.SEMI_ANNUAL, fiscal_year=2025,
+            dividends_per_share=None, dividends_paid=False,
+            report_date=date(2025, 6, 30))
+    latest = _report(db, company, period_type=PeriodType.SEMI_ANNUAL, fiscal_year=2026,
+                     dividends_per_share=None, dividends_paid=False,
+                     report_date=date(2026, 6, 30))
+
+    result = calculate_current_multipliers(db, company.id)
+
+    assert result["ltm_dividends_per_share"] == 675.0
+    assert latest.dividends_paid is False
+
+
+def test_unknown_dividend_stays_unknown(db, company):
+    """Поле пусто, а флаг говорит «платили» — это неизвестность, не ноль."""
+    _report(db, company, fiscal_year=2025, dividends_per_share=675.0,
+            dividends_paid=True, report_date=date(2025, 12, 31))
+    _report(db, company, period_type=PeriodType.SEMI_ANNUAL, fiscal_year=2025,
+            dividends_per_share=None, dividends_paid=True,
+            report_date=date(2025, 6, 30))
+    _report(db, company, period_type=PeriodType.SEMI_ANNUAL, fiscal_year=2026,
+            dividends_per_share=None, dividends_paid=False,
+            report_date=date(2026, 6, 30))
+
+    result = calculate_current_multipliers(db, company.id)
+
+    assert result["ltm_dividends_per_share"] is None
+
+
+def test_regular_payer_is_recognised(db, company):
+    """Семь лет подряд — регулярный плательщик."""
+    for year in range(2019, 2026):
+        _report(db, company, fiscal_year=year, dividends_per_share=100.0,
+                dividends_paid=True, report_date=date(year, 12, 31))
+
+    result = calculate_current_multipliers(db, company.id)
+
+    assert result["dividend_years_paid"] == 7
+    assert result["dividend_is_regular"] is True
+    assert result["dividend_last_year"] == 2025
+
+
+def test_occasional_payer_is_not_regular(db, company):
+    """Три года из семи — на такие выплаты полагаться нельзя."""
+    for year in range(2019, 2026):
+        paid = year in (2020, 2021, 2022)
+        _report(db, company, fiscal_year=year,
+                dividends_per_share=100.0 if paid else None,
+                dividends_paid=paid, report_date=date(year, 12, 31))
+
+    result = calculate_current_multipliers(db, company.id)
+
+    assert result["dividend_years_paid"] == 3
+    assert result["dividend_is_regular"] is False
+
+
+def test_never_paid_company(db, company):
+    for year in range(2023, 2026):
+        _report(db, company, fiscal_year=year, dividends_per_share=None,
+                dividends_paid=False, report_date=date(year, 12, 31))
+
+    result = calculate_current_multipliers(db, company.id)
+
+    assert result["dividend_years_paid"] == 0
+    assert result["dividend_is_regular"] is False
+    assert result["dividend_last_per_share"] is None
+
+
+def test_stopped_paying_is_not_called_unstable(db, company):
+    """Три года молчания — это остановка, а не нерегулярность.
+
+    У Газпрома три года из семи с выплатами, но последняя была за 2022-й.
+    Доля лет назвала бы такое «нестабильными выплатами» — по смыслу неверно:
+    компания не платит, и прошлые заслуги на это не влияют.
+    """
+    for year, paid in ((2019, True), (2020, True), (2021, False),
+                       (2022, True), (2023, False), (2024, False), (2025, False)):
+        _report(db, company, fiscal_year=year,
+                dividends_per_share=50.0 if paid else None,
+                dividends_paid=paid, report_date=date(year, 12, 31))
+
+    result = calculate_current_multipliers(db, company.id)
+
+    assert result["dividend_years_paid"] == 3
+    assert result["dividend_last_year"] == 2022
+    assert result["dividend_years_since_last"] == 3
+
+
+def test_recent_payer_has_no_silence_gap(db, company):
+    """Заплатила за последний отчётный год — молчания нет."""
+    for year in range(2019, 2026):
+        _report(db, company, fiscal_year=year, dividends_per_share=50.0,
+                dividends_paid=True, report_date=date(year, 12, 31))
+
+    result = calculate_current_multipliers(db, company.id)
+
+    assert result["dividend_years_since_last"] == 0

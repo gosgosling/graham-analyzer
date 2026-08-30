@@ -33,6 +33,10 @@ export interface HistRowSnapshot {
   ltm_net_income: number | null;
   /** Прибыль на акцию, ₽ — от тех же акций, что и капитализация */
   eps: number | null;
+  /** Средняя ключевая ставка ЦБ за год отчёта, % */
+  key_rate: number | null;
+  /** ROE − ключевая ставка, п.п. */
+  roe_spread: number | null;
   /** Акции, использованные в капитализации: их изменение и есть размытие */
   shares_used: number | null;
   equity: number | null;
@@ -254,6 +258,8 @@ export function snapshotFromRecord(r: MultiplierRecord): HistRowSnapshot {
     ltm_revenue: r.ltm_revenue,
     ltm_net_income: r.ltm_net_income,
     eps: r.eps ?? null,
+    key_rate: r.key_rate ?? null,
+    roe_spread: r.roe_spread ?? null,
     shares_used: r.shares_used,
     equity: r.equity,
     total_assets: r.total_assets ?? null,
@@ -287,6 +293,8 @@ export function snapshotFromCurrent(r: CurrentMultipliers): HistRowSnapshot {
     ltm_revenue: r.ltm_revenue,
     ltm_net_income: r.ltm_net_income,
     eps: r.eps ?? null,
+    key_rate: r.key_rate ?? null,
+    roe_spread: r.roe_spread ?? null,
     shares_used: r.shares_used,
     equity: r.equity,
     total_assets: r.total_assets ?? null,

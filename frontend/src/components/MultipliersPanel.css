@@ -1267,3 +1267,74 @@
   font-size: 0.72rem;
   letter-spacing: 0.01em;
 }
+
+/* Значок в углу карточки: показатель, осмысленный только в сравнении.
+   У ROE это спред к ключевой ставке — «20%» не значит ничего, пока
+   неизвестно, сколько платит безрисковая бумага. */
+.current-card {
+  position: relative;
+}
+
+.current-card-badge {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  font-size: 0.7rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  padding: 1px 6px;
+  border-radius: var(--radius-sm, 4px);
+  border: 1px solid var(--color-border-subtle);
+  background: var(--color-bg-surface);
+  color: var(--color-text-secondary);
+  cursor: help;
+}
+
+.current-card-badge.level-good {
+  background: var(--color-success-soft);
+  border-color: var(--color-success-border);
+  color: var(--color-success-text);
+}
+.current-card-badge.level-warn {
+  background: var(--color-warning-soft);
+  border-color: var(--color-warning-border);
+  color: var(--color-warning-text);
+}
+.current-card-badge.level-bad {
+  background: var(--color-error-soft);
+  border-color: var(--color-error-border);
+  color: var(--color-error-text);
+}
+
+/* Значение не должно заезжать под значок */
+.current-card:has(.current-card-badge) .current-card-label {
+  padding-right: 48px;
+}
+
+/* Три состояния «дивиденда за LTM нет». Цвет несёт смысл: жёлтый — регулярный
+   плательщик просто ещё не объявил, серый — платит нерегулярно, красный — не
+   платил никогда. Одинаковый прочерк на всех троих терял бы главное. */
+.mult-div-none--warn .mult-div-none-box {
+  background: var(--color-warning-soft);
+  border-color: var(--color-warning-border);
+  color: var(--color-warning-text);
+}
+
+.mult-div-none-label {
+  display: block;
+  margin-top: 3px;
+  font-size: 0.7rem;
+  font-weight: 500;
+  line-height: 1.2;
+  color: var(--color-text-tertiary);
+}
+
+.mult-div-none--warn .mult-div-none-label { color: var(--color-warning-text); }
+
+/* Состояние «не объявлен» знака не имеет: рамка с прочерком читалась как
+   случайная полоска. Остаётся только подпись, цвет несёт сама карточка. */
+.mult-div-none--warn .mult-div-none-label {
+  margin-top: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+}

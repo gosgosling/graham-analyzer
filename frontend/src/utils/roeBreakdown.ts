@@ -219,3 +219,93 @@ export function roeTooltipLines(dupont: DupontBreakdown, driver: RoeDriver): str
   }
   return lines;
 }
+
+/**
+ * Какой множитель Дюпона делает ROE таким, какой он есть.
+ *
+ * Одинаковый ROE у разных компаний собран из разного, и риск в нём разный:
+ *
+ *   Аренадата  маржа 30,5% × оборот 0,98 × плечо 1,66  = 49,4%
+ *   Сбер       маржа 40,5% × оборот 0,06 × плечо 7,8   = 19,8%
+ *   Мосбиржа   маржа 45,9% × оборот 0,01 × плечо 50,5  = 23,0%
+ *
+ * Первая зарабатывает прибыльностью, третья — чужими деньгами на балансе.
+ * Порог красит обеих одинаково, поэтому вместе с числом нужно показывать
+ * его происхождение.
+ *
+ * Плечо проверяется первым и по норме своей отрасли: у промышленной компании
+ * рычаг 3× — уже сигнал, у банка 8–12× — обычный режим работы. Норма берётся
+ * из порога D/E того же профиля (плечо = 1 + D/E), поэтому отдельных
+ * констант заводить не нужно.
+ */
+export type RoeSource = 'leverage' | 'margin' | 'turnover';
+
+export interface RoeSourceVerdict {
+  kind: RoeSource;
+  /** Одно слово для значка в углу карточки */
+  label: string;
+  /** Плечо выше отраслевой нормы — отдача сделана заёмными деньгами */
+  leveraged: boolean;
+  tip: string;
+}
+
+/** Нейтральная точка операционной части: 10% маржи при обороте 1,0 даёт ROA 10%. */
+const NEUTRAL_MARGIN = 10;
+const NEUTRAL_TURNOVER = 1;
+
+export function computeRoeSource(
+  dupont: DupontBreakdown,
+  /**
+   * Порог D/E из профиля отрасли; плечо = 1 + D/E. `null` — у отрасли порога
+   * нет (банк, биржа): их обязательства это деньги клиентов, и рычаг 8-50x
+   * там не перекос, а устройство бизнеса.
+   */
+  debtToEquityGood: number | null | undefined,
+): RoeSourceVerdict | null {
+  const { netMargin, assetTurnover, equityMultiplier } = dupont;
+  if (equityMultiplier === null || netMargin === null || assetTurnover === null) return null;
+
+  const hasNorm = debtToEquityGood !== null && debtToEquityGood !== undefined;
+  const leverageNorm = hasNorm ? 1 + (debtToEquityGood as number) : 2;
+
+  if (equityMultiplier > leverageNorm) {
+    return {
+      kind: 'leverage',
+      label: 'плечо',
+      leveraged: true,
+      tip:
+        `Отдача сделана рычагом: активы больше капитала в ${equityMultiplier.toFixed(1)} раза` +
+        (hasNorm
+          ? ` при отраслевой норме ${leverageNorm.toFixed(1)}. `
+          : '. Для этой отрасли такой рычаг — устройство бизнеса, а не перекос: ' +
+            'обязательства состоят из денег клиентов. ') +
+        'Но природа показателя от этого не меняется: он растёт вместе с ' +
+        'обязательствами и падает вместе с ними, то есть говорит о структуре ' +
+        'баланса, а не о прибыльности.',
+    };
+  }
+
+  // Плечо в норме — значит отдачу делает операционная часть. Смотрим, что
+  // именно: цена (маржа) или объём (оборачиваемость).
+  const marginLead = Math.log(netMargin / NEUTRAL_MARGIN);
+  const turnoverLead = Math.log(assetTurnover / NEUTRAL_TURNOVER);
+
+  if (marginLead >= turnoverLead) {
+    return {
+      kind: 'margin',
+      label: 'маржа',
+      leveraged: false,
+      tip:
+        `Отдачу делает прибыльность: ${netMargin.toFixed(1)}% выручки доходит до чистой ` +
+        `прибыли при плече ${equityMultiplier.toFixed(2)} — заёмных денег в этом ROE нет.`,
+    };
+  }
+  return {
+    kind: 'turnover',
+    label: 'оборот',
+    leveraged: false,
+    tip:
+      `Отдачу делает оборачиваемость: активы прокручиваются ${assetTurnover.toFixed(2)} раза ` +
+      `за год при марже ${netMargin.toFixed(1)}%. Прибыль берётся объёмом, а не ценой.`,
+  };
+}

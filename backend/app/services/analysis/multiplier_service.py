@@ -123,15 +123,108 @@ def _covers_full_year(report: FinancialReport) -> bool:
     )
 
 
+# Дивидендные поля: у них пустота означает не «неизвестно», а «не было»,
+# если отчёт это прямо утверждает флагом.
+_DIVIDEND_ATTRS = ("dividends_per_share", "special_dividends_per_share")
+
+
+def _dividend_field(report: FinancialReport, attr: str) -> Optional[float]:
+    """Дивиденд периода с учётом флага «выплачивались».
+
+    У годового плательщика промежуточные отчёты дивиденда не несут, и поле
+    остаётся пустым. Для суммы LTM это фатально: одно пустое слагаемое из трёх
+    обнуляло весь дивиденд, и Лукойл с десятью годами непрерывных выплат
+    показывал «дивиденды не выплачивались».
+
+    Флаг `dividends_paid = False` — это утверждение «в этом периоде выплат не
+    было», то есть ноль. Пустое поле при `dividends_paid = True` остаётся
+    неизвестностью: тогда сумму считать нельзя.
+    """
+    value = _field_rub(report, attr)
+    if value is not None:
+        return value
+    return 0.0 if getattr(report, "dividends_paid", None) is False else None
+
+
+# Сколько последних полных лет смотрим на привычку платить. Семь — компромисс
+# между «успела смениться политика» и «хватает точек, чтобы говорить о тенденции».
+DIVIDEND_TREND_YEARS = 7
+# Доля лет с выплатой, начиная с которой компания считается регулярным
+# плательщиком. Пять из семи: пропуск одного-двух лет привычки не отменяет.
+REGULAR_PAYER_SHARE = 0.7
+# Сколько лет молчания превращают «нерегулярно платит» в «не платит».
+# Три года — это уже не пропуск, а смена политики.
+DIVIDEND_STOPPED_YEARS = 3
+
+
+def dividend_trend(db: Session, company_id: int) -> Dict[str, Optional[float]]:
+    """Привычка компании платить дивиденды — по годовым отчётам.
+
+    Нужна, чтобы отличить «не платит» от «в это окно не попало». Пустая
+    дивидендная доходность у Лукойла и у Озона означает разное: первый платит
+    десять лет подряд, второй начал только в 2025-м. Показывать их одинаковым
+    прочерком — терять единственное, что тут важно.
+
+    Возвращает долю лет с выплатой, последний известный дивиденд и его год.
+    """
+    rows = (
+        db.query(FinancialReport)
+        .filter(
+            FinancialReport.company_id == company_id,
+            FinancialReport.period_type == PeriodType.ANNUAL,
+        )
+        .order_by(FinancialReport.fiscal_year.desc())
+        .limit(DIVIDEND_TREND_YEARS)
+        .all()
+    )
+    if not rows:
+        return {
+            "dividend_years_total": 0,
+            "dividend_years_paid": 0,
+            "dividend_years_since_last": None,
+            "dividend_is_regular": None,
+            "dividend_last_per_share": None,
+            "dividend_last_year": None,
+        }
+
+    paid = 0
+    last_value: Optional[float] = None
+    last_year: Optional[int] = None
+    for row in rows:
+        dps = _to_float(row.dividends_per_share)
+        has = bool(row.dividends_paid) or (dps is not None and dps > 0)
+        if has:
+            paid += 1
+            if last_year is None:
+                last_value, last_year = dps, int(row.fiscal_year)
+
+    total = len(rows)
+    latest_year = int(rows[0].fiscal_year)
+    # Сколько полных лет прошло с последней выплаты. Это важнее доли: у
+    # Газпрома три года из семи с выплатами, но последняя была за 2022-й, и
+    # называть такое «нерегулярными выплатами» — вводить в заблуждение.
+    # Компания не платит, а не платит нестабильно.
+    since_last = None if last_year is None else latest_year - last_year
+    return {
+        "dividend_years_total": total,
+        "dividend_years_paid": paid,
+        "dividend_years_since_last": since_last,
+        "dividend_is_regular": paid / total >= REGULAR_PAYER_SHARE,
+        "dividend_last_per_share": last_value,
+        "dividend_last_year": last_year,
+    }
+
+
 def _ltm_formula_field(
     current: FinancialReport,
     prior_fy: FinancialReport,
     prior_ytd: FinancialReport,
     attr: str,
 ) -> Optional[float]:
-    cur = _field_rub(current, attr)
-    fy = _field_rub(prior_fy, attr)
-    ytd = _field_rub(prior_ytd, attr)
+    read = _dividend_field if attr in _DIVIDEND_ATTRS else _field_rub
+    cur = read(current, attr)
+    fy = read(prior_fy, attr)
+    ytd = read(prior_ytd, attr)
     if cur is None or fy is None or ytd is None:
         return None
     return round(cur + fy - ytd, 2)
@@ -416,6 +509,9 @@ def calculate_current_multipliers(
     mults = calculate_multipliers(
         report=balance_report,
         banking_flow=banking_flow,
+        # Снимок «на сегодня» сравнивается со ставкой того же года, что и
+        # баланс: ROE посчитан на его капитал.
+        key_rate=_key_rate_for_year(db, balance_report.fiscal_year),
         override_price=price,
         ltm_net_income=_ltm_back_to_report_currency(
             ltm["ltm_net_income"], balance_report
@@ -470,6 +566,8 @@ def calculate_current_multipliers(
         "ltm_operating_cash_flow": ltm.get("ltm_operating_cash_flow"),
         "ltm_capex": ltm.get("ltm_capex"),
         "ltm_source": ltm["source"],
+        # Привычка платить: отличает «не платит» от «в окно не попало».
+        **dividend_trend(db, company_id),
         "balance_report_id": balance_report.id,
         "balance_report_date": balance_report.report_date.isoformat(),
         "current_price": price,
@@ -732,6 +830,8 @@ _METRIC_FIELDS: Tuple[str, ...] = (
     "pb_ratio",
     "pb_tangible",
     "eps",
+    "key_rate",
+    "roe_spread",
     "goodwill",
     "goodwill_to_assets",
     "roe",
@@ -990,7 +1090,11 @@ def save_report_based_multiplier(
         _hybrid_banking_flow(db, company, report) if company else (None, None)
     )
 
-    mults = calculate_multipliers(report, banking_flow=banking_flow)
+    mults = calculate_multipliers(
+        report,
+        banking_flow=banking_flow,
+        key_rate=_key_rate_for_year(db, report.fiscal_year),
+    )
 
     # 1) Основная запись: ищем ранее созданную для ЭТОГО report_id.
     existing: Optional[Multiplier] = (

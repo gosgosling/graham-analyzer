@@ -190,7 +190,9 @@ class ReportFigures(BaseModel):
     # выдача кредитов отрицательная. Разница балансовых остатков для этого
     # не годится: она включает секьюритизацию и списания.
     cf_customer_deposits: Optional[float] = None   # Изменение средств клиентов (ОДДС), млн
-    cf_customer_loans: Optional[float] = None      # Изменение кредитов клиентам (ОДДС), млн
+    cf_customer_loans: Optional[float] = None
+    # Δ прочих клиентских обязательств (флоат маркетплейса и т.п.), млн
+    cf_other_float: Optional[float] = None      # Изменение кредитов клиентам (ОДДС), млн
 
     # Достаточность капитала — ограничитель роста и дивидендов банка.
     risk_weighted_assets: Optional[float] = None     # Активы, взвешенные по риску, млн
