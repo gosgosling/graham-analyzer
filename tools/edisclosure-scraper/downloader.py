@@ -4,7 +4,9 @@
 
 from __future__ import annotations
 
+import json
 import logging
+from typing import Optional
 import random
 import shutil
 import time
@@ -25,14 +27,47 @@ logger = logging.getLogger(__name__)
 _sp_cookies: dict[str, str] = {}
 
 
+def _cookies_from_storage_state() -> dict[str, str]:
+    """Cookies из файла, который пишет `save_cookies.py` после ручной captcha.
+
+    Это единственный источник, переживающий ServicePipe: свежий headless-браузер
+    получает challenge и уходит с пустыми руками, а сессия, в которой человек
+    прошёл проверку, работает. Раньше файл не читался вовсе — из-за этого
+    скачивание молча возвращало ноль даже сразу после успешного save_cookies.
+    """
+    from browser_session import STORAGE_STATE_PATH
+
+    if not STORAGE_STATE_PATH.is_file():
+        return {}
+    try:
+        data = json.loads(STORAGE_STATE_PATH.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        logger.warning("Не удалось прочитать storage_state: %s", exc)
+        return {}
+    out = {
+        c["name"]: c["value"]
+        for c in data.get("cookies", [])
+        if "e-disclosure" in str(c.get("domain", ""))
+    }
+    if out:
+        logger.info("Взято %d cookies из storage_state.", len(out))
+    return out
+
+
 def _get_sp_cookies() -> dict[str, str]:
     global _sp_cookies
     if _sp_cookies:
         return _sp_cookies
 
+    # Сначала — сохранённая сессия с пройденной captcha.
+    saved = _cookies_from_storage_state()
+    if saved:
+        _sp_cookies = saved
+        return _sp_cookies
+
     from playwright.sync_api import sync_playwright
 
-    logger.info("Получаем ServicePipe-cookies через Playwright...")
+    logger.info("storage_state пуст — пробуем получить cookies браузером...")
     try:
         with sync_playwright() as pw:
             launch_kw = {
@@ -103,10 +138,24 @@ def _download_to_path(session: requests.Session, url: str, dest: Path) -> None:
                 f.write(chunk)
 
 
-def download_reports(ticker: str, reports: list[ReportEntry]) -> dict[str, str]:
+def _note(errors: Optional[list[str]], message: str) -> None:
+    """Причина неудачи — наверх, а не только в лог."""
+    if errors is not None:
+        errors.append(message)
+
+
+def download_reports(
+    ticker: str,
+    reports: list[ReportEntry],
+    errors: Optional[list[str]] = None,
+) -> dict[str, str]:
     """
     Скачивает отчёты → TICKER_{period_key}.pdf.
     Возвращает {period_key: path}.
+
+    `errors` — список, куда складываются причины неудач. Без него сбой попадал
+    только в лог, а вызывающая сторона видела «скачано 0, ошибок нет» и не
+    могла отличить «всё уже на диске» от «сервер вернул captcha».
     """
     if not reports:
         return {}
@@ -172,14 +221,19 @@ def download_reports(ticker: str, reports: list[ReportEntry]) -> dict[str, str]:
                     result[key] = str(extracted)
                 else:
                     logger.warning("[%s] Не удалось извлечь PDF из %s", ticker, filename)
+                    _note(errors, f"{ticker} {key}: в архиве нет PDF")
             else:
                 logger.warning("[%s] Неизвестный тип %s", ticker, filename)
+                _note(errors, f"{ticker} {key}: неизвестный тип файла {suffix}")
 
         except requests.HTTPError as exc:
             logger.error("[%s] HTTP-ошибка %s: %s", ticker, report.file_url, exc)
+            _note(errors, f"{ticker} {key}: HTTP {exc}")
         except requests.RequestException as exc:
             logger.error("[%s] Ошибка сети %s: %s", ticker, report.file_url, exc)
+            _note(errors, f"{ticker} {key}: сеть — {exc}")
         except OSError as exc:
             logger.error("[%s] Ошибка записи %s: %s", ticker, dest, exc)
+            _note(errors, f"{ticker} {key}: запись — {exc}")
 
     return result

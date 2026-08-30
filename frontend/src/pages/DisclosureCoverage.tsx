@@ -1,6 +1,8 @@
 import React, { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
 import {
+  getExpectations,
   downloadDisclosurePeriods,
   enqueueDisclosureParse,
   getDisclosureCoverage,
@@ -120,6 +122,16 @@ const DisclosureCoverage: React.FC = () => {
     else setSelected(new Set(items.map((i) => i.id)));
   };
 
+  // Пропущенные отчёты считаются по нашим же данным, без обращения к центру
+  // раскрытия: ожидание выводится из истории компании, срок — из её медианной
+  // задержки публикации. Раздел жив, даже когда скрапер лежит.
+  const gapsQ = useQuery({
+    queryKey: ['disclosure-expectations'],
+    queryFn: () => getExpectations('overdue', 200),
+    staleTime: 5 * 60 * 1000,
+  });
+  const gaps = gapsQ.data;
+
   const busy = syncMut.isPending || downloadMut.isPending || parseMut.isPending;
   const syncing = sync?.status === 'running' || sync?.worker_alive;
 
@@ -131,6 +143,80 @@ const DisclosureCoverage: React.FC = () => {
         раз в неделю (и вручную). Скачивание и AI-парсинг — только по кнопке. Промежуточные:
         только самый свежий период на компанию.
       </p>
+
+      {/* Пропуски по своим данным — раньше всего остального: это список дел
+          на сегодня, а сверка с e-disclosure нужна уже для уточнения. */}
+      <section className="disclosure-panel gaps-panel">
+        <div className="gaps-head">
+          <h2>Пропущенные отчёты</h2>
+          <span className="gaps-sub">
+            по данным сервиса, без обращения к центру раскрытия
+          </span>
+        </div>
+
+        {gapsQ.isLoading && <div className="disclosure-empty">Считаю…</div>}
+        {gaps && (
+          <>
+            <div className="disclosure-stats">
+              <div className="disclosure-stat">
+                <span className="label">Внесено</span>
+                <span className="value is-ok">{gaps.filed}</span>
+              </div>
+              <div className="disclosure-stat">
+                <span className="label">Срок идёт</span>
+                <span className="value">{gaps.window_open}</span>
+              </div>
+              <div className="disclosure-stat">
+                <span className="label">Пропущено</span>
+                <span className="value is-err">{gaps.overdue}</span>
+              </div>
+              <div className="disclosure-stat">
+                <span className="label">Компаний с пропусками</span>
+                <span className="value is-err">{gaps.companies_with_gaps}</span>
+              </div>
+            </div>
+
+            {gaps.items.length === 0 ? (
+              <div className="disclosure-empty">Пропусков нет — все сроки закрыты.</div>
+            ) : (
+              <>
+                <p className="gaps-hint">
+                  Свежие сверху: их отчёты уже опубликованы и лежат на сайтах эмитентов.
+                  Давние пропуски часто означают, что компания тогда просто не отчитывалась.
+                </p>
+                <div className="gaps-scroll">
+                  <table className="gaps-table">
+                    <thead>
+                      <tr>
+                        <th>Тикер</th>
+                        <th>Компания</th>
+                        <th>Период</th>
+                        <th>Срок</th>
+                        <th>Просрочен</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {gaps.items.map((g) => (
+                        <tr key={`${g.company_id}-${g.period_key}`}>
+                          <td>
+                            <Link to={`/company/${g.company_id}/reports-matrix`}>{g.ticker}</Link>
+                          </td>
+                          <td className="gaps-name">{g.name ?? '—'}</td>
+                          <td>{g.period_label}</td>
+                          <td className="gaps-num">{g.deadline}</td>
+                          <td className="gaps-num gaps-overdue">
+                            {g.days_overdue} дн
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+          </>
+        )}
+      </section>
 
       <section className="disclosure-panel">
         {summary && (

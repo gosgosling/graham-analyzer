@@ -70,7 +70,7 @@ def download_periods(db: Session, period_ids: list[int]) -> dict:
     errors: list[str] = []
     for ticker, reports in by_ticker.items():
         try:
-            result = download_company_reports(ticker, reports)
+            result = download_company_reports(ticker, reports, errors)
             downloaded.update({f"{ticker}:{k}": v for k, v in result.items()})
         except Exception as exc:  # noqa: BLE001
             errors.append(f"{ticker}: {exc}")

@@ -36,6 +36,7 @@ def calculate_multipliers(
     ltm_debt_principal: Optional[float] = None,
     ltm_operating_expenses: Optional[float] = None,
     banking_flow: Optional[float] = None,
+    key_rate: Optional[float] = None,
 ) -> Dict[str, Optional[float]]:
     """
     Рассчитывает финансовые мультипликаторы.
@@ -164,6 +165,14 @@ def calculate_multipliers(
         if total_assets_mln:
             goodwill_to_assets = round(goodwill_mln / total_assets_mln * 100, 2)
 
+    # ROE минус ключевая ставка — сколько отдача капитала даёт СВЕРХ безрисковой.
+    #
+    # Фиксированный порог «≥ 15% — хорошо» написан безотносительно режима
+    # ставок: при ключевой 14,98% пятнадцатипроцентный ROE не даёт акционеру
+    # ничего, а при ставке 7,5% те же 15% — вдвое больше безрисковой. Спред
+    # плавает вместе с циклом и не требует переписывать пороги отраслей.
+    roe_spread: Optional[float] = None
+
     # EPS = Net Income / акции — те же акции, что и в капитализации.
     #
     # Не средневзвешенное из отчёта: тогда P/E ≠ Цена / EPS, и две строки
@@ -181,6 +190,9 @@ def calculate_multipliers(
     roe: Optional[float] = None
     if net_income_mln is not None and equity_mln and equity_mln != 0:
         roe = round(net_income_mln / equity_mln * 100, 2)
+
+    if roe is not None and key_rate is not None:
+        roe_spread = round(roe - key_rate, 2)
 
     # Dividend Yield = Dividends per Share / Price × 100%  (оба в полных рублях)
     dividend_yield: Optional[float] = None
@@ -324,6 +336,8 @@ def calculate_multipliers(
         "pe_ratio": pe_ratio,
         "pb_ratio": pb_ratio,
         "eps": eps,
+        "key_rate": key_rate,
+        "roe_spread": roe_spread,
         "goodwill": goodwill_mln,
         "tangible_equity": tangible_equity_mln,
         "pb_tangible": pb_tangible,

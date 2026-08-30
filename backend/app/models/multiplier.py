@@ -103,6 +103,10 @@ class Multiplier(Base):
     # Прибыль на акцию, ₽. Считается от тех же акций, что и капитализация,
     # поэтому Цена / EPS в точности равна P/E той же строки.
     eps: Mapped[Optional[float]] = mapped_column(Numeric(18, 6), nullable=True)
+    # Средняя ключевая ставка ЦБ за год отчёта, % — контекст для ROE.
+    key_rate: Mapped[Optional[float]] = mapped_column(Numeric(8, 2), nullable=True)
+    # ROE − ключевая ставка, п.п.: отдача сверх безрисковой.
+    roe_spread: Mapped[Optional[float]] = mapped_column(Numeric(10, 2), nullable=True)
 
     # Чистый долг (млн ₽) и отношение Net Debt / LTM FCF (non-bank, FCF > 0)
     net_debt: Mapped[Optional[float]] = mapped_column(Numeric(20, 2), nullable=True)

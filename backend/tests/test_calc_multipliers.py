@@ -530,3 +530,43 @@ def test_eps_survives_missing_price(report_factory):
 
     assert m["eps"] == 10.0
     assert m["pe_ratio"] is None
+
+
+# ─── Отдача капитала сверх безрисковой ─────────────────────────────────────
+#
+# Порог «ROE ≥ 15% — хорошо» написан безотносительно режима ставок. При
+# ключевой 15% такой ROE не даёт акционеру ничего сверх ОФЗ, при ставке 7,5%
+# те же 15% — вдвое больше безрисковой. Спред плавает вместе с циклом.
+# База: ROE 20%.
+
+
+def test_roe_spread_is_roe_minus_key_rate(report):
+    m = calculate_multipliers(report, key_rate=14.98)
+
+    assert m["roe"] == 20.0
+    assert m["key_rate"] == 14.98
+    assert m["roe_spread"] == 5.02
+
+
+def test_roe_spread_negative_when_rate_beats_equity(report_factory):
+    """Отдача ниже ставки: держать ОФЗ выгоднее, чем владеть компанией."""
+    m = calculate_multipliers(report_factory(net_income=5_000.0), key_rate=14.98)
+
+    assert m["roe"] == 10.0
+    assert m["roe_spread"] == -4.98
+
+
+def test_roe_spread_absent_without_key_rate(report):
+    """Ставку за год не завели — спред не выдумывается."""
+    m = calculate_multipliers(report)
+
+    assert m["key_rate"] is None
+    assert m["roe_spread"] is None
+
+
+def test_roe_spread_absent_without_equity(report_factory):
+    """Нет капитала — нет ROE, а значит и сравнивать со ставкой нечего."""
+    m = calculate_multipliers(report_factory(equity=None), key_rate=14.98)
+
+    assert m["roe"] is None
+    assert m["roe_spread"] is None

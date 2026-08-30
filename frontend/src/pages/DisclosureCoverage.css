@@ -210,3 +210,96 @@
   font-size: 13px;
   min-width: 120px;
 }
+
+/* Пропущенные отчёты: список дел на сегодня. Стоит первым блоком, потому что
+   отвечает на вопрос «что я упустил», а сверка с e-disclosure — уже на
+   уточнение по конкретной компании. */
+.gaps-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-3);
+}
+
+.gaps-head h2 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.gaps-sub {
+  font-size: 0.8rem;
+  color: var(--color-text-tertiary);
+}
+
+.gaps-hint {
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--color-text-tertiary);
+  margin: var(--space-3) 0 var(--space-2);
+}
+
+/* Длинный список прокручивается внутри себя: страница не должна расти на
+   двести строк, а самые свежие пропуски и так сверху. */
+.gaps-scroll {
+  max-height: 420px;
+  overflow-y: auto;
+  overflow-x: auto;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+}
+
+.gaps-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.gaps-table thead tr {
+  background: var(--color-table-header-bg);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.gaps-table th {
+  padding: 8px 10px;
+  text-align: left;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  font-weight: 600;
+  color: var(--color-table-header-text);
+  border-bottom: 1px solid var(--color-border-default);
+}
+
+.gaps-table td {
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--color-table-border);
+  color: var(--color-text-secondary);
+}
+
+.gaps-table tbody tr:hover {
+  background: var(--color-bg-hover);
+}
+
+.gaps-name {
+  color: var(--color-text-tertiary);
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gaps-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.gaps-overdue {
+  color: var(--color-error-text);
+  font-weight: 600;
+}

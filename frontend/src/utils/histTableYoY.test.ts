@@ -14,6 +14,7 @@ const EMPTY: HistRowSnapshot = {
   price_to_fcf: null, ltm_fcf: null, ltm_capex: null, fcf_to_net_income: null,
   net_debt_to_fcf: null, net_debt: null, ltm_revenue: null,
   ltm_net_income: null, eps: null, shares_used: null, equity: null,
+  key_rate: null, roe_spread: null,
   total_assets: null, dividend_yield: null, dividend_yield_regular: null,
   ltm_special_dividends_per_share: null,
 };

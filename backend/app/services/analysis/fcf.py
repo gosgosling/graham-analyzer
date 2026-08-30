@@ -54,8 +54,11 @@ def compute_banking_flow(
 
     Два источника, в порядке надёжности:
 
-    1. **Строки ОДДС** (`cf_customer_deposits`, `cf_customer_loans`) — как
-       напечатано в отчёте, со знаком. Это фактическое движение денег.
+    1. **Строки ОДДС** (`cf_customer_deposits`, `cf_customer_loans`,
+       `cf_other_float`) — как напечатано в отчёте, со знаком. Это фактическое
+       движение денег. Третья строка нужна там, где пулов чужих денег больше
+       одного: у Озона рядом с депозитами Финтеха живут обязательства перед
+       продавцами маркетплейса, и по природе это тот же флоат.
     2. **Разница балансовых остатков** — запасной вариант, когда строки ОДДС
        не выписаны. Он завышает приток: в остатки попадают секьюритизация,
        списания и прекращение признания активов, которые баланс меняют, а
@@ -78,8 +81,13 @@ def compute_banking_flow(
     # 1. Прямые строки ОДДС
     deposits_cf = field(current, "cf_customer_deposits")
     loans_cf = field(current, "cf_customer_loans")
-    if deposits_cf is not None or loans_cf is not None:
-        return round((deposits_cf or 0.0) + (loans_cf or 0.0), 3), "cash_flow"
+    # Третий источник — прочий клиентский флоат. У маркетплейса деньги
+    # покупателя оседают на счетах до расчёта с продавцом, и по природе это
+    # тот же депозит: поток надувает, вернуть придётся.
+    other_cf = field(current, "cf_other_float")
+    if deposits_cf is not None or loans_cf is not None or other_cf is not None:
+        total = (deposits_cf or 0.0) + (loans_cf or 0.0) + (other_cf or 0.0)
+        return round(total, 3), "cash_flow"
 
     # 2. Запасной вариант — приросты остатков
     if previous is None:

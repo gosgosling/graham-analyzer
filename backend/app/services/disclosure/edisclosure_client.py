@@ -5,7 +5,7 @@ import json
 import logging
 import sys
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Optional, Optional
 
 from app.config import BASE_DIR
 
@@ -76,7 +76,9 @@ def close_browser_session() -> None:
 
 
 def download_company_reports(
-    ticker: str, report_dicts: list[dict[str, Any]]
+    ticker: str,
+    report_dicts: list[dict[str, Any]],
+    errors: Optional[list[str]] = None,
 ) -> dict[str, str]:
     """Скачать выбранные периоды. report_dicts — как to_dict() ReportEntry."""
     ensure_scraper_importable()
@@ -100,7 +102,7 @@ def download_company_reports(
                 published_at=d.get("published_at"),
             )
         )
-    return download_reports(ticker, reports)
+    return download_reports(ticker, reports, errors)
 
 
 def filter_coverage(entries: list[dict[str, Any]], *, min_annual_year: int = 2010) -> list[dict[str, Any]]:

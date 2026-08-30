@@ -146,3 +146,91 @@ export const importDisclosureListing = async (
     throw new Error(errDetail(e));
   }
 };
+
+/**
+ * Пропущенные отчёты — по собственным данным сервиса.
+ *
+ * В отличие от `getDisclosureCoverage`, который сверяется с центром
+ * раскрытия через скрапер, здесь нет ни одного внешнего запроса: ожидание
+ * периода выводится из истории самой компании, срок — из её медианной
+ * задержки публикации. Поэтому раздел работает, даже когда e-disclosure
+ * отдаёт 403.
+ */
+export interface ExpectedPeriod {
+  company_id: number;
+  ticker: string;
+  name: string | null;
+  period_type: string;
+  fiscal_year: number;
+  fiscal_quarter: number | null;
+  period_key: string;
+  period_label: string;
+  period_end: string;
+  deadline: string;
+  status: 'filed' | 'window_open' | 'overdue';
+  days_overdue: number | null;
+  report_id: number | null;
+}
+
+export interface ExpectationsResponse {
+  total: number;
+  filed: number;
+  window_open: number;
+  overdue: number;
+  companies_with_gaps: number;
+  items: ExpectedPeriod[];
+}
+
+export const getExpectations = async (
+  status: 'overdue' | 'window_open' | 'filed' | 'all' = 'overdue',
+  limit = 200,
+): Promise<ExpectationsResponse> => {
+  try {
+    const { data } = await api.get('/disclosure/expectations', {
+      params: { status, limit },
+    });
+    return data;
+  } catch (e) {
+    throw new Error(errDetail(e));
+  }
+};
+
+/**
+ * Календарь ожидаемых публикаций.
+ *
+ * Прогноз, а не расписание: точной даты будущей публикации не существует,
+ * поэтому каждая строка несёт пометку собственной точности.
+ */
+export interface UpcomingReport {
+  company_id: number;
+  ticker: string;
+  name: string | null;
+  logo_url: string | null;
+  period_type: string;
+  fiscal_year: number;
+  fiscal_quarter: number | null;
+  period_key: string;
+  period_label: string;
+  period_end: string;
+  expected_date: string;
+  confidence: 'narrow' | 'wide' | 'rough';
+  lag_days: number;
+  lag_spread: number | null;
+  samples: number;
+}
+
+export interface CalendarResponse {
+  today: string;
+  horizon_days: number;
+  total: number;
+  days: { day: string; items: UpcomingReport[] }[];
+}
+
+export const getReportCalendar = async (days = 140): Promise<CalendarResponse> => {
+  try {
+    const { data } = await api.get('/disclosure/calendar', { params: { days } });
+    return data;
+  } catch (e) {
+    throw new Error(errDetail(e));
+  }
+};

@@ -98,6 +98,8 @@ class MultiplierResponse(BaseModel):
     price_to_fcf: Optional[float] = None
     fcf_to_net_income: Optional[float] = None  # FCF/NI, безразмерное соотношение
     eps: Optional[float] = None  # Прибыль на акцию, ₽ (от тех же акций, что и капитализация)
+    key_rate: Optional[float] = None  # Средняя ключевая ставка ЦБ за год отчёта, %
+    roe_spread: Optional[float] = None  # ROE − ключевая ставка, п.п.
     net_debt: Optional[float] = None  # млн ₽
     net_debt_to_fcf: Optional[float] = None  # Net Debt / LTM FCF
 
@@ -120,6 +122,13 @@ class CurrentMultipliersResponse(BaseModel):
     balance_report_id: Optional[int] = None
     balance_report_date: Optional[str] = None
     ltm_source: Optional[str] = None
+    # Привычка платить дивиденды по годовым отчётам за последние 7 лет.
+    dividend_years_total: Optional[int] = None
+    dividend_years_paid: Optional[int] = None
+    dividend_years_since_last: Optional[int] = None
+    dividend_is_regular: Optional[bool] = None
+    dividend_last_per_share: Optional[float] = None
+    dividend_last_year: Optional[int] = None
 
     # LTM P&L
     ltm_net_income: Optional[float] = None
@@ -168,5 +177,7 @@ class CurrentMultipliersResponse(BaseModel):
     price_to_fcf: Optional[float] = None
     fcf_to_net_income: Optional[float] = None  # FCF/NI, безразмерное соотношение
     eps: Optional[float] = None  # Прибыль на акцию, ₽ (от тех же акций, что и капитализация)
+    key_rate: Optional[float] = None  # Средняя ключевая ставка ЦБ за год отчёта, %
+    roe_spread: Optional[float] = None  # ROE − ключевая ставка, п.п.
     net_debt: Optional[float] = None  # млн ₽
     net_debt_to_fcf: Optional[float] = None  # Net Debt / LTM FCF

@@ -108,6 +108,10 @@ export interface MultiplierRecord {
     shares_used: number | null;
     /** Прибыль на акцию, ₽ — от тех же акций, что и капитализация */
     eps: number | null;
+    /** Средняя ключевая ставка ЦБ за год отчёта, % */
+    key_rate: number | null;
+    /** ROE − ключевая ставка, п.п.: отдача сверх безрисковой */
+    roe_spread: number | null;
     shares_cap_explanation?: string | null;
     market_cap: number | null;
 
@@ -181,6 +185,16 @@ export interface CurrentMultipliers {
     balance_report_id: number | null;
     balance_report_date: string | null;
     ltm_source: string | null;
+    /** Привычка платить дивиденды: годовых отчётов за последние 7 лет */
+    dividend_years_total?: number | null;
+    /** Из них с выплатой */
+    dividend_years_paid?: number | null;
+    /** Лет прошло с последней выплаты: три и больше — компания перестала платить */
+    dividend_years_since_last?: number | null;
+    /** Регулярный плательщик: платил не меньше 70% лет */
+    dividend_is_regular?: boolean | null;
+    dividend_last_per_share?: number | null;
+    dividend_last_year?: number | null;
 
     ltm_net_income: number | null;
     ltm_revenue: number | null;
@@ -192,6 +206,10 @@ export interface CurrentMultipliers {
     shares_used: number | null;
     /** Прибыль на акцию, ₽ — от тех же акций, что и капитализация */
     eps: number | null;
+    /** Средняя ключевая ставка ЦБ за год отчёта, % */
+    key_rate: number | null;
+    /** ROE − ключевая ставка, п.п.: отдача сверх безрисковой */
+    roe_spread: number | null;
     /** Размещённое (общее) количество из балансового отчёта */
     shares_issued: number | null;
     /** Акции в обращении (явные или issued − treasury) */
@@ -428,6 +446,7 @@ export interface FinancialReportCreate {
     customer_deposits?: number | null;     // Средства клиентов, млн
     cf_customer_deposits?: number | null;  // Δ средств клиентов из ОДДС, млн (со знаком)
     cf_customer_loans?: number | null;     // Δ кредитов клиентам из ОДДС, млн (обычно < 0)
+    cf_other_float?: number | null;        // Δ прочих клиентских обязательств из ОДДС, млн
     loans_retail?: number | null;          // Кредиты физлицам (валовые), млн
     loans_corporate?: number | null;       // Кредиты юрлицам (валовые), млн
     deposits_retail?: number | null;       // Средства физлиц, млн

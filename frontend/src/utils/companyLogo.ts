@@ -90,3 +90,27 @@ export function getCompanyLogoCandidates(company: Company): string[] {
 
   return out;
 }
+
+
+/**
+ * Кандидаты для одной ссылки из API — без объекта компании.
+ *
+ * Нужно там, где логотип показывается в списке и полной карточки компании
+ * под рукой нет: в календаре, в результатах поиска. Правило то же самое —
+ * CDN Тинькофф отдаёт только объекты с суффиксом размера, а API возвращает
+ * ссылку без него, поэтому прямой src всегда даёт 403.
+ */
+export function logoCandidatesFromUrl(url: string | null | undefined): string[] {
+  const raw = url?.trim();
+  if (!raw) return [];
+  const out: string[] = [];
+  const add = (u: string) => {
+    const t = u.trim();
+    if (t && !out.includes(t)) out.push(t);
+  };
+  if (raw.toLowerCase().includes('invest-brands.cdn-tinkoff.ru')) {
+    withSizeSuffixes(raw, add);
+  }
+  add(raw);
+  return out;
+}
