@@ -189,7 +189,7 @@ function netDebtFcfBadge(
   return { value: v, level: 'bad', tip: 'Высокая нагрузка: погашение чистого долга займёт более 5 лет FCF' };
 }
 
-function netDebtValueUi(netDebtMln: number | null): {
+function netDebtValueUi(netDebtMln: number | null, scale: MoneyScale): {
   display: string;
   level: Level;
   tip?: string;
@@ -197,7 +197,7 @@ function netDebtValueUi(netDebtMln: number | null): {
   if (netDebtMln === null) {
     return { display: '—', level: 'neutral', tip: 'Нет данных о долге и наличности' };
   }
-  const display = (netDebtMln / 1_000).toFixed(2);
+  const display = fmtMoney(netDebtMln, scale);
   if (netDebtMln < 0) {
     return {
       display,
@@ -857,11 +857,68 @@ function fmtPortfolio(n: number | null, inTrillions: boolean): string {
   return (n / (inTrillions ? 1_000_000 : 1_000)).toFixed(2);
 }
 
-/** Значение в млн ₽ → число в млрд (без единицы; единица в заголовке колонки). */
-function fmtMlnBln(n: number | null): string {
-  if (n === null) return '—';
-  return (n / 1_000).toFixed(2);
+/**
+ * Масштаб денежной колонки: млн → млрд → трлн.
+ *
+ * Жёсткие миллиарды годились, пока в базе были одни голубые фишки. У компании,
+ * которая отчитывается в тысячах рублей, в них схлопывается вся строка: выручка
+ * 1 756 млн превращается в «1.76», прибыль 0,53 млн — в «0.00», CAPEX и чистый
+ * долг — в «0.17» и «0.25». Колонка перестаёт что-либо говорить, а разница
+ * между годами пропадает в округлении.
+ *
+ * Единица выбирается по самому крупному значению колонки и выносится в её
+ * заголовок — как у портфеля банка выше. Масштаб именно на колонку целиком,
+ * а не на ячейку: иначе соседние годы оказались бы в разных единицах.
+ */
+type MoneyScale = { divisor: number; unit: string };
+
+const MONEY_SCALES: MoneyScale[] = [
+  { divisor: 1, unit: 'млн ₽' },
+  { divisor: 1_000, unit: 'млрд ₽' },
+  { divisor: 1_000_000, unit: 'трлн ₽' },
+];
+
+// Переходим к следующей единице, когда числу стало бы тесно в пяти знаках, —
+// тот же порог читаемости, что у PORTFOLIO_TRILLION_THRESHOLD_MLN.
+const MONEY_SCALE_LIMIT = 10_000;
+
+function moneyColumnScale(values: (number | null | undefined)[]): MoneyScale {
+  let max = 0;
+  for (const v of values) {
+    if (typeof v === 'number' && Number.isFinite(v)) max = Math.max(max, Math.abs(v));
+  }
+  for (const scale of MONEY_SCALES) {
+    if (max / scale.divisor < MONEY_SCALE_LIMIT) return scale;
+  }
+  return MONEY_SCALES[MONEY_SCALES.length - 1];
 }
+
+/** Значение в млн ₽ → число в единице колонки (сама единица — в заголовке). */
+function fmtMoney(n: number | null | undefined, scale: MoneyScale): string {
+  if (n === null || n === undefined) return '—';
+  return (n / scale.divisor).toFixed(2);
+}
+
+/** Масштабы всех денежных колонок таблицы — по одному на колонку. */
+interface MoneyScales {
+  cap: MoneyScale;
+  netDebt: MoneyScale;
+  fcf: MoneyScale;
+  capex: MoneyScale;
+  revenue: MoneyScale;
+  profit: MoneyScale;
+}
+
+const DEFAULT_MONEY_SCALE: MoneyScale = MONEY_SCALES[1];
+
+const DEFAULT_MONEY_SCALES: MoneyScales = {
+  cap: DEFAULT_MONEY_SCALE,
+  netDebt: DEFAULT_MONEY_SCALE,
+  fcf: DEFAULT_MONEY_SCALE,
+  capex: DEFAULT_MONEY_SCALE,
+  revenue: DEFAULT_MONEY_SCALE,
+  profit: DEFAULT_MONEY_SCALE,
+};
 
 const SHARE_SCALE: [number, string][] = [
   [1e12, 'трлн'],
@@ -1468,8 +1525,9 @@ const HistPriceCell: React.FC<{ row: MultiplierRecord }> = ({ row }) => {
 const HistCapCell: React.FC<{
   marketCapMln: number | null;
   explanation: string | null | undefined;
-}> = ({ marketCapMln, explanation }) => {
-  const display = marketCapMln !== null ? (marketCapMln / 1_000).toFixed(2) : '—';
+  scale: MoneyScale;
+}> = ({ marketCapMln, explanation, scale }) => {
+  const display = fmtMoney(marketCapMln, scale);
   return (
     <SharesCapHover explanation={explanation}>
       {display}
@@ -1513,8 +1571,11 @@ const HistNetDebtFcfCell: React.FC<{
   );
 };
 
-const HistNetDebtCell: React.FC<{ netDebtMln: number | null }> = ({ netDebtMln }) => {
-  const ui = netDebtValueUi(netDebtMln);
+const HistNetDebtCell: React.FC<{ netDebtMln: number | null; scale: MoneyScale }> = ({
+  netDebtMln,
+  scale,
+}) => {
+  const ui = netDebtValueUi(netDebtMln, scale);
   return (
     <span className="hist-plain-value" title={ui.tip}>
       {ui.display}
@@ -1646,6 +1707,8 @@ interface HistTableRowProps {
   isPreferredShare: boolean;
   /** Портфель показывать в триллионах — решается на уровне всей колонки. */
   portfolioInTrillions?: boolean;
+  /** Единицы денежных колонок, общие на колонку (см. moneyColumnScale). */
+  moneyScales?: MoneyScales;
   /** Единица числа акций, общая на колонку. null — у каждой ячейки своя. */
   sharesScale?: { factor: number; unit: string } | null;
   /** Банковские показатели этого периода; у строки LTM их нет. */
@@ -1673,6 +1736,7 @@ const HistTableRow: React.FC<HistTableRowProps> = ({
   previous,
   isPreferredShare,
   portfolioInTrillions,
+  moneyScales = DEFAULT_MONEY_SCALES,
   sharesScale,
   bankMetrics,
   costToIncome,
@@ -1750,6 +1814,7 @@ const HistTableRow: React.FC<HistTableRowProps> = ({
         <HistCapCell
           marketCapMln={snapshot.market_cap}
           explanation={record?.shares_cap_explanation}
+          scale={moneyScales.cap}
         />,
       )}
       {histYoYCell(
@@ -1863,19 +1928,19 @@ const HistTableRow: React.FC<HistTableRowProps> = ({
       {!noLeverage && histYoYCell(
         pctMode,
         yoy?.netDebt,
-        <HistNetDebtCell netDebtMln={snapshot.net_debt} />,
+        <HistNetDebtCell netDebtMln={snapshot.net_debt} scale={moneyScales.netDebt} />,
         'col-compact',
       )}
       {showFcf && histYoYCell(
         pctMode,
         yoy?.fcf,
-        fmtMlnBln(snapshot.ltm_fcf),
+        fmtMoney(snapshot.ltm_fcf, moneyScales.fcf),
         snapshot.ltm_fcf !== null && snapshot.ltm_fcf < 0 ? 'cell-loss' : undefined,
       )}
       {showFcf && histYoYCell(
         pctMode,
         yoy?.capex,
-        fmtMlnBln(snapshot.ltm_capex),
+        fmtMoney(snapshot.ltm_capex, moneyScales.capex),
         'col-compact',
       )}
       {isBank && bankMetricCell(bankMetrics, 'roa', pctMode, bankYoY?.roa)}
@@ -1893,11 +1958,11 @@ const HistTableRow: React.FC<HistTableRowProps> = ({
           fmtPortfolio((bankMetrics?.gross_loans ?? null) as number | null, !!portfolioInTrillions),
           'col-portfolio',
         )}
-      {histYoYCell(pctMode, yoy?.revenue, fmtMlnBln(snapshot.ltm_revenue))}
+      {histYoYCell(pctMode, yoy?.revenue, fmtMoney(snapshot.ltm_revenue, moneyScales.revenue))}
       {histYoYCell(
         pctMode,
         yoy?.profit,
-        fmtMlnBln(snapshot.ltm_net_income),
+        fmtMoney(snapshot.ltm_net_income, moneyScales.profit),
         isLoss ? 'cell-loss' : undefined,
       )}
       {/* EPS и число акций — пара, которая объясняет разрыв между «прибыль
@@ -2009,6 +2074,24 @@ const HistTable: React.FC<HistTableProps & { pctMode: boolean }> = ({
     return shareColumnScale(values);
   }, [rows, currentRow]);
 
+  // Единицы денежных колонок — по самому крупному значению каждой из них,
+  // включая строку LTM: она в таблице такая же строка, и её порядок величины
+  // обязан участвовать в выборе, иначе единица «поедет» на первой же публикации.
+  const moneyScales = React.useMemo<MoneyScales>(() => {
+    const snapshots = rows.map(snapshotFromRecord);
+    if (currentRow) snapshots.push(snapshotFromCurrent(currentRow));
+    const scaleOf = (pick: (s: HistRowSnapshot) => number | null | undefined) =>
+      moneyColumnScale(snapshots.map(pick));
+    return {
+      cap: scaleOf((s) => s.market_cap),
+      netDebt: scaleOf((s) => s.net_debt),
+      fcf: scaleOf((s) => s.ltm_fcf),
+      capex: scaleOf((s) => s.ltm_capex),
+      revenue: scaleOf((s) => s.ltm_revenue),
+      profit: scaleOf((s) => s.ltm_net_income),
+    };
+  }, [rows, currentRow]);
+
   const portfolioInTrillions = React.useMemo(() => {
     const values: number[] = [];
     const push = (m: BankMetrics | null | undefined) => {
@@ -2033,7 +2116,7 @@ const HistTable: React.FC<HistTableProps & { pctMode: boolean }> = ({
               <ColHeaderWithUnit title="Цена" unit="₽" align="right" />
             </th>
             <th className="col-mkt col-header-unit-col">
-              <ColHeaderWithUnit title="Кап." />
+              <ColHeaderWithUnit title="Кап." unit={moneyScales.cap.unit} />
             </th>
             <th className="col-mult">P/E</th>
             <th className="col-mult">P/B</th>
@@ -2069,7 +2152,12 @@ const HistTable: React.FC<HistTableProps & { pctMode: boolean }> = ({
             {!noLeverage && <th className="col-mult col-compact" title="Net Debt / LTM FCF — лет погашения">ND/FCF</th>}
             {!noLeverage && (
               <th className="col-rev col-compact col-net-debt-header col-header-unit-col" title="Чистый долг = Долг − Наличность">
-                <ColHeaderWithUnit title="Net Debt" uppercase={false} align="right" />
+                <ColHeaderWithUnit
+                  title="Net Debt"
+                  unit={moneyScales.netDebt.unit}
+                  uppercase={false}
+                  align="right"
+                />
               </th>
             )}
             {showFcf && (
@@ -2081,12 +2169,15 @@ const HistTable: React.FC<HistTableProps & { pctMode: boolean }> = ({
                     : 'FCF = Операционный поток − CAPEX'
                 }
               >
-                <ColHeaderWithUnit title={hasCoreFcf ? 'FCF ЯДРА' : 'FCF'} />
+                <ColHeaderWithUnit
+                  title={hasCoreFcf ? 'FCF ЯДРА' : 'FCF'}
+                  unit={moneyScales.fcf.unit}
+                />
               </th>
             )}
             {showFcf && (
               <th className="col-rev col-compact col-header-unit-col" title="Капитальные затраты (положительное число)">
-                <ColHeaderWithUnit title="CAPEX" />
+                <ColHeaderWithUnit title="CAPEX" unit={moneyScales.capex.unit} />
               </th>
             )}
             {/* Банковские колонки стоят там же, где у остальных компаний
@@ -2137,10 +2228,10 @@ const HistTable: React.FC<HistTableProps & { pctMode: boolean }> = ({
               </th>
             )}
             <th className="col-rev col-header-unit-col">
-              <ColHeaderWithUnit title="Выручка" />
+              <ColHeaderWithUnit title="Выручка" unit={moneyScales.revenue.unit} />
             </th>
             <th className="col-ni col-header-unit-col">
-              <ColHeaderWithUnit title="Прибыль" />
+              <ColHeaderWithUnit title="Прибыль" unit={moneyScales.profit.unit} />
             </th>
             <th
               className="col-mult col-compact col-header-unit-col"
@@ -2188,6 +2279,7 @@ const HistTable: React.FC<HistTableProps & { pctMode: boolean }> = ({
               previous={rows.length > 0 ? snapshotFromRecord(rows[0]) : null}
               isPreferredShare={isPreferredShare}
               portfolioInTrillions={portfolioInTrillions}
+              moneyScales={moneyScales}
               sharesScale={sharesScale}
               // Потоковые показатели (ROA, маржа, стоимость риска) — за
               // скользящий год, балансовые — с отчёта `balance_report_id`.
@@ -2231,6 +2323,7 @@ const HistTable: React.FC<HistTableProps & { pctMode: boolean }> = ({
               previous={index + 1 < rows.length ? snapshotFromRecord(rows[index + 1]) : null}
               isPreferredShare={isPreferredShare}
               portfolioInTrillions={portfolioInTrillions}
+              moneyScales={moneyScales}
               sharesScale={sharesScale}
               bankMetrics={r.report_id != null ? bankMetricsByReport?.get(r.report_id) : null}
               costToIncome={r.cost_to_income}
