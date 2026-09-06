@@ -155,11 +155,24 @@ def _check_lender(rep, out: list[Finding]) -> None:
 
 
 def _check_ranges(rep, out: list[Finding]) -> None:
+    # У кредитной организации «выручка» — это операционный доход, а он
+    # величина **чистая**: проценты полученные минус уплаченные, плюс
+    # комиссии, плюс результат по торговым операциям. В плохой год она
+    # законно уходит в минус, и объявлять это испорченными данными нельзя.
+    # У ВТБ за 2022 год доход −501 млрд при убытке −674 млрд и положительном
+    # чистом процентном доходе 298 млрд — ряд связный, год такой.
+    #
+    # Для промышленной компании минус в выручке по-прежнему невозможен:
+    # там это валовые продажи, а не сальдо. Остатки — активы, портфель,
+    # депозиты — отрицательными не бывают ни у кого.
+    is_bank = str(getattr(rep, "report_type", "")).lower() == "bank"
+
     for name in ("revenue", "total_assets", "gross_loans", "customer_deposits", "equity"):
         value = _f(rep, name)
         if value is not None and value < 0:
-            level = SUSPECT if name == "equity" else DEFECT
-            out.append(Finding(level, rep.fiscal_year, f"{name} отрицательный: {_num(value)}"))
+            soft = name == "equity" or (name == "revenue" and is_bank)
+            out.append(Finding(SUSPECT if soft else DEFECT, rep.fiscal_year,
+                               f"{name} отрицательный: {_num(value)}"))
 
     assets = _f(rep, "total_assets")
     if assets:
