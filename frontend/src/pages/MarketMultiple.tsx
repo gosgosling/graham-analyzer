@@ -1,6 +1,10 @@
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { getMarketMultiple, type MarketMultipleOut } from '../services/valuation.api';
+import {
+  getMarketMultiple,
+  type MarketMultipleOut,
+  type PayoutRung,
+} from '../services/valuation.api';
 import './MarketMultiple.css';
 
 /**
@@ -124,6 +128,125 @@ function Scale({ low, actual, high }: { low: number; actual: number; high: numbe
           <em>ставка вернулась к норме</em>
         </span>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Переключатель доли выплаты.
+ *
+ * Existует ради одного вывода, который иначе приходится объяснять словами:
+ * множитель компании определяется не только рынком, но и тем, сколько она
+ * отдаёт владельцу. Ступени считает сервер — со своим ростом на каждой,
+ * потому что рост и выплата связаны, и двигать одно, оставляя другое, значит
+ * описывать компанию, которой не бывает.
+ */
+function PayoutSwitch({
+  ladder,
+  marketPayout,
+  hasNormalized,
+}: {
+  ladder: PayoutRung[];
+  marketPayout: number | null;
+  hasNormalized: boolean;
+}) {
+  // Стартуем на ступени, ближайшей к тому, что рынок платит на самом деле:
+  // так видно, откуда компания двигается, а не абстрактную середину.
+  const nearestToMarket = useMemo(() => {
+    if (marketPayout === null) return ladder.findIndex((r) => r.payout === 50);
+    let best = 0;
+    ladder.forEach((rung, i) => {
+      if (Math.abs(rung.payout - marketPayout) < Math.abs(ladder[best].payout - marketPayout)) {
+        best = i;
+      }
+    });
+    return best;
+  }, [ladder, marketPayout]);
+
+  const [index, setIndex] = useState(nearestToMarket);
+  const rung = ladder[index];
+  const full = ladder[ladder.length - 1];
+  if (!rung) return null;
+
+  const ratioToFull =
+    rung.multiple && full.multiple ? full.multiple / rung.multiple : null;
+
+  return (
+    <div className="mm-switch">
+      <label className="mm-switch-head" htmlFor="mm-payout">
+        <span>Компания отдаёт владельцу</span>
+        <output className="mm-switch-value">{rung.payout}%</output>
+        <span className="mm-switch-sub">прибыли</span>
+      </label>
+
+      <input
+        id="mm-payout"
+        className="mm-switch-range"
+        type="range"
+        min={0}
+        max={ladder.length - 1}
+        step={1}
+        value={index}
+        onChange={(e) => setIndex(Number(e.target.value))}
+        aria-label="Доля прибыли, уходящая на дивиденды"
+      />
+      <div className="mm-switch-scale">
+        <span>0% — не платит</span>
+        {marketPayout !== null && <span>рынок {marketPayout.toFixed(0)}%</span>}
+        <span>100% — раздаёт всё</span>
+      </div>
+
+      <div className="mm-switch-out">
+        <div className="mm-switch-cell">
+          <span className="mm-switch-label">рост, который она может себе позволить</span>
+          <span className="mm-switch-num">{fmt(rung.growth, 2, '%')}</span>
+          <span className="mm-switch-hint">
+            ROE × (1 − {rung.payout}%)
+          </span>
+        </div>
+        <div className="mm-switch-cell">
+          <span className="mm-switch-label">зазор K − g</span>
+          <span className="mm-switch-num">{fmt(rung.spread, 2)}</span>
+          <span className="mm-switch-hint">п.п.</span>
+        </div>
+        <div className="mm-switch-cell mm-switch-cell--main">
+          <span className="mm-switch-label">заслуженный множитель</span>
+          <span className="mm-switch-num">{rung.multiple ?? '—'}</span>
+          {hasNormalized && (
+            <span className="mm-switch-hint">
+              при нормальной ставке {rung.normalized_multiple ?? '—'}
+            </span>
+          )}
+        </div>
+        <div className="mm-switch-cell">
+          <span className="mm-switch-label">дивидендная доходность</span>
+          <span className="mm-switch-num">{fmt(rung.dividend_yield, 1, '%')}</span>
+          <span className="mm-switch-hint">при этой цене</span>
+        </div>
+      </div>
+
+      {rung.problem ? (
+        <div className="mm-note mm-note--warn">
+          <strong>Множитель не считается:</strong> {rung.problem}.
+          {rung.payout === 0 && (
+            <>
+              {' '}Это не сбой. Компания, которая никогда ничего не отдаёт
+              владельцу, по модели Гордона не стоит ничего — сколько бы она ни
+              зарабатывала и как бы быстро ни росла. Так модель и устроена: она
+              оценивает деньги, доходящие до акционера, а не рост ради роста.
+            </>
+          )}
+        </div>
+      ) : (
+        ratioToFull !== null &&
+        rung.payout < 100 && (
+          <p className="mm-small mm-switch-foot">
+            Компания, раздающая всё, заслуживает множителя в{' '}
+            <b>{ratioToFull.toFixed(2)} раза</b> выше. Она не растёт — зато и не
+            тратит на капекс, окупаемость которого владельцу не доказана.
+          </p>
+        )
+      )}
     </div>
   );
 }
@@ -368,6 +491,39 @@ function Content({ data }: { data: MarketMultipleOut }) {
           </p>
         )}
       </section>
+
+      {/* ── Переключатель выплаты ──────────────────────────────────────── */}
+      {data.payout_ladder.length > 0 && (
+        <section className="mm-block">
+          <h2>Сколько заслуживает компания с другой выплатой</h2>
+          <p>
+            Базовый множитель посчитан для рынка со средней выплатой{' '}
+            {fmt(s.payout, 2, '%')}. Но множитель конкретной компании зависит от
+            того, сколько она отдаёт владельцу — и зависит сильно, потому что
+            выплата стоит в числителе, а связанный с ней рост в знаменателе.
+            Подвигай ползунок.
+          </p>
+          <PayoutSwitch
+            ladder={data.payout_ladder}
+            marketPayout={s.payout}
+            hasNormalized={normalized !== null}
+          />
+          <div className="mm-note">
+            <strong>Это совпадает с тем, что видно на рынке.</strong> Российские
+            компании со стопроцентной выплатой исторически торговались по
+            P/E&nbsp;8–8,5 против рыночных 5,5–6 — отношение 1,43. Формула, ничего
+            не знающая о котировках, даёт{' '}
+            {data.payout_ladder[data.payout_ladder.length - 1].multiple &&
+            data.payout_ladder.find((r) => r.payout === 50)?.multiple
+              ? (
+                  data.payout_ladder[data.payout_ladder.length - 1].multiple! /
+                  data.payout_ladder.find((r) => r.payout === 50)!.multiple!
+                ).toFixed(2)
+              : '—'}
+            . Два независимых пути к одному ответу.
+          </div>
+        </section>
+      )}
 
       {/* ── Где рынок на самом деле ────────────────────────────────────── */}
       {current?.value && normalized?.value && s.observed_multiple && (

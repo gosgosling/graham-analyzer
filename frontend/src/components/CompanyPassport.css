@@ -1,0 +1,425 @@
+/* Паспорт компании: строка на ось, крупные числа, порог справа с обоснованием.
+   Плотная типографская сетка вместо карточек — читается сверху вниз одним
+   движением, а не собирается взглядом из плиток. */
+
+.pp {
+  --pp-mono: 'SF Mono', 'JetBrains Mono', 'Cascadia Mono', Menlo, Consolas, monospace;
+  padding: var(--space-4) var(--space-5) var(--space-5);
+  color: var(--color-text-primary);
+}
+
+.pp-state {
+  padding: var(--space-5);
+  color: var(--color-text-tertiary);
+  font-size: 0.95rem;
+}
+
+.pp-state--error { color: var(--color-error-text); }
+
+/* ── Шапка ────────────────────────────────────────────────────────────── */
+
+.pp-title {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-4);
+}
+
+.pp-title b {
+  font-family: var(--pp-mono);
+  font-size: 1.45rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.pp-title span {
+  font-size: 0.98rem;
+  color: var(--color-text-tertiary);
+}
+
+.pp-title em {
+  font-style: normal;
+  font-family: var(--pp-mono);
+  font-size: 0.76rem;
+  padding: 3px 9px;
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-subtle);
+  border: 1px solid var(--color-border-subtle);
+  color: var(--color-text-tertiary);
+  cursor: help;
+}
+
+/* ── Разделитель раздела ──────────────────────────────────────────────── */
+
+.pp-section {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: var(--space-4) 0 var(--space-2);
+}
+
+.pp-section > span {
+  font-family: var(--pp-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-text-quaternary);
+  white-space: nowrap;
+}
+
+.pp-section > i {
+  flex: 1;
+  height: 1px;
+  background: var(--color-border-subtle);
+}
+
+.pp-switch {
+  display: flex;
+  gap: 4px;
+}
+
+.pp-switch button {
+  font-family: var(--pp-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 3px 9px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--color-text-quaternary);
+  cursor: pointer;
+}
+
+.pp-switch button:hover { color: var(--color-text-secondary); }
+
+.pp-switch button.is-on {
+  border-color: var(--color-border-default);
+  background: var(--color-bg-subtle);
+  color: var(--color-text-primary);
+}
+
+/* ── Строка оси ───────────────────────────────────────────────────────── */
+
+/* Все шесть колонок объявлены здесь, на общей сетке паспорта, а строки осей и
+   блоки величин подхватывают их через `subgrid`. Иначе каждая ось меряет
+   колонки по своему содержимому, и «Отдача на капитал» у рентабельности
+   встаёт левее, чем «Годы без убытка» у стабильности — величины выровнены
+   внутри оси, но не между осями, а глазу нужно именно второе.
+
+   Ширина при этом всё равно по содержимому: она берётся по самой длинной
+   подписи из всего паспорта, а не назначается на глаз. */
+.pp-rows {
+  display: grid;
+  grid-template-columns:
+    34px                        /* знак */
+    minmax(150px, auto)         /* название оси */
+    minmax(64px, max-content)   /* величина */
+    minmax(0, max-content)      /* подпись */
+    62px                        /* спарклайн */
+    minmax(300px, 1fr);         /* порог и обоснование */
+  column-gap: var(--space-3);
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+/* Горизонтальных отступов у строки нет намеренно: они сдвинули бы её дорожки
+   относительно родительских, и выравнивание, ради которого всё затевалось,
+   рассыпалось бы. Воздух по краям даёт `.pp`. */
+.pp-row {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: subgrid;
+  padding: var(--space-4) 0;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.pp-row > .pp-verdict {
+  padding-left: var(--space-3);
+}
+
+/* Знак крупный: он и есть ответ, всё остальное — обоснование. */
+.pp-mark {
+  font-size: 1.4rem;
+  font-weight: 700;
+  line-height: 1.1;
+  text-align: center;
+  cursor: help;
+  color: var(--color-text-quaternary);
+}
+
+.pp-row--pass .pp-mark { color: var(--color-success); }
+.pp-row--fail .pp-mark { color: var(--color-error); }
+
+.pp-name h4 {
+  margin: 0;
+  font-size: 1.02rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.pp-name span {
+  display: block;
+  margin-top: 3px;
+  font-size: 0.8rem;
+  color: var(--color-text-quaternary);
+  line-height: 1.35;
+}
+
+/* ── Величины ─────────────────────────────────────────────────────────── */
+
+/* Блок величин занимает три средние колонки и берёт их у строки, а та — у
+   паспорта. Подметрики укладываются в них рядами, поэтому число, подпись и
+   спарклайн стоят на одних вертикалях во всех семи осях сразу. */
+.pp-values {
+  grid-column: 3 / 6;
+  display: grid;
+  grid-template-columns: subgrid;
+  align-items: baseline;
+  row-gap: 7px;
+}
+
+/* Строка растворяется в родительской сетке — иначе каждая мерила бы свои
+   колонки сама и спарклайны разъехались бы по разным вертикалям. */
+.pp-metric {
+  display: contents;
+}
+
+.pp-metric b {
+  font-family: var(--pp-mono);
+  font-size: 0.98rem;
+  font-weight: 700;
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Цвет по стороне нуля, а не по порогу: убыток есть убыток при любой мерке. */
+.pp-metric b.is-good { color: var(--color-success-strong); }
+.pp-metric b.is-bad  { color: var(--color-error); }
+/* Величина верна, но выросла не с той стороны дроби — жёлтый, а не зелёный. */
+.pp-metric b.is-warn { color: var(--color-warning-strong); }
+
+.pp-metric > span {
+  font-size: 0.86rem;
+  color: var(--color-text-tertiary);
+  line-height: 1.35;
+}
+
+.pp-metric i {
+  font-style: normal;
+  color: var(--color-text-quaternary);
+  font-size: 0.8rem;
+}
+
+/* Метка скользящего года: величина «сейчас», а не за календарный год. */
+.pp-metric em {
+  font-style: normal;
+  font-family: var(--pp-mono);
+  font-size: 0.64rem;
+  letter-spacing: 0.08em;
+  margin-left: 6px;
+  padding: 1px 5px;
+  border-radius: var(--radius-sm);
+  background: var(--color-primary-soft);
+  color: var(--color-text-link);
+  cursor: help;
+  vertical-align: 1px;
+}
+
+.pp-spark {
+  width: 62px;
+  height: 16px;
+  align-self: center;
+}
+
+.pp-spark-empty { display: block; }
+
+.pp-spark-line {
+  fill: none;
+  stroke: var(--color-text-quaternary);
+  stroke-width: 1.3;
+  vector-effect: non-scaling-stroke;
+}
+
+.pp-spark-zero {
+  stroke: var(--color-border-strong);
+  stroke-width: 1;
+  stroke-dasharray: 2 2;
+  vector-effect: non-scaling-stroke;
+}
+
+/* ── Порог и обоснование ──────────────────────────────────────────────── */
+
+.pp-verdict-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.pp-chip {
+  font-family: var(--pp-mono);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 4px 11px;
+  border-radius: var(--radius-sm);
+  background: var(--color-neutral-soft);
+  color: var(--color-neutral-text);
+  white-space: nowrap;
+}
+
+.pp-row--pass .pp-chip {
+  background: var(--color-success-soft);
+  color: var(--color-success-text);
+}
+
+.pp-row--fail .pp-chip {
+  background: var(--color-error-soft);
+  color: var(--color-error-text);
+}
+
+.pp-threshold {
+  font-family: var(--pp-mono);
+  font-size: 0.86rem;
+  color: var(--color-text-secondary);
+}
+
+.pp-adjusted {
+  margin-top: 5px;
+  font-family: var(--pp-mono);
+  font-size: 0.75rem;
+  color: var(--color-warning-text);
+}
+
+.pp-prose {
+  margin: 7px 0 0;
+  font-size: 0.86rem;
+  line-height: 1.5;
+  color: var(--color-text-tertiary);
+}
+
+.pp-source {
+  margin-top: 6px;
+  font-size: 0.74rem;
+  color: var(--color-warning-text);
+}
+
+/* Оговорка к засчитанному критерию: число верное, вопрос поставлен шатко.
+   Мягче, чем `.pp-doubt` — там величине верить нельзя вовсе, здесь просто
+   не стоит опираться на неё в одиночку. */
+.pp-caveat {
+  margin: 7px 0 0;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--color-warning-text);
+}
+
+/* Величина, которой нельзя верить. Стоит выше пояснения к порогу: сравнивать
+   с порогом уже нечего. */
+.pp-doubt {
+  margin: 7px 0 0;
+  font-size: 0.86rem;
+  line-height: 1.5;
+  color: var(--color-error-text);
+}
+
+/* ── Уровень: оба свода рядом ─────────────────────────────────────────── */
+
+.pp-levels {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: var(--space-3);
+}
+
+.pp-level {
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-subtle);
+}
+
+.pp-level.is-current {
+  border-color: var(--color-border-default);
+  background: var(--color-bg-surface);
+}
+
+.pp-level.is-clear {
+  border-color: var(--color-success-border);
+  background: var(--color-success-soft);
+}
+
+.pp-level-tag {
+  font-family: var(--pp-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-text-quaternary);
+}
+
+.pp-level-verdict {
+  margin-top: 5px;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--color-error-text);
+}
+
+.pp-level.is-clear .pp-level-verdict { color: var(--color-success-text); }
+
+.pp-level p {
+  margin: 6px 0 0;
+  font-size: 0.84rem;
+  line-height: 1.5;
+  color: var(--color-text-tertiary);
+}
+
+.pp-foot {
+  margin: var(--space-4) 0 0;
+  font-size: 0.8rem;
+  line-height: 1.55;
+  color: var(--color-text-quaternary);
+}
+
+/* ── Узкий экран ──────────────────────────────────────────────────────── */
+
+/* На узком экране общая сетка распадается: строка встаёт в две колонки, а
+   величины меряют свои три сами. Сквозное выравнивание здесь всё равно
+   недостижимо — места на шесть колонок нет, — и держаться за subgrid значило
+   бы ломать вёрстку ради принципа. */
+@media (max-width: 1080px) {
+  .pp-rows {
+    display: block;
+  }
+
+  .pp-row {
+    grid-column: auto;
+    grid-template-columns: 26px 1fr;
+    gap: var(--space-2) var(--space-3);
+  }
+
+  .pp-values {
+    grid-column: 2;
+    grid-template-columns: minmax(64px, max-content) minmax(0, 1fr) 62px;
+    column-gap: var(--space-2);
+  }
+
+  .pp-verdict {
+    grid-column: 2;
+    padding-top: var(--space-2);
+    padding-left: 0;
+    border-top: 1px dashed var(--color-border-subtle);
+  }
+}
+
+@media (max-width: 640px) {
+  .pp-metric {
+    grid-template-columns: minmax(74px, auto) 1fr;
+  }
+
+  .pp-spark,
+  .pp-spark-empty {
+    display: none;
+  }
+}

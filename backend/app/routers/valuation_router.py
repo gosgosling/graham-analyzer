@@ -13,7 +13,9 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.market_assumption import MarketAssumption
+from app.models.company import Company
 from app.services.analysis import market_snapshot
+from app.services.analysis.company_valuation import DEFAULT_WINDOW, assess, series
 from app.services.analysis.market_multiple import (
     HISTORIC_AVERAGE,
     HISTORIC_RANGE,
@@ -22,6 +24,7 @@ from app.services.analysis.market_multiple import (
     implied_growth,
     implied_premium,
     paired_multiples,
+    payout_ladder,
     sensitivity,
 )
 
@@ -112,6 +115,14 @@ def market_multiple(
         "normalized": pair["normalized"].as_dict() if pair["normalized"] else None,
         "rate_effect": pair["rate_effect"],
         "sensitivity": sensitivity(pair["current"]) if pair["current"] else [],
+        # Лестница выплаты: рост на каждой ступени свой, потому что расти
+        # можно только на то, что не раздал.
+        "payout_ladder": payout_ladder(
+            snapshot.roe,
+            float(assumption.risk_free_rate),
+            float(assumption.risk_premium),
+            normalized,
+        ),
         "implied": _implied(snapshot, assumption),
         "reference": {
             "book": SP400_1987,
@@ -120,3 +131,28 @@ def market_multiple(
             "historic_range": list(HISTORIC_RANGE),
         },
     }
+
+
+@router.get("/company/{company_id}")
+def company_valuation(
+    company_id: int,
+    window: int = Query(DEFAULT_WINDOW, ge=3, le=15, description="окно нормализации, лет"),
+    year: Optional[int] = Query(None, description="год допущений; по умолчанию последний"),
+    db: Session = Depends(get_db),
+) -> dict:
+    company = db.query(Company).filter(Company.id == company_id).first()
+    if company is None:
+        raise HTTPException(status_code=404, detail=f"Компания {company_id} не найдена")
+    return assess(db, company, _assumption(db, year), window)
+
+
+@router.get("/company/{company_id}/series")
+def company_series(
+    company_id: int,
+    window: int = Query(DEFAULT_WINDOW, ge=3, le=15, description="окно нормализации, лет"),
+    db: Session = Depends(get_db),
+) -> dict:
+    company = db.query(Company).filter(Company.id == company_id).first()
+    if company is None:
+        raise HTTPException(status_code=404, detail=f"Компания {company_id} не найдена")
+    return series(db, company, window)

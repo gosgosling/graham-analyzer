@@ -26,6 +26,38 @@
   margin: 0;
 }
 
+/* Переворот на оборотную сторону: половина оборота — подмена — вторая
+   половина. Ребром к зрителю содержимое не видно, поэтому разница высот
+   лицевой и оборотной сторон в глаза не бросается. */
+.mult-panel {
+  transition: transform 0.17s ease-in;
+  transform-origin: center;
+}
+.mult-panel.is-flipping { transform: rotateY(90deg); }
+
+.btn-flip {
+  padding: 6px 14px;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: 0.85rem;
+  font-weight: 550;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.btn-flip:hover {
+  background: var(--color-primary-soft);
+  border-color: var(--color-border-accent);
+  color: var(--color-text-primary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mult-panel { transition: none; }
+  .mult-panel.is-flipping { transform: none; }
+}
+
 .mult-panel-controls {
   display: flex;
   align-items: center;

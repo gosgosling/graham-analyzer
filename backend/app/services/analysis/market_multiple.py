@@ -146,8 +146,11 @@ def base_multiple(
     )
 
     if result.payout <= 0:
+        # Формулировка нейтральна к тому, о ком речь: та же функция считает
+        # и множитель рынка, и ступени лестницы выплаты для одной компании.
         result.problem = (
-            "рынок не платит дивидендов — формула через выплату неприменима"
+            "выплаты нет — формула оценивает возврат денег владельцу, "
+            "а возвращать нечего"
         )
         return result
 
@@ -300,6 +303,7 @@ def implied_premium(
 def sustainable_growth(
     roe: Optional[float],
     payout: Optional[float],
+    cap: Optional[float] = None,
 ) -> Optional[float]:
     """Темп роста, который компания способна обеспечить сама: `ROE × (1 − payout)`.
 
@@ -315,10 +319,41 @@ def sustainable_growth(
     Выплата выше ста процентов (раздали больше, чем заработали) даёт
     отрицательный рост. Это не ошибка: компания проедает капитал, и на длинном
     горизонте дивиденды обязаны снижаться.
+
+    **Потолок `cap`.** У компании с крошечным балансовым капиталом отдача
+    улетает за сотню процентов — не оттого, что бизнес выдающийся, а оттого,
+    что мал знаменатель: выкуп съел капитал, нематериальное списано, гудвил
+    обнулён. Выведенный из такой отдачи рост обгоняет требуемую доходность, и
+    формула отказывается считать вовсе.
+
+    Потолок — не костыль. Это тот же довод, из-за которого требуется `K > g`,
+    доведённый до числа: расти быстрее экономики вечно нельзя. Потолок только
+    опускает величину и никогда не поднимает — у медленной компании он ничего
+    не меняет.
     """
     if roe is None or payout is None:
         return None
-    return round(float(roe) * (1.0 - float(payout) / 100.0), 2)
+    growth = float(roe) * (1.0 - float(payout) / 100.0)
+    if cap is not None:
+        growth = min(growth, float(cap))
+    return round(growth, 2)
+
+
+def growth_is_capped(
+    roe: Optional[float],
+    payout: Optional[float],
+    cap: Optional[float],
+) -> bool:
+    """Упёрся ли выведенный рост в потолок.
+
+    Нужно отдельно от самой величины: подрезанный рост надо показывать с
+    пометкой, иначе читатель решит, что компания и правда растёт ровно на
+    столько, сколько написано.
+    """
+    if cap is None:
+        return False
+    raw = sustainable_growth(roe, payout)
+    return raw is not None and raw > float(cap)
 
 
 def paired_multiples(
@@ -354,3 +389,60 @@ def paired_multiples(
         # Во сколько раз множитель вырастет, если ставки вернутся к норме.
         "rate_effect": gap,
     }
+
+
+# Шаг лестницы выплаты. Мельче не нужно: разговор идёт о «раздаёт всё» против
+# «раздаёт половину», а не о десятых долях процента.
+PAYOUT_STEP = 5
+
+
+def payout_ladder(
+    roe: Optional[float],
+    risk_free_rate: Optional[float],
+    risk_premium: Optional[float],
+    normalized_risk_free_rate: Optional[float] = None,
+    step: int = PAYOUT_STEP,
+) -> list:
+    """Какой множитель заслуживает компания при каждой доле выплаты.
+
+    Считается со **своим** ростом на каждой ступени: `g = ROE × (1 − payout)`.
+    Иначе лестница врала бы — рост и выплата связаны, и менять одно, оставляя
+    другое, значит описывать компанию, которой не бывает.
+
+    Смысл лестницы виден на её концах. Компания, раздающая всё, не растёт, но
+    и не тратит на капекс, окупаемость которого не доказана; компания, не
+    раздающая ничего, растёт быстрее всех — и стоит ноль, потому что владелец
+    не получает ничего и не получит. Второе не парадокс, а точная формулировка
+    того, что модель Гордона вообще умеет оценивать: возврат денег, а не рост
+    ради роста.
+    """
+    if roe is None or risk_free_rate is None or risk_premium is None:
+        return []
+
+    rows = []
+    for payout in range(0, 101, step):
+        growth = sustainable_growth(roe, float(payout))
+        current = base_multiple(float(payout), risk_free_rate, risk_premium, growth)
+        normalized = None
+        if normalized_risk_free_rate is not None:
+            normalized = base_multiple(
+                float(payout), normalized_risk_free_rate, risk_premium, growth
+            )
+
+        # Доходность для владельца: при выплате 100% совпадает с доходностью
+        # прибыли, при меньшей — ниже ровно во столько раз, во сколько меньше
+        # выплата.
+        dividend_yield = None
+        if current is not None and current.value:
+            dividend_yield = round(payout / current.value, 2)
+
+        rows.append({
+            "payout": payout,
+            "growth": growth,
+            "spread": current.spread if current else None,
+            "multiple": current.value if current else None,
+            "problem": current.problem if current else None,
+            "normalized_multiple": normalized.value if normalized else None,
+            "dividend_yield": dividend_yield,
+        })
+    return rows

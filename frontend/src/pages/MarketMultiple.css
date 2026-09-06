@@ -254,6 +254,80 @@ code {
 }
 .mm-split p { margin: 0; }
 
+/* ── Переключатель выплаты ────────────────────────────────────────────── */
+
+.mm-switch {
+  margin: var(--space-5) 0 var(--space-4);
+  padding: var(--space-5);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-surface);
+}
+
+.mm-switch-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-3);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+.mm-switch-value {
+  font-size: 1.6rem;
+  font-weight: 680;
+  color: var(--color-text-primary);
+  font-variant-numeric: tabular-nums;
+}
+.mm-switch-sub { color: var(--color-text-tertiary); }
+
+.mm-switch-range {
+  width: 100%;
+  margin: 0;
+  accent-color: var(--color-primary);
+  cursor: pointer;
+}
+.mm-switch-scale {
+  display: flex;
+  justify-content: space-between;
+  margin: var(--space-1) 0 var(--space-5);
+  font-size: 0.78rem;
+  color: var(--color-text-quaternary);
+}
+
+.mm-switch-out {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-3);
+}
+.mm-switch-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-subtle);
+}
+.mm-switch-cell--main {
+  background: var(--color-primary-soft);
+}
+.mm-switch-label {
+  font-size: 0.78rem;
+  line-height: 1.3;
+  color: var(--color-text-tertiary);
+}
+.mm-switch-num {
+  font-size: 1.5rem;
+  font-weight: 660;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+.mm-switch-hint {
+  font-size: 0.76rem;
+  color: var(--color-text-quaternary);
+}
+.mm-switch-foot { margin: var(--space-4) 0 0; }
+
 /* ── Результат ────────────────────────────────────────────────────────── */
 
 .mm-results {
@@ -439,6 +513,7 @@ code {
   .mm-result-arrow,
   .mm-split-plus { align-self: flex-start; }
   .mm-arg-head { flex-wrap: wrap; }
+  .mm-switch-out { grid-template-columns: repeat(2, 1fr); }
   .mm-arg-value { width: 100%; }
   .mm-table { font-size: 0.88rem; }
 }

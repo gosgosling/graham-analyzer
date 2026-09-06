@@ -13,11 +13,12 @@ import MassParse from './pages/MassParse';
 import ReportCalendar from './pages/ReportCalendar';
 import DisclosureCoverage from './pages/DisclosureCoverage';
 import MarketMultiple from './pages/MarketMultiple';
+import MarketScreen from './pages/MarketScreen';
 import ThemeToggle from './components/ThemeToggle';
 import DbBackupButton from './components/DbBackupButton';
 import { useTheme } from './contexts/ThemeContext';
 
-type NavSection = 'securities' | 'companies' | 'bonds' | 'mass-parse' | 'disclosure' | 'calendar' | 'valuation';
+type NavSection = 'securities' | 'companies' | 'bonds' | 'mass-parse' | 'disclosure' | 'calendar' | 'valuation' | 'screen';
 
 function Navigation() {
   const location = useLocation();
@@ -29,6 +30,7 @@ function Navigation() {
     : location.pathname.startsWith('/disclosure') ? 'disclosure'
     : location.pathname.startsWith('/calendar') ? 'calendar'
     : location.pathname.startsWith('/valuation') ? 'valuation'
+    : location.pathname.startsWith('/screen') ? 'screen'
     : 'companies';
 
   const navBtn = (section: NavSection, to: string, label: string) => (
@@ -52,6 +54,7 @@ function Navigation() {
           {navBtn('mass-parse', '/mass-parse', '🤖 Массовый парсинг')}
           {navBtn('disclosure', '/disclosure', '📋 Отчётность')}
           {navBtn('calendar', '/calendar', '🗓 Календарь')}
+          {navBtn('screen', '/screen', '🔎 Экран Грэма')}
           {navBtn('valuation', '/valuation', '📐 Множитель рынка')}
         </div>
         <div className="app-nav-actions">
@@ -120,6 +123,7 @@ function App() {
             <Route path="/disclosure" element={<DisclosureCoverage />} />
             <Route path="/calendar" element={<ReportCalendar />} />
             <Route path="/valuation" element={<MarketMultiple />} />
+            <Route path="/screen" element={<MarketScreen />} />
           </Routes>
         </div>
       </Router>

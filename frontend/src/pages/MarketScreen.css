@@ -1,0 +1,312 @@
+/* Экран Грэма по всему рынку: строка на компанию, столбец на критерий. */
+
+.ms {
+  padding: var(--space-5);
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.ms-head h1 {
+  margin: 0 0 var(--space-2);
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.ms-lede {
+  margin: 0 0 var(--space-4);
+  max-width: 74ch;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  color: var(--color-text-tertiary);
+}
+
+/* ── Переключатели ────────────────────────────────────────────────────── */
+
+.ms-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.ms-standards {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.ms-std {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-surface);
+  color: var(--color-text-secondary);
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+
+.ms-std:hover { background: var(--color-bg-hover); }
+
+.ms-std.is-on {
+  border-color: var(--color-border-accent);
+  background: var(--color-primary-soft);
+  color: var(--color-text-primary);
+  font-weight: 600;
+}
+
+.ms-std em {
+  font-style: normal;
+  font-size: 0.7rem;
+  font-weight: 400;
+  color: var(--color-text-quaternary);
+}
+
+.ms-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  color: var(--color-text-tertiary);
+  cursor: pointer;
+}
+
+/* ── Сводка ───────────────────────────────────────────────────────────── */
+
+.ms-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+  font-size: 0.92rem;
+  color: var(--color-text-secondary);
+}
+
+.ms-cleared b {
+  font-size: 1rem;
+  color: var(--color-text-primary);
+}
+
+.ms-note {
+  font-size: 0.78rem;
+  color: var(--color-warning-text);
+  background: var(--color-warning-soft);
+  border: 1px solid var(--color-warning-border);
+  border-radius: var(--radius-pill);
+  padding: 2px 10px;
+}
+
+.ms-state {
+  padding: var(--space-5);
+  color: var(--color-text-tertiary);
+  font-size: 0.88rem;
+}
+
+.ms-state--error { color: var(--color-error-text); }
+
+/* ── Таблица ──────────────────────────────────────────────────────────── */
+
+.ms-scroll {
+  overflow-x: auto;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-surface);
+}
+
+.ms-table {
+  border-collapse: separate;
+  border-spacing: 0;
+  width: 100%;
+  font-size: 0.88rem;
+}
+
+.ms-table th,
+.ms-table td {
+  padding: 8px 9px;
+  border-bottom: 1px solid var(--color-border-subtle);
+  text-align: center;
+  white-space: nowrap;
+}
+
+.ms-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--color-bg-elevated);
+  border-bottom: 1px solid var(--color-border-default);
+  vertical-align: bottom;
+  cursor: help;
+}
+
+.ms-col {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  max-width: 100px;
+  white-space: normal;
+  line-height: 1.25;
+}
+
+.ms-col-thr {
+  display: block;
+  margin-top: 3px;
+  font-size: 0.74rem;
+  font-weight: 400;
+  color: var(--color-text-quaternary);
+  font-variant-numeric: tabular-nums;
+}
+
+.ms-col-thr i {
+  font-style: normal;
+  color: var(--color-warning-text);
+}
+
+/* Колонка с тикером не уезжает при горизонтальной прокрутке. */
+.ms-sticky {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--color-bg-surface);
+  text-align: left !important;
+  font-weight: 500;
+  border-right: 1px solid var(--color-border-subtle);
+}
+
+.ms-table thead .ms-sticky {
+  z-index: 3;
+  background: var(--color-bg-elevated);
+}
+
+.ms-sticky a {
+  color: var(--color-text-link);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.ms-sticky a:hover { text-decoration: underline; }
+
+.ms-name {
+  display: block;
+  font-size: 0.74rem;
+  font-weight: 400;
+  color: var(--color-text-quaternary);
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ms-table tbody tr:hover td,
+.ms-table tbody tr:hover .ms-sticky {
+  background: var(--color-bg-hover);
+}
+
+.ms-table tbody tr.is-clear .ms-sticky {
+  box-shadow: inset 3px 0 0 var(--color-success);
+}
+
+.ms-cell {
+  cursor: help;
+  line-height: 1.2;
+}
+
+/* Знак сверху, величина под ним: видно не только «мимо», но и насколько. */
+.ms-cell b {
+  display: block;
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+
+.ms-cell i {
+  display: block;
+  font-style: normal;
+  font-size: 0.7rem;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.75;
+}
+
+.ms-cell--pass    { color: var(--color-success-text); background: var(--color-success-soft); }
+.ms-cell--fail    { color: var(--color-error-text);   background: var(--color-error-soft); }
+.ms-cell--na      { color: var(--color-text-quaternary); }
+.ms-cell--unknown { color: var(--color-text-quaternary); background: var(--color-neutral-soft); }
+
+.ms-total {
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-tertiary);
+  border-left: 1px solid var(--color-border-subtle);
+}
+
+.ms-clear-mark { color: var(--color-success-text); }
+
+/* ── Что валит чаще всего ─────────────────────────────────────────────── */
+
+.ms-fails {
+  margin-top: var(--space-5);
+}
+
+.ms-fails h2 {
+  margin: 0 0 var(--space-2);
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.ms-fails p {
+  margin: 0 0 var(--space-3);
+  max-width: 72ch;
+  font-size: 0.88rem;
+  line-height: 1.55;
+  color: var(--color-text-tertiary);
+}
+
+.ms-fails ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  max-width: 620px;
+}
+
+.ms-fails li {
+  display: grid;
+  grid-template-columns: 200px 1fr 90px;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 0.86rem;
+}
+
+.ms-fail-label { color: var(--color-text-secondary); }
+
+.ms-fail-bar {
+  height: 8px;
+  border-radius: var(--radius-pill);
+  background: var(--color-neutral-soft);
+  overflow: hidden;
+}
+
+.ms-fail-bar i {
+  display: block;
+  height: 100%;
+  background: var(--color-error);
+  opacity: 0.65;
+}
+
+.ms-fail-count {
+  text-align: right;
+  color: var(--color-text-quaternary);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 720px) {
+  .ms { padding: var(--space-3); }
+  .ms-fails li { grid-template-columns: 130px 1fr 70px; }
+}
