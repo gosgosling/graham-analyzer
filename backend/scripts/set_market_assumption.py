@@ -80,6 +80,8 @@ def main() -> int:
     parser.add_argument("--growth", type=float,
                         help="рост дивидендов, %% (иначе устойчивый по базе)")
     parser.add_argument("--payout", type=float, help="выплата, %% (иначе по базе)")
+    parser.add_argument("--long-run-growth", type=float,
+                        help="потолок устойчивого роста компаний, %% годовых")
     parser.add_argument("--note", default=None)
     parser.add_argument("--grid", action="store_true", help="сетка допущений")
     parser.add_argument("--apply", action="store_true", help="записать в базу")
@@ -128,6 +130,9 @@ def main() -> int:
             print(f"  разница в {pair['rate_effect']}x — это про момент в цикле "
                   f"ставок, а не про компании")
         print(f"  для сравнения: США за 115 лет — 13,8 (пятилетки от 8,9 до 18,8)")
+        if args.long_run_growth is not None:
+            print(f"  потолок роста компаний: {args.long_run_growth}% — выше него "
+                  f"выведенный рост подрезается")
 
         if pair["current"] is not None and pair["current"].value:
             print("  чувствительность к премии за риск:")
@@ -146,6 +151,7 @@ def main() -> int:
             db.add(row)
         row.risk_free_rate = args.risk_free
         row.normalized_risk_free_rate = args.normalized_risk_free
+        row.long_run_growth = args.long_run_growth
         row.risk_premium = args.premium
         row.dividend_growth = growth
         row.payout = args.payout

@@ -46,10 +46,38 @@ import {
   type RoeDriver,
   type RoeSourceVerdict,
 } from '../utils/roeBreakdown';
+import CompanyValuation from './CompanyValuation';
+import CompanyPassport from './CompanyPassport';
 import './MultipliersPanel.css';
 
 // ─── Цветовая кодировка ──────────────────────────────────────────────────────
 //
+// Половина оборота панели, мс. Содержимое подменяется в середине, когда грань
+// повёрнута ребром к зрителю и всё равно не видна.
+const FLIP_HALF_MS = 170;
+
+/**
+ * Грани панели. Порядок — тот, в котором их читают: сначала разбор компании
+ * по критериям, потом её оценка, и только потом мультипликаторы как справка.
+ * Сейчас первыми показываются мультипликаторы, потому что к ним привыкли;
+ * порядок кнопок уже отражает будущий, а не нынешний.
+ */
+type PanelFace = 'multipliers' | 'passport' | 'valuation';
+
+const FACE_TITLES: Record<PanelFace, string> = {
+  multipliers: 'Мультипликаторы',
+  passport: 'Паспорт компании',
+  valuation: 'Оценка стоимости',
+};
+
+const FACE_HINTS: Record<PanelFace, string> = {
+  multipliers: 'Показатели за каждый год как есть',
+  passport: 'Семь осей главы 13 с порогами защитного и активного инвестора',
+  valuation: 'Полоса стоимости по Грэму и Додду',
+};
+
+const FACE_ORDER: PanelFace[] = ['multipliers', 'passport', 'valuation'];
+
 // Пороги P/E, P/B, D/E, CR, ROE и дивдоходности задаёт отраслевой профиль,
 // который приходит с бэкенда вместе с мультипликаторами: у продуктового
 // ритейлера Current Ratio 0.7 — норма, у банка D/E вообще не считается.
@@ -2874,13 +2902,40 @@ const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company, reports })
   }, [companyId, queryClient]);
 
   const rows = histData ?? [];
+  const [face, setFace] = React.useState<PanelFace>('multipliers');
+  const [flipping, setFlipping] = React.useState(false);
+
+  // Переворот панели. Половина оборота, подмена содержимого, вторая половина —
+  // так лицевая и оборотная стороны не обязаны быть одной высоты. Полноценный
+  // трёхмерный флип с двумя гранями в потоке растянул бы панель по большей из
+  // них и оставил пустоту под меньшей.
+  const flipTo = (next: PanelFace) => {
+    if (flipping || next === face) return;
+    setFlipping(true);
+    globalThis.setTimeout(() => setFace(next), FLIP_HALF_MS);
+    globalThis.setTimeout(() => setFlipping(false), FLIP_HALF_MS * 2);
+  };
 
   return (
-    <div className="mult-panel">
+    <div className={`mult-panel${flipping ? ' is-flipping' : ''}`}>
       {/* Заголовок */}
       <div className="mult-panel-header">
-        <h2 className="mult-panel-title">Мультипликаторы</h2>
+        <h2 className="mult-panel-title">{FACE_TITLES[face]}</h2>
         <div className="mult-panel-controls">
+          <div className="mult-faces" role="tablist" aria-label="Что показывать в панели">
+            {FACE_ORDER.filter((f) => f !== face).map((f) => (
+              <button
+                key={f}
+                type="button"
+                role="tab"
+                className="btn-flip"
+                onClick={() => flipTo(f)}
+                title={FACE_HINTS[f]}
+              >
+                {FACE_TITLES[f]} ›
+              </button>
+            ))}
+          </div>
           {autoRefreshing && !refreshMutation.isPending && (
             <span className="refresh-auto-indicator" title="Подтягиваем актуальную цену из T-Invest API">
               <span className="refresh-auto-spinner" aria-hidden />
@@ -2898,6 +2953,12 @@ const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company, reports })
         </div>
       </div>
 
+      {face === 'valuation' ? (
+        <CompanyValuation companyId={companyId} />
+      ) : face === 'passport' ? (
+        <CompanyPassport companyId={companyId} />
+      ) : (
+        <>
       {/* Холдинг и гибрид: честное предупреждение вместо правдоподобных цифр.
           У АФК Системы консолидация складывает выручку МТС, Segezha и прочих
           с долгом корпоративного центра — P/E по такой сумме не значит ничего.
@@ -3067,42 +3128,50 @@ const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company, reports })
               </div>
             </div>
 
-            {/* ── Нижняя строка: история на всю ширину ── */}
-            {(rows.length > 0 || currentData) && (
-              <div className="mult-history-row">
-                <div className="mult-history-header">
-                  <div className="mult-history-label">
-                    История мультипликаторов
-                    <span className="mult-history-mode-hint"> · годовые + LTM</span>
-                    {histPctMode && (
-                      <span className="mult-history-mode-hint"> · Δ к прошлому году</span>
-                    )}
-                  </div>
-                  <button
-                    type="button"
-                    className={`hist-pct-toggle${histPctMode ? ' hist-pct-toggle--active' : ''}`}
-                    onClick={() => setHistPctMode((v) => !v)}
-                    aria-pressed={histPctMode}
-                    aria-label={histPctMode ? 'Показать абсолютные значения' : 'Показать изменение к прошлому году'}
-                    title={histPctMode ? 'Абсолютные значения' : 'Изменение к прошлому году (%)'}
-                  >
-                    %
-                  </button>
-                </div>
-                <HistTable
-                  rows={rows}
-                  currentRow={currentData ?? undefined}
-                  profile={profile}
-                  isPreferredShare={!!company.is_preferred_share}
-                  pctMode={histPctMode}
-                  bankMetricsByReport={bankMetricsByReport}
-                  ltmBankMetrics={ltmBankMetrics}
-                />
-              </div>
-            )}
           </>
         )}
       </div>
+        </>
+      )}
+
+      {/* ── История мультипликаторов: под любой гранью ──
+          Она не принадлежит ни одной из сторон панели. Паспорт говорит, что
+          компания прошла или не прошла критерий, оценка — сколько она стоит;
+          и то и другое читается только вместе с рядом по годам, из которого
+          посчитано. Прятать ряд при перевороте значило бы прятать основание
+          вывода вместе с самим выводом. */}
+      {(rows.length > 0 || currentData) && (
+        <div className="mult-history-row">
+          <div className="mult-history-header">
+            <div className="mult-history-label">
+              История мультипликаторов
+              <span className="mult-history-mode-hint"> · годовые + LTM</span>
+              {histPctMode && (
+                <span className="mult-history-mode-hint"> · Δ к прошлому году</span>
+              )}
+            </div>
+            <button
+              type="button"
+              className={`hist-pct-toggle${histPctMode ? ' hist-pct-toggle--active' : ''}`}
+              onClick={() => setHistPctMode((v) => !v)}
+              aria-pressed={histPctMode}
+              aria-label={histPctMode ? 'Показать абсолютные значения' : 'Показать изменение к прошлому году'}
+              title={histPctMode ? 'Абсолютные значения' : 'Изменение к прошлому году (%)'}
+            >
+              %
+            </button>
+          </div>
+          <HistTable
+            rows={rows}
+            currentRow={currentData ?? undefined}
+            profile={profile}
+            isPreferredShare={!!company.is_preferred_share}
+            pctMode={histPctMode}
+            bankMetricsByReport={bankMetricsByReport}
+            ltmBankMetrics={ltmBankMetrics}
+          />
+        </div>
+      )}
     </div>
   );
 };

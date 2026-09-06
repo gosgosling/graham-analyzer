@@ -15,7 +15,9 @@ from app.services.analysis.market_multiple import (
     implied_premium,
     observed_payout,
     paired_multiples,
+    payout_ladder,
     sensitivity,
+    growth_is_capped,
     sustainable_growth,
 )
 
@@ -97,7 +99,7 @@ def test_tiny_spread_is_refused_as_meaningless():
 def test_zero_payout_is_refused():
     result = base_multiple(0.0, 8.5, 2.75, 5.0)
     assert result.value is None
-    assert "не платит дивидендов" in result.problem
+    assert "возвращать нечего" in result.problem
 
 
 def test_missing_input_returns_nothing_at_all():
@@ -327,3 +329,114 @@ def test_rate_effect_undefined_when_a_side_refuses_to_count():
 def test_normalized_rate_equal_to_current_changes_nothing():
     pair = paired_multiples(45.32, 16.0, 5.0, 8.0, normalized_risk_free_rate=16.0)
     assert pair["rate_effect"] == pytest.approx(1.0)
+
+
+# ── Лестница выплаты ───────────────────────────────────────────────────────
+
+def ladder():
+    return payout_ladder(roe=11.82, risk_free_rate=16.0, risk_premium=5.0,
+                         normalized_risk_free_rate=10.0)
+
+
+def test_ladder_covers_the_whole_range_in_steps():
+    rows = ladder()
+    assert [r["payout"] for r in rows][:3] == [0, 5, 10]
+    assert rows[-1]["payout"] == 100
+    assert len(rows) == 21
+
+
+def test_growth_falls_as_payout_rises():
+    """Рост и выплата связаны: чем больше раздал, тем меньше на чём расти."""
+    rows = {r["payout"]: r for r in ladder()}
+    assert rows[0]["growth"] == pytest.approx(11.82)     # ничего не раздал
+    assert rows[50]["growth"] == pytest.approx(5.91)
+    assert rows[100]["growth"] == pytest.approx(0.0)     # раздал всё
+
+
+def test_full_payer_deserves_the_highest_multiple():
+    rows = {r["payout"]: r for r in ladder()}
+    assert rows[100]["multiple"] == pytest.approx(4.76, abs=0.01)
+    assert rows[50]["multiple"] == pytest.approx(3.31, abs=0.01)
+    assert rows[100]["multiple"] > rows[50]["multiple"]
+
+
+def test_ratio_between_full_and_half_payer_matches_market_observation():
+    """Плательщик 100% заслуживает примерно 1,44 множителя половинного.
+
+    Наблюдение рынка: исторически российские компании со стопроцентной
+    выплатой торговались по P/E 8–8,5 против рыночных 5,5–6 — отношение 1,43.
+    Формула приходит к тому же, ничего о котировках не зная.
+    """
+    rows = {r["payout"]: r for r in ladder()}
+    assert rows[100]["multiple"] / rows[50]["multiple"] == pytest.approx(1.44, abs=0.02)
+
+
+def test_paying_nothing_is_worth_nothing():
+    """Не парадокс, а точная формулировка того, что оценивает Гордон."""
+    zero = ladder()[0]
+    assert zero["payout"] == 0
+    assert zero["multiple"] is None
+    assert "возвращать нечего" in zero["problem"]
+
+
+def test_dividend_yield_equals_earnings_yield_for_a_full_payer():
+    rows = {r["payout"]: r for r in ladder()}
+    full = rows[100]
+    assert full["dividend_yield"] == pytest.approx(100 / full["multiple"], abs=0.05)
+    assert full["dividend_yield"] == pytest.approx(21.0, abs=0.05)
+
+
+def test_normalized_rate_lifts_every_rung():
+    for row in ladder():
+        if row["multiple"] and row["normalized_multiple"]:
+            assert row["normalized_multiple"] > row["multiple"]
+
+
+def test_high_return_company_breaks_the_formula_at_low_payout():
+    """Рост выше требуемой доходности — формула отказывается, и это видно."""
+    rows = {r["payout"]: r for r in payout_ladder(
+        roe=30.0, risk_free_rate=16.0, risk_premium=5.0)}
+    assert rows[10]["multiple"] is None
+    assert "бесконечность" in rows[10]["problem"]
+    assert rows[100]["multiple"] is not None
+
+
+def test_ladder_without_inputs_is_empty():
+    assert payout_ladder(None, 16.0, 5.0) == []
+    assert payout_ladder(11.82, None, 5.0) == []
+
+
+# ── Потолок роста ──────────────────────────────────────────────────────────
+
+def test_cap_only_lowers_never_raises():
+    """У медленной компании потолок ничего не меняет."""
+    assert sustainable_growth(11.82, 45.32, cap=9.0) == pytest.approx(6.46, abs=0.01)
+    assert sustainable_growth(11.82, 45.32) == pytest.approx(6.46, abs=0.01)
+
+
+def test_cap_trims_a_tiny_denominator_company():
+    """Делимобиль: ROE 75% при капитале 2,6 млрд — рост от малого знаменателя."""
+    assert sustainable_growth(74.8, 20.0) == pytest.approx(59.84, abs=0.01)
+    assert sustainable_growth(74.8, 20.0, cap=9.0) == pytest.approx(9.0)
+
+
+def test_cap_leaves_negative_growth_alone():
+    """Раздали больше, чем заработали: рост отрицателен, потолок ни при чём."""
+    assert sustainable_growth(9.0, 108.6, cap=9.0) < 0
+
+
+def test_capped_flag_tells_the_two_cases_apart():
+    assert growth_is_capped(74.8, 20.0, 9.0) is True
+    assert growth_is_capped(11.82, 45.32, 9.0) is False
+    assert growth_is_capped(74.8, 20.0, None) is False
+    assert growth_is_capped(None, 20.0, 9.0) is False
+
+
+def test_cap_unblocks_a_multiple_the_formula_refused():
+    """Без потолка формула отказывается: рост обгоняет требуемую доходность."""
+    without = base_multiple(20.0, 16.0, 5.0, sustainable_growth(30.0, 20.0))
+    assert without.value is None
+    assert "бесконечность" in without.problem
+
+    with_cap = base_multiple(20.0, 16.0, 5.0, sustainable_growth(30.0, 20.0, cap=9.0))
+    assert with_cap.value == pytest.approx(1.67, abs=0.01)
