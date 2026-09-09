@@ -40,7 +40,7 @@
   padding: 12px 10px;
   text-align: left;
   font-weight: 600;
-  color: #2c3e50;
+  color: var(--color-text-primary);
   border-bottom: 2px solid #e1e8ed;
   font-size: 12px;
   text-transform: uppercase;
@@ -50,7 +50,7 @@
 .securities-table td {
   padding: 10px;
   border-bottom: 1px solid #e1e8ed;
-  color: #34495e;
+  color: var(--color-text-secondary);
 }
 
 .securities-table tbody tr:hover {
@@ -64,7 +64,7 @@
 
 .ticker-cell {
   font-weight: 600;
-  color: #2c3e50;
+  color: var(--color-text-primary);
   font-family: 'Courier New', monospace;
 }
 
@@ -77,26 +77,26 @@
 
 .price-cell {
   font-weight: 500;
-  color: #27ae60;
+  color: var(--color-success-text);
   text-align: right;
   font-family: 'Courier New', monospace;
 }
 
 .isin-cell {
   font-size: 11px;
-  color: #7f8c8d;
+  color: var(--color-text-tertiary);
   font-family: 'Courier New', monospace;
 }
 
 .currency-cell {
   text-align: center;
   font-weight: 500;
-  color: #3498db;
+  color: var(--color-primary);
 }
 
 .lot-cell {
   text-align: right;
-  color: #7f8c8d;
+  color: var(--color-text-tertiary);
 }
 
 .status-cell {
@@ -123,7 +123,7 @@
 
 .date-cell {
   font-size: 11px;
-  color: #7f8c8d;
+  color: var(--color-text-tertiary);
   font-family: 'Courier New', monospace;
 }
 
@@ -135,11 +135,11 @@
 }
 
 .loading {
-  color: #3498db;
+  color: var(--color-primary);
 }
 
 .error {
-  color: #e74c3c;
+  color: var(--color-error-text);
 }
 
 .action-cell {
@@ -148,7 +148,7 @@
 }
 
 .btn-add-report {
-  background-color: #3498db;
+  background-color: var(--color-primary);
   color: white;
   border: none;
   padding: 6px 12px;
@@ -161,7 +161,7 @@
 }
 
 .btn-add-report:hover {
-  background-color: #2980b9;
+  background-color: var(--color-primary-hover);
   transform: translateY(-1px);
   box-shadow: 0 2px 8px rgba(52, 152, 219, 0.3);
 }

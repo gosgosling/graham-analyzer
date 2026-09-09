@@ -267,8 +267,8 @@
 }
 
 .crm-mini-btn.danger:hover:not(:disabled) {
-  border-color: var(--color-error);
-  color: var(--color-error);
+  border-color: var(--color-error-text);
+  color: var(--color-error-text);
 }
 
 .crm-section-row td {

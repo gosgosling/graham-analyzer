@@ -1025,7 +1025,7 @@
 }
 
 .error {
-  color: var(--color-error);
+  color: var(--color-error-text);
 }
 
 .loading-small {
@@ -1284,12 +1284,12 @@
 
 /* Положительное значение (дивиденды выплачивались, FCF > 0) */
 .detail-yes {
-  color: var(--color-success);
+  color: var(--color-success-text);
 }
 
 /* Отрицательное значение (FCF < 0, убыток) */
 .detail-loss {
-  color: var(--color-error);
+  color: var(--color-error-text);
   font-weight: 700;
 }
 

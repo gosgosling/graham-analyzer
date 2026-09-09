@@ -148,8 +148,8 @@
   color: var(--color-text-quaternary);
 }
 
-.pp-row--pass .pp-mark { color: var(--color-success); }
-.pp-row--fail .pp-mark { color: var(--color-error); }
+.pp-row--pass .pp-mark { color: var(--color-success-text); }
+.pp-row--fail .pp-mark { color: var(--color-error-text); }
 
 .pp-name h4 {
   margin: 0;
@@ -196,7 +196,7 @@
 
 /* Цвет по стороне нуля, а не по порогу: убыток есть убыток при любой мерке. */
 .pp-metric b.is-good { color: var(--color-success-strong); }
-.pp-metric b.is-bad  { color: var(--color-error); }
+.pp-metric b.is-bad  { color: var(--color-error-text); }
 /* Величина верна, но выросла не с той стороны дроби — жёлтый, а не зелёный. */
 .pp-metric b.is-warn { color: var(--color-warning-strong); }
 

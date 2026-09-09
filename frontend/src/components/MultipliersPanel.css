@@ -150,10 +150,10 @@
   font-weight: 500;
 }
 
-.legend-item.good   { color: var(--color-success); }
-.legend-item.warn   { color: var(--color-warning); }
-.legend-item.bad    { color: var(--color-error); }
-.legend-item.loss   { color: var(--color-loss); }
+.legend-item.good   { color: var(--color-success-text); }
+.legend-item.warn   { color: var(--color-warning-text); }
+.legend-item.bad    { color: var(--color-error-text); }
+.legend-item.loss   { color: var(--color-loss-text); }
 .legend-item.neutral { color: var(--color-neutral); }
 
 .legend-profile {
@@ -383,9 +383,14 @@
   margin-bottom: 6px;
 }
 
-.current-card.level-good  .current-card-value { color: var(--color-success-text); }
-.current-card.level-warn  .current-card-value { color: var(--color-warning-text); }
-.current-card.level-bad   .current-card-value { color: var(--color-error-text); }
+/* Крупное число — единственное, ради чего карточку и открывают, поэтому у
+   него свой токен, а не общий текстовый. В тёмной теме акцент совпадает с
+   текстовым цветом и ничего не меняет: там светлый тон и так горит на тёмном.
+   На белом свечения не бывает — выделяет насыщенность, и акцент заметно
+   гуще. */
+.current-card.level-good  .current-card-value { color: var(--color-success-accent); }
+.current-card.level-warn  .current-card-value { color: var(--color-warning-accent); }
+.current-card.level-bad   .current-card-value { color: var(--color-error-accent); }
 .current-card.level-loss  .current-card-value { color: inherit; }
 
 .card-loss-badge {
@@ -436,10 +441,10 @@
   font-weight: 500;
 }
 
-.current-card-threshold.level-good   { color: var(--color-success); }
-.current-card-threshold.level-warn   { color: var(--color-warning); }
-.current-card-threshold.level-bad    { color: var(--color-error); }
-.current-card-threshold.level-loss   { color: var(--color-loss); }
+.current-card-threshold.level-good   { color: var(--color-success-text); }
+.current-card-threshold.level-warn   { color: var(--color-warning-text); }
+.current-card-threshold.level-bad    { color: var(--color-error-text); }
+.current-card-threshold.level-loss   { color: var(--color-loss-text); }
 .current-card-threshold.level-neutral { color: var(--color-text-quaternary); }
 
 /* ── LTM Финансовые показатели ───────────────────────────────────────────── */
@@ -1146,7 +1151,7 @@
 
 [data-theme='light'] .cr-tooltip-industry,
 .theme-light .cr-tooltip-industry {
-  color: #7f8c8d;
+  color: var(--color-text-tertiary);
   border-bottom-color: #e4e7ec;
 }
 

@@ -63,7 +63,7 @@
   font-variant-numeric: tabular-nums;
 }
 
-.mass-parse-stat .value.is-ok { color: var(--color-success, #27ae60); }
+.mass-parse-stat .value.is-ok { color: var(--color-success-text); }
 .mass-parse-stat .value.is-err { color: var(--color-danger, #b91c1c); }
 .mass-parse-stat .value.is-skip { color: var(--color-text-secondary); }
 
@@ -161,14 +161,14 @@
   letter-spacing: 0.03em;
 }
 
-.mass-parse-status-pill.running { background: #3498db33; color: #2980b9; }
+.mass-parse-status-pill.running { background: var(--color-info-soft); color: var(--color-primary-hover); }
 .mass-parse-status-pill.paused { background: #f39c1233; color: #d68910; }
-.mass-parse-status-pill.completed { background: #27ae6033; color: #1e8449; }
-.mass-parse-status-pill.cancelled { background: #95a5a633; color: #7f8c8d; }
-.mass-parse-status-pill.pending { background: #95a5a622; color: #7f8c8d; }
-.mass-parse-status-pill.success { background: #27ae6022; color: #1e8449; }
-.mass-parse-status-pill.error { background: #e74c3c22; color: #c0392b; }
-.mass-parse-status-pill.skipped { background: #7f8c8d22; color: #7f8c8d; }
+.mass-parse-status-pill.completed { background: var(--color-success-soft); color: var(--color-success-text); }
+.mass-parse-status-pill.cancelled { background: var(--color-neutral-soft); color: var(--color-text-tertiary); }
+.mass-parse-status-pill.pending { background: var(--color-neutral-soft); color: var(--color-text-tertiary); }
+.mass-parse-status-pill.success { background: var(--color-success-soft); color: var(--color-success-text); }
+.mass-parse-status-pill.error { background: var(--color-error-soft); color: var(--color-error-text); }
+.mass-parse-status-pill.skipped { background: var(--color-neutral-soft); color: var(--color-text-tertiary); }
 
 .mass-parse-message {
   margin: 8px 0 0;
@@ -181,8 +181,8 @@
   margin: 8px 0;
   padding: 10px 12px;
   border-radius: var(--radius-md);
-  background: #e74c3c15;
-  color: #c0392b;
+  background: var(--color-error-soft);
+  color: var(--color-error-text);
   font-size: 13px;
 }
 
@@ -243,7 +243,7 @@
 }
 
 .mass-parse-table tr.is-running {
-  background: #3498db12;
+  background: var(--color-info-soft);
 }
 
 .mass-parse-path {

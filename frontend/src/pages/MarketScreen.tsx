@@ -37,7 +37,44 @@ const TITLE: Record<ScreenStatus, string> = {
   unknown: 'Не хватает данных',
 };
 
-const cls = (status: ScreenStatus) => `ms-cell ms-cell--${status.replace('/', '')}`;
+/**
+ * Провал «на волосок»: 2,5 пункта при пороге 15 — это шестая часть планки.
+ *
+ * Сам Грэм порогам буквально не следовал: в гл. 14 он берёт устойчивую
+ * компанию и при P/E 16, потому что смотрел на картину целиком, а не на
+ * пересечение линии. Отсюда и жёлтый: почти — всё равно не прошла, вердикт
+ * не смягчается, но отличить «мимо на шаг» от «мимо на три четверти» нужно.
+ */
+const NEAR_MISS = 2.5 / 15;
+
+/** Границы глубины провала — в долях самого порога. */
+const MILD = 0.5;
+const BAD = 1.0;
+
+/**
+ * Класс ячейки. У проваленных различаем ещё и глубину.
+ *
+ * Вердикт остаётся двоичным — свод требует всех критериев сразу. Но Татнефть
+ * с отдачей 12% при пороге 15% и Роснефть с 3,2% рисовались одинаковым
+ * крестиком, хотя между ними разница вчетверо: для выбора между двумя
+ * непрошедшими это ровно та величина, которая и нужна.
+ */
+const cls = (v: Verdict) => {
+  const base = `ms-cell ms-cell--${v.status.replace('/', '')}`;
+  if (v.status !== 'fail') return base;
+  // Минус — не «дальше по той же шкале», а другое состояние: отдача −3,5%
+  // означает, что капитал акционера уменьшается, а не медленно растёт.
+  // Отдельная полоса нужна ещё и потому, что у правил с порогом ноль (рост
+  // потока) расстояние в долях порога не выражается вовсе, и без этой ветки
+  // сжимающийся поток красился бы бледнее любого недобора.
+  if (v.value != null && v.value < 0) return `${base} ms-cell--loss`;
+  if (v.shortfall == null) return base;
+  const depth = v.shortfall <= NEAR_MISS ? 'near'
+    : v.shortfall <= MILD ? 'mild'
+      : v.shortfall <= BAD ? 'bad'
+        : 'severe';
+  return `${base} ms-cell--${depth}`;
+};
 
 /** Величина в ячейке — рядом со знаком, чтобы было видно, насколько мимо.
  *
@@ -69,6 +106,14 @@ const cellTitle = (v: Verdict | null): string => {
   parts.push(`порог ${v.text}`);
   if (v.adjusted) parts.push(`в книге ${v.book_text}`);
   parts.push(v.source);
+  if (v.status === 'fail' && v.value != null && v.value < 0) {
+    parts.push('величина отрицательна — не «мало», а минус');
+  } else if (v.shortfall != null) {
+    const pct = (v.shortfall * 100).toLocaleString('ru-RU', { maximumFractionDigits: 0 });
+    parts.push(v.shortfall <= NEAR_MISS
+      ? `мимо на ${pct}% порога — почти дотянула`
+      : `мимо на ${pct}% порога`);
+  }
   if (v.note) parts.push(v.note);
   return parts.join('\n');
 };
@@ -171,7 +216,7 @@ export default function MarketScreen() {
                     {row.cells.map((cell, i) => (
                       <td
                         key={data.columns[i].metric}
-                        className={cell ? cls(cell.status) : 'ms-cell'}
+                        className={cell ? cls(cell) : 'ms-cell'}
                         title={cellTitle(cell)}
                       >
                         <b>{cell ? MARK[cell.status] : '—'}</b>

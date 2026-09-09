@@ -234,7 +234,7 @@
   padding: 12px 14px;
   text-align: left;
   font-weight: 600;
-  color: #2c3e50;
+  color: var(--color-text-primary);
   font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -279,14 +279,14 @@
 
 .bl-bond-name {
   font-weight: 600;
-  color: #2c3e50;
+  color: var(--color-text-primary);
   font-size: 13px;
   line-height: 1.3;
 }
 
 .bl-bond-ticker {
   font-size: 11px;
-  color: #7f8c8d;
+  color: var(--color-text-tertiary);
   font-family: 'Courier New', monospace;
   font-weight: 500;
 }
@@ -316,7 +316,7 @@
 .bl-nominal {
   font-variant-numeric: tabular-nums;
   font-weight: 500;
-  color: #2c3e50;
+  color: var(--color-text-primary);
   white-space: nowrap;
 }
 

@@ -56,10 +56,10 @@
   font-variant-numeric: tabular-nums;
 }
 
-.disclosure-stat .value.is-ok { color: var(--color-success, #27ae60); }
+.disclosure-stat .value.is-ok { color: var(--color-success-text); }
 .disclosure-stat .value.is-warn { color: #d68910; }
-.disclosure-stat .value.is-err { color: #c0392b; }
-.disclosure-stat .value.is-avail { color: #2980b9; }
+.disclosure-stat .value.is-err { color: var(--color-error-text); }
+.disclosure-stat .value.is-avail { color: var(--color-primary-hover); }
 
 .disclosure-actions {
   display: flex;
@@ -101,8 +101,8 @@
   margin: 8px 0;
   padding: 10px 12px;
   border-radius: var(--radius-md);
-  background: #e74c3c15;
-  color: #c0392b;
+  background: var(--color-error-soft);
+  color: var(--color-error-text);
   font-size: 13px;
 }
 
@@ -171,11 +171,13 @@
   text-transform: uppercase;
 }
 
-.disclosure-pill.waiting { background: #95a5a622; color: #7f8c8d; }
-.disclosure-pill.overdue { background: #e74c3c22; color: #c0392b; }
-.disclosure-pill.available { background: #3498db22; color: #2980b9; }
-.disclosure-pill.in_service { background: #27ae6022; color: #1e8449; }
-.disclosure-pill.unknown { background: #95a5a622; color: #7f8c8d; }
+/* Пилюли статуса — через токены, а не вшитыми хексами: раньше они держали
+   отдельную палитру Flat UI и в тёмной теме светились чужими цветами. */
+.disclosure-pill.waiting    { background: var(--color-neutral-soft); color: var(--color-neutral-text); }
+.disclosure-pill.overdue    { background: var(--color-error-soft);   color: var(--color-error-text); }
+.disclosure-pill.available  { background: var(--color-info-soft);    color: var(--color-info-text); }
+.disclosure-pill.in_service { background: var(--color-success-soft); color: var(--color-success-text); }
+.disclosure-pill.unknown    { background: var(--color-neutral-soft); color: var(--color-neutral-text); }
 
 .disclosure-row-actions {
   display: flex;

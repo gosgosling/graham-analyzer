@@ -468,6 +468,15 @@ function MetricBadge({
 /** Порог, за которым гудвил перестаёт быть мелочью в балансе. */
 const GOODWILL_FLAG_PCT = 20;
 
+/**
+ * Порог доли всего нематериального в КАПИТАЛЕ.
+ *
+ * Считается от капитала, а не от активов: у застройщика с тяжёлым балансом
+ * 11 млрд НМА — это 3% активов и 37% капитала, и обеспечением служит второе.
+ * Треть — та граница, за которой балансовая стоимость перестаёт быть твёрдой.
+ */
+const INTANGIBLES_FLAG_PCT = 33;
+
 function fmt2(value: number): string {
   return value.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
@@ -482,15 +491,22 @@ function fmt2(value: number): string {
  * число, а отчётное уходит в подсказку.
  *
  * Когда гудвила нет, оба значения совпадают и показывать нечего.
+ *
+ * Прочие НМА из показанного числа НЕ вычитаются: купленные лицензии, софт и
+ * патенты — настоящие средства производства, и «вон всё нематериальное» у
+ * IT-компании было бы не консерватизмом, а другой ошибкой. Но когда на них
+ * держится треть капитала, рядом встаёт значок: среди НМА попадаются
+ * отложенные права и льготы, живущие до тех пор, пока выполняются условия.
  */
 function PbMetricBadge({
-  profile, pb, equity, pbTangible, goodwillShare, nullHint,
+  profile, pb, equity, pbTangible, goodwillShare, intangiblesShare, nullHint,
 }: {
   profile: SectorProfile | null | undefined;
   pb: number | null;
   equity: number | null | undefined;
   pbTangible?: number | null;
   goodwillShare?: number | null;
+  intangiblesShare?: number | null;
   nullHint?: string;
 }) {
   const hasGoodwill = goodwillShare != null;
@@ -518,17 +534,39 @@ function PbMetricBadge({
     />
   );
 
-  if (!hasGoodwill || goodwillShare! < GOODWILL_FLAG_PCT) return badge;
+  // Значок ставят две независимые тревоги. Гудвил меряется от активов и уже
+  // вычтен из показанного числа; прочие НМА — от капитала и не вычтены. Значок
+  // один: две восклицательных рядом читались бы как удвоенная беда, а это не
+  // так — они про разное.
+  const goodwillFlagged = hasGoodwill && goodwillShare! >= GOODWILL_FLAG_PCT;
+  const intangiblesFlagged =
+    intangiblesShare != null && intangiblesShare >= INTANGIBLES_FLAG_PCT;
+  if (!goodwillFlagged && !intangiblesFlagged) return badge;
+
+  const reasons: string[] = [];
+  if (goodwillFlagged) {
+    reasons.push(
+      `Гудвил — ${share}% активов, и он уже вычтен из показанного P/B. `
+      + `С гудвилом было бы ${pb != null ? fmt2(pb) : '—'}. `
+      + `Чем крупнее эта доля, тем сильнее балансовая стоимость зависит от одной оценки: `
+      + `гудвил проверяют на обесценение раз в год, и списывают его целиком, а не постепенно.`,
+    );
+  }
+  if (intangiblesFlagged) {
+    const softShare = intangiblesShare!.toLocaleString('ru-RU', { maximumFractionDigits: 1 });
+    reasons.push(
+      `Нематериальные активы вместе с гудвилом — ${softShare}% капитала, и из показанного `
+      + `P/B они НЕ вычтены. Купленные лицензии, софт и патенты — настоящие средства `
+      + `производства, вычитать их было бы неверно. Но в той же строке баланса рядом с ними `
+      + `живут отложенные права и льготы, которые действуют, только пока выполняются условия `
+      + `сделки. Стоит открыть примечание об НМА и посмотреть состав.`,
+    );
+  }
+
   return (
     <span className="metric-with-flag">
       {badge}
-      <span
-        className="metric-flag"
-        title={`Гудвил — ${share}% активов, и он уже вычтен из показанного P/B. `
-          + `С гудвилом было бы ${pb != null ? fmt2(pb) : '—'}. `
-          + `Чем крупнее эта доля, тем сильнее балансовая стоимость зависит от одной оценки: `
-          + `гудвил проверяют на обесценение раз в год, и списывают его целиком, а не постепенно.`}
-      >
+      <span className="metric-flag" title={reasons.join('\n\n')}>
         !
       </span>
     </span>
@@ -1863,6 +1901,7 @@ const HistTableRow: React.FC<HistTableRowProps> = ({
           equity={snapshot.equity}
           pbTangible={snapshot.pb_tangible}
           goodwillShare={snapshot.goodwill_to_assets}
+          intangiblesShare={snapshot.intangibles_to_equity}
           nullHint={pbHint}
         />,
       )}

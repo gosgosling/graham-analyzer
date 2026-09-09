@@ -203,7 +203,16 @@
   text-overflow: ellipsis;
 }
 
-.ms-table tbody tr:hover td,
+/* Подсветка строки — рамкой сверху и снизу, а не заливкой.
+   Заливка перекрывала глубину провала: наводишь курсор на строку, чтобы её
+   прочитать, — и ровно в этот момент теряешь цвета, ради которых читаешь.
+   Столбец с тикером цветовой кодировки не несёт, там заливка уместна. */
+.ms-table tbody tr:hover td {
+  box-shadow:
+    inset 0 1px 0 var(--color-border-strong),
+    inset 0 -1px 0 var(--color-border-strong);
+}
+
 .ms-table tbody tr:hover .ms-sticky {
   background: var(--color-bg-hover);
 }
@@ -229,11 +238,53 @@
   font-style: normal;
   font-size: 0.7rem;
   font-variant-numeric: tabular-nums;
+}
+
+/* Приглушается только то, где величины нет по существу. Раньше гасились все
+   значения подряд, включая пройденные, — и вся таблица выглядела вылинявшей:
+   цвет уже приглушённый, да ещё и через прозрачность. */
+.ms-cell--unknown i,
+.ms-cell--na i {
   opacity: 0.75;
 }
 
-.ms-cell--pass    { color: var(--color-success-text); background: var(--color-success-soft); }
+/* Цвет пройденной ячейки задан отдельным токеном, потому что темам нужно
+   разное. На белом текстовый зелёный выглядел вылинявшим, и там взят тон
+   насыщеннее. В тёмной теме менять было нечего — цвет и так горит на тёмном,
+   и токен повторяет прежнее значение. */
+.ms-cell--pass    { color: var(--screen-pass-text); background: var(--color-success-soft); }
 .ms-cell--fail    { color: var(--color-error-text);   background: var(--color-error-soft); }
+/* Глубина провала. Вердикт двоичный, но между «не дотянула шестую часть
+   порога» и «провалила вдвое» разница для выбора решающая, и одинаковый
+   крестик её съедает. Оттенком, а не значком: значок означает вердикт, и
+   менять его нельзя — иначе «почти прошла» прочитается как отдельный
+   статус, которого у Грэма нет.
+
+   Ступени берутся готовыми из токенов и различаются по темам. Считать их
+   долями одного цвета нельзя: прозрачность смешивает краску с подложкой, и
+   на тёмном фоне худшие значения уходили в блёклый розовый — то есть
+   выглядели легче лучших. «Тяжелее» на светлом и на тёмном означает
+   противоположные направления по светлоте, и одной формулой это не берётся. */
+.ms-cell--near    { background: var(--screen-miss-near);   color: var(--screen-miss-near-text); }
+.ms-cell--mild    { background: var(--screen-miss-mild);   color: var(--screen-miss-text); }
+.ms-cell--bad     { background: var(--screen-miss-bad);    color: var(--screen-miss-text); }
+.ms-cell--severe  { background: var(--screen-miss-severe); color: var(--screen-miss-text); }
+
+/* Минус — не продолжение шкалы, а другое состояние, и цвет у него свой.
+   Отдача −3,5% значит, что капитал акционера уменьшается, а не медленно
+   растёт: между «мало заработала» и «съела капитал» разрыв качественный, и
+   передавать его очередным шагом той же краски неправильно. */
+.ms-cell--loss    { background: var(--screen-miss-loss);   color: var(--screen-miss-loss-text); }
+
+/* Значение в ячейке гасится общим правилом до 0.75 — на цветной подложке
+   оно от этого сереет. Возвращаем ему полный цвет: подложка уже несёт
+   тяжесть, приглушать поверх неё нечего. */
+.ms-cell--near i,
+.ms-cell--mild i,
+.ms-cell--bad i,
+.ms-cell--severe i,
+.ms-cell--loss i  { color: inherit; }
+
 .ms-cell--na      { color: var(--color-text-quaternary); }
 .ms-cell--unknown { color: var(--color-text-quaternary); background: var(--color-neutral-soft); }
 
@@ -241,6 +292,12 @@
   font-variant-numeric: tabular-nums;
   color: var(--color-text-tertiary);
   border-left: 1px solid var(--color-border-subtle);
+}
+
+/* В шапке та же ячейка лежит на приподнятом фоне, где третичный цвет даёт
+   4,25:1 — ниже порога. Заголовку и по смыслу положен цвет заголовка. */
+.ms-table thead .ms-total {
+  color: var(--color-text-secondary);
 }
 
 .ms-clear-mark { color: var(--color-success-text); }

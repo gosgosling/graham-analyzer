@@ -196,7 +196,7 @@
 .bd-value {
   font-size: 13px;
   font-weight: 500;
-  color: #2c3e50;
+  color: var(--color-text-primary);
   text-align: right;
   font-variant-numeric: tabular-nums;
 }

@@ -736,6 +736,68 @@ def _implausible(value: Optional[float], gap: Optional[float] = None) -> Optiona
             f"в ряду испорчен хотя бы один год")
 
 
+DILUTION_NOTE_PCT = 15.0
+
+
+def _dilution_note(points, span: int, smooth: int) -> Optional[str]:
+    """Почему прибыль в таблице растёт, а прирост на акцию — нет.
+
+    Тест гл. 14 меряет прибыль НА АКЦИЮ, и это не придирка к формулировке:
+    рост, оплаченный выпуском новых акций, прежнему акционеру не достался.
+    У ДОМ.РФ прибыль с 2018 по 2025 выросла в 4,7 раза, а число акций — в 3,9
+    (государство докапитализировало компанию, потом IPO), и на акцию от роста
+    почти ничего не осталось: 416 ₽ против 494 ₽ за семь лет.
+
+    Без этой строки человек видит в таблице прибыль, растущую год за годом,
+    и минус в тесте роста — и решает, что ошибся расчёт. Ошибки нет, но
+    объяснить разницу должен сам показатель, а не переписка с автором.
+
+    Окно берётся то же, что и у самого теста: сравнивать прирост акций за
+    десять лет с приростом прибыли за пять значило бы объяснять одно другим.
+    """
+    shares = graham_growth(points, "shares_normalized", span=span, smooth=smooth)
+    if shares is None or shares.change is None:
+        return None
+    percent = shares.change * 100.0
+    if percent < DILUTION_NOTE_PCT:
+        return None
+    return (f"Число акций за то же окно выросло на {percent:.0f}%: "
+            f"часть прироста прибыли оплачена выпуском новых акций, "
+            f"и на акцию столько не дошло")
+
+
+REVERSAL_NOTE_PCT = -20.0
+
+
+def _reversal_note(long_run: Optional[float], short_run: Optional[float],
+                   what: str) -> Optional[str]:
+    """Длинное окно растёт, короткое падает — сказать об этом вслух.
+
+    Тесты гл. 14 меряют два конца десятилетия, и по построению они слепы к
+    тому, что происходит внутри. У ФосАгро поток за десять лет вырос на 421%,
+    а за пять упал на 65%: база 2016-2018 годов содержит убыточный по потоку
+    2017-й (−56 ₽ на акцию), и на её фоне любое восстановление выглядит
+    ростом, тогда как от пика 2022 года поток сложился вчетверо.
+
+    Это не ошибка расчёта и не повод менять вердикт: у Грэма длинное окно
+    выбрано сознательно, чтобы не шарахаться от циклов. Но человек, читающий
+    «+421%» рядом с отрицательным потоком за последние двенадцать месяцев,
+    имеет право узнать, что обе цифры верны и меряют разное.
+    """
+    if long_run is None or short_run is None:
+        return None
+    if long_run <= 0 or short_run > REVERSAL_NOTE_PCT:
+        return None
+    return (f"За пять лет {what} падает: {short_run:+.0f}% против {long_run:+.0f}% "
+            f"за десять. Десятилетний тест сравнивает только концы окна и "
+            f"разворот внутри него не видит")
+
+
+def _join_notes(*parts: Optional[str]) -> Optional[str]:
+    kept = [p for p in parts if p]
+    return " · ".join(kept) if kept else None
+
+
 def growth(points, is_lender: bool) -> Axis:
     """Рост: два конца десятилетия, каждый сглажен тройкой (гл. 14).
 
@@ -751,19 +813,30 @@ def growth(points, is_lender: bool) -> Axis:
         points, "eps", GROWTH_SPAN_SHORT, GROWTH_SMOOTH_SHORT)
     metrics = [
         Metric(
-            key="earnings_growth", label="Прирост прибыли за 10 лет", unit="%",
+            key="earnings_growth", label="Прирост прибыли на акцию за 10 лет", unit="%",
             value=long_run, series=_series(points, "eps"), tone=_tone(long_run),
             suspect=_implausible(long_run, long_gap),
+            note=_join_notes(
+                _dilution_note(points, GROWTH_SPAN, 3),
+                _reversal_note(long_run, short_run, "прибыль на акцию"),
+            ),
         ),
         Metric(
             key="earnings_growth_short",
-            label=f"Прирост прибыли за {GROWTH_YEARS_BACK_SHORT} лет", unit="%",
+            label=f"Прирост прибыли на акцию за {GROWTH_YEARS_BACK_SHORT} лет", unit="%",
             value=short_run, tone=_tone(short_run),
             suspect=_implausible(short_run, short_gap),
-            note=_short_growth_caveat(points),
+            note=_join_notes(
+                _short_growth_caveat(points),
+                _dilution_note(points, GROWTH_SPAN_SHORT, GROWTH_SMOOTH_SHORT),
+            ),
         ),
     ]
     if not is_lender:
+        # Пятилетний поток считаем первым: он нужен не только своей строке, но
+        # и длинной — чтобы та могла сказать, что внутри окна случился разворот.
+        short_cash = _growth_percent(points, "fcf_per_share", GROWTH_SPAN_SHORT,
+                                     CASH_SMOOTH_SHORT)
         cash_run = _growth_percent(points, "fcf_per_share")
         span, note = GROWTH_SPAN, None
         if cash_run is None:
@@ -777,14 +850,13 @@ def growth(points, is_lender: bool) -> Axis:
         metrics.append(Metric(
             key="cash_growth", label=f"Прирост FCF за {span} лет", unit="%",
             value=cash_run, series=_series(points, "fcf_per_share"),
-            tone=_tone(cash_run), suspect=_implausible(cash_run), note=note,
+            tone=_tone(cash_run), suspect=_implausible(cash_run),
+            note=_join_notes(note, _reversal_note(cash_run, short_cash, "поток")),
         ))
         # Пятилетний рост потока — на тот же отрезок, что и короткий тест по
         # прибыли, чтобы их можно было сравнивать между собой. Когда прибыль
         # обваливается на переписанной строке отчёта, а деньги нет, разницу
-        # видно только при одинаковом окне.
-        short_cash = _growth_percent(points, "fcf_per_share", GROWTH_SPAN_SHORT,
-                                     CASH_SMOOTH_SHORT)
+        # видно только при одинаковом окне. Сама величина посчитана выше.
         metrics.append(Metric(
             key="cash_growth_short",
             label=f"Прирост FCF за {GROWTH_YEARS_BACK_SHORT} лет", unit="%",

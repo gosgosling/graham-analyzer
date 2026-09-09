@@ -834,6 +834,8 @@ _METRIC_FIELDS: Tuple[str, ...] = (
     "roe_spread",
     "goodwill",
     "goodwill_to_assets",
+    "intangible_assets",
+    "intangibles_to_equity",
     "roe",
     "debt_to_equity",
     "current_ratio",

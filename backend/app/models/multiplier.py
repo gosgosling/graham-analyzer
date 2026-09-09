@@ -76,6 +76,13 @@ class Multiplier(Base):
     goodwill: Mapped[Optional[float]] = mapped_column(Numeric(20, 2), nullable=True)
     # Доля гудвила в активах, %. Выше 20% — рядом с P/B встаёт значок.
     goodwill_to_assets: Mapped[Optional[float]] = mapped_column(Numeric(8, 2), nullable=True)
+    # Прочие НМА, млн — без гудвила.
+    intangible_assets: Mapped[Optional[float]] = mapped_column(Numeric(20, 2), nullable=True)
+    # Доля ВСЕГО нематериального (гудвил + НМА) в капитале, %. Считается от
+    # капитала, а не от активов: у застройщика или ритейлера с тяжёлым балансом
+    # те же 11 млрд НМА — 3% активов и 37% капитала, и опасны они именно
+    # вторым числом. Выше 33% — рядом с P/B встаёт значок.
+    intangibles_to_equity: Mapped[Optional[float]] = mapped_column(Numeric(8, 2), nullable=True)
     roe: Mapped[Optional[float]] = mapped_column(Numeric(12, 4), nullable=True)
     debt_to_equity: Mapped[Optional[float]] = mapped_column(Numeric(12, 4), nullable=True)
     current_ratio: Mapped[Optional[float]] = mapped_column(Numeric(12, 4), nullable=True)

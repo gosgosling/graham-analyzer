@@ -175,6 +175,25 @@ def calculate_multipliers(
         if total_assets_mln:
             goodwill_to_assets = round(goodwill_mln / total_assets_mln * 100, 2)
 
+    # Прочие НМА — вторая, более мягкая мера нематериального в балансе.
+    #
+    # Из материального капитала они намеренно НЕ вычитаются: купленные
+    # лицензии, софт и патенты — средства производства, и «вон всё
+    # нематериальное» у IT-компании было бы не консерватизмом, а другой
+    # ошибкой. Но среди НМА попадаются строки, которые держатся на будущих
+    # условиях: отложенные права, льготы под невыполненные обязательства. Они
+    # исчезают так же тихо, как гудвил, и отличить их построчно нельзя.
+    #
+    # Поэтому доля считается от КАПИТАЛА, а не от активов: у застройщика с
+    # тяжёлым балансом 11 млрд НМА — это 3% активов и 37% капитала. Опасно
+    # второе число: именно капитал служит обеспечением.
+    intangibles_mln = to_rub_mln(getattr(report, "intangible_assets", None))
+    intangibles_to_equity: Optional[float] = None
+
+    soft_book_mln = (goodwill_mln or 0.0) + (intangibles_mln or 0.0)
+    if soft_book_mln and equity_mln and equity_mln > 0:
+        intangibles_to_equity = round(soft_book_mln / equity_mln * 100, 2)
+
     # ROE минус ключевая ставка — сколько отдача капитала даёт СВЕРХ безрисковой.
     #
     # Фиксированный порог «≥ 15% — хорошо» написан безотносительно режима
@@ -352,6 +371,8 @@ def calculate_multipliers(
         "tangible_equity": tangible_equity_mln,
         "pb_tangible": pb_tangible,
         "goodwill_to_assets": goodwill_to_assets,
+        "intangible_assets": intangibles_mln,
+        "intangibles_to_equity": intangibles_to_equity,
         "roe": roe,
         "debt_to_equity": debt_to_equity,
         "current_ratio": current_ratio,

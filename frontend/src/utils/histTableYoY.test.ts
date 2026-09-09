@@ -9,7 +9,7 @@ import { computeHistRowYoY, type HistRowSnapshot } from './histTableYoY';
 
 const EMPTY: HistRowSnapshot = {
   price_used: null, market_cap: null, pe_ratio: null, pb_ratio: null,
-  pb_tangible: null, goodwill_to_assets: null, roe: null,
+  pb_tangible: null, goodwill_to_assets: null, intangibles_to_equity: null, roe: null,
   debt_to_equity: null, current_ratio: null, ltm_dividends_per_share: null,
   price_to_fcf: null, ltm_fcf: null, ltm_capex: null, fcf_to_net_income: null,
   net_debt_to_fcf: null, net_debt: null, ltm_revenue: null,
