@@ -80,17 +80,21 @@ function ThemedAntDConfig({ children }: { children: React.ReactNode }) {
     return {
       algorithm: isDark ? antdTheme.darkAlgorithm : antdTheme.defaultAlgorithm,
       token: {
-        colorPrimary: isDark ? '#60a5fa' : '#3498db',
-        colorInfo:    isDark ? '#60a5fa' : '#3498db',
-        colorSuccess: isDark ? '#34d399' : '#27ae60',
-        colorWarning: isDark ? '#fbbf24' : '#e67e22',
-        colorError:   isDark ? '#f87171' : '#b91c1c',
+        // Значения дублируют токены из tokens.css: Ant Design читает свою
+        // палитру из JS и до CSS-переменных не достаёт. Светлая половина
+        // раньше жила на Flat UI (#3498db, #27ae60, #e67e22) и расходилась
+        // с остальным интерфейсом — теперь обе половины из одной шкалы.
+        colorPrimary: isDark ? '#60a5fa' : '#2563eb',
+        colorInfo:    isDark ? '#60a5fa' : '#2563eb',
+        colorSuccess: isDark ? '#34d399' : '#16a34a',
+        colorWarning: isDark ? '#fbbf24' : '#d97706',
+        colorError:   isDark ? '#f87171' : '#dc2626',
         colorBgBase:      isDark ? '#11161d' : '#ffffff',
         colorBgContainer: isDark ? '#171c25' : '#ffffff',
         colorBgElevated:  isDark ? '#222937' : '#ffffff',
-        colorBgLayout:    isDark ? '#0e1217' : '#f5f7fa',
-        colorTextBase:    isDark ? '#e6e9ef' : '#2c3e50',
-        colorBorder:      isDark ? 'rgba(255,255,255,0.10)' : '#e1e8ed',
+        colorBgLayout:    isDark ? '#0e1217' : '#f6f8fb',
+        colorTextBase:    isDark ? '#e6e9ef' : '#1e293b',
+        colorBorder:      isDark ? 'rgba(255,255,255,0.10)' : '#e3e9ef',
         colorBorderSecondary: isDark ? 'rgba(255,255,255,0.06)' : '#eef2f6',
         borderRadius: 8,
         fontFamily:

@@ -34,13 +34,13 @@
 .ai-parse-header h2 {
   margin: 0 0 4px;
   font-size: 20px;
-  color: #2c3e50;
+  color: var(--color-text-primary);
 }
 
 .ai-parse-subtitle {
   margin: 0;
   font-size: 13px;
-  color: #7f8c8d;
+  color: var(--color-text-tertiary);
 }
 
 .ai-parse-close {
@@ -48,13 +48,13 @@
   border: none;
   font-size: 20px;
   cursor: pointer;
-  color: #7f8c8d;
+  color: var(--color-text-tertiary);
   padding: 4px 8px;
   line-height: 1;
 }
 
 .ai-parse-close:hover {
-  color: #2c3e50;
+  color: var(--color-text-primary);
 }
 
 .ai-parse-body {
@@ -74,7 +74,7 @@
 
 .ai-parse-loading {
   background: #f0f4f8;
-  color: #2c3e50;
+  color: var(--color-text-primary);
   text-align: center;
 }
 
@@ -130,7 +130,7 @@
 }
 
 .ai-parse-status-label {
-  color: #7f8c8d;
+  color: var(--color-text-tertiary);
 }
 
 .ai-parse-model {
@@ -138,7 +138,7 @@
   padding: 2px 8px;
   border-radius: 4px;
   border: 1px solid #e1e8ed;
-  color: #2c3e50;
+  color: var(--color-text-primary);
   font-size: 12px;
 }
 
@@ -151,7 +151,7 @@
 .ai-parse-field label {
   font-size: 13px;
   font-weight: 500;
-  color: #2c3e50;
+  color: var(--color-text-primary);
 }
 
 .ai-parse-field input[type="file"],
@@ -162,24 +162,24 @@
   border-radius: 6px;
   font-size: 14px;
   background: white;
-  color: #2c3e50;
+  color: var(--color-text-primary);
 }
 
 .ai-parse-field input[type="file"]:focus,
 .ai-parse-field input[type="number"]:focus,
 .ai-parse-field select:focus {
   outline: none;
-  border-color: #3498db;
+  border-color: var(--color-primary);
   box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.15);
 }
 
 .ai-parse-req {
-  color: #e74c3c;
+  color: var(--color-error-text);
 }
 
 .ai-parse-file-info {
   font-size: 12px;
-  color: #7f8c8d;
+  color: var(--color-text-tertiary);
   margin-top: 2px;
 }
 
@@ -200,7 +200,7 @@
   align-items: center;
   gap: 8px;
   font-size: 13px;
-  color: #2c3e50;
+  color: var(--color-text-primary);
   cursor: pointer;
 }
 
@@ -268,12 +268,12 @@
 }
 
 .ai-parse-btn-primary {
-  background: #3498db;
+  background: var(--color-primary);
   color: white;
 }
 
 .ai-parse-btn-primary:hover:not(:disabled) {
-  background: #2980b9;
+  background: var(--color-primary-hover);
 }
 
 .ai-parse-btn-primary:disabled {
@@ -283,7 +283,7 @@
 
 .ai-parse-btn-secondary {
   background: white;
-  color: #2c3e50;
+  color: var(--color-text-primary);
   border-color: #d0d7de;
 }
 
@@ -306,7 +306,7 @@
 
 .ai-parse-k {
   font-size: 11px;
-  color: #7f8c8d;
+  color: var(--color-text-tertiary);
   text-transform: uppercase;
   letter-spacing: 0.4px;
   margin-bottom: 2px;
@@ -314,7 +314,7 @@
 
 .ai-parse-v {
   font-size: 14px;
-  color: #2c3e50;
+  color: var(--color-text-primary);
   font-weight: 600;
 }
 
@@ -355,7 +355,7 @@
   cursor: pointer;
   font-size: 13px;
   font-weight: 500;
-  color: #2c3e50;
+  color: var(--color-text-primary);
 }
 
 .ai-parse-notes pre {
@@ -365,7 +365,7 @@
   border-radius: 4px;
   border: 1px solid #e1e8ed;
   font-size: 12px;
-  color: #2c3e50;
+  color: var(--color-text-primary);
   white-space: pre-wrap;
   word-break: break-word;
   max-height: 200px;
@@ -390,7 +390,7 @@
   border-top-left-radius: 6px;
   border-top-right-radius: 6px;
   font-size: 13px;
-  color: #7f8c8d;
+  color: var(--color-text-tertiary);
   cursor: pointer;
   transition: all 0.15s ease;
   position: relative;
@@ -398,14 +398,14 @@
 }
 
 .ai-parse-tab:hover:not(:disabled) {
-  color: #2c3e50;
+  color: var(--color-text-primary);
   background: rgba(255, 255, 255, 0.5);
 }
 
 .ai-parse-tab.is-active {
   background: white;
   border-color: #e1e8ed;
-  color: #2c3e50;
+  color: var(--color-text-primary);
   font-weight: 600;
 }
 
@@ -479,7 +479,7 @@
   background: #f5f7fa;
   border: 1px solid #e1e8ed;
   font-size: 12px;
-  color: #2c3e50;
+  color: var(--color-text-primary);
 }
 
 .ai-compare-stat b {
@@ -531,7 +531,7 @@
 
 .ai-compare-table thead th {
   background: #f5f7fa;
-  color: #2c3e50;
+  color: var(--color-text-primary);
   font-weight: 600;
   text-align: left;
   padding: 10px 12px;
@@ -543,7 +543,7 @@
   padding: 9px 12px;
   border-bottom: 1px solid #f0f2f5;
   vertical-align: top;
-  color: #2c3e50;
+  color: var(--color-text-primary);
 }
 
 .ai-compare-table tbody tr:last-child td {
@@ -572,7 +572,7 @@
 
 .ai-compare-row.is-both-missing {
   background: #fafbfc;
-  color: #95a5a6;
+  color: var(--color-text-quaternary);
 }
 
 .ai-compare-field {
@@ -581,7 +581,7 @@
 }
 
 .ai-compare-note {
-  color: #7f8c8d;
+  color: var(--color-text-tertiary);
   font-weight: 400;
   font-size: 11px;
   margin-left: 4px;
@@ -629,12 +629,12 @@
 
 .ai-compare-badge.is-both-missing {
   background: #f5f5f5;
-  color: #95a5a6;
+  color: var(--color-text-quaternary);
 }
 
 .ai-compare-footnote {
   margin: 0;
   font-size: 12px;
-  color: #7f8c8d;
+  color: var(--color-text-tertiary);
   font-style: italic;
 }

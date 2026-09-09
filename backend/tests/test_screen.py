@@ -72,13 +72,20 @@ def verdict(result, metric):
 # ── Устройство свода ───────────────────────────────────────────────────────
 
 def test_defensive_covers_the_seven_criteria_plus_our_additions():
-    """Семь критериев гл. 14, произведение P/E×P/B отдельной строкой, и три
-    наших: рентабельность и две по свободному потоку."""
+    """Семь критериев гл. 14, произведение P/E×P/B отдельной строкой, и четыре
+    наших: рентабельность и три по свободному потоку.
+
+    Третье по потоку — пятилетнее окно. У Грэма коротких окон в гл. 14 нет:
+    десятилетнее выбрано, чтобы не шарахаться от циклов. Но оно сравнивает
+    только два конца, и разворот внутри остаётся невидимым — у ФосАгро поток
+    за десять лет вырос вчетверо, а за пять упал на две трети.
+    """
     result = screened()
-    assert len(result.verdicts) == 11
+    assert len(result.verdicts) == 12
     assert {v.axis for v in result.verdicts} == set(screen_axes.AXIS_ORDER)
     ours = {v.metric for v in result.verdicts if v.rule.ours}
-    assert ours == {"roe", "revenue", "streak", "cash_positive_years", "cash_growth"}
+    assert ours == {"roe", "revenue", "streak", "cash_positive_years",
+                    "cash_growth", "cash_growth_short"}
 
 
 def test_a_healthy_company_clears_the_defensive_standard():
@@ -195,6 +202,94 @@ def test_cash_rule_allows_a_capex_year_but_not_a_decade_of_them():
                    profitable_years=(10.0, 10), profitable_years_short=(5.0, 5),
                    cash_positive_years=(4.0, 10))
     assert verdict(screened(axes), "cash_positive_years").status == FAIL
+
+
+def test_short_cash_rule_catches_a_reversal_the_decade_hides():
+    """Случай ФосАгро: десятилетний тест сравнивает только концы окна.
+
+    Поток за десять лет вырос вчетверо — но база 2016-2018 годов содержит
+    убыточный по потоку 2017-й, и на её фоне ростом выглядит что угодно, тогда
+    как от пика 2022 года поток сложился вчетверо. Длинный тест проходит,
+    короткий обязан провалиться.
+    """
+    axes = healthy()
+    axes[4] = axis("growth", "Рост",
+                   earnings_growth=(74.0,), earnings_growth_short=(20.0,),
+                   cash_growth=(421.0,), cash_growth_short=(-65.0,))
+    result = screened(axes)
+
+    assert verdict(result, "cash_growth").status == PASS
+    assert verdict(result, "cash_growth_short").status == FAIL
+    assert result.clears is False
+
+
+def test_short_cash_rule_is_ours_not_grahams():
+    """У Грэма коротких окон в гл. 14 нет — помечаем как своё добавление."""
+    axes = healthy()
+    axes[4] = axis("growth", "Рост",
+                   earnings_growth=(74.0,), earnings_growth_short=(20.0,),
+                   cash_growth=(50.0,), cash_growth_short=(10.0,))
+    v = verdict(screened(axes), "cash_growth_short")
+    assert v.rule.ours is True
+    assert v.status == PASS
+
+
+# ── Глубина провала ────────────────────────────────────────────────────────
+#
+# Вердикт двоичный, и таким остаётся. Но Татнефть с отдачей 12% при пороге 15%
+# и Роснефть с 3,2% проваливали его одинаково, а разница между ними
+# четырёхкратная — для выбора между двумя непрошедшими это главное.
+
+
+def test_shortfall_measures_the_gap_in_units_of_the_threshold():
+    axes = healthy()
+    axes[0] = axis("profitability", "Рентабельность", roe=(12.0,))
+    assert verdict(screened(axes), "roe").shortfall == pytest.approx(0.2)
+
+    axes[0] = axis("profitability", "Рентабельность", roe=(3.0,))
+    assert verdict(screened(axes), "roe").shortfall == pytest.approx(0.8)
+
+
+def test_shortfall_counts_the_other_way_for_ceilings():
+    """У порога-потолка мерить надо превышение, а не недобор."""
+    axes = healthy()
+    axes[6] = axis("price", "Динамика цен",
+                   pe_average=(18.0,), pb=(1.1,), pb_tangible=(1.1,), pe_pb=(9.9,))
+    assert verdict(screened(axes), "pe_average").shortfall == pytest.approx(0.2)
+
+
+def test_counted_years_are_measured_against_the_window():
+    """Девять чистых лет из десяти и два из десяти — не одно и то же.
+
+    Порог у счётного правила не число из книги, а размер окна, и доля от него
+    так же осмысленна, как доля от 15% отдачи.
+    """
+    axes = healthy()
+    axes[3] = axis("stability", "Стабильность",
+                   profitable_years=(9.0, 10), profitable_years_short=(5.0, 5))
+    assert verdict(screened(axes), "profitable_years").shortfall == pytest.approx(0.1)
+
+    axes[3] = axis("stability", "Стабильность",
+                   profitable_years=(2.0, 10), profitable_years_short=(5.0, 5))
+    assert verdict(screened(axes), "profitable_years").shortfall == pytest.approx(0.8)
+
+
+def test_most_rule_is_measured_from_half_the_window():
+    """У «большинства лет» планка — половина окна, от неё и расстояние."""
+    axes = healthy()
+    axes[3] = axis("stability", "Стабильность",
+                   profitable_years=(10.0, 10), profitable_years_short=(5.0, 5),
+                   cash_positive_years=(4.0, 10))
+    assert verdict(screened(axes), "cash_positive_years").shortfall == pytest.approx(0.2)
+
+
+def test_a_passing_verdict_has_no_shortfall():
+    """Расстояние есть только у провала — у пройденного мерить нечего."""
+    result = screened()
+    assert verdict(result, "roe").status == PASS
+    assert verdict(result, "roe").shortfall is None
+    assert verdict(result, "profitable_years").status == PASS
+    assert verdict(result, "profitable_years").shortfall is None
 
 
 def test_a_lender_is_not_failed_for_having_no_free_cash_flow():

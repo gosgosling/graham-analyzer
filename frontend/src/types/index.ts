@@ -137,6 +137,10 @@ export interface MultiplierRecord {
     pb_tangible?: number | null;
     /** Доля гудвила в активах, % */
     goodwill_to_assets?: number | null;
+    /** Прочие НМА, млн — без гудвила */
+    intangible_assets?: number | null;
+    /** Доля всего нематериального (гудвил + НМА) в капитале, % */
+    intangibles_to_equity?: number | null;
     roe: number | null;
     debt_to_equity: number | null;
     current_ratio: number | null;
@@ -229,6 +233,10 @@ export interface CurrentMultipliers {
     pb_tangible?: number | null;
     /** Доля гудвила в активах, % */
     goodwill_to_assets?: number | null;
+    /** Прочие НМА, млн — без гудвила */
+    intangible_assets?: number | null;
+    /** Доля всего нематериального (гудвил + НМА) в капитале, % */
+    intangibles_to_equity?: number | null;
     roe: number | null;
     debt_to_equity: number | null;
     current_ratio: number | null;
@@ -409,6 +417,10 @@ export interface FinancialReportCreate {
     total_liabilities?: number | null;
     current_liabilities?: number | null;
     equity?: number | null;
+    /** Гудвил из баланса, млн — только от покупки бизнеса */
+    goodwill?: number | null;
+    /** Прочие НМА из баланса, млн — без гудвила */
+    intangible_assets?: number | null;
     /** Денежные средства и эквиваленты (наличность), млн */
     cash_and_equivalents?: number | null;
     /** Финансовый долг, млн */

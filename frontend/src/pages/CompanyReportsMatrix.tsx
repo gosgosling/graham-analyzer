@@ -103,6 +103,12 @@ const MATRIX_ROWS: MatrixRowDef[] = [
   { key: 'net_income_reported', label: 'Прибыль отчётная', kind: 'number', hint: 'млн' },
   { key: 'total_assets', label: 'Активы всего', kind: 'number', hint: 'млн' },
   { key: 'current_assets', label: 'Оборотные активы', kind: 'number', hint: 'млн', hideFor: ['lender', 'exchange']},
+  // Гудвил и прочие НМА — два разных поля. Гудвил возникает только при покупке
+  // бизнеса и вычитается из капитала при расчёте материального P/B. Прочие НМА
+  // не вычитаются — лицензии и софт настоящие средства производства, — но
+  // показывают, какая доля капитала держится на нематериальном.
+  { key: 'goodwill', label: 'Гудвил', kind: 'number', hint: 'млн; только от покупки бизнеса' },
+  { key: 'intangible_assets', label: 'НМА прочие', kind: 'number', hint: 'млн, без гудвила' },
   { key: 'cash_and_equivalents', label: 'Наличность', kind: 'number', hint: 'ДС и эквиваленты, млн' },
   { key: 'debt', label: 'Долг', kind: 'number', hint: 'млн' },
   {

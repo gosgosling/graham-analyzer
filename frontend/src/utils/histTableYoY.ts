@@ -19,6 +19,8 @@ export interface HistRowSnapshot {
   pb_tangible: number | null;
   /** Доля гудвила в активах, % */
   goodwill_to_assets: number | null;
+  /** Доля всего нематериального (гудвил + НМА) в капитале, % */
+  intangibles_to_equity: number | null;
   roe: number | null;
   debt_to_equity: number | null;
   current_ratio: number | null;
@@ -242,6 +244,7 @@ export function snapshotFromRecord(r: MultiplierRecord): HistRowSnapshot {
     pb_ratio: r.pb_ratio,
     pb_tangible: r.pb_tangible ?? null,
     goodwill_to_assets: r.goodwill_to_assets ?? null,
+    intangibles_to_equity: r.intangibles_to_equity ?? null,
     roe: r.roe,
     debt_to_equity: r.debt_to_equity,
     current_ratio: r.current_ratio,
@@ -277,6 +280,7 @@ export function snapshotFromCurrent(r: CurrentMultipliers): HistRowSnapshot {
     pb_ratio: r.pb_ratio,
     pb_tangible: r.pb_tangible ?? null,
     goodwill_to_assets: r.goodwill_to_assets ?? null,
+    intangibles_to_equity: r.intangibles_to_equity ?? null,
     roe: r.roe,
     debt_to_equity: r.debt_to_equity,
     current_ratio: r.current_ratio,
