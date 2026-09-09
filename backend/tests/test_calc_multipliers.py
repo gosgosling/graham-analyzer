@@ -496,6 +496,60 @@ def test_goodwill_ignored_without_equity(report_factory):
     assert m["goodwill_to_assets"] == 10.0
 
 
+# ─── Прочие НМА ────────────────────────────────────────────────────────────
+#
+# Вторая, более мягкая мера. Из материального капитала НМА намеренно не
+# вычитаются — купленные лицензии и софт настоящие средства производства, — но
+# доля нематериального в капитале показывается: среди этих строк попадаются
+# отложенные права и льготы, которые живут, пока выполняются условия сделки.
+
+
+def test_intangibles_do_not_touch_tangible_equity(report_factory):
+    """Материальный капитал считается только по гудвилу — это гл. 15 у Грэма."""
+    m = calculate_multipliers(report_factory(goodwill=10_000.0, intangible_assets=15_000.0))
+
+    assert m["tangible_equity"] == 40_000.0        # 50 000 − 10 000, НМА не тронуты
+    assert m["pb_tangible"] == 2.5                 # 100 000 / 40 000
+
+
+def test_intangibles_share_counted_from_equity(report_factory):
+    """Доля — от капитала: у тяжёлого баланса от активов она была бы незаметна."""
+    m = calculate_multipliers(report_factory(intangible_assets=15_000.0))
+
+    assert m["intangible_assets"] == 15_000.0
+    assert m["intangibles_to_equity"] == 30.0      # 15 000 / 50 000, не 15%
+
+
+def test_intangibles_share_includes_goodwill(report_factory):
+    """Гудвил — тоже нематериальный актив, и в общую долю входит."""
+    m = calculate_multipliers(report_factory(goodwill=10_000.0, intangible_assets=15_000.0))
+
+    assert m["intangibles_to_equity"] == 50.0      # (10 000 + 15 000) / 50 000
+
+
+def test_intangibles_share_empty_without_equity(report_factory):
+    """Без капитала доля не определена — делить не на что."""
+    m = calculate_multipliers(report_factory(intangible_assets=15_000.0, equity=None))
+
+    assert m["intangible_assets"] == 15_000.0
+    assert m["intangibles_to_equity"] is None
+
+
+def test_negative_equity_gives_no_intangibles_share(report_factory):
+    """Отрицательный капитал: доля от него — бессмысленное число, не считаем."""
+    m = calculate_multipliers(report_factory(intangible_assets=15_000.0, equity=-5_000.0))
+
+    assert m["intangibles_to_equity"] is None
+
+
+def test_no_intangibles_leaves_share_empty(report):
+    """Пустое поле не превращается в ноль: НМА могут быть просто не заполнены."""
+    m = calculate_multipliers(report)
+
+    assert m["intangible_assets"] is None
+    assert m["intangibles_to_equity"] is None
+
+
 # ─── Прибыль на акцию ──────────────────────────────────────────────────────
 #
 # EPS считается от тех же акций, что и капитализация, а не от

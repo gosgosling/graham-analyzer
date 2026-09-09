@@ -149,6 +149,9 @@ class ReportFigures(BaseModel):
     equity: Optional[float] = None
     # Гудвил из баланса, млн — вычитается при расчёте материального капитала
     goodwill: Optional[float] = None
+    # Прочие НМА из баланса, млн — БЕЗ гудвила. Из материального капитала не
+    # вычитаются; показывают, какая доля капитала нематериальна
+    intangible_assets: Optional[float] = None
     cash_and_equivalents: Optional[float] = None  # наличность, млн
     debt: Optional[float] = None                  # долг, млн
     dividends_per_share: Optional[float] = None   # ₽/$ за акцию, ВСЕГО (полные единицы)

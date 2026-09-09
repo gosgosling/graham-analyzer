@@ -341,7 +341,7 @@
 .no-reports p { margin: 0 0 15px 0; color: var(--color-text-tertiary); font-size: 16px; }
 
 .btn-add-first-report {
-  background-color: var(--color-success);
+  background-color: var(--color-success-text);
   color: var(--color-text-on-primary);
   border: none;
   padding: 10px 20px;
@@ -564,11 +564,11 @@
 }
 
 .detail-yes {
-  color: var(--color-success);
+  color: var(--color-success-text);
 }
 
 .detail-loss {
-  color: var(--color-error);
+  color: var(--color-error-text);
   font-weight: 700;
 }
 

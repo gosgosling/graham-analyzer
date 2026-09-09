@@ -76,6 +76,8 @@ class MultiplierResponse(BaseModel):
     pb_tangible: Optional[float] = None       # P/B без гудвила
     goodwill: Optional[float] = None          # млн ₽
     goodwill_to_assets: Optional[float] = None  # %
+    intangible_assets: Optional[float] = None   # млн ₽, без гудвила
+    intangibles_to_equity: Optional[float] = None  # % — гудвил + НМА к капиталу
     roe: Optional[float] = None
     debt_to_equity: Optional[float] = None
     current_ratio: Optional[float] = None
@@ -155,6 +157,8 @@ class CurrentMultipliersResponse(BaseModel):
     pb_tangible: Optional[float] = None       # P/B без гудвила
     goodwill: Optional[float] = None          # млн ₽
     goodwill_to_assets: Optional[float] = None  # %
+    intangible_assets: Optional[float] = None   # млн ₽, без гудвила
+    intangibles_to_equity: Optional[float] = None  # % — гудвил + НМА к капиталу
     roe: Optional[float] = None
     debt_to_equity: Optional[float] = None
     current_ratio: Optional[float] = None

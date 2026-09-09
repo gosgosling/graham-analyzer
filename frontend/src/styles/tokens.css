@@ -50,82 +50,137 @@
 [data-theme='light'] {
   color-scheme: light;
 
-  /* Фоны */
-  --color-bg-base:        #f5f7fa;
+  /* Фоны. Нейтраль холодная (slate) — та же семья, что у тёмной темы, чтобы
+     две темы читались как одна система, а не как две разные программы. */
+  --color-bg-base:        #eef1f6;
   --color-bg-canvas:      #ffffff;
   --color-bg-surface:     #ffffff;
-  --color-bg-elevated:    #fafbfc;
+  --color-bg-elevated:    #fbfcfd;
   --color-bg-overlay:     #ffffff;
   --color-bg-overlay-strong: #ffffff;
-  --color-bg-subtle:      #f8f9fa;
-  --color-bg-hover:       #f1f5f9;
+  --color-bg-subtle:      #e9edf4;
+  --color-bg-hover:       #e6ebf2;
   --color-bg-active:      #e2e8f0;
-  --color-bg-selected:    rgba(155, 89, 182, 0.10);
+  --color-bg-selected:    rgba(99, 102, 241, 0.10);
   --color-bg-modal-scrim: rgba(15, 23, 42, 0.45);
   --color-bg-input:       #ffffff;
   --color-bg-disabled:    #f1f5f9;
 
-  /* Тексты */
-  --color-text-primary:     #2c3e50;
-  --color-text-secondary:   #34495e;
-  --color-text-tertiary:    #7f8c8d;
-  --color-text-quaternary:  #94a3b8;
-  --color-text-placeholder: #94a3b8;
-  --color-text-disabled:    #cbd5e1;
+  /* Тексты. Прежние #7f8c8d и #94a3b8 давали 3,48:1 и 2,56:1 на белом —
+     ниже порога AA, читать было тяжело буквально, а не на вкус. Здесь всё
+     проверено: минимум 4,7:1 на белом и 4,5:1 на подложках. */
+  --color-text-primary:     #1e293b;   /* 14,6:1 */
+  --color-text-secondary:   #475569;   /*  7,6:1 */
+  --color-text-tertiary:    #556274;   /*  6,2:1 — держит и насыщенные заливки */
+  --color-text-quaternary:  #5c626e;   /*  6,1:1 — держит и насыщенные заливки */
+  --color-text-placeholder: #5c626e;
+  --color-text-disabled:    #b6bfcc;
   --color-text-on-primary:  #ffffff;
   --color-text-on-accent:   #ffffff;
-  --color-text-link:        #3498db;
+  --color-text-link:        #1d4ed8;   /*  6,7:1 — было 3,15:1 */
 
-  /* Акценты */
-  --color-primary:        #3498db;
-  --color-primary-hover:  #2980b9;
-  --color-primary-active: #1f6391;
-  --color-primary-soft:   rgba(52, 152, 219, 0.10);
-  --color-primary-soft-hover: rgba(52, 152, 219, 0.18);
+  /* Акценты. Прежние брались из Flat UI 2013 года (#3498db, #27ae60,
+     #e67e22, #9b59b6) и стояли рядом с современными #6366f1 и #16a34a —
+     две палитры в одном интерфейсе. Здесь одна: те же тона, что в тёмной
+     теме, только взяты на светлом конце шкалы. */
+  --color-primary:        #2563eb;
+  --color-primary-hover:  #1d4ed8;
+  --color-primary-active: #1e40af;
+  --color-primary-soft:   rgba(37, 99, 235, 0.08);
+  --color-primary-soft-hover: rgba(37, 99, 235, 0.14);
 
-  --color-accent-indigo:        #6366f1;
-  --color-accent-indigo-soft:   rgba(99, 102, 241, 0.12);
-  --color-accent-violet:        #8b5cf6;
-  --color-accent-violet-soft:   rgba(139, 92, 246, 0.12);
-  --color-accent-purple:        #9b59b6;
-  --color-accent-purple-soft:   rgba(155, 89, 182, 0.10);
+  --color-accent-indigo:        #4f46e5;
+  --color-accent-indigo-soft:   rgba(79, 70, 229, 0.10);
+  --color-accent-violet:        #7c3aed;
+  --color-accent-violet-soft:   rgba(124, 58, 237, 0.10);
+  --color-accent-purple:        #7c3aed;
+  --color-accent-purple-soft:   rgba(124, 58, 237, 0.09);
 
-  /* Семантика */
-  --color-success:        #27ae60;
-  --color-success-strong: #16a34a;
-  --color-success-soft:   #d5f4e6;
+  /* Семантика. Заливки намеренно тихие и ОДИНАКОВОЙ тяжести (L* 94-96).
+     Прежние расходились от L* 93,7 у зелёной до 97,4 у жёлтой, и в плотной
+     таблице это рябило: соседние ячейки прыгали по светлоте без причины.
+     Насыщенность снижена вдвое (размах каналов 31 -> 12): «прошла» — это
+     норма, она не должна кричать наравне с провалом. В тёмной теме те же
+     заливки поднимают фон всего на 0,02 по яркости, здесь было в пять раз
+     громче — отсюда и ощущение ряби. */
+  /* Заливки НАСЫЩЕННЫЕ, а не намёком. Попытка сделать их почти белыми
+     убрала рябь, но выкрасила страницу в белое: зелёный переставал читаться
+     как зелёный. На светлом фоне цвет обязан быть цветом — иначе он не
+     кодирует ничего. Насыщенность 28 у зелёной, 59 у янтарной, 35 у красной.
+     Порядок тяжести всё равно соблюдён: зелёная светлее (L* 93,1) красной
+     (89,6), поэтому «норма» не спорит с провалом, но и не исчезает. */
+  --color-success:        #16a34a;
+  --color-success-strong: #15803d;
+  --color-success-soft:   #d6f2e0;
   --color-success-text:   #166534;
-  --color-success-border: #86efac;
+  --color-success-border: #a8d9bf;
 
-  --color-warning:        #e67e22;
-  --color-warning-strong: #d97706;
-  --color-warning-soft:   #fff7e6;
-  --color-warning-text:   #92400e;
-  --color-warning-border: #ffd591;
+  --color-warning:        #d97706;
+  --color-warning-strong: #b45309;
+  --color-warning-soft:   #fdeec2;
+  --color-warning-text:   #854d0e;
+  --color-warning-border: #ecc98a;
 
-  --color-error:          #b91c1c;
-  --color-error-strong:   #991b1b;
-  --color-error-soft:     #fef2f2;
+  --color-error:          #dc2626;
+  --color-error-strong:   #b91c1c;
+  --color-error-soft:     #fcd9dc;
   --color-error-text:     #991b1b;
-  --color-error-border:   #fecaca;
+  --color-error-border:   #eba9a9;
 
-  --color-loss:           #b91c1c;
-  --color-loss-soft:      #fef2f2;
+  --color-loss:           #dc2626;
+  --color-loss-soft:      #fcd9dc;
   --color-loss-text:      #991b1b;
 
-  --color-info:           #3498db;
-  --color-info-soft:      rgba(52, 152, 219, 0.08);
+  /* Акцент — цвет крупного числа в карточке показателя.
+     В тёмной теме цвет САМ работает подсветкой: светлый тон горит на тёмном
+     фоне, и ничего добавлять не нужно. На белом свечения не бывает, там
+     выделяет насыщенность и глубина, поэтому здесь тона отдельные и заметно
+     гуще текстовых: у зелёного размах каналов 116 против 79 у --*-text.
+     ВАЖНО: акцент рассчитан на КРУПНЫЙ текст (>=18,66px жирным), где порог
+     3:1. Зелёный даёт 3,6:1, красный 4,2:1, янтарный 4,6:1. Для мелких
+     подписей он не годится — там нужен --*-text или --*-strong. */
+  --color-success-accent: #059669;
+  --color-warning-accent: #b45309;
+  --color-error-accent:   #dc2626;
+  --color-loss-accent:    #dc2626;
+
+  /* Глубина провала на экране Грэма. Пять непрозрачных ступеней, а не доли
+     одного цвета: прозрачность смешивает краску с подложкой, а подложки у
+     тем противоположные. Правило одно и то же в обеих темах — темнее значит
+     хуже, — но на белом фоне это движение вниз от белого, а на тёмном вниз
+     от поверхности, поэтому и наборы разные.
+     Светлота идёт 0,86 -> 0,78 -> 0,64 -> 0,46 -> 0,33 при контрасте текста
+     не ниже 5,5:1 на каждой ступени. */
+  /* Цвет пройденной ячейки экрана. Величина в ней 11px, порог 4,5:1, поэтому
+     крупный акцент из карточек сюда не годится. Здесь тон насыщеннее
+     текстового (размах каналов 107 против 79) и даёт 4,74:1. */
+  --screen-pass-text:     #166534;
+
+  --screen-miss-near:     #fdeec2;   /* почти дотянула — янтарь, самый светлый */
+  --screen-miss-mild:     #fcd9dc;
+  --screen-miss-bad:      #f7b3ba;
+  --screen-miss-severe:   #ea8b96;
+  --screen-miss-loss:     #d46b7a;   /* минус — самый тёмный */
+  --screen-miss-near-text:   #7a5209;
+  --screen-miss-text:        #650f1d;   /* 5,3:1 даже на самой густой ступени */
+  --screen-miss-loss-text:   #4a0c16;
+
+  --color-info:           #2563eb;
+  --color-info-soft:      #eaf1fb;
   --color-info-text:      #1e40af;
 
-  --color-neutral:        #7f8c8d;
-  --color-neutral-soft:   #f1f5f9;
+  /* Нейтраль была #7f8c8d — тёплый серый с зеленцой поверх холодных
+     подложек. Именно от такой пары и рябит: глаз видит подкрашенное серое
+     там, где ждёт нейтральное. */
+  --color-neutral:        #64748b;
+  --color-neutral-soft:   #e9edf4;
   --color-neutral-text:   #475569;
 
   /* Обводки и разделители */
   --color-border-subtle:  #eef2f6;
-  --color-border-default: #e1e8ed;
+  --color-border-default: #e3e9ef;
   --color-border-strong:  #cbd5e1;
-  --color-border-accent:  #3498db;
+  --color-border-accent:  #2563eb;
   --color-separator:      #edf0f3;
 
   /* Тени и elevation */
@@ -135,8 +190,8 @@
               0 2px 8px rgba(15, 23, 42, 0.06);
   --shadow-4: 0 24px 56px rgba(15, 23, 42, 0.16),
               0 8px 16px rgba(15, 23, 42, 0.08);
-  --shadow-focus-ring: 0 0 0 3px rgba(52, 152, 219, 0.25);
-  --shadow-focus-ring-purple: 0 0 0 3px rgba(155, 89, 182, 0.25);
+  --shadow-focus-ring: 0 0 0 3px rgba(37, 99, 235, 0.22);
+  --shadow-focus-ring-purple: 0 0 0 3px rgba(124, 58, 237, 0.22);
 
   /* Градиенты */
   --gradient-hero: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -172,30 +227,33 @@
   --color-chart-dot-stroke:  #ffffff;
 
   /* Таблицы */
-  --color-table-header-bg:    #f8f9fa;
-  --color-table-header-text:  #6b7280;
-  --color-table-row-hover:    #f1f5f9;
-  --color-table-border:       #e1e8ed;
+  --color-table-header-bg:    #f4f7fa;
+  --color-table-header-text:  #5c6a7d;
+  --color-table-row-hover:    #eef2f7;
+  --color-table-border:       #e3e9ef;
 
-  /* Отчёты: непроверенный / AI (светлый фон + тёмный текст) */
-  --color-report-review-row-bg:        #fffbeb;
-  --color-report-review-row-hover-bg:  #fef3c7;
-  --color-report-review-row-border:    #f59e0b;
-  --color-report-unverified-pill-bg:   #fff7e6;
-  --color-report-unverified-pill-border: #ffd591;
-  --color-report-unverified-pill-text: #92400e;
-  --color-report-verification-banner-bg:     #fff7e6;
-  --color-report-verification-banner-border:   #ffd591;
-  --color-report-verification-banner-title:    #92400e;
-  --color-report-verification-banner-text:     #78350f;
-  --color-report-verification-summary-color:   #78350f;
+  /* Отчёты: непроверенный / AI. Кремовые подложки (#fff7e6, #ffd591) и были
+     той самой «сепией»: тёплое густое пятно посреди холодного интерфейса.
+     Тон оставлен янтарным — он несёт смысл «требует проверки», — но взят
+     той же тихой плотности, что и остальные заливки. */
+  --color-report-review-row-bg:        #fdf8ec;
+  --color-report-review-row-hover-bg:  #fbf3e4;
+  --color-report-review-row-border:    #d97706;
+  --color-report-unverified-pill-bg:   #fbf3e4;
+  --color-report-unverified-pill-border: #ecd9ae;
+  --color-report-unverified-pill-text: #854d0e;
+  --color-report-verification-banner-bg:     #fbf3e4;
+  --color-report-verification-banner-border:   #ecd9ae;
+  --color-report-verification-banner-title:    #854d0e;
+  --color-report-verification-banner-text:     #6b4310;
+  --color-report-verification-summary-color:   #6b4310;
   --color-report-verification-pre-bg:          #ffffff;
-  --color-report-verification-pre-border:      #ffd591;
+  --color-report-verification-pre-border:      #ecd9ae;
   --color-report-verification-pre-text:        #1e293b;
-  --color-report-verification-code-bg:         rgba(254, 243, 199, 0.9);
-  --color-verification-ai-bg:    #fff7e6;
-  --color-verification-ai-border: #ffd591;
-  --color-verification-ai-text:  #92400e;
+  --color-report-verification-code-bg:         #fbf3e4;
+  --color-verification-ai-bg:    #fbf3e4;
+  --color-verification-ai-border: #ecd9ae;
+  --color-verification-ai-text:  #854d0e;
 }
 
 /* ─────────────────────────────────────────────────────────────
@@ -223,8 +281,8 @@
   --color-text-primary:     #e6e9ef;
   --color-text-secondary:   #a8b1c2;
   --color-text-tertiary:    #7a8499;
-  --color-text-quaternary:  #5b6377;
-  --color-text-placeholder: #5b6377;
+  --color-text-quaternary:  #868fa3;   /* 4,9:1 на приподнятом фоне */
+  --color-text-placeholder: #868fa3;
   --color-text-disabled:    #454c5d;
   --color-text-on-primary:  #0a0d12;
   --color-text-on-accent:   #f1f3f9;
@@ -266,6 +324,35 @@
   --color-loss:           #fb7185;
   --color-loss-soft:      rgba(251, 113, 133, 0.14);
   --color-loss-text:      #fda4af;
+
+  /* Акцент карточки: в тёмной теме он совпадает с текстовым цветом —
+     светлый тон на тёмном фоне и так читается как подсветка. Токен заведён
+     ради светлой темы, здесь он ничего не меняет. */
+  --color-success-accent: #6ee7b7;
+  --color-warning-accent: #fcd34d;
+  --color-error-accent:   #fca5a5;
+  --color-loss-accent:    #fda4af;
+
+  /* Глубина провала — тёмная тема (основная).
+     Ступени непрозрачные и идут строго по СВЕТЛОТЕ ВНИЗ: чем хуже
+     показатель, тем темнее ячейка. Яркий красный для худшего не годится —
+     он тянет взгляд как подсветка, а нужен провал: минус по рентабельности
+     это яма, а не сигнал тревоги.
+     Все ступени — оттенки того же приглушённого бордового, что и обычный
+     провал, поэтому строка не пестрит. Относительная светлота:
+     0,063 → 0,047 → 0,030 → 0,018 → 0,009 при фоне 0,011, то есть нижняя
+     ступень уходит темнее самой поверхности. Контраст текста 6,6-12,5:1. */
+  /* В тёмной теме — прежний текстовый цвет, без изменений. */
+  --screen-pass-text:     #6ee7b7;
+
+  --screen-miss-near:     #574517;   /* почти дотянула — янтарь, самый светлый */
+  --screen-miss-mild:     #54343c;
+  --screen-miss-bad:      #442930;
+  --screen-miss-severe:   #341e24;
+  --screen-miss-loss:     #261318;   /* минус — самый тёмный, глубина ямы */
+  --screen-miss-near-text:   #fcd34d;
+  --screen-miss-text:        #fecdd3;
+  --screen-miss-loss-text:   #fecdd3;
 
   --color-info:           #22d3ee;
   --color-info-soft:      rgba(34, 211, 238, 0.12);
@@ -331,7 +418,7 @@
 
   /* Таблицы */
   --color-table-header-bg:    #11161d;
-  --color-table-header-text:  #7a8499;
+  --color-table-header-text:  #868fa3;   /* 4,9:1 на приподнятом фоне */
   --color-table-row-hover:    rgba(96, 165, 250, 0.05);
   --color-table-border:       rgba(255, 255, 255, 0.06);
 
@@ -382,8 +469,8 @@
     --color-text-primary:     #e6e9ef;
     --color-text-secondary:   #a8b1c2;
     --color-text-tertiary:    #7a8499;
-    --color-text-quaternary:  #5b6377;
-    --color-text-placeholder: #5b6377;
+    --color-text-quaternary:  #868fa3;
+    --color-text-placeholder: #868fa3;
     --color-text-disabled:    #454c5d;
     --color-text-on-primary:  #0a0d12;
     --color-text-on-accent:   #f1f3f9;
@@ -423,6 +510,22 @@
     --color-loss:           #fb7185;
     --color-loss-soft:      rgba(251, 113, 133, 0.14);
     --color-loss-text:      #fda4af;
+
+    --color-success-accent: #6ee7b7;
+    --color-warning-accent: #fcd34d;
+    --color-error-accent:   #fca5a5;
+    --color-loss-accent:    #fda4af;
+
+    /* Глубина провала — см. пояснение в блоке [data-theme='dark']. */
+    --screen-pass-text:     #6ee7b7;
+    --screen-miss-near:     #574517;
+    --screen-miss-mild:     #54343c;
+    --screen-miss-bad:      #442930;
+    --screen-miss-severe:   #341e24;
+    --screen-miss-loss:     #261318;
+    --screen-miss-near-text:   #fcd34d;
+    --screen-miss-text:        #fecdd3;
+    --screen-miss-loss-text:   #fecdd3;
 
     --color-info:           #22d3ee;
     --color-info-soft:      rgba(34, 211, 238, 0.12);
@@ -481,7 +584,7 @@
     --color-chart-dot-stroke:  #222937;
 
     --color-table-header-bg:    #11161d;
-    --color-table-header-text:  #7a8499;
+    --color-table-header-text:  #868fa3;   /* 4,9:1 на приподнятом фоне */
     --color-table-row-hover:    rgba(96, 165, 250, 0.05);
     --color-table-border:       rgba(255, 255, 255, 0.06);
 

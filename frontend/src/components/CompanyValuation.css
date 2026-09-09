@@ -130,8 +130,8 @@
   line-height: 1.6;
   color: var(--color-text-secondary);
 }
-.cv-verdict--under { border-left-color: var(--color-success); }
-.cv-verdict--over { border-left-color: var(--color-warning); }
+.cv-verdict--under { border-left-color: var(--color-success-text); }
+.cv-verdict--over { border-left-color: var(--color-warning-text); }
 
 /* ── Лестницы ─────────────────────────────────────────────────────────── */
 
@@ -223,8 +223,8 @@
 }
 
 .cv-steady { font-size: 1.05rem; }
-.cv-steady--ровно { color: var(--color-success); }
-.cv-steady--умеренно { color: var(--color-warning); }
+.cv-steady--ровно { color: var(--color-success-text); }
+.cv-steady--умеренно { color: var(--color-warning-text); }
 .cv-steady--разбросано { color: var(--color-warning-strong); }
 
 /* ── Надбавка за риск ─────────────────────────────────────────────────── */
@@ -323,7 +323,7 @@
   color: var(--color-text-secondary);
 }
 .cv-note--warn {
-  border-left-color: var(--color-warning);
+  border-left-color: var(--color-warning-text);
   background: var(--color-warning-soft);
   color: var(--color-warning-text);
 }
