@@ -13,7 +13,7 @@ const EMPTY: HistRowSnapshot = {
   debt_to_equity: null, current_ratio: null, ltm_dividends_per_share: null,
   price_to_fcf: null, ltm_fcf: null, ltm_capex: null, fcf_to_net_income: null,
   net_debt_to_fcf: null, net_debt: null, ltm_revenue: null,
-  ltm_net_income: null, eps: null, shares_used: null, equity: null,
+  ltm_net_income: null, eps: null, shares_used: null, shares_split_factor: null, equity: null,
   key_rate: null, roe_spread: null,
   total_assets: null, dividend_yield: null, dividend_yield_regular: null,
   ltm_special_dividends_per_share: null,
@@ -32,6 +32,33 @@ describe('размытие доли акционера', () => {
 
     expect(yoy.shares.level).toBe('bad');
     expect(yoy.shares.text).toContain('16');
+  });
+
+  it('дробление не считается размытием', () => {
+    // Т-Технологии, сплит 10:1 от 17.04.2026. В отчёте за 2025 год стоит
+    // 257,4 млн акций и коэффициент 10 (столько дроблений прошло ПОСЛЕ него),
+    // в полугодии 2026 — уже 2 549,9 млн и коэффициент 1. Доля владельца при
+    // дроблении не меняется, и прирост должен быть около нуля.
+    const yoy = computeHistRowYoY(
+      snap({ shares_used: 2_549_948_000, shares_split_factor: 1 }),
+      snap({ shares_used: 257_393_950, shares_split_factor: 10 }),
+      'pfcf',
+    );
+
+    expect(yoy.shares.level).not.toBe('bad');
+    expect(yoy.shares.text).not.toContain('890');
+  });
+
+  it('допэмиссия после дробления видна как размытие', () => {
+    // Тот же масштаб, но акций стало вдвое больше — это уже не сплит.
+    const yoy = computeHistRowYoY(
+      snap({ shares_used: 5_147_879_000, shares_split_factor: 1 }),
+      snap({ shares_used: 257_393_950, shares_split_factor: 10 }),
+      'pfcf',
+    );
+
+    expect(yoy.shares.level).toBe('bad');
+    expect(yoy.shares.text).toContain('100');
   });
 
   it('выкуп акций считается улучшением', () => {
