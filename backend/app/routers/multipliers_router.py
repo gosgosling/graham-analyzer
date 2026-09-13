@@ -16,10 +16,11 @@
 """
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session, joinedload
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from app.database import get_db
 from app.models.company import Company
+from app.services.share_splits import shares_factor
 from app.models.financial_report import FinancialReport
 from app.models.multiplier import Multiplier
 from app.schemas import (
@@ -39,8 +40,9 @@ router = APIRouter(tags=["multipliers"])
 def _multiplier_to_response(
     m: Multiplier,
     report_override: Optional[FinancialReport] = None,
+    splits: Any = None,
 ) -> MultiplierResponse:
-    """ORM → API: добавляет дату публикации и цену на эту дату из связанного отчёта."""
+    """ORM → API: добавляет дату публикации, цену на эту дату и масштаб выпуска."""
     base = MultiplierResponse.model_validate(m)
     filing_date = None
     price_at_filing_rub = None
@@ -59,6 +61,12 @@ def _multiplier_to_response(
         "filing_date": filing_date,
         "price_at_filing_rub": price_at_filing_rub,
         "shares_cap_explanation": shares_cap_explanation,
+        "fiscal_year": getattr(rep, "fiscal_year", None),
+        # Во сколько раз сегодняшний выпуск больше тогдашнего. Нужен, чтобы
+        # отличить дробление от допэмиссии: число акций хранится «как было
+        # тогда», и без этого коэффициента сплит 10:1 читается как размытие
+        # доли в десять раз.
+        "shares_split_factor": shares_factor(splits, m.date),
     })
 
 
@@ -203,7 +211,7 @@ def get_multipliers_history(
                 mult_type=type,
                 limit=limit,
             )
-    return [_multiplier_to_response(m) for m in history]
+    return [_multiplier_to_response(m, splits=company.share_splits) for m in history]
 
 
 # ---------------------------------------------------------------------------
@@ -268,7 +276,7 @@ def get_report_multipliers(
     )
 
     if cached:
-        return _multiplier_to_response(cached)
+        return _multiplier_to_response(cached, splits=company.share_splits)
 
     # Не нашли — вычисляем и сохраняем
     saved = multiplier_service.save_report_based_multiplier(db=db, report=report)
@@ -280,7 +288,8 @@ def get_report_multipliers(
                 "(нужны цена акции и количество акций)."
             ),
         )
-    return _multiplier_to_response(saved, report_override=report)
+    return _multiplier_to_response(saved, report_override=report,
+                                   splits=company.share_splits)
 
 
 # ---------------------------------------------------------------------------

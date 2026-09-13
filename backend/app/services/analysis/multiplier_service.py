@@ -22,7 +22,7 @@
 """
 import logging
 from datetime import date, datetime, timezone
-from typing import Optional, List, Dict, Tuple
+from typing import Any, Optional, List, Dict, Tuple
 
 from sqlalchemy.orm import Session, joinedload
 
@@ -31,6 +31,7 @@ from app.models.multiplier import Multiplier
 from app.models.company import Company
 from app.models.enums import PeriodType
 from app.services.analysis.calc_multipliers import calculate_multipliers
+from app.services.share_splits import shares_factor
 from app.models.enums import CompanyType
 from app.services.analysis.fcf import compute_banking_flow, compute_core_fcf, compute_fcf
 from app.services.analysis.sector_profiles import (
@@ -103,7 +104,11 @@ def _field_rub(report: FinancialReport, attr: str) -> Optional[float]:
     return _convert(val, report.currency, _to_float(report.exchange_rate))
 
 
-def _flow_fields_rub(report: FinancialReport, is_bank: bool = False) -> Dict[str, Optional[float]]:
+def _flow_fields_rub(
+    report: FinancialReport,
+    is_bank: bool = False,
+    splits: Any = None,
+) -> Dict[str, Optional[float]]:
     """Потоковые поля одного отчёта за полный год — как есть, без агрегации.
 
     Банковские поля собираются всегда, а не только для report_type='bank':
@@ -112,7 +117,16 @@ def _flow_fields_rub(report: FinancialReport, is_bank: bool = False) -> Dict[str
     поэтому лишними значениями это не оборачивается.
     """
     attrs = _LTM_FLOW_ATTRS + _LTM_BANK_ATTRS
-    return {attr: _field_rub(report, attr) for attr in attrs}
+    out: Dict[str, Optional[float]] = {}
+    for attr in attrs:
+        # Чтение не меняем: пустой дивиденд при dividends_paid=False здесь
+        # должен остаться пустым, а не стать нулём — это проверяет отдельный
+        # тест. Дробление лишь переводит уже прочитанное в сегодняшнюю шкалу.
+        value = _field_rub(report, attr)
+        if attr in _PER_SHARE_ATTRS and splits:
+            value = _to_today_scale(value, report, splits)
+        out[attr] = value
+    return out
 
 
 def _covers_full_year(report: FinancialReport) -> bool:
@@ -215,11 +229,39 @@ def dividend_trend(db: Session, company_id: int) -> Dict[str, Optional[float]]:
     }
 
 
+# Поля «на акцию»: их нельзя складывать между отчётами разного масштаба.
+# Остальные — суммы в рублях, дробление их не трогает.
+_PER_SHARE_ATTRS = _DIVIDEND_ATTRS
+
+
+def _to_today_scale(
+    value: Optional[float],
+    report: FinancialReport,
+    splits: Any,
+) -> Optional[float]:
+    """Показатель на акцию из масштаба отчёта — в сегодняшний.
+
+    Дивиденд хранится так, как был объявлен: у Т-Технологий за 2025 год это
+    149 ₽ на акцию до дробления 10:1. Цена в текущем мультипликаторе — уже
+    сегодняшняя, 261 ₽ после дробления. Сложить их напрямую значит получить
+    доходность 57% там, где она 5,7%.
+
+    Делим на то, во сколько раз выпуск вырос ПОСЛЕ даты отчёта. Сама запись
+    в базе не меняется: соглашение проекта — хранить как было тогда, а
+    приводить к общей шкале в момент расчёта.
+    """
+    if value is None:
+        return None
+    factor = shares_factor(splits, report.report_date)
+    return value if factor == 1.0 else value / factor
+
+
 def _ltm_formula_field(
     current: FinancialReport,
     prior_fy: FinancialReport,
     prior_ytd: FinancialReport,
     attr: str,
+    splits: Any = None,
 ) -> Optional[float]:
     read = _dividend_field if attr in _DIVIDEND_ATTRS else _field_rub
     cur = read(current, attr)
@@ -227,7 +269,15 @@ def _ltm_formula_field(
     ytd = read(prior_ytd, attr)
     if cur is None or fy is None or ytd is None:
         return None
-    return round(cur + fy - ytd, 2)
+    if attr in _PER_SHARE_ATTRS and splits:
+        # Каждое слагаемое приводится к сегодняшней шкале по СВОЕЙ дате:
+        # годовой отчёт может быть до дробления, а полугодовой — после.
+        cur = _to_today_scale(cur, current, splits)
+        fy = _to_today_scale(fy, prior_fy, splits)
+        ytd = _to_today_scale(ytd, prior_ytd, splits)
+        if cur is None or fy is None or ytd is None:
+            return None
+    return round(cur + fy - ytd, 6 if attr in _PER_SHARE_ATTRS else 2)
 
 
 def _ltm_from_interim_formula(
@@ -235,9 +285,10 @@ def _ltm_from_interim_formula(
     prior_fy: FinancialReport,
     prior_ytd: FinancialReport,
     attrs: Tuple[str, ...],
+    splits: Any = None,
 ) -> Dict[str, Optional[float]]:
     return {
-        attr: _ltm_formula_field(current, prior_fy, prior_ytd, attr)
+        attr: _ltm_formula_field(current, prior_fy, prior_ytd, attr, splits)
         for attr in attrs
     }
 
@@ -280,6 +331,7 @@ def _try_interim_ltm(
     db: Session,
     company_id: int,
     latest: FinancialReport,
+    splits: Any = None,
 ) -> Optional[Tuple[Dict[str, Optional[float]], str]]:
     """LTM = prior FY + current YTD − prior-year same YTD (если все три отчёта есть)."""
     if latest.period_type == PeriodType.ANNUAL:
@@ -307,7 +359,7 @@ def _try_interim_ltm(
     # Банковские потоки собираем для любой компании: у гибрида финсегмент
     # сидит внутри обычной отчётности, а у промышленной эти поля пустые.
     flow = _ltm_from_interim_formula(
-        latest, prior_fy, prior_ytd, _LTM_FLOW_ATTRS + _LTM_BANK_ATTRS
+        latest, prior_fy, prior_ytd, _LTM_FLOW_ATTRS + _LTM_BANK_ATTRS, splits
     )
     return flow, _interim_ltm_source_label(latest)
 
@@ -371,24 +423,30 @@ def get_ltm_data(db: Session, company_id: int) -> Optional[Dict]:
     if latest is None:
         return None
 
+    # Дробления нужны, чтобы привести показатели НА АКЦИЮ к одной шкале:
+    # LTM складывает отчёты, часть которых может быть до дробления, а цена
+    # в текущем мультипликаторе — уже после.
+    company = db.query(Company).filter(Company.id == company_id).first()
+    splits = getattr(company, "share_splits", None) if company else None
+
     is_bank = getattr(latest, "report_type", "general") == "bank"
     source: str
     flow: Dict[str, Optional[float]]
 
     if latest.period_type == PeriodType.ANNUAL:
-        flow = _flow_fields_rub(latest, is_bank)
+        flow = _flow_fields_rub(latest, is_bank, splits)
         source = "annual"
     else:
-        interim = _try_interim_ltm(db, company_id, latest)
+        interim = _try_interim_ltm(db, company_id, latest, splits)
         if interim is not None:
             flow, source = interim
         elif _covers_full_year(latest):
-            flow = _flow_fields_rub(latest, is_bank)
+            flow = _flow_fields_rub(latest, is_bank, splits)
             source = "ytd_full_year"
         elif annual is not None:
             # Свежий YTD без прошлогодней пары в LTM не превращается: берём
             # последний полный год. Он устарел, но это честные 12 месяцев.
-            flow = _flow_fields_rub(annual, is_bank)
+            flow = _flow_fields_rub(annual, is_bank, splits)
             source = "annual"
         else:
             # Остались только промежуточные отчёты: 9 месяцев — это не год, а

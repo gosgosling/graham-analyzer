@@ -234,6 +234,36 @@ def test_dividends_not_paid_do_not_leak_into_ltm(db, company):
     assert ltm["ltm_dividends_per_share"] is None
 
 
+def test_dividend_is_brought_to_post_split_scale(db, company):
+    """Дивиденд до дробления приводится к сегодняшней шкале.
+
+    Случай Т-Технологий: за 2025 год объявлено 149 ₽ на акцию, в апреле 2026
+    прошло дробление 10:1, и текущая цена — уже 261 ₽ за десятую долю прежней
+    бумаги. Сложить их напрямую значит показать доходность 57% вместо 5,7%.
+    Запись в базе остаётся прежней: приводим только в момент расчёта.
+    """
+    _add_report(db, company, year=2025, net_income=1_000.0,
+                dividends_per_share=149.0)
+    company.share_splits = [{"date": "2026-04-17", "ratio": 10}]
+    db.commit()
+
+    ltm = get_ltm_data(db, company.id)
+
+    assert ltm["ltm_dividends_per_share"] == pytest.approx(14.9)
+
+
+def test_dividend_after_split_is_left_alone(db, company):
+    """Отчёт, вышедший ПОСЛЕ дробления, уже в сегодняшней шкале."""
+    _add_report(db, company, year=2026, net_income=1_000.0,
+                dividends_per_share=15.0)
+    company.share_splits = [{"date": "2026-04-17", "ratio": 10}]
+    db.commit()
+
+    ltm = get_ltm_data(db, company.id)
+
+    assert ltm["ltm_dividends_per_share"] == pytest.approx(15.0)
+
+
 def test_bank_fields_are_aggregated_for_bank_reports(db, company):
     """Для банка к потоку добавляются процентные и комиссионные доходы."""
     _add_report(

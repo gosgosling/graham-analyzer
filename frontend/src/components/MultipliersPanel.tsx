@@ -8,13 +8,14 @@ import {
 import {
   getCompanyCurrentMultipliers,
   getCompanyMultipliersHistory,
+  getHoldingNav,
   getLtmBankMetrics,
   getSectorProfiles,
   refreshCompanyMultipliers,
   updateCompanySectorProfile,
   updateCompanyType,
 } from '../services';
-import { MultiplierRecord, CurrentMultipliers, Company, SectorProfile, BankMetrics, FinancialReport, CompanyType } from '../types';
+import { MultiplierRecord, CurrentMultipliers, Company, SectorProfile, BankMetrics, FinancialReport, CompanyType, HoldingNav } from '../types';
 import { useChartColors, ChartColors } from '../contexts/ThemeContext';
 import SharesCapHover from './SharesCapHover';
 import { formatPerShare } from '../utils/perShare';
@@ -545,11 +546,20 @@ function PbMetricBadge({
 
   const reasons: string[] = [];
   if (goodwillFlagged) {
+    // Когда гудвил съел капитал целиком, вычитать уже нечего и показывать
+    // нечего: P/B пуст. Прежний текст утверждал, что гудвил «вычтен из
+    // показанного P/B», хотя показанного не было, — и человек оставался с
+    // пустой клеткой и объяснением про другое.
     reasons.push(
-      `Гудвил — ${share}% активов, и он уже вычтен из показанного P/B. `
-      + `С гудвилом было бы ${pb != null ? fmt2(pb) : '—'}. `
-      + `Чем крупнее эта доля, тем сильнее балансовая стоимость зависит от одной оценки: `
-      + `гудвил проверяют на обесценение раз в год, и списывают его целиком, а не постепенно.`,
+      wipedOut
+        ? `P/B не показан: гудвил (${share}% активов) больше собственного капитала, `
+          + `и по материальным активам компания в минусе — делить не на что. `
+          + `С гудвилом P/B был бы ${pb != null ? fmt2(pb) : '—'}, но эта величина `
+          + `держится на оценке, которую проверяют раз в год и списывают целиком.`
+        : `Гудвил — ${share}% активов, и он уже вычтен из показанного P/B. `
+          + `С гудвилом было бы ${pb != null ? fmt2(pb) : '—'}. `
+          + `Чем крупнее эта доля, тем сильнее балансовая стоимость зависит от одной оценки: `
+          + `гудвил проверяют на обесценение раз в год, и списывают его целиком, а не постепенно.`,
     );
   }
   if (intangiblesFlagged) {
@@ -1039,6 +1049,18 @@ function fmtYear(d: string): string {
   return d.split('-')[0];
 }
 
+/**
+ * Подпись строки истории — финансовый год, а не год даты отчёта.
+ *
+ * У компаний со сдвинутым финансовым годом это разные вещи. Диасофт закрывает
+ * год 31 марта: период 31.03.2025-31.03.2026 — отчёт за 2025-й, но дата
+ * мультипликатора 2026-03-31, и по ней вся история съезжала на год вперёд.
+ * Год даты остаётся запасным вариантом для строк без связанного отчёта.
+ */
+function periodLabel(r: { date: string; fiscal_year?: number | null }): string {
+  return r.fiscal_year != null ? String(r.fiscal_year) : fmtYear(r.date);
+}
+
 /** Дата YYYY-MM-DD → дд.мм.гггг (без сдвига часового пояса) */
 function fmtDateFull(iso: string): string {
   const p = iso.split('-');
@@ -1063,6 +1085,8 @@ interface CurrentCardsProps {
    * активов, стоимость риска и запас основного капитала.
    */
   bankMetrics?: BankMetrics | null;
+  /** Оценка холдинга. Есть — классические мультипликаторы уступают ей место. */
+  holdingNav?: HoldingNav | null;
 }
 
 interface DashboardCard {
@@ -1078,6 +1102,80 @@ interface DashboardCard {
   toggleable?: boolean;
   /** Значок в углу: показатель, осмысленный только в сравнении. */
   badge?: { text: string; level: Level; tip: string };
+}
+
+/**
+ * Четыре карточки холдинга вместо классических мультипликаторов.
+ *
+ * Порядок — как читается разбор: сколько стоят доли, сколько должен центр,
+ * что остаётся акционеру и во сколько рынок это оценивает. Уровень ставится
+ * там, где у величины есть содержательная граница: у плеча СЧА — двойка,
+ * после которой холдинг перестаёт быть корзиной и становится корзиной с
+ * маржинальным плечом.
+ */
+const HOLDING_LEVERAGE_HIGH = 2.0;
+
+function holdingCards(nav: HoldingNav): DashboardCard[] {
+  const stakes = nav.stakes_value;
+  const debt = nav.corporate_center_net_debt;
+  const incomplete = nav.total_stakes > 0 && nav.valued_stakes < nav.total_stakes;
+  const pending = incomplete
+    ? ` Оценено ${nav.valued_stakes} из ${nav.total_stakes} долей — сумма неполная.`
+    : '';
+
+  const leverage = stakes !== null && nav.nav !== null && nav.nav > 0
+    ? stakes / nav.nav : null;
+  const ltv = stakes !== null && stakes > 0 && debt !== null ? (debt / stakes) * 100 : null;
+
+  return [
+    {
+      label: 'Стоимость долей',
+      value: stakes === null ? null : stakes / 1000,
+      level: 'neutral',
+      hint: 'Сумма долей в дочках по рыночной цене и оценкам',
+      threshold: incomplete ? `оценено ${nav.valued_stakes} из ${nav.total_stakes}` : '',
+      suffix: ' млрд ₽',
+      nullHint: 'Доли не заведены или не оценены',
+      tip: 'Публичные дочки берутся с рынка, непубличные — по оценке аналитика.'
+        + pending,
+    },
+    {
+      label: 'Долг центра',
+      value: debt === null ? null : debt / 1000,
+      level: ltv === null ? 'neutral' : ltv > 60 ? 'bad' : ltv > 40 ? 'warn' : 'good',
+      hint: 'Чистый долг корпоративного центра',
+      threshold: ltv === null ? '' : `LTV ${ltv.toFixed(0)}% к стоимости долей`,
+      suffix: ' млрд ₽',
+      nullHint: 'Не заполнен — задаётся в панели холдинга',
+      tip: 'Только сам центр, без дочек: их долг уже сидит в цене их акций. '
+        + 'Вычесть консолидированный — значит посчитать долги дочек дважды.',
+    },
+    {
+      label: 'СЧА',
+      value: nav.nav === null ? null : nav.nav / 1000,
+      level: leverage === null ? 'neutral'
+        : leverage > HOLDING_LEVERAGE_HIGH ? 'warn' : 'good',
+      hint: 'Стоимость долей минус долг центра',
+      threshold: leverage === null ? '' : `плечо ${leverage.toFixed(2)}×`,
+      suffix: ' млрд ₽',
+      nullHint: 'Нужны оценённые доли',
+      tip: 'СЧА — заёмный остаток, а не сумма: доли двигаются на процент, '
+        + 'СЧА на столько процентов, каково плечо. Выше двух — уже не корзина, '
+        + 'а корзина с маржинальным плечом.' + pending,
+    },
+    {
+      label: 'Дисконт к СЧА',
+      value: nav.discount_pct,
+      level: 'neutral',
+      hint: 'Насколько рынок дешевле суммы частей',
+      threshold: '',
+      suffix: '%',
+      nullHint: 'СЧА отрицателен или не посчитан',
+      tip: 'Скидка нормальна: распоряжается активами не акционер. Она не сигнал '
+        + 'к покупке — сужается только от действий центра: погашения долга, '
+        + 'продажи актива дороже оценки, вывода дочки на биржу.' + pending,
+    },
+  ];
 }
 
 const PfcfCardToggleIcon: React.FC = () => (
@@ -1105,6 +1203,7 @@ const CurrentCards: React.FC<CurrentCardsProps> = ({
   previous,
   isPreferredShare = false,
   bankMetrics,
+  holdingNav,
 }) => {
   const [pfcfCardMode, setPfcfCardMode] = React.useState<PfcfColMode>('pfcf');
   const income = data.ltm_net_income;
@@ -1334,7 +1433,17 @@ const CurrentCards: React.FC<CurrentCardsProps> = ({
       })
     : [];
 
-  const cards: DashboardCard[] = [...baseCards, ...fcfCards, ...bankCards];
+  // У холдинга своя четвёрка вместо классической. P/E, P/B и отдача на
+  // капитал здесь описывают сумму чужих бизнесов: консолидация ставит на
+  // баланс сто процентов выручки и долга каждой дочки, хотя акционеру
+  // принадлежат доли. Показывать их рядом с настоящими величинами значит
+  // приглашать их сравнивать.
+  //
+  // Заменяются на то, из чего холдинг действительно состоит: стоимость долей,
+  // долг корпоративного центра, разница между ними (СЧА) и скидка рынка к ней.
+  const cards: DashboardCard[] = holdingNav
+    ? [...holdingCards(holdingNav), ...bankCards]
+    : [...baseCards, ...fcfCards, ...bankCards];
 
   return (
     <div className="current-cards-grid">
@@ -1513,6 +1622,12 @@ interface HistTableProps {
    * удвоенное полугодие рядом с честными годовыми строками.
    */
   ltmBankMetrics?: BankMetrics | null;
+  /**
+   * Холдинг: P/E, P/B, отдача на капитал и плечо считаются по консолидации,
+   * то есть описывают сумму чужих бизнесов. Колонки убираются целиком —
+   * прочерк заставил бы объяснять словами то, что проще не показывать.
+   */
+  isHolding?: boolean;
 }
 
 /** Всплывающая подсказка: цена в ячейке — на конец периода; рядом — на дату публикации отчёта. */
@@ -1787,9 +1902,12 @@ interface HistTableRowProps {
   /** Банковские показатели прошлого периода — для режима «Δ к прошлому году». */
   previousBankMetrics?: BankMetrics | null;
   previousCostToIncome?: number | null;
+  /** Холдинг: колонки по консолидации не выводятся. См. HistTableProps. */
+  isHolding?: boolean;
 }
 
 const HistTableRow: React.FC<HistTableRowProps> = ({
+  isHolding = false,
   periodCell,
   rowClassName,
   record,
@@ -1861,9 +1979,12 @@ const HistTableRow: React.FC<HistTableRowProps> = ({
   // показателей у неё нет, а свободный поток есть — колонки набираются
   // тремя признаками, а не одним «банк / не банк».
   const isExchange = profile?.key === 'exchange';
-  const noLeverage = isBank || isExchange;   // D/E, Current Ratio, Net Debt, ND/FCF
+  const noLeverage = isBank || isExchange || isHolding;  // D/E, CR, Net Debt, ND/FCF
   const showCir = isBank || isExchange;      // Cost/Income
-  const showFcf = !isBank;                   // P/FCF, FCF/NI, FCF, CAPEX
+  // У холдинга поток тоже консолидированный: складывает деньги дочек, до
+  // которых центр не дотягивается без дивиденда.
+  const showFcf = !isBank && !isHolding;     // P/FCF, FCF/NI, FCF, CAPEX
+  const showRatios = !isHolding;             // P/E, P/B, ROE
 
 
   const priceContent = record
@@ -1883,7 +2004,7 @@ const HistTableRow: React.FC<HistTableRowProps> = ({
           scale={moneyScales.cap}
         />,
       )}
-      {histYoYCell(
+      {showRatios && histYoYCell(
         pctMode,
         yoy?.pe,
         <MetricBadge
@@ -1892,7 +2013,7 @@ const HistTableRow: React.FC<HistTableRowProps> = ({
           nullHint={peHint}
         />,
       )}
-      {histYoYCell(
+      {showRatios && histYoYCell(
         pctMode,
         yoy?.pb,
         <PbMetricBadge
@@ -1905,7 +2026,7 @@ const HistTableRow: React.FC<HistTableRowProps> = ({
           nullHint={pbHint}
         />,
       )}
-      {histYoYCell(
+      {showRatios && histYoYCell(
         pctMode,
         yoy?.roe,
         <RoeMetricBadge
@@ -2108,6 +2229,7 @@ const HistTable: React.FC<HistTableProps & { pctMode: boolean }> = ({
   pctMode,
   bankMetricsByReport,
   ltmBankMetrics,
+  isHolding = false,
 }) => {
   const [crTooltipVisible, setCrTooltipVisible] = React.useState(false);
   const [pfcfColMode, setPfcfColMode] = React.useState<PfcfColMode>('pfcf');
@@ -2122,9 +2244,12 @@ const HistTable: React.FC<HistTableProps & { pctMode: boolean }> = ({
   // показателей у неё нет, а свободный поток есть — колонки набираются
   // тремя признаками, а не одним «банк / не банк».
   const isExchange = profile?.key === 'exchange';
-  const noLeverage = isBank || isExchange;   // D/E, Current Ratio, Net Debt, ND/FCF
+  const noLeverage = isBank || isExchange || isHolding;  // D/E, CR, Net Debt, ND/FCF
   const showCir = isBank || isExchange;      // Cost/Income
-  const showFcf = !isBank;                   // P/FCF, FCF/NI, FCF, CAPEX
+  // У холдинга поток тоже консолидированный: складывает деньги дочек, до
+  // которых центр не дотягивается без дивиденда.
+  const showFcf = !isBank && !isHolding;     // P/FCF, FCF/NI, FCF, CAPEX
+  const showRatios = !isHolding;             // P/E, P/B, ROE
 
   // Поток ядра приходит только у гибридов. Если он есть хоть в одной строке,
   // колонка показывает именно его — и заголовок обязан об этом сказать.
@@ -2185,9 +2310,11 @@ const HistTable: React.FC<HistTableProps & { pctMode: boolean }> = ({
             <th className="col-mkt col-header-unit-col">
               <ColHeaderWithUnit title="Кап." unit={moneyScales.cap.unit} />
             </th>
-            <th className="col-mult">P/E</th>
-            <th className="col-mult">P/B</th>
-            <th className="col-mult col-header-unit-col"><ColHeaderWithUnit title="ROE" unit="%" align="right" /></th>
+            {showRatios && <th className="col-mult">P/E</th>}
+            {showRatios && <th className="col-mult">P/B</th>}
+            {showRatios && (
+              <th className="col-mult col-header-unit-col"><ColHeaderWithUnit title="ROE" unit="%" align="right" /></th>
+            )}
             {!noLeverage && <th className="col-mult">D/E</th>}
             {!noLeverage && (
               <th
@@ -2327,6 +2454,7 @@ const HistTable: React.FC<HistTableProps & { pctMode: boolean }> = ({
         <tbody>
           {currentRow && (
             <HistTableRow
+              isHolding={isHolding}
               rowClassName="row-ltm"
               periodCell={<span className="badge-ltm">LTM</span>}
               snapshot={snapshotFromCurrent(currentRow)}
@@ -2370,9 +2498,10 @@ const HistTable: React.FC<HistTableProps & { pctMode: boolean }> = ({
 
           {rows.map((r, index) => (
             <HistTableRow
+              isHolding={isHolding}
               key={r.id}
               rowClassName="row-hist"
-              periodCell={fmtYear(r.date)}
+              periodCell={periodLabel(r)}
               record={r}
               snapshot={snapshotFromRecord(r)}
               yoy={
@@ -2475,7 +2604,7 @@ function buildMultiplierChartData(
 ): ChartPoint[] {
   const historical = [...rows].reverse();
   return [
-    ...historical.map((r) => toChartPoint(r, fmtYear(r.date), false)),
+    ...historical.map((r) => toChartPoint(r, periodLabel(r), false)),
     ...(currentRow ? [toChartPoint(currentRow, 'LTM', true)] : []),
   ];
 }
@@ -2941,6 +3070,17 @@ const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company, reports })
   }, [companyId, queryClient]);
 
   const rows = histData ?? [];
+
+  // Холдингу классические мультипликаторы не подходят: они описывают сумму
+  // чужих бизнесов. Для него тянем оценку по СЧА и подменяем карточки.
+  const isHolding = company.company_type === 'holding';
+  const { data: holdingNav } = useQuery({
+    queryKey: ['holding-nav', companyId],
+    queryFn: () => getHoldingNav(companyId),
+    enabled: isHolding && Number.isFinite(companyId) && companyId > 0,
+    staleTime: 5 * 60 * 1000,
+  });
+
   const [face, setFace] = React.useState<PanelFace>('multipliers');
   const [flipping, setFlipping] = React.useState(false);
 
@@ -3104,6 +3244,7 @@ const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company, reports })
                       profile={profile}
                       previous={rows.length > 0 ? snapshotFromRecord(rows[0]) : null}
                       isPreferredShare={!!company.is_preferred_share}
+                      holdingNav={holdingNav ?? null}
                       // Карточки описывают LTM — значит и ROA здесь должен быть
                       // от прибыли за скользящий год, как P/E и ROE рядом.
                       // Показатели отчёта остаются запасным источником.
@@ -3201,6 +3342,7 @@ const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company, reports })
             </button>
           </div>
           <HistTable
+            isHolding={isHolding}
             rows={rows}
             currentRow={currentData ?? undefined}
             profile={profile}

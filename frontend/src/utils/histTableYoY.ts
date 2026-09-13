@@ -41,6 +41,13 @@ export interface HistRowSnapshot {
   roe_spread: number | null;
   /** Акции, использованные в капитализации: их изменение и есть размытие */
   shares_used: number | null;
+  /**
+   * Во сколько раз сегодняшний выпуск больше выпуска на дату строки.
+   * Нужен, чтобы отличить дробление от допэмиссии: у Т-Технологий сплит 10:1
+   * поднял число акций с 0,26 до 2,55 млрд, и без приведения к общей шкале
+   * это читалось как размытие доли в десять раз.
+   */
+  shares_split_factor: number | null;
   equity: number | null;
   total_assets: number | null;
   dividend_yield: number | null;
@@ -88,6 +95,21 @@ function computeNetDebtToFcf(
   if (ratio != null) return ratio;
   if (netDebt == null || fcf == null || fcf === 0) return null;
   return Math.round((netDebt / fcf) * 100) / 100;
+}
+
+/**
+ * Число акций строки, приведённое к сегодняшней шкале.
+ *
+ * Дробление меняет количество бумаг, но не долю владельца, поэтому сравнивать
+ * год к году надо после приведения. Коэффициент приходит с бэкенда: он равен
+ * произведению всех дроблений ПОСЛЕ даты строки, то есть у свежих строк он 1.
+ * Без него сплит 10:1 и допэмиссия вдвое выглядят одинаково — просто ростом
+ * числа акций, — хотя первое акционеру нейтрально, а второе бьёт по доле.
+ */
+function sharesInTodayScale(row: HistRowSnapshot): number | null {
+  if (row.shares_used === null) return null;
+  const factor = row.shares_split_factor;
+  return factor && factor > 0 ? row.shares_used * factor : row.shares_used;
 }
 
 function changeLevel(delta: number, direction: YoYDirection): YoYLevel {
@@ -232,7 +254,14 @@ export function computeHistRowYoY(
     eps: profitChange(current.eps, previous.eps),
     // Рост числа акций — это размытие доли акционера, поэтому «меньше лучше».
     // Выкуп даёт отрицательное изменение и красится зелёным.
-    shares: metricPct(current.shares_used, previous.shares_used, 'lower_better', 'Акций'),
+    //
+    // Обе стороны приводятся к сегодняшней шкале: дробление меняет число
+    // акций, но не долю владельца, и показывать его как размытие неверно.
+    // После приведения сплит даёт 0%, а допэмиссия — настоящую величину.
+    shares: metricPct(
+      sharesInTodayScale(current), sharesInTodayScale(previous),
+      'lower_better', 'Акций',
+    ),
   };
 }
 
@@ -264,6 +293,7 @@ export function snapshotFromRecord(r: MultiplierRecord): HistRowSnapshot {
     key_rate: r.key_rate ?? null,
     roe_spread: r.roe_spread ?? null,
     shares_used: r.shares_used,
+    shares_split_factor: r.shares_split_factor ?? null,
     equity: r.equity,
     total_assets: r.total_assets ?? null,
     dividend_yield: r.dividend_yield,
@@ -300,6 +330,7 @@ export function snapshotFromCurrent(r: CurrentMultipliers): HistRowSnapshot {
     key_rate: r.key_rate ?? null,
     roe_spread: r.roe_spread ?? null,
     shares_used: r.shares_used,
+    shares_split_factor: r.shares_split_factor ?? null,
     equity: r.equity,
     total_assets: r.total_assets ?? null,
     dividend_yield: r.dividend_yield,

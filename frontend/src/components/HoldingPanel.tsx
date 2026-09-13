@@ -8,6 +8,7 @@ import {
   getCompanies,
   getHoldingNav,
   setCorporateDebt,
+  updateHoldingStake,
   type HoldingStakeInput,
 } from '../services';
 import { formatMln } from '../utils/format';
@@ -71,6 +72,13 @@ const HoldingPanel: React.FC<{ company: Company; reports?: FinancialReport[] }> 
       invalidate();
     },
     onError: (e: any) => window.alert(e?.response?.data?.detail ?? 'Не удалось добавить долю'),
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ stakeId, payload }: { stakeId: number; payload: HoldingStakeInput }) =>
+      updateHoldingStake(companyId, stakeId, payload),
+    onSuccess: invalidate,
+    onError: (e: any) => window.alert(e?.response?.data?.detail ?? 'Не удалось сохранить долю'),
   });
 
   const deleteMutation = useMutation({
@@ -157,6 +165,8 @@ const HoldingPanel: React.FC<{ company: Company; reports?: FinancialReport[] }> 
             <StakeRow
               key={stake.stake_id}
               stake={stake}
+              saving={updateMutation.isPending}
+              onSave={(payload) => updateMutation.mutate({ stakeId: stake.stake_id, payload })}
               onDelete={() => {
                 if (window.confirm(`Удалить долю «${stake.name}»?`)) {
                   deleteMutation.mutate(stake.stake_id);
@@ -299,28 +309,124 @@ const SummaryCard: React.FC<{
   </div>
 );
 
-const StakeRow: React.FC<{ stake: StakeValuation; onDelete: () => void }> = ({ stake, onDelete }) => (
-  <tr className={stake.stake_value == null ? 'holding-row-unvalued' : undefined}>
-    <td>
-      {stake.subsidiary_company_id ? (
-        <Link to={`/company/${stake.subsidiary_company_id}`}>{stake.name}</Link>
-      ) : (
-        stake.name
-      )}
-      {stake.ticker && <span className="holding-ticker">{stake.ticker}</span>}
-    </td>
-    <td className="num">{fmtPct(stake.share_pct)}</td>
-    <td className="num">{stake.company_value != null ? formatMln(stake.company_value) : '—'}</td>
-    <td className="num strong">
-      {stake.stake_value != null ? formatMln(stake.stake_value) : <span className="holding-missing">{stake.missing}</span>}
-    </td>
-    <td>{stake.source === 'market' ? 'рынок' : stake.source === 'manual' ? 'оценка' : '—'}</td>
-    <td>
-      <button type="button" className="holding-btn small" onClick={onDelete}>
-        ✕
-      </button>
-    </td>
-  </tr>
-);
+/**
+ * Строка доли. Доля владения и ручная оценка правятся прямо здесь.
+ *
+ * Раньше их можно было только удалить и завести заново, а это теряет
+ * примечание к оценке — единственное место, где записано, откуда взялось
+ * число. Терять его нельзя: непубличный актив без метода оценки — мнение,
+ * выданное за измерение.
+ */
+const StakeRow: React.FC<{
+  stake: StakeValuation;
+  onDelete: () => void;
+  onSave: (payload: HoldingStakeInput) => void;
+  saving: boolean;
+}> = ({ stake, onDelete, onSave, saving }) => {
+  const [editing, setEditing] = useState(false);
+  const [pct, setPct] = useState(String(stake.share_pct));
+  const [value, setValue] = useState(
+    stake.source === 'manual' && stake.company_value != null ? String(stake.company_value) : '',
+  );
+
+  const start = () => {
+    setPct(String(stake.share_pct));
+    setValue(stake.source === 'manual' && stake.company_value != null
+      ? String(stake.company_value) : '');
+    setEditing(true);
+  };
+
+  const save = () => {
+    const share = Number(pct.replace(',', '.'));
+    if (!Number.isFinite(share) || share <= 0 || share > 100) {
+      window.alert('Доля владения — число от 0 до 100');
+      return;
+    }
+    const manual = value.trim() === '' ? null : Number(value.replace(/\s|,/g, (m) => (m === ',' ? '.' : '')));
+    if (manual !== null && !Number.isFinite(manual)) {
+      window.alert('Оценка — число в млн ₽ или пусто');
+      return;
+    }
+    onSave({
+      name: stake.name,
+      share_pct: share,
+      subsidiary_company_id: stake.subsidiary_company_id ?? null,
+      manual_valuation: manual,
+    });
+    setEditing(false);
+  };
+
+  return (
+    <tr className={stake.stake_value == null ? 'holding-row-unvalued' : undefined}>
+      <td>
+        {stake.subsidiary_company_id ? (
+          <Link to={`/company/${stake.subsidiary_company_id}`}>{stake.name}</Link>
+        ) : (
+          stake.name
+        )}
+        {stake.ticker && <span className="holding-ticker">{stake.ticker}</span>}
+      </td>
+      <td className="num">
+        {editing ? (
+          <input
+            className="holding-inline"
+            value={pct}
+            onChange={(e) => setPct(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && save()}
+            aria-label="Доля владения, %"
+            autoFocus
+          />
+        ) : (
+          fmtPct(stake.share_pct)
+        )}
+      </td>
+      <td className="num">
+        {editing && stake.subsidiary_company_id == null ? (
+          <input
+            className="holding-inline"
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && save()}
+            placeholder="млн ₽"
+            aria-label="Оценка всей компании, млн ₽"
+          />
+        ) : (
+          stake.company_value != null ? formatMln(stake.company_value) : '—'
+        )}
+      </td>
+      <td className="num strong">
+        {stake.stake_value != null
+          ? formatMln(stake.stake_value)
+          : <span className="holding-missing">{stake.missing}</span>}
+      </td>
+      <td>{stake.source === 'market' ? 'рынок' : stake.source === 'manual' ? 'оценка' : '—'}</td>
+      <td className="holding-actions">
+        {editing ? (
+          <>
+            <button type="button" className="holding-btn small primary"
+                    onClick={save} disabled={saving}>
+              ✓
+            </button>
+            <button type="button" className="holding-btn small"
+                    onClick={() => setEditing(false)}>
+              ↩
+            </button>
+          </>
+        ) : (
+          <>
+            <button type="button" className="holding-btn small" onClick={start}
+                    title="Изменить долю или оценку">
+              ✎
+            </button>
+            <button type="button" className="holding-btn small" onClick={onDelete}
+                    title="Удалить долю">
+              ✕
+            </button>
+          </>
+        )}
+      </td>
+    </tr>
+  );
+};
 
 export default HoldingPanel;

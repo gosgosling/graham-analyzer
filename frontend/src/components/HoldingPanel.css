@@ -169,6 +169,33 @@
 .holding-btn.primary { background: var(--color-accent-indigo-soft); border-color: var(--color-border-accent); }
 .holding-btn.small { padding: 2px 8px; }
 
+/* Правка прямо в строке: доля и оценка меняются чаще всего, а заводить долю
+   заново ради одной цифры значит терять примечание к оценке. */
+.holding-actions {
+  display: flex;
+  gap: 4px;
+  justify-content: flex-end;
+}
+
+.holding-inline {
+  width: 100%;
+  max-width: 7rem;
+  padding: 2px 6px;
+  border: 1px solid var(--color-border-accent);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-input);
+  color: var(--color-text-primary);
+  font: inherit;
+  font-size: 0.85rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.holding-inline:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 1px;
+}
+
 .holding-form {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
