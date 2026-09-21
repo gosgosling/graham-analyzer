@@ -811,6 +811,54 @@ def _dilution_note(points, span: int, smooth: int) -> Optional[str]:
 
 REVERSAL_NOTE_PCT = -20.0
 
+# На сколько процентных пунктов скользящий год должен разойтись с концом
+# окна, чтобы об этом стоило говорить. Поток к капиталу шумен, и разница в
+# пару пунктов означает только то, что год не кончился ровно.
+LTM_NOTE_SPREAD_PP = 10.0
+
+
+def _ltm_cash_note(points, live) -> Optional[str]:
+    """Скользящий год резко разошёлся с концом окна — сказать об этом вслух.
+
+    В сам тест LTM не попадает, и это не упущение: скользящий год перекрывается
+    с последним календарным примерно наполовину, и, положив оба в одну тройку,
+    мы посчитали бы это полугодие дважды — ровно то, от чего сглаживание
+    тройками и защищает. У Черкизово поток за июль 2025 — июнь 2026 оказался
+    лучшим за всю историю, тогда как конец окна тянут вниз 2023 и 2024 годы;
+    пустить туда LTM значило бы перевернуть вердикт с «не прошла» на «прошла»
+    по одному неаудированному полугодию.
+
+    Но и промолчать нельзя. Человек, читающий «−144%» рядом с рекордным
+    потоком в таблице мультипликаторов, вправе узнать, что обе цифры верны и
+    меряют разное, а не искать ошибку в расчёте.
+
+    Сравниваются отдачи на капитал, а не величины на акцию: отдача от числа
+    акций не зависит, и дробление её не сдвигает, тогда как поток на акцию
+    пришлось бы приводить к одному масштабу вручную.
+    """
+    fresh = _live_fcf_to_equity(live)
+    if fresh is None:
+        return None
+    direction = graham_growth(points, "fcf_per_share")
+    if direction is None:
+        direction = graham_growth(points, "fcf_per_share",
+                                  GROWTH_SPAN_SHORT, CASH_SMOOTH_SHORT)
+    if direction is None:
+        return None
+    by_year = {p.year: p for p in points}
+    tail = [by_year[y].fcf_to_equity for y in direction.newer_years
+            if y in by_year and by_year[y].fcf_to_equity is not None]
+    if not tail:
+        return None
+    end = sum(float(v) for v in tail) / len(tail)
+    if abs(fresh - end) < LTM_NOTE_SPREAD_PP:
+        return None
+    turn = "лучше" if fresh > end else "хуже"
+    return (f"За скользящий год поток к капиталу {fresh:+.0f}% против {end:+.0f}% "
+            f"в среднем по концу окна ({_years(direction.newer_years)}) — "
+            f"заметно {turn}. Тест считает только по годовым точкам, и этот "
+            f"разворот в него ещё не попал")
+
 
 def _reversal_note(long_run: Optional[float], short_run: Optional[float],
                    what: str) -> Optional[str]:
@@ -841,7 +889,7 @@ def _join_notes(*parts: Optional[str]) -> Optional[str]:
     return " · ".join(kept) if kept else None
 
 
-def growth(points, is_lender: bool) -> Axis:
+def growth(points, is_lender: bool, live=None) -> Axis:
     """Рост: два конца десятилетия, каждый сглажен тройкой (гл. 14).
 
     Поток считается по тому же правилу, но с отступлением: у половины компаний
@@ -881,6 +929,9 @@ def growth(points, is_lender: bool) -> Axis:
         short_cash = _growth_percent(points, "fcf_per_share", GROWTH_SPAN_SHORT,
                                      CASH_SMOOTH_SHORT)
         cash_run = _growth_percent(points, "fcf_per_share")
+        # Разворот, не попавший в годовые точки, касается обеих строк потока
+        # одинаково: конец окна у них общий.
+        ltm_note = _ltm_cash_note(points, live)
         span, note = GROWTH_SPAN, None
         if cash_run is None:
             # Сглаживание тройками в пять лет не помещается: тройка с каждого
@@ -894,7 +945,8 @@ def growth(points, is_lender: bool) -> Axis:
             key="cash_growth", label=f"Прирост FCF за {span} лет", unit="%",
             value=cash_run, series=_series(points, "fcf_per_share"),
             tone=_tone(cash_run), suspect=_implausible(cash_run),
-            note=_join_notes(note, _reversal_note(cash_run, short_cash, "поток")),
+            note=_join_notes(note, _reversal_note(cash_run, short_cash, "поток"),
+                             ltm_note),
         ))
         # Пятилетний рост потока — на тот же отрезок, что и короткий тест по
         # прибыли, чтобы их можно было сравнивать между собой. Когда прибыль
@@ -905,7 +957,8 @@ def growth(points, is_lender: bool) -> Axis:
             label=f"Прирост FCF за {GROWTH_YEARS_BACK_SHORT} лет", unit="%",
             value=short_cash, tone=_tone(short_cash),
             suspect=_implausible(short_cash),
-            note="То же окно, что и у короткого теста по прибыли",
+            note=_join_notes("То же окно, что и у короткого теста по прибыли",
+                             ltm_note),
         ))
     return Axis(
         key="growth", label="Рост",
@@ -1235,7 +1288,7 @@ def build(points, mults: dict, reports: dict, is_lender: bool = False,
     return [
         profitability(points, mults, reports, is_lender, live),
         stability(points, is_lender, reports, ltm_bank),
-        growth(points, is_lender),
+        growth(points, is_lender, live),
         financial_position(mults, reports, is_lender, live, ltm_bank),
         dividends(points, mults, live),
         price_level(points, mults, live),

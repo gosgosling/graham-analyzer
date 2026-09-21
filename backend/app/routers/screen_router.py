@@ -160,6 +160,9 @@ def market_screen(
             "id": company.id,
             "ticker": result.ticker,
             "name": company.name,
+            # Логотип для опознания строки с одного взгляда: в таблице на
+            # тридцать компаний тикер читается медленнее, чем знакомый кружок.
+            "logo_url": str(company.brand_logo_url) if company.brand_logo_url else None,
             "profile": result.profile.key,
             "profile_label": result.profile.label,
             "passed": result.passed,

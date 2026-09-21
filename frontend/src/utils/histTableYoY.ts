@@ -3,6 +3,10 @@ import type { CurrentMultipliers, MultiplierRecord } from '../types';
 export type YoYLevel = 'good' | 'bad' | 'neutral';
 export type YoYDirection = 'higher_better' | 'lower_better';
 export type PfcfColMode = 'pfcf' | 'yield';
+/** ROE считается по прибыли или по свободному потоку. */
+export type RoeColMode = 'profit' | 'fcf';
+/** На акцию показывается прибыль или свободный поток. */
+export type PerShareColMode = 'eps' | 'fcf';
 
 export interface YoYDisplay {
   text: string;
@@ -110,6 +114,24 @@ function sharesInTodayScale(row: HistRowSnapshot): number | null {
   if (row.shares_used === null) return null;
   const factor = row.shares_split_factor;
   return factor && factor > 0 ? row.shares_used * factor : row.shares_used;
+}
+
+/**
+ * Отдача капитала по деньгам, %: свободный поток вместо прибыли.
+ *
+ * Прибыль — мнение бухгалтера, поток — факт кассы. Компания с ровным ROE и
+ * отрицательным потоком на капитал зарабатывает на бумаге, а живёт в долг;
+ * рядом эти два числа показывают разрыв без вычислений.
+ */
+export function fcfToEquityPct(row: HistRowSnapshot): number | null {
+  if (row.ltm_fcf === null || row.equity === null || row.equity === 0) return null;
+  return (row.ltm_fcf / row.equity) * 100;
+}
+
+/** Свободный поток на акцию, ₽ — пара к EPS в той же шкале. */
+export function fcfPerShare(row: HistRowSnapshot): number | null {
+  if (row.ltm_fcf === null || !row.shares_used) return null;
+  return (row.ltm_fcf * 1_000_000) / row.shares_used;
 }
 
 function changeLevel(delta: number, direction: YoYDirection): YoYLevel {
@@ -228,6 +250,8 @@ export function computeHistRowYoY(
   current: HistRowSnapshot,
   previous: HistRowSnapshot,
   pfcfMode: PfcfColMode,
+  roeMode: RoeColMode = 'profit',
+  perShareMode: PerShareColMode = 'eps',
 ): HistRowYoY {
   const curNdFcf = computeNetDebtToFcf(current.net_debt_to_fcf, current.net_debt, current.ltm_fcf);
   const prevNdFcf = computeNetDebtToFcf(previous.net_debt_to_fcf, previous.net_debt, previous.ltm_fcf);
@@ -237,7 +261,12 @@ export function computeHistRowYoY(
     cap: metricPct(current.market_cap, previous.market_cap, 'higher_better', 'Капитализация'),
     pe: metricPct(current.pe_ratio, previous.pe_ratio, 'lower_better', 'P/E'),
     pb: metricPct(current.pb_ratio, previous.pb_ratio, 'lower_better', 'P/B'),
-    roe: metricPp(current.roe, previous.roe, 'higher_better', 'ROE'),
+    // Прирост считается по той величине, которая сейчас на виду: иначе
+    // переключённая колонка показывала бы изменение другого показателя.
+    roe: roeMode === 'fcf'
+      ? metricPp(fcfToEquityPct(current), fcfToEquityPct(previous),
+                 'higher_better', 'Поток к капиталу')
+      : metricPp(current.roe, previous.roe, 'higher_better', 'ROE'),
     de: metricPct(current.debt_to_equity, previous.debt_to_equity, 'lower_better', 'D/E'),
     cr: metricPp(current.current_ratio, previous.current_ratio, 'higher_better', 'Current Ratio'),
     div: divDpsChange(current.ltm_dividends_per_share, previous.ltm_dividends_per_share),
@@ -251,7 +280,9 @@ export function computeHistRowYoY(
     profit: profitChange(current.ltm_net_income, previous.ltm_net_income),
     // EPS растёт медленнее прибыли ровно на размытие — обе строки рядом,
     // и разрыв между ними виден без вычислений.
-    eps: profitChange(current.eps, previous.eps),
+    eps: perShareMode === 'fcf'
+      ? profitChange(fcfPerShare(current), fcfPerShare(previous))
+      : profitChange(current.eps, previous.eps),
     // Рост числа акций — это размытие доли акционера, поэтому «меньше лучше».
     // Выкуп даёт отрицательное изменение и красится зелёным.
     //
