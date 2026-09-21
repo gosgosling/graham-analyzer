@@ -98,6 +98,7 @@ PROFILE_KEYS = {
     "pb_tangible": "pb",
     "roe": "roe",
     "dividend_yield": "dy",
+    "cost_to_income_average": "cir",
 }
 
 # Статусы вердикта. Три последних — не провал, и складывать их с ним нельзя.
@@ -139,6 +140,18 @@ class Rule:
     # неизбежно накрывает 2020 и 2022 годы. Пояснение берётся у самой
     # величины: оно зависит от компании, а не от правила.
     weak: bool = False
+    # Порог берётся по краю «плохо», а не «хорошо».
+    #
+    # У книжных критериев край один: Грэм назвал число, и оно и есть граница.
+    # У наших — три уровня, потому что они пришли из отраслевых полос, где
+    # есть и «хорошо», и «приемлемо». Судить по краю «хорошо» значит объявлять
+    # провалом всё приемлемое: у Сбера стоимость риска 1,03 против «хорошо»
+    # 1,0 — мимо на три сотых, при том что таблица мультипликаторов красит
+    # это значение жёлтым, то есть приемлемым.
+    #
+    # Расхождение между таблицей и паспортом отсюда и бралось. С этим флагом
+    # красное в таблице означает провал в паспорте, и наоборот.
+    lenient: bool = False
 
     def holds(self, value: Optional[float], of: Optional[float]) -> Optional[bool]:
         if value is None:
@@ -200,6 +213,35 @@ CASH_RULES = (
          note="Поток за окно не должен сжиматься"),
 )
 
+# Кредитная организация меряется своим. У Грэма банков в списках нет вовсе —
+# в 1949 и 1972 годах они были предметом отдельного разбора, а не защитного
+# отбора. Поэтому все пороги здесь наши, взяты из `bank_metrics`, где уже
+# сложены полосы, и помечены как суждение.
+#
+# Разделение то же, что и везде: **среднее там, где показатель описывает
+# поведение, точка — где он описывает запас.** Издержки к доходам и стоимость
+# риска судятся по средней за семь лет: разовая экономия ничего не доказывает,
+# а низкая стоимость риска в хороший год бывает у всех. Достаточность капитала
+# и доля проблемных кредитов — величины на дату, усреднять их бессмысленно.
+#
+# Правила стоят в обоих сводах. Небанк получит по ним «не применяется»
+# автоматически: у его осей таких подметрик нет — ровно так же, как банк
+# получает «не применяется» по свободному потоку.
+LENDER_RULES = (
+    Rule("profitability", "cost_to_income_average", "max", None,
+         "наше добавление · у Грэма банков нет", ours=True, lenient=True,
+         note="Судим по средней: издержки описывают поведение, а не запас"),
+    Rule("stability", "cost_of_risk_average", "max", 2.0,
+         "наше добавление · норма цикла", ours=True, lenient=True,
+         note="Сколько портфеля банк списывает ежегодно. В хороший год низкая "
+              "у всех — потому и средняя за цикл"),
+    Rule("financial", "capital_core", "min", 8.0,
+         "наше добавление · Н1.1", ours=True, lenient=True,
+         note="Основной капитал поглощает убытки первым. Величина на дату"),
+    Rule("financial", "npl_ratio", "max", 8.0,
+         "наше добавление · качество портфеля", ours=True, lenient=True),
+)
+
 DEFENSIVE = (
     Rule("size", "revenue", "min", MIN_REVENUE,
          "гл. 14, критерий 1", ours=True,
@@ -220,6 +262,7 @@ DEFENSIVE = (
     Rule("price", "pe_pb", "max", PE_PB_PRODUCT,
          "гл. 14, критерий 7 — произведение"),
     *CASH_RULES,
+    *LENDER_RULES,
     # Короткое окно по потоку — наше добавление сверх CASH_RULES, и только в
     # защитном своде: в активном та же величина уже стоит запасной к прибыли.
     #
@@ -261,6 +304,7 @@ ENTERPRISING = (
     Rule("price", "pb_tangible", "max", 1.2,
          "гл. 15 — не выше 120% чистых материальных активов"),
     *CASH_RULES,
+    *LENDER_RULES,
 )
 
 RULES = {"defensive": DEFENSIVE, "enterprising": ENTERPRISING}
@@ -301,6 +345,12 @@ class Verdict:
     # мы знаем, чего не хватает: не строки в базе, а осмысленного знаменателя.
     # Читателю разница существенна — «не нашли» и «нашли, но это не то».
     distorted: bool = False
+    # Прошла, но только по мягкому краю. Полоса отрасли знает три уровня —
+    # «хорошо», «приемлемо», «плохо», — а вердикт двоичен, и без этой пометки
+    # приемлемое красилось бы зелёным. У Сбера доля проблемных 7,7% при
+    # «хорошо» 4 и «плохо» 8: таблица мультипликаторов пишет жёлтым, паспорт
+    # писал зелёным, и одно и то же число выглядело по-разному в двух местах.
+    marginal: bool = False
 
     @property
     def adjusted(self) -> bool:
@@ -367,6 +417,7 @@ class Verdict:
             "note": self.reason or self.rule.note,
             "caveat": self.caveat,
             "distorted": self.distorted,
+            "marginal": self.marginal,
             "shortfall": self.shortfall,
         }
 
@@ -431,6 +482,31 @@ class Screen:
 
 # ─── Применение ─────────────────────────────────────────────────────────────
 
+# Банковские показатели своих полос в отраслевом профиле не имеют: их уровни
+# живут в `bank_metrics`, откуда их берёт и таблица мультипликаторов. Ключ
+# нужен, чтобы спросить там тот же край «хорошо».
+BANK_BANDS = {
+    "cost_of_risk_average": "cost_of_risk",
+    "capital_core": "capital_adequacy_core",
+    "npl_ratio": "npl_ratio",
+}
+
+
+def _strict_edge(rule: Rule, profile: SectorProfile) -> Optional[float]:
+    """Край «хорошо» — тот, по которому красит таблица мультипликаторов."""
+    bank_key = BANK_BANDS.get(rule.metric)
+    if bank_key is not None:
+        from app.services.analysis.bank_metrics import _BANDS
+        band = _BANDS.get(bank_key)
+        return None if band is None else float(band[0])
+
+    key = PROFILE_KEYS.get(rule.metric)
+    band = None if key is None else profile.bands.get(key)
+    if band is None or not band.applicable or band.good is None:
+        return None
+    return float(band.good)
+
+
 def _threshold(rule: Rule, profile: SectorProfile):
     """Порог с отраслевой поправкой: (применённый, книжный, неприменимо ли).
 
@@ -453,17 +529,18 @@ def _threshold(rule: Rule, profile: SectorProfile):
         return rule.threshold, rule.threshold, False
     if not band.applicable:
         return None, rule.threshold, True
-    if band.good is None:
+    edge = band.warn if rule.lenient and band.warn is not None else band.good
+    if edge is None:
         return rule.threshold, rule.threshold, False
     if rule.threshold is None:
         # У правила своего порога нет — так стоит рентабельность, которой
         # у Грэма нет вовсе. Отраслевое значение тогда берётся как есть.
-        return float(band.good), None, False
+        return float(edge), None, False
 
     base = GRAHAM_DEFAULT.bands.get(key)
     if base is None or not base.good:
         return rule.threshold, rule.threshold, False
-    ratio = float(band.good) / float(base.good)
+    ratio = float(edge) / float(base.good)
     return round(rule.threshold * ratio, 4), rule.threshold, False
 
 
@@ -543,6 +620,14 @@ def _judge(rule: Rule, axes: dict, profile: SectorProfile) -> Verdict:
                 and status in (PASS, FAIL) else None),
         distorted=bool(metric is not None and metric.suspect
                        and status == UNKNOWN),
+        # «Приемлемо» отличается от «хорошо» только здесь: вердикт остаётся
+        # пройденным, но цвет должен совпасть с таблицей мультипликаторов.
+        marginal=bool(
+            status == PASS and rule.lenient and value is not None
+            and (strict := _strict_edge(rule, profile)) is not None
+            and not Rule(rule.axis, rule.metric, rule.mode, strict,
+                         rule.source).holds(value, of)
+        ),
     )
 
 
