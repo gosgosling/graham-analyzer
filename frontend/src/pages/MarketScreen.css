@@ -185,6 +185,30 @@
   background: var(--color-bg-elevated);
 }
 
+/* Логотип и подпись в одной строке. Логотип может не загрузиться — компонент
+   тогда не отрисует ничего, и flex просто сомкнётся без дыры на его месте. */
+.ms-ident {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.ms-logo {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  object-fit: contain;
+  background: var(--color-bg-subtle);
+  flex-shrink: 0;
+}
+
+.ms-ident-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
 .ms-sticky a {
   color: var(--color-text-link);
   text-decoration: none;

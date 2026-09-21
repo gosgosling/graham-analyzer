@@ -711,3 +711,61 @@ def test_the_cycle_average_stays_on_annual_years():
         points(), is_lender=True, reports={}, ltm_bank={"cost_of_risk": 9.9},
     )
     assert axis.metric("cost_of_risk_average") is None   # нет годовых — нет средней
+
+
+# ── Скользящий год против концов окна ──────────────────────────────────────
+
+def _cash_note(live, **overrides):
+    axis = screen_axes.growth(points(**overrides), is_lender=False, live=live)
+    return axis.metric("cash_growth").note or ""
+
+
+def test_a_record_trailing_year_is_named_but_not_counted():
+    """У Черкизово поток за июль 2025 — июнь 2026 лучший за всю историю, а
+    конец окна тянут вниз 2023 и 2024. Пустить LTM в тройку значило бы
+    посчитать второе полугодие 2025 дважды — оно уже внутри годовой точки.
+    Поэтому величина остаётся прежней, а расхождение уходит в пометку."""
+    quiet = screen_axes.growth(points(), is_lender=False, live=None)
+    loud = screen_axes.growth(
+        points(), is_lender=False,
+        live=FakeLive(ltm_core_fcf=400.0, equity=1000.0),   # 40% против 12%
+    )
+
+    assert loud.metric("cash_growth").value == quiet.metric("cash_growth").value
+    assert "ещё не попал" in (loud.metric("cash_growth").note or "")
+
+
+def test_the_note_says_which_way_the_turn_went():
+    better = _cash_note(FakeLive(ltm_core_fcf=400.0, equity=1000.0))
+    worse = _cash_note(FakeLive(ltm_core_fcf=-300.0, equity=1000.0))
+
+    assert "заметно лучше" in better
+    assert "заметно хуже" in worse
+
+
+def test_a_quiet_trailing_year_says_nothing():
+    """Год не кончается ровно 31 декабря, и пара пунктов разницы — это шум,
+    а не разворот."""
+    assert _cash_note(FakeLive(ltm_core_fcf=150.0, equity=1000.0)) == ""
+
+
+def test_without_a_trailing_slice_there_is_nothing_to_compare():
+    assert _cash_note(None) == ""
+    assert _cash_note(FakeLive(equity=1000.0)) == ""
+
+
+def test_the_short_cash_row_gets_the_same_warning():
+    """Конец окна у обеих строк потока общий — значит, и оговорка общая."""
+    axis = screen_axes.growth(
+        points(), is_lender=False,
+        live=FakeLive(ltm_core_fcf=400.0, equity=1000.0),
+    )
+    assert "ещё не попал" in (axis.metric("cash_growth_short").note or "")
+
+
+def test_a_lender_has_no_cash_rows_to_warn_about():
+    axis = screen_axes.growth(
+        points(), is_lender=True,
+        live=FakeLive(ltm_core_fcf=400.0, equity=1000.0),
+    )
+    assert axis.metric("cash_growth") is None

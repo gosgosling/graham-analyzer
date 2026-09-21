@@ -24,11 +24,15 @@ import { formatMln } from '../utils/format';
 import {
   computeBankYoY,
   computeHistRowYoY,
+  fcfPerShare,
+  fcfToEquityPct,
   snapshotFromCurrent,
   snapshotFromRecord,
   YOY_NA,
   type HistRowSnapshot,
   type HistRowYoY,
+  type PerShareColMode,
+  type RoeColMode,
   type YoYDisplay,
 } from '../utils/histTableYoY';
 import {
@@ -601,6 +605,28 @@ function DeMetricBadge({
       level={ui.level}
       nullHint={ui.value === null ? ui.tip : undefined}
       tip={ui.value !== null ? ui.tip : undefined}
+    />
+  );
+}
+
+/**
+ * Свободный поток к капиталу, %.
+ *
+ * Пара к ROE, отвечающая на тот же вопрос деньгами, а не начислениями.
+ * Отраслевой порог сюда не переносится: он откалиброван под прибыль, и у
+ * компании в фазе стройки поток к капиталу законно уходит в минус, хотя
+ * бизнес здоров. Поэтому окраска простая — плюс или минус, без «хорошо».
+ */
+function FcfToEquityCell({ value }: { value: number | null }) {
+  return (
+    <MetricBadge
+      value={value}
+      level={value !== null && value < 0 ? 'loss' : 'neutral'}
+      suffix="%"
+      nullHint="Свободный поток или капитал неизвестны"
+      tip={value === null ? undefined
+        : 'Свободный поток к собственному капиталу: та же база, что у ROE, '
+          + 'но вместо прибыли — деньги, оставшиеся после капзатрат'}
     />
   );
 }
@@ -1736,6 +1762,66 @@ const HistPfcfHeader: React.FC<{
   </th>
 );
 
+/**
+ * Заголовки-переключатели ROE и «на акцию».
+ *
+ * Прибыль и свободный поток отвечают на разные вопросы: первая — сколько
+ * заработано по правилам учёта, второй — сколько осталось в кассе. У компании
+ * с большим капексом они расходятся годами, и держать их в соседних колонках
+ * значило бы раздуть и без того широкую таблицу. Переключатель показывает обе
+ * величины на одном месте и в одной шкале, так что разрыв виден сразу.
+ */
+const HistRoeHeader: React.FC<{
+  mode: RoeColMode;
+  onToggle: () => void;
+}> = ({ mode, onToggle }) => (
+  <th className="col-mult col-header-unit-col">
+    <span className="col-header-stacked">
+      <span className="col-header-title">{mode === 'fcf' ? 'FCF/E' : 'ROE'}</span>
+      <span className="col-header-unit-row">
+        <button
+          type="button"
+          className="col-toggle-btn"
+          onClick={onToggle}
+          aria-label={mode === 'fcf' ? 'Показать ROE по прибыли' : 'Показать поток к капиталу'}
+          title="Переключить ROE ↔ свободный поток к капиталу"
+        >
+          ⇄
+        </button>
+        <span className="col-header-unit">%</span>
+      </span>
+    </span>
+  </th>
+);
+
+const HistPerShareHeader: React.FC<{
+  mode: PerShareColMode;
+  onToggle: () => void;
+}> = ({ mode, onToggle }) => (
+  <th
+    className="col-mult col-compact col-header-unit-col"
+    title={mode === 'fcf'
+      ? 'Свободный поток на акцию — та же шкала, что у EPS'
+      : 'Прибыль на акцию. Считается от тех же акций, что и капитализация, поэтому Цена / EPS в точности равна P/E этой строки'}
+  >
+    <span className="col-header-stacked">
+      <span className="col-header-title">{mode === 'fcf' ? 'FCF/акц' : 'EPS'}</span>
+      <span className="col-header-unit-row">
+        <button
+          type="button"
+          className="col-toggle-btn"
+          onClick={onToggle}
+          aria-label={mode === 'fcf' ? 'Показать прибыль на акцию' : 'Показать поток на акцию'}
+          title="Переключить прибыль на акцию ↔ свободный поток на акцию"
+        >
+          ⇄
+        </button>
+        <span className="col-header-unit">₽</span>
+      </span>
+    </span>
+  </th>
+);
+
 const HistNetDebtFcfCell: React.FC<{
   ratio: number | null;
   netDebt: number | null;
@@ -1882,6 +1968,10 @@ interface HistTableRowProps {
   yoy: HistRowYoY | null;
   pctMode: boolean;
   pfcfColMode: PfcfColMode;
+  /** ROE по прибыли или по свободному потоку */
+  roeColMode: RoeColMode;
+  /** «На акцию»: прибыль или свободный поток */
+  perShareColMode: PerShareColMode;
   profile: SectorProfile;
   /** Строка за предыдущий год — для атрибуции изменения ROE */
   previous?: HistRowSnapshot | null;
@@ -1916,6 +2006,8 @@ const HistTableRow: React.FC<HistTableRowProps> = ({
   yoy,
   pctMode,
   pfcfColMode,
+  roeColMode,
+  perShareColMode,
   profile,
   previous,
   isPreferredShare,
@@ -2029,13 +2121,20 @@ const HistTableRow: React.FC<HistTableRowProps> = ({
       {showRatios && histYoYCell(
         pctMode,
         yoy?.roe,
-        <RoeMetricBadge
-          profile={profile}
-          roe={snapshot.roe}
-          equity={snapshot.equity}
-          explanationTip={roeInfo.tip}
-          misleading={roeInfo.driver.misleading}
-        />,
+        // В режиме потока порог отрасли не применяем: он откалиброван под
+        // прибыль, а поток к капиталу у здоровой компании с большим капексом
+        // законно ниже. Красить его красным по чужой мерке значило бы врать.
+        roeColMode === 'fcf'
+          ? <FcfToEquityCell value={fcfToEquityPct(snapshot)} />
+          : (
+            <RoeMetricBadge
+              profile={profile}
+              roe={snapshot.roe}
+              equity={snapshot.equity}
+              explanationTip={roeInfo.tip}
+              misleading={roeInfo.driver.misleading}
+            />
+          ),
       )}
       {!noLeverage && histYoYCell(
         pctMode,
@@ -2159,7 +2258,9 @@ const HistTableRow: React.FC<HistTableRowProps> = ({
       {histYoYCell(
         pctMode,
         yoy?.eps,
-        formatPerShare(snapshot.eps),
+        perShareColMode === 'fcf'
+          ? formatPerShare(fcfPerShare(snapshot))
+          : formatPerShare(snapshot.eps),
         isLoss ? 'cell-loss' : undefined,
       )}
       {histYoYCell(
@@ -2233,6 +2334,9 @@ const HistTable: React.FC<HistTableProps & { pctMode: boolean }> = ({
 }) => {
   const [crTooltipVisible, setCrTooltipVisible] = React.useState(false);
   const [pfcfColMode, setPfcfColMode] = React.useState<PfcfColMode>('pfcf');
+  // Прибыль или деньги: ROE и «на акцию» переключаются на свободный поток.
+  const [roeColMode, setRoeColMode] = React.useState<RoeColMode>('profit');
+  const [perShareColMode, setPerShareColMode] = React.useState<PerShareColMode>('eps');
   const crThRef = React.useRef<HTMLTableCellElement | null>(null);
 
   // У банка плечо — это бизнес-модель, а не риск, ликвидность считается
@@ -2313,7 +2417,10 @@ const HistTable: React.FC<HistTableProps & { pctMode: boolean }> = ({
             {showRatios && <th className="col-mult">P/E</th>}
             {showRatios && <th className="col-mult">P/B</th>}
             {showRatios && (
-              <th className="col-mult col-header-unit-col"><ColHeaderWithUnit title="ROE" unit="%" align="right" /></th>
+              <HistRoeHeader
+                mode={roeColMode}
+                onToggle={() => setRoeColMode((m) => (m === 'profit' ? 'fcf' : 'profit'))}
+              />
             )}
             {!noLeverage && <th className="col-mult">D/E</th>}
             {!noLeverage && (
@@ -2427,12 +2534,10 @@ const HistTable: React.FC<HistTableProps & { pctMode: boolean }> = ({
             <th className="col-ni col-header-unit-col">
               <ColHeaderWithUnit title="Прибыль" unit={moneyScales.profit.unit} />
             </th>
-            <th
-              className="col-mult col-compact col-header-unit-col"
-              title="Прибыль на акцию. Считается от тех же акций, что и капитализация, поэтому Цена / EPS в точности равна P/E этой строки"
-            >
-              <ColHeaderWithUnit title="EPS" unit="₽" align="right" />
-            </th>
+            <HistPerShareHeader
+              mode={perShareColMode}
+              onToggle={() => setPerShareColMode((m) => (m === 'eps' ? 'fcf' : 'eps'))}
+            />
             <th
               className={`col-mult col-compact col-shares-header${sharesScale ? ' col-header-unit-col' : ''}`}
               title={
@@ -2465,11 +2570,15 @@ const HistTable: React.FC<HistTableProps & { pctMode: boolean }> = ({
                       snapshotFromCurrent(currentRow),
                       snapshotFromRecord(rows[0]),
                       pfcfColMode,
+                      roeColMode,
+                      perShareColMode,
                     )
                   : null
               }
               pctMode={pctMode}
               pfcfColMode={pfcfColMode}
+              roeColMode={roeColMode}
+              perShareColMode={perShareColMode}
               profile={profile}
               previous={rows.length > 0 ? snapshotFromRecord(rows[0]) : null}
               isPreferredShare={isPreferredShare}
@@ -2510,11 +2619,15 @@ const HistTable: React.FC<HistTableProps & { pctMode: boolean }> = ({
                       snapshotFromRecord(r),
                       snapshotFromRecord(rows[index + 1]),
                       pfcfColMode,
+                      roeColMode,
+                      perShareColMode,
                     )
                   : null
               }
               pctMode={pctMode}
               pfcfColMode={pfcfColMode}
+              roeColMode={roeColMode}
+              perShareColMode={perShareColMode}
               profile={profile}
               previous={index + 1 < rows.length ? snapshotFromRecord(rows[index + 1]) : null}
               isPreferredShare={isPreferredShare}
