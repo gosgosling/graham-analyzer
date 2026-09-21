@@ -59,6 +59,14 @@ const BAD = 1.0;
  * крестиком, хотя между ними разница вчетверо: для выбора между двумя
  * непрошедшими это ровно та величина, которая и нужна.
  */
+/** Короткие имена подставленных показателей: в клетке помещается два слова. */
+const SWAP_LABEL: Record<string, string> = {
+  capital_core: 'Н1.1',
+  cost_of_risk_average: 'ст. риска',
+  npl_ratio: 'NPL',
+  cost_to_income_average: 'CIR',
+};
+
 const cls = (v: Verdict) => {
   const base = `ms-cell ms-cell--${v.status.replace('/', '')}`;
   if (v.status !== 'fail') return base;
@@ -213,16 +221,25 @@ export default function MarketScreen() {
                       <Link to={`/company/${row.id}`}>{row.ticker}</Link>
                       <span className="ms-name">{row.name}</span>
                     </th>
-                    {row.cells.map((cell, i) => (
-                      <td
-                        key={data.columns[i].metric}
-                        className={cell ? cls(cell) : 'ms-cell'}
-                        title={cellTitle(cell)}
-                      >
-                        <b>{cell ? MARK[cell.status] : '—'}</b>
-                        <i>{cellValue(cell)}</i>
-                      </td>
-                    ))}
+                    {row.cells.map((cell, i) => {
+                      // Клетка, которую компания оставляет пустой, может быть
+                      // занята её собственным показателем: у банка нет текущей
+                      // ликвидности, зато есть достаточность капитала. Имя
+                      // едет вместе с числом — без него цифра прочиталась бы
+                      // как величина из заголовка столбца.
+                      const swapped = cell != null && cell.metric !== data.columns[i].metric;
+                      return (
+                        <td
+                          key={data.columns[i].metric}
+                          className={`${cell ? cls(cell) : 'ms-cell'}${swapped ? ' ms-cell--swapped' : ''}`}
+                          title={cellTitle(cell)}
+                        >
+                          {swapped && <u>{SWAP_LABEL[cell!.metric] ?? cell!.metric_label}</u>}
+                          <b>{cell ? MARK[cell.status] : '—'}</b>
+                          <i>{cellValue(cell)}</i>
+                        </td>
+                      );
+                    })}
                     <td className="ms-total">
                       {row.clears ? (
                         <b className="ms-clear-mark">прошла</b>

@@ -105,10 +105,26 @@ def market_screen(
     results = [screen.load(db, company, standard) for company in companies]
     results = [r for r in results if r.verdicts]
 
+    # Банковские критерии своих колонок не получают: они есть у трёх компаний
+    # из тридцати шести, и ради них таблица вырастала на четверть, а у всех
+    # прочих эти столбцы стояли пустыми. Вместо этого они занимают те ячейки,
+    # которые банк оставляет пустыми сам, — ликвидность и три по свободному
+    # потоку. Ровно четыре пустые клетки и ровно четыре показателя.
+    # Порядок подстановки — по смыслу, а не по случаю. Ликвидность и
+    # достаточность капитала отвечают на один вопрос: хватит ли запаса.
+    # Безубыточность по потоку и стоимость риска — на другой: ровно ли идёт
+    # дело. Первые две пары ложатся точно, оставшиеся две занимают что
+    # осталось, и только имя в клетке говорит, что там на самом деле.
+    LENDER_ORDER = ("capital_core", "cost_of_risk_average",
+                    "npl_ratio", "cost_to_income_average")
+    lender_metrics = set(LENDER_ORDER)
+
     columns: list = []
     seen: set = set()
     for result in results:
         for verdict in result.verdicts:
+            if verdict.metric in lender_metrics:
+                continue
             if verdict.metric not in seen:
                 seen.add(verdict.metric)
                 columns.append({
@@ -125,6 +141,21 @@ def market_screen(
     rows = []
     for result, company in zip(results, companies):
         by_metric = {v.metric: v for v in result.verdicts}
+        # Подстановка: пустые клетки банка заполняются его собственными
+        # показателями. Имя показателя едет вместе со значением — без него
+        # цифра в чужой колонке прочиталась бы как ликвидность.
+        spare = [
+            by_metric[m].as_dict() for m in LENDER_ORDER
+            if m in by_metric and by_metric[m].status != screen.NOT_APPLICABLE
+        ]
+        cells = []
+        for column in columns:
+            cell = by_metric.get(column["metric"])
+            payload = cell.as_dict() if cell is not None else None
+            if spare and payload is not None and payload["status"] == screen.NOT_APPLICABLE:
+                payload = spare.pop(0)
+            cells.append(payload)
+
         rows.append({
             "id": company.id,
             "ticker": result.ticker,
@@ -135,10 +166,7 @@ def market_screen(
             "checked": len(result.checkable),
             "clears": result.clears,
             "complete": result.complete,
-            "cells": [
-                (by_metric[c["metric"]].as_dict() if c["metric"] in by_metric else None)
-                for c in columns
-            ],
+            "cells": cells,
         })
 
     fails: dict = {}
