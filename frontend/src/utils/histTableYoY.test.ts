@@ -5,7 +5,12 @@
  * и мультипликаторы остаются прежними. Единственное, что о ней сообщает, —
  * пара «EPS + число акций», поэтому её поведение проверяется отдельно.
  */
-import { computeHistRowYoY, type HistRowSnapshot } from './histTableYoY';
+import {
+  computeHistRowYoY,
+  fcfPerShare,
+  fcfToEquityPct,
+  type HistRowSnapshot,
+} from './histTableYoY';
 
 const EMPTY: HistRowSnapshot = {
   price_used: null, market_cap: null, pe_ratio: null, pb_ratio: null,
@@ -105,5 +110,39 @@ describe('размытие доли акционера', () => {
 
     expect(yoy.shares.level).toBe('neutral');
     expect(yoy.eps.level).toBe('neutral');
+  });
+});
+
+
+describe('прибыль против денег', () => {
+  it('поток к капиталу считается от той же базы, что и ROE', () => {
+    // ФосАгро LTM: поток −15 086 млн при капитале 264 000 млн.
+    const row = snap({ ltm_fcf: -15_086, equity: 264_000 });
+
+    expect(fcfToEquityPct(row)).toBeCloseTo(-5.71, 1);
+  });
+
+  it('поток на акцию — в той же шкале, что EPS', () => {
+    // Прибыль 192 414 млн на 257,4 млн акций даёт EPS 747,55 ₽.
+    // Поток 24 610 млн на тех же акциях — 95,6 ₽ на акцию.
+    const row = snap({ ltm_fcf: 24_610, shares_used: 257_393_950 });
+
+    expect(fcfPerShare(row)).toBeCloseTo(95.61, 1);
+  });
+
+  it('без потока или капитала величины нет, а не нуля', () => {
+    expect(fcfToEquityPct(snap({ ltm_fcf: 100, equity: null }))).toBeNull();
+    expect(fcfToEquityPct(snap({ ltm_fcf: 100, equity: 0 }))).toBeNull();
+    expect(fcfPerShare(snap({ ltm_fcf: 100, shares_used: null }))).toBeNull();
+  });
+
+  it('прирост считается по той величине, что на виду', () => {
+    const cur = snap({ roe: 20, ltm_fcf: 1_000, equity: 10_000 });
+    const prev = snap({ roe: 10, ltm_fcf: 500, equity: 10_000 });
+
+    // режим прибыли: ROE вырос на 10 п.п.
+    expect(computeHistRowYoY(cur, prev, 'pfcf').roe.text).toContain('10.0');
+    // режим потока: 10% против 5% — рост на 5 п.п., а не на 10
+    expect(computeHistRowYoY(cur, prev, 'pfcf', 'fcf').roe.text).toContain('5.0');
   });
 });

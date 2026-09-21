@@ -151,6 +151,8 @@ export interface MarketRow {
   id: number;
   ticker: string;
   name: string;
+  /** Логотип бренда из T-Invest; пустой у компаний, которых API не отдал */
+  logo_url?: string | null;
   profile: string;
   profile_label: string;
   passed: number;

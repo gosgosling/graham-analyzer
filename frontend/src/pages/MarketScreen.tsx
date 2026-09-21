@@ -7,6 +7,7 @@ import {
   type ScreenStatus,
   type Verdict,
 } from '../services/screen.api';
+import CompanyLogo from '../components/CompanyLogo';
 import './MarketScreen.css';
 
 /**
@@ -218,8 +219,21 @@ export default function MarketScreen() {
                 {data.rows.map((row) => (
                   <tr key={row.ticker} className={row.clears ? 'is-clear' : undefined}>
                     <th className="ms-sticky" title={row.profile_label}>
-                      <Link to={`/company/${row.id}`}>{row.ticker}</Link>
-                      <span className="ms-name">{row.name}</span>
+                      {/* Логотип перед тикером: в таблице на три десятка
+                          строк знакомый кружок находится быстрее, чем
+                          читается код бумаги. Компании без логотипа просто
+                          остаются без него — заглушка была бы шумом. */}
+                      <span className="ms-ident">
+                        <CompanyLogo
+                          url={row.logo_url}
+                          alt=""
+                          className="ms-logo"
+                        />
+                        <span className="ms-ident-text">
+                          <Link to={`/company/${row.id}`}>{row.ticker}</Link>
+                          <span className="ms-name">{row.name}</span>
+                        </span>
+                      </span>
                     </th>
                     {row.cells.map((cell, i) => {
                       // Клетка, которую компания оставляет пустой, может быть
