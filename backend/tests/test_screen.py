@@ -81,11 +81,16 @@ def test_defensive_covers_the_seven_criteria_plus_our_additions():
     за десять лет вырос вчетверо, а за пять упал на две трети.
     """
     result = screened()
-    assert len(result.verdicts) == 12
+    # Плюс четыре банковских: они стоят в своде всегда и небанку дают
+    # «не применяется» — так же, как банку дают его правила по потоку.
+    assert len(result.verdicts) == 16
     assert {v.axis for v in result.verdicts} == set(screen_axes.AXIS_ORDER)
     ours = {v.metric for v in result.verdicts if v.rule.ours}
     assert ours == {"roe", "revenue", "streak", "cash_positive_years",
-                    "cash_growth", "cash_growth_short"}
+                    "cash_growth", "cash_growth_short",
+                    # Банковские: у Грэма банков в списках нет вовсе.
+                    "cost_to_income_average", "cost_of_risk_average",
+                    "capital_core", "npl_ratio"}
 
 
 def test_a_healthy_company_clears_the_defensive_standard():
@@ -591,3 +596,56 @@ def test_a_distorted_value_says_so_instead_of_no_data():
     assert missing.status == UNKNOWN
     assert missing.distorted is False
     assert missing.reason == "Нет данных"
+
+
+# ── Кредитная организация ──────────────────────────────────────────────────
+
+def test_bank_rules_are_not_applicable_to_an_ordinary_company():
+    """Симметрия: небанк не имеет издержек к доходам и стоимости риска, как
+    банк не имеет свободного потока. И то и другое — решённое состояние."""
+    result = screened()
+    for metric in ("cost_to_income_average", "cost_of_risk_average",
+                   "capital_core", "npl_ratio"):
+        assert verdict(result, metric).status == NOT_APPLICABLE
+
+
+def test_the_bank_thresholds_are_all_ours():
+    """У Грэма банков в списках нет вовсе — все четыре порога наши."""
+    assert all(r.ours for r in screen.LENDER_RULES)
+
+
+def test_behaviour_is_judged_by_the_average_and_reserve_by_the_point():
+    """Издержки и стоимость риска — поведение, судим по средней за годы.
+    Достаточность капитала и доля проблемных — запас, судим точкой."""
+    by_metric = {r.metric: r for r in screen.LENDER_RULES}
+    assert by_metric["cost_to_income_average"].metric.endswith("_average")
+    assert by_metric["cost_of_risk_average"].metric.endswith("_average")
+    assert not by_metric["capital_core"].metric.endswith("_average")
+    assert not by_metric["npl_ratio"].metric.endswith("_average")
+
+
+def test_a_bank_is_judged_by_its_own_four():
+    axes = healthy()
+    axes[0] = axis("profitability", "Рентабельность", roe=(18.0,),
+                   cost_to_income_average=(41.0,))
+    axes[3] = axis("stability", "Стабильность",
+                   profitable_years=(10.0, 10), profitable_years_short=(5.0, 5),
+                   cost_of_risk_average=(0.8,))
+    axes[2] = axis("financial", "Финансовое положение",
+                   capital_core=(11.2,), npl_ratio=(3.1,))
+    result = screened(axes, profile=BANK)
+    for metric in ("cost_to_income_average", "cost_of_risk_average",
+                   "capital_core", "npl_ratio"):
+        assert verdict(result, metric).status == PASS
+    # А ликвидность и поток к нему по-прежнему не применяются.
+    assert verdict(result, "current_ratio").status == NOT_APPLICABLE
+    assert verdict(result, "cash_positive_years").status == NOT_APPLICABLE
+
+
+def test_a_thin_capital_buffer_fails_the_bank():
+    axes = healthy()
+    axes[2] = axis("financial", "Финансовое положение",
+                   capital_core=(7.4,), npl_ratio=(9.0,))
+    result = screened(axes, profile=BANK)
+    assert verdict(result, "capital_core").status == FAIL
+    assert verdict(result, "npl_ratio").status == FAIL

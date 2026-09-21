@@ -843,9 +843,28 @@ def load_points(db, company_id: int) -> list:
         .all()
     )
 
-    factors = split_factors(
-        [(m.date.year, m.shares_used, m.equity, m.market_cap) for m, _ in rows]
+    # Дробление между последним отчётом и сегодняшним днём годовой ряд не
+    # видит: все его строки — до события. У Т-Технологий дробление 1:10 прошло
+    # весной 2026, а свежайший годовой отчёт — за 2025 год, и ряд целиком
+    # остался в старом масштабе. Цена при этом берётся сегодняшняя, и P/E по
+    # средней прибыли выходил 0,48 вместо примерно 4,8 — вдесятеро ниже.
+    #
+    # Поэтому к ряду добавляется живой срез: не как точка ряда, а только чтобы
+    # `split_factors` увидел последний шаг. Проверки там прежние — дробление
+    # обязано сохранить и капитал, и капитализацию, иначе это эмиссия.
+    live = (
+        db.query(Multiplier)
+        .filter(Multiplier.company_id == company_id, Multiplier.type == "current")
+        .order_by(Multiplier.date.desc())
+        .first()
     )
+    scale_rows = [(m.date.year, m.shares_used, m.equity, m.market_cap) for m, _ in rows]
+    if live is not None and rows and live.date.year >= rows[-1][0].date.year:
+        scale_rows.append(
+            (live.date.year, live.shares_used, live.equity, live.market_cap)
+        )
+
+    factors = split_factors(scale_rows)
 
     points = []
     for mult, report in rows:

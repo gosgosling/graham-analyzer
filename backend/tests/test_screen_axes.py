@@ -676,3 +676,38 @@ def test_the_cash_return_gets_the_same_caveat():
     assert cash.tone == "warn"
     assert "структуру капитала" in cash.note
     assert cash.suspect is not None
+
+
+# ── Скользящий год у банка ─────────────────────────────────────────────────
+
+def test_bank_metrics_prefer_the_trailing_year():
+    """Случай Сбера: доля проблемных за 2025 год 4,82%, за скользящий 5,42%.
+
+    Рядом на той же строке стояли издержки к доходам с пометкой LTM — два
+    числа на разные даты, и сказано об этом было только про одно.
+    """
+    reports = {2024: FakeReport(12.0), 2025: FakeReport(11.7)}
+    axis = screen_axes.financial_position(
+        mults(), reports, is_lender=True,
+        ltm_bank={"npl_ratio": 5.42, "capital_adequacy_core": 12.0},
+    )
+    npl = axis.metric("npl_ratio")
+    assert npl.value == pytest.approx(5.42)
+    assert npl.asof == "LTM"
+
+
+def test_without_a_trailing_slice_the_bank_falls_back_to_the_report():
+    axis = screen_axes.financial_position(
+        mults(), {2025: FakeReport(11.7)}, is_lender=True, ltm_bank=None,
+    )
+    assert axis.metric("capital_adequacy").value == pytest.approx(11.7)
+    assert axis.metric("capital_adequacy").asof == "2025"
+
+
+def test_the_cycle_average_stays_on_annual_years():
+    """Среднюю за цикл скользящим годом не портим: последний год посчитался
+    бы дважды. А вот пик берём с его учётом — свежее ухудшение важно."""
+    axis = screen_axes.stability(
+        points(), is_lender=True, reports={}, ltm_bank={"cost_of_risk": 9.9},
+    )
+    assert axis.metric("cost_of_risk_average") is None   # нет годовых — нет средней

@@ -550,6 +550,30 @@ def profitability(points, mults: dict, reports: dict, is_lender: bool,
         ))
 
     roa = _return_on_assets(mults, reports)
+    if is_lender:
+        # Коэффициент издержек — то же, что операционная эффективность у
+        # промышленной компании. Судить по нему надо по средней: разовая
+        # экономия дисциплины не доказывает, она видна только на отрезке.
+        cir = _mult_series(mults, "cost_to_income")
+        cir_now, cir_asof = _fresh(live, "cost_to_income", _last(cir), _year(cir))
+        metrics.append(Metric(
+            key="cost_to_income", label="Издержки к доходам", unit="%",
+            value=cir_now, series=cir, asof=cir_asof,
+            note="Меньше — лучше. Порог из отраслевого профиля",
+        ))
+        metrics.append(Metric(
+            key="cost_to_income_average",
+            label=f"То же в среднем за {LEVEL_WINDOW} лет", unit="%",
+            value=_mean(cir), series=cir,
+            note="По средней и судим: показатель описывает поведение, а не запас",
+        ))
+        margin = _bank_series(reports)["net_interest_margin"]
+        metrics.append(Metric(
+            key="net_interest_margin", label="Чистая процентная маржа", unit="%",
+            value=_last(margin), series=margin, average=_mean(margin),
+            note="Процентный доход к активам",
+        ))
+
     roa_value, roa_asof = _live_return_on_assets(live), LTM
     if roa_value is None:
         roa_value = _last(roa)
@@ -672,7 +696,8 @@ def _return_on_assets(mults: dict, reports: dict) -> tuple:
     return tuple(out)
 
 
-def stability(points, is_lender: bool) -> Axis:
+def stability(points, is_lender: bool, reports: Optional[dict] = None,
+              ltm_bank: Optional[dict] = None) -> Axis:
     """Стабильность: годы без убытка. Гл. 14 — десять лет, гл. 15 — пять."""
     profit_free, profit_of, profit_losses = _loss_free(points, "eps")
     short_free, short_of, short_losses = _loss_free(
@@ -703,6 +728,24 @@ def stability(points, is_lender: bool) -> Axis:
             of=cash_of, flagged=cash_losses,
             tone=_tone_full(cash_free, cash_of),
             note="Наше добавление; к кредитным организациям не применяется",
+        ))
+
+    if is_lender and reports:
+        # Стоимость риска — главное число банка через цикл. В хороший год она
+        # низкая у всех; вопрос, какой была в плохой. Поэтому судим по средней
+        # и показываем пик рядом.
+        risk = _bank_series(reports)["cost_of_risk"]
+        # Средняя за цикл — по годовым: скользящий год в неё подмешивать
+        # нельзя, последний год посчитался бы дважды. Но пик берём с учётом
+        # LTM, иначе свежее ухудшение осталось бы за кадром.
+        fresh, _ = _bank_fresh(ltm_bank, "cost_of_risk", risk)
+        peak = max([v for _, v in risk] + ([fresh] if fresh is not None else []),
+                   default=None)
+        metrics.append(Metric(
+            key="cost_of_risk_average",
+            label=f"Стоимость риска в среднем за {LEVEL_WINDOW} лет", unit="%",
+            value=_mean(risk), series=risk, average=peak,
+            note="Рядом — пик за историю. Сколько портфеля банк списывает ежегодно",
         ))
 
     return Axis(
@@ -892,8 +935,63 @@ def _short_growth_caveat(points) -> str:
             "единственная улика")
 
 
+def _bank_fresh(ltm_bank: Optional[dict], name: str, series: tuple):
+    """Величина за скользящий год, если она посчитана; иначе последний отчёт.
+
+    До этой правки банковские показатели брались только из годовых отчётов,
+    тогда как у соседних величин на той же строке стояло LTM. Два числа на
+    разные даты, и пометка была лишь у одного: у Сбера доля проблемных в
+    паспорте была 4,82% за 2025 год, а в таблице 5,42% за скользящий.
+    """
+    value = None if ltm_bank is None else ltm_bank.get(name)
+    if value is not None:
+        return float(value), LTM
+    year = _year(series)
+    return _last(series), (None if year is None else str(year))
+
+
+def _bank_series(reports: dict) -> dict:
+    """Банковские показатели по годам — по одному ряду на каждый.
+
+    Считаются из тех же отчётов, что и всё остальное, тем же модулем, что
+    наполняет таблицу мультипликаторов. Второй копии правил здесь нет
+    намеренно: разойтись они сумеют, а заметить это будет нечем.
+    """
+    from app.services.analysis.bank_metrics import compute_bank_metrics
+
+    names = ("cost_of_risk", "npl_ratio", "capital_adequacy_core",
+             "loans_to_deposits", "net_interest_margin")
+    out = {name: [] for name in names}
+    for year, report in sorted(reports.items()):
+        metrics = compute_bank_metrics(report)
+        for name in names:
+            value = getattr(metrics, name, None)
+            if value is not None:
+                out[name].append((year, float(value)))
+    return {name: tuple(rows) for name, rows in out.items()}
+
+
+def _peak(series: tuple) -> Optional[float]:
+    """Худшее значение ряда. Для проблемных кредитов «худшее» — наибольшее."""
+    return max((v for _, v in series), default=None)
+
+
+def _mean(series: tuple, window: int = LEVEL_WINDOW) -> Optional[float]:
+    """Средняя за последние `window` лет ряда.
+
+    Нужна там, где показатель описывает **поведение**, а не запас: разовая
+    экономия на издержках ничего не говорит о дисциплине, а низкая стоимость
+    риска в хороший год бывает у всех — вопрос, какой она была в плохой.
+    Достаточность капитала, наоборот, усреднять нельзя: это величина на дату.
+    """
+    recent = series[-window:]
+    if not recent:
+        return None
+    return sum(v for _, v in recent) / len(recent)
+
+
 def financial_position(mults: dict, reports: dict, is_lender: bool,
-                       live=None) -> Axis:
+                       live=None, ltm_bank: Optional[dict] = None) -> Axis:
     """Финансовое положение: ликвидность и долг.
 
     У кредитной организации оборотного капитала в обычном смысле нет —
@@ -903,18 +1001,41 @@ def financial_position(mults: dict, reports: dict, is_lender: bool,
     которые к банку применимы.
     """
     if is_lender:
+        bank = _bank_series(reports)
         adequacy = tuple(
             (year, float(report.capital_adequacy_ratio))
             for year, report in sorted(reports.items())
             if getattr(report, "capital_adequacy_ratio", None) is not None
         )
+        core_series = bank["capital_adequacy_core"]
+        npl_series = bank["npl_ratio"]
+        ldr_series = bank["loans_to_deposits"]
+        core, core_asof = _bank_fresh(ltm_bank, "capital_adequacy_core", core_series)
+        npl, npl_asof = _bank_fresh(ltm_bank, "npl_ratio", npl_series)
+        ldr, ldr_asof = _bank_fresh(ltm_bank, "loans_to_deposits", ldr_series)
+
         return Axis(
             key="financial", label="Финансовое положение",
-            metrics=(Metric(
-                key="capital_adequacy", label="Достаточность капитала", unit="%",
-                value=_last(adequacy), series=adequacy,
-            ),),
-            lead="capital_adequacy",
+            metrics=(
+                Metric(key="capital_core", label="Достаточность основного капитала",
+                       unit="%", value=core, series=core_series, asof=core_asof,
+                       note="Н1.1 / CET1 — поглощает убытки первым. "
+                            "Величина на дату: средняя достаточность бессмысленна"),
+                Metric(key="capital_adequacy", label="Достаточность капитала, Н1.0",
+                       unit="%", value=_last(adequacy), series=adequacy,
+                       asof=(None if _year(adequacy) is None
+                             else str(_year(adequacy)))),
+                Metric(key="npl_ratio", label="Проблемные кредиты", unit="%",
+                       value=npl, series=npl_series, asof=npl_asof,
+                       average=_peak(npl_series),
+                       note="Рядом со средней стоит пик за историю: запас "
+                            "смотрят сегодня, но знать надо, что бывало"),
+                Metric(key="loans_to_deposits", label="Кредиты к средствам клиентов",
+                       unit="%", value=ldr, series=ldr_series, asof=ldr_asof,
+                       note="Выше 100% — разница финансируется рынком, "
+                            "то есть дороже и капризнее депозитов"),
+            ),
+            lead="capital_core",
             note="Ликвидность и долг к капиталу к кредитной организации неприменимы",
         )
 
@@ -1103,7 +1224,7 @@ AXIS_ORDER = (
 
 
 def build(points, mults: dict, reports: dict, is_lender: bool = False,
-          live=None) -> list:
+          live=None, ltm_bank: Optional[dict] = None) -> list:
     """Семь осей по готовому ряду. Порогов не накладывает.
 
     `live` — свежий срез кэша за последние двенадцать месяцев. Из него берутся
@@ -1113,9 +1234,9 @@ def build(points, mults: dict, reports: dict, is_lender: bool = False,
     """
     return [
         profitability(points, mults, reports, is_lender, live),
-        stability(points, is_lender),
+        stability(points, is_lender, reports, ltm_bank),
         growth(points, is_lender),
-        financial_position(mults, reports, is_lender, live),
+        financial_position(mults, reports, is_lender, live, ltm_bank),
         dividends(points, mults, live),
         price_level(points, mults, live),
         size(mults, live),
@@ -1162,7 +1283,16 @@ def load(db, company) -> list:
     )
 
     is_lender = str(getattr(company, "company_type", "")).upper().endswith("LENDER")
-    return build(points, mults, reports, is_lender, live)
+
+    # Банковские показатели за скользящий год. Считает их тот же сервис, что
+    # наполняет строку LTM в таблице мультипликаторов, — второй копии правил
+    # здесь нет намеренно: разойтись они сумеют, а заметить будет нечем.
+    ltm_bank = None
+    if is_lender:
+        from app.services.analysis.multiplier_service import compute_ltm_bank_metrics
+        ltm_bank = compute_ltm_bank_metrics(db, company.id)
+
+    return build(points, mults, reports, is_lender, live, ltm_bank)
 
 
 def as_dict(axes: list) -> dict:

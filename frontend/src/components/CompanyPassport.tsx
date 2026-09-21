@@ -203,6 +203,10 @@ function AxisRow({ axis, verdicts }: { axis: ScreenAxis; verdicts: Verdict[] }) 
   // Пояснение относится к порогу, а не к величине. Примечания отдельных
   // подметрик живут в подсказке своей строки: иначе рядом с защитным сводом
   // всплывает объяснение про горизонт активного, к которому оно не относится.
+  // Какие подметрики вообще судятся порогом — и с каким исходом.
+  const ruled = new Map<string, string>(
+    verdicts.map((v) => [v.metric, v.marginal ? 'marginal' : v.status]),
+  );
   const adjusted = verdicts.filter((v) => v.adjusted);
   // Величина, которой нельзя верить, важнее любого порога: её и показываем.
   const doubt = verdicts.map((v) => (v.status === 'unknown' ? v.note : null)).find(Boolean);
@@ -235,12 +239,18 @@ function AxisRow({ axis, verdicts }: { axis: ScreenAxis; verdicts: Verdict[] }) 
       <div className="pp-values">
         {axis.metrics.map((m) => {
           const aside = metricAside(m);
+          // Цвет величины: сторона нуля — от оси, прохождение порога — от
+          // вердикта. Без второго стоимость риска решала судьбу оси, оставаясь
+          // при этом серой: читатель видел крестик у «Стабильности» и не
+          // понимал, какая из трёх строк его вызвала.
+          const judged = ruled.get(m.key);
+          const paint = judged === 'marginal' ? 'is-warn'
+            : judged === 'pass' ? 'is-good'
+              : judged === 'fail' ? 'is-bad'
+                : m.tone ? `is-${m.tone}` : undefined;
           return (
             <div className="pp-metric" key={m.key}>
-              <b
-                className={m.tone ? `is-${m.tone}` : undefined}
-                title={m.note ?? undefined}
-              >
+              <b className={paint} title={m.note ?? undefined}>
                 {metricValue(m)}
               </b>
               <span title={m.note ?? undefined}>
