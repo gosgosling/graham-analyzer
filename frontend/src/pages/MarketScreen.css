@@ -421,3 +421,49 @@
   margin: -8px -9px 3px;
   padding: 3px 9px;
 }
+
+/* ── Сигнал о цене ────────────────────────────────────────────────────────
+   Отдельный столбец, а не цвет строки: свод и цена — независимые вопросы, и
+   слить их в одну окраску значило бы объявить дешёвую непрошедшую компанию
+   тем же, что дорогую прошедшую.
+
+   Палитра своя, не та, что у ячеек критериев. У критериев зелёный означает
+   «прошла», и переиспользовать его для «дёшево» нельзя: в одной строке
+   встретились бы два зелёных с разным смыслом. */
+
+.ms-safety {
+  border-left: 1px solid var(--color-border-default);
+  cursor: help;
+  line-height: 1.2;
+}
+
+.ms-safety b {
+  display: block;
+  font-weight: 600;
+  font-size: 0.8rem;
+}
+
+.ms-safety i {
+  display: block;
+  font-style: normal;
+  font-size: 0.7rem;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.8;
+}
+
+.ms-safety--favourable { background: var(--color-success-soft); color: var(--screen-pass-text); }
+.ms-safety--acceptable { color: var(--screen-pass-text); }
+.ms-safety--fair       { color: var(--color-text-secondary); }
+.ms-safety--expensive  { color: var(--color-warning-text); }
+.ms-safety--bond_better { background: var(--color-error-soft); color: var(--color-error-text); }
+
+/* Опасная — единственное состояние, которое говорит не о цене, а о компании.
+   Оформлена как «облигация выгоднее»: мягкая заливка ошибки, а не сплошная.
+   Сплошная выбивалась из строки настолько, что читалась как сбой отрисовки, а
+   не как приговор, и спорила с цветовой кодировкой критериев слева.
+   Отличает её от «ОФЗ лучше» насыщенность подписи, а не отдельная краска. */
+.ms-safety--dangerous {
+  background: var(--color-error-soft);
+  color: var(--color-error-text);
+  font-weight: 700;
+}

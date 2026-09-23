@@ -1387,3 +1387,59 @@
   font-size: 0.95rem;
   font-weight: 600;
 }
+
+/* ── Развёртывание истории ────────────────────────────────────────────────
+   Ручка лежит поверх нижних строк, а не под таблицей, и свёрнутый ряд уходит
+   под неё в затухание. Смысл в том, чтобы обрыв читался как «здесь ещё есть»,
+   а не как конец данных: ровная граница и кнопка под ней выглядели бы двумя
+   отдельными предметами, между которыми ничего не происходит. */
+
+.mult-history-body {
+  position: relative;
+}
+
+.hist-expand {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 0 10px;
+  border: none;
+  background: none;
+  color: var(--color-text-tertiary);
+  font-size: 0.76rem;
+  cursor: pointer;
+  /* Развёрнутая таблица закрывать собой ничего не должна — ручке хватает
+     своей высоты. Свёрнутая перекрывается сильнее: затухание должно успеть
+     погасить полторы строки, иначе оно читается как тень, а не как
+     продолжение. */
+  height: 44px;
+  transition: color 0.12s;
+}
+
+.mult-history-body.is-collapsed .hist-expand {
+  height: 96px;
+  /* Затухание к фону панели, а не к прозрачности: прозрачность показала бы
+     то, что лежит под таблицей, и на границе панели дала бы ступеньку. */
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    var(--color-bg-surface) 62%,
+    var(--color-bg-surface) 100%
+  );
+}
+
+.hist-expand:hover { color: var(--color-text-primary); }
+
+.hist-expand-label {
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.hist-expand-chevron {
+  display: inline-flex;
+}

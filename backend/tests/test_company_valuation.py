@@ -143,12 +143,33 @@ def test_risky_company_gets_a_wider_band():
     assert wide > narrow
 
 
-def test_excessive_debt_refuses_valuation_outright():
-    """Гл. 33, с. 618: к таким компаниям формальная оценка неприменима."""
-    band = clean_band(structure=structure(1600.0, 800.0))   # покрытие 2,0x
+def test_excessive_debt_makes_valuation_dearer_not_hidden():
+    """Тонкое покрытие дорожает вместо отказа.
+
+    Гл. 33, с. 618 требует не применять формальную оценку там, где структура
+    капитала делает будущее непредсказуемым, и прежде здесь стоял отказ. На
+    данных он вышел в восемь компаний из сорока пяти, и пустота оказалась
+    хуже ответа «дорого и рискованно, вот насколько». Требование книги
+    перенесено в множитель: надбавка за натянутое покрытие самая крупная из
+    всех, и полоса опускается вместе с ней.
+    """
+    strained = clean_band(structure=structure(1600.0, 800.0))   # покрытие 2,0x
+    assert strained.refused is False
+    assert strained.low is not None
+    assert strained.penalty.coverage == pytest.approx(4.0)
+
+    # Та же компания без долга стоит заметно дороже — цена отказа легла
+    # в множитель целиком, а не растворилась.
+    healthy = clean_band(structure=structure(1600.0, 0.0))
+    assert healthy.low > strained.low
+
+
+def test_operating_loss_with_debt_still_refuses():
+    """Единственный оставшийся отказ: делить на отрицательное покрытие нечего."""
+    band = clean_band(structure=structure(-500.0, 200.0))
     assert band.refused is True
     assert band.low is None
-    assert "непредсказуемым" in band.reason
+    assert "деление на знак" in band.reason
 
 
 def test_three_ladders_give_three_valuations():
@@ -201,12 +222,24 @@ def test_band_reports_both_before_and_after_assets():
 
 
 def test_growth_cap_unblocks_a_high_return_company():
-    """Без потолка компания с ROE 30% оценке не поддаётся вовсе."""
-    refused = clean_band(roe=30.0, payout=20.0)
-    assert refused.refused is True
-    assert "бесконечность" in refused.reason
+    """Без потолка рост 24% превышает ставку, и формула гл. 32 неприменима.
+
+    Молчанием это больше не кончается: оценка уходит на EPV, где роста нет
+    вовсе, и потому ломаться нечему. Но это нижняя граница, а не ответ —
+    потолок роста нужен по-прежнему.
+    """
+    from app.services.analysis.company_valuation import METHOD_COTTLE, METHOD_EPV
+
+    fallback = clean_band(roe=30.0, payout=20.0)
+    assert fallback.refused is False
+    assert fallback.method == METHOD_EPV
+    assert "бесконечность" in " ".join(fallback.warnings)
+    # Виновата ставка против роста, а не выплата, — и подсказка не должна
+    # отправлять читателя не туда.
+    assert "Выплата" not in " ".join(fallback.warnings)
 
     allowed = clean_band(roe=30.0, payout=20.0, growth_cap=9.0)
+    assert allowed.method == METHOD_COTTLE
     assert allowed.refused is False
     assert allowed.growth == pytest.approx(9.0)
     assert allowed.growth_uncapped == pytest.approx(24.0)
@@ -245,10 +278,18 @@ def test_loss_making_normal_earnings_refuse_the_band():
     assert "не положительна" in band.reason
 
 
-def test_zero_payout_refuses_with_the_formula_reason():
+def test_zero_payout_falls_back_to_epv():
+    """Компания, не платящая владельцу, получает оценку, а не молчание.
+
+    Формула гл. 32 даёт ей множитель ноль — числитель там сама выплата. EPV
+    ноль не содержит и отвечает тем, что знает: прибыль ÷ ставка.
+    """
+    from app.services.analysis.company_valuation import METHOD_EPV
+
     band = clean_band(payout=0.0)
-    assert band.refused is True
-    assert "возвращать нечего" in band.reason
+    assert band.refused is False
+    assert band.method == METHOD_EPV
+    assert "возвращать нечего" in " ".join(band.warnings)
 
 
 def test_band_is_serialisable():
@@ -256,3 +297,127 @@ def test_band_is_serialisable():
     assert payload["low"] and payload["high"]
     assert payload["penalty"]["total"] > 0
     assert payload["ladders"][0]["name"] == "прибыль"
+
+
+# ── Запасной метод: EPV ────────────────────────────────────────────────────
+
+
+def test_epv_это_прибыль_делённая_на_требуемую_доходность():
+    from app.services.analysis.company_valuation import earning_power_value
+
+    # 100 ₽ прибыли при требуемых 20% стоят 500 ₽.
+    assert earning_power_value(100.0, 16.0, 4.0) == pytest.approx(500.0)
+    # Надбавка за риск удорожает капитал и опускает оценку.
+    assert earning_power_value(100.0, 16.0, 4.0, extra_premium=5.0) == pytest.approx(400.0)
+    # Убыточное дело по способности зарабатывать не стоит ничего.
+    assert earning_power_value(-10.0, 16.0, 4.0) is None
+
+
+def test_epv_совпадает_с_главой_32_при_полной_выплате_и_нулевом_росте():
+    """Не аналогия, а тождество: P = D/(K−g) при D = E и g = 0 даёт E/K.
+
+    Отсюда правило маршрутизации: спорить о выборе метода имеет смысл ровно
+    настолько, насколько компания удерживает прибыль.
+    """
+    from app.services.analysis.company_valuation import (
+        base_multiple,
+        earning_power_value,
+    )
+
+    # Множитель округляется до сотых, поэтому сверка идёт с допуском на
+    # округление, а не на равенство до последнего знака.
+    cottle = base_multiple(100.0, 16.0, 5.0, 0.0).value * 100.0
+    epv = earning_power_value(100.0, 16.0, 5.0)
+    assert cottle == pytest.approx(epv, rel=1e-3)
+
+
+def test_неплатящая_компания_получает_оценку_а_не_молчание():
+    """Формула гл. 32 даёт таким компаниям ноль; EPV отвечает тем, что знает.
+
+    Так выпадало семнадцать компаний из сорока пяти — не платящие владельцу и
+    слишком молодые, чтобы посчитать ровность отдачи.
+    """
+    from app.services.analysis.company_valuation import METHOD_COTTLE, METHOD_EPV
+
+    band = clean_band(payout=0.0, roe=None)
+    assert band.refused is False
+    assert band.method == METHOD_EPV
+    assert band.low is not None and band.conservative is not None
+    assert band.growth == 0.0
+    assert any("EPV" in w for w in band.warnings)
+
+    # Платящая компания идёт прежним путём — подмены метода не происходит.
+    assert clean_band().method == METHOD_COTTLE
+
+
+def test_убыточная_по_всем_лестницам_отказ_с_верной_причиной():
+    """Отказ остаётся, но сообщение должно называть причину, а не нашу лень."""
+    band = clean_band(payout=0.0, roe=None,
+                      normal_earnings={"прибыль": -30.0, "деньги": -253.0})
+    assert band.refused is True
+    assert "отрицательна по всем" in band.reason
+
+
+# ── Чистая стоимость оборотных активов, гл. 15 ─────────────────────────────
+
+
+def test_ncav_вычитает_все_обязательства_а_не_только_краткосрочные():
+    """Приём намеренно жесток: внеоборотные активы не в счёт, долг весь."""
+    from app.services.analysis.company_valuation import net_current_asset_value
+
+    # 530 млрд оборотных, 203 млрд обязательств, 177,6 млн акций — Башнефть.
+    assert net_current_asset_value(530_000.0, 203_000.0, 177_634_489.0) == \
+        pytest.approx(1841.0, abs=2.0)
+    assert net_current_asset_value(34_000.0, 141_000.0, 78_450_000_000.0) < 0
+    assert net_current_asset_value(None, 203_000.0, 100.0) is None
+    assert net_current_asset_value(530_000.0, 203_000.0, 0.0) is None
+
+
+def test_порог_главы_15_это_две_трети_а_не_вся_величина():
+    """Треть — запас на то, что при ликвидации выручат меньше балансового."""
+    from app.services.analysis.company_valuation import NCAV_THRESHOLD, ncav_check
+
+    assert NCAV_THRESHOLD == pytest.approx(2 / 3)
+    check = ncav_check(300.0, price=199.0)
+    assert check["threshold"] == pytest.approx(200.0)
+    assert check["passes"] is True
+    # Между порогом и полной величиной — уже не случай гл. 15.
+    assert ncav_check(300.0, price=250.0)["passes"] is False
+
+
+def test_отрицательный_ncav_объясняется_словами_а_не_молчанием():
+    from app.services.analysis.company_valuation import ncav_check
+
+    check = ncav_check(-1038.0, price=5381.0)
+    assert check["passes"] is False
+    assert "отрицателен" in check["note"]
+    # Разрядный пробел не должен съедать грамматические запятые.
+    assert ", и при закрытии" in check["note"]
+
+
+# ── Рычаг ──────────────────────────────────────────────────────────────────
+
+
+def test_рычаг_не_считается_без_положительного_капитала():
+    from app.services.analysis.company_valuation import debt_to_equity
+
+    assert debt_to_equity(611_000.0, 51_000.0) == pytest.approx(11.98, abs=0.05)
+    # Капитал съеден — отношение не определено, положение описывается словами.
+    assert debt_to_equity(70_000.0, 0.0) is None
+    assert debt_to_equity(70_000.0, -5_000.0) is None
+    assert debt_to_equity(None, 51_000.0) is None
+
+
+def test_рычаг_дорожает_ступенями():
+    """Порог главы 14 — долг не выше капитала. Ниже него надбавки нет."""
+    from app.services.analysis.company_valuation import (
+        PENALTY_LEVERAGE_EXTREME,
+        PENALTY_LEVERAGE_HEAVY,
+    )
+
+    assert risk_penalty(None, None, None, None, 0.9).leverage == 0.0
+    assert risk_penalty(None, None, None, None, 1.5).leverage == 0.0
+    assert risk_penalty(None, None, None, None, 2.5).leverage == PENALTY_LEVERAGE_HEAVY
+    assert risk_penalty(None, None, None, None, 12.0).leverage == PENALTY_LEVERAGE_EXTREME
+    # Неизвестный рычаг не штрафуется, как и всё прочее неизвестное.
+    assert risk_penalty(None, None, None, None, None).leverage == 0.0

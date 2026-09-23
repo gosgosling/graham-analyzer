@@ -13,6 +13,8 @@ import {
 } from '../services';
 import { FinancialReport } from '../types';
 import MultipliersPanel from '../components/MultipliersPanel';
+import PriceChart from '../components/PriceChart';
+import ValuationSummary from '../components/ValuationSummary';
 import BankMetricsPanel from '../components/BankMetricsPanel';
 import HoldingPanel from '../components/HoldingPanel';
 import VerificationBadge from '../components/VerificationBadge';
@@ -29,6 +31,14 @@ import './CompanyDetail.css';
 
 type ReportPeriodFilter = 'all' | 'annual' | 'quarterly' | 'semi_annual';
 
+type CardTab = 'info' | 'multipliers' | 'valuation';
+
+const TABS: { key: CardTab; label: string; hint: string }[] = [
+  { key: 'info', label: 'Общая информация', hint: 'Что это за компания, её отчёты и описание' },
+  { key: 'multipliers', label: 'Мультипликаторы', hint: 'Цена, показатели по годам и пороги Грэма' },
+  { key: 'valuation', label: 'Оценка стоимости', hint: 'Полоса стоимости и запас прочности' },
+];
+
 const CompanyDetail: React.FC = () => {
   const { companyId } = useParams<{ companyId: string }>();
   const navigate = useNavigate();
@@ -40,6 +50,7 @@ const CompanyDetail: React.FC = () => {
   const [reportPeriodFilter, setReportPeriodFilter] = useState<ReportPeriodFilter>('annual');
   const [reportStandardFilter, setReportStandardFilter] = useState<string>('all');
   const [showAllReports, setShowAllReports] = useState(false);
+  const [tab, setTab] = useState<CardTab>('multipliers');
   const [editingDescription, setEditingDescription] = useState(false);
   const [descriptionDraft, setDescriptionDraft] = useState('');
 
@@ -367,12 +378,41 @@ const CompanyDetail: React.FC = () => {
         )}
       </div>
 
-      {/* Мультипликаторы — сразу под шапкой */}
-      <MultipliersPanel company={company} reports={reports} />
+      {/* Вкладки карточки.
+          Три раздела отвечают на три разных вопроса: что это за компания,
+          что показывают её числа и сколько она стоит. Раньше всё это лежало
+          одной лентой, и до порогов Грэма нужно было пролистать описание,
+          таблицу отчётов и две заглушки. */}
+      <nav className="card-tabs" role="tablist" aria-label="Разделы карточки">
+        {TABS.map(({ key, label, hint }) => (
+          <button
+            key={key}
+            type="button"
+            role="tab"
+            aria-selected={tab === key}
+            className={`card-tab${tab === key ? ' is-on' : ''}`}
+            onClick={() => setTab(key)}
+            title={hint}
+          >
+            {label}
+          </button>
+        ))}
+      </nav>
+
+      {tab === 'multipliers' && (
+        <>
+          <PriceChart companyId={company.id!} />
+          <ValuationSummary companyId={company.id!} />
+          <MultipliersPanel company={company} reports={reports} face="multipliers" />
+        </>
+      )}
+      {tab === 'valuation' && (
+        <MultipliersPanel company={company} reports={reports} face="valuation" />
+      )}
 
       {/* Холдинг: стоимость складывается из долей, а не из консолидированной
           отчётности — там результаты дочек, а не доля акционера. */}
-      {company.company_type === 'holding' && (
+      {tab === 'multipliers' && company.company_type === 'holding' && (
         <HoldingPanel company={company} reports={reports} />
       )}
 
@@ -380,7 +420,7 @@ const CompanyDetail: React.FC = () => {
           капитал. У кредитора это вся компания (определяется типом отчёта),
           у гибрида — сегмент внутри обычной: тип отчёта у него общий, поэтому
           проверяем тип компании отдельно. */}
-      {reports &&
+      {tab === 'multipliers' && reports &&
         (reports.some((r) => r.report_type === 'bank') ||
           company.company_type === 'hybrid' ||
           company.company_type === 'exchange') && (
@@ -391,7 +431,14 @@ const CompanyDetail: React.FC = () => {
           />
         )}
 
+      {/* Пороги Грэма — последним блоком вкладки мультипликаторов: сперва
+          числа как есть, потом приговор по ним. */}
+      {tab === 'multipliers' && (
+        <MultipliersPanel company={company} reports={reports} face="passport" />
+      )}
+
       {/* Основная сетка с информацией */}
+      {tab === 'info' && (
       <div className="company-content-grid">
         {/* Левая колонка - Основная информация */}
         <div className="content-column">
@@ -507,17 +554,6 @@ const CompanyDetail: React.FC = () => {
             )}
           </section>
 
-          {/* График цены - заглушка */}
-          <section className="info-card">
-            <h2 className="card-title">📈 График цены акций</h2>
-            <div className="placeholder-chart">
-              <div className="chart-placeholder">
-                <span className="placeholder-icon">📊</span>
-                <p>График цены акций</p>
-                <p className="placeholder-hint">Интеграция с биржевыми данными в разработке</p>
-              </div>
-            </div>
-          </section>
         </div>
 
         {/* Правая колонка - Отчеты и новости */}
@@ -764,19 +800,9 @@ const CompanyDetail: React.FC = () => {
             </div>
           </section>
 
-          {/* Анализ по Грэму - заглушка */}
-          <section className="info-card">
-            <h2 className="card-title">🎯 Анализ по методу Грэма</h2>
-            <div className="placeholder-content">
-              <p>Автоматический анализ будет доступен после накопления данных</p>
-              <p className="placeholder-hint">
-                Система проанализирует финансовые показатели компании и даст рекомендацию: 
-                недооценена, стабильна или переоценена
-              </p>
-            </div>
-          </section>
         </div>
       </div>
+      )}
 
       {/* Модальное окно просмотра отчёта */}
       {selectedReport && (

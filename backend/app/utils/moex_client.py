@@ -37,6 +37,10 @@ def _moex_get(url: str, **kwargs) -> requests.Response:
 # а лишние 85 КБ ответа никто не использовал.
 _SHARES_BOARD = "TQBR"
 
+# Сколько свечей ISS отдаёт за один запрос. Величина не наша — это предел
+# эндпоинта, и листать приходится под него.
+_CANDLES_PAGE = 500
+
 
 def get_moex_securities() -> List[Dict]:
     """
@@ -691,39 +695,63 @@ def get_price_history(
         f"https://iss.moex.com/iss/engines/stock/markets/shares"
         f"/boards/{board}/securities/{ticker}/candles.json"
     )
-    params = {
-        "from": from_date.isoformat(),
-        "till": till_date.isoformat(),
-        "interval": 24,        # дневные свечи
-        "iss.meta": "off",
-    }
 
-    result = []
-    try:
-        resp = _moex_get(url, params=params, timeout=15)
-        resp.raise_for_status()
-        data = resp.json()
+    result: list = []
+    # ISS отдаёт не больше 500 свечей за запрос и молча обрезает остальное.
+    # Без листания «история за десять лет» превращалась в два года: запрос с
+    # 2015 по 2026 возвращал ровно 500 строк, последняя — за декабрь 2016, и
+    # выглядело это как отсутствие данных, а не как обрезка.
+    offset = 0
+    seen: set = set()
+    while True:
+        params = {
+            "from": from_date.isoformat(),
+            "till": till_date.isoformat(),
+            "interval": 24,        # дневные свечи
+            "iss.meta": "off",
+            "start": offset,
+        }
+        try:
+            resp = _moex_get(url, params=params, timeout=15)
+            resp.raise_for_status()
+            data = resp.json()
+        except requests.exceptions.RequestException as exc:
+            # Молча вернуть половину истории нельзя: на графике обрыв
+            # неотличим от делистинга. Поэтому при сбое на любой странице
+            # отдаётся пустой список, а причина уходит в лог.
+            logger.warning("MOEX ISS не ответил по %s (смещение %d): %s",
+                           ticker, offset, exc)
+            return []
 
         cols = data.get("candles", {}).get("columns", [])
         rows = data.get("candles", {}).get("data", [])
-
-        if not cols or "close" not in cols or "begin" not in cols:
-            return result
+        if not cols or "close" not in cols or "begin" not in cols or not rows:
+            break
 
         close_idx = cols.index("close")
         begin_idx = cols.index("begin")
-
+        added = 0
         for row in rows:
             try:
-                raw_dt = row[begin_idx]  # "2024-01-03 00:00:00"
+                raw_dt = row[begin_idx]
                 close_price = row[close_idx]
-                if raw_dt and close_price is not None:
-                    trade_date = date.fromisoformat(str(raw_dt).split(" ")[0])
-                    result.append((trade_date, float(close_price)))
+                if not raw_dt or close_price is None:
+                    continue
+                trade_date = date.fromisoformat(str(raw_dt).split(" ")[0])
+                # Страницы у ISS изредка перекрываются на границе; по датам
+                # это видно надёжнее, чем по смещению.
+                if trade_date in seen:
+                    continue
+                seen.add(trade_date)
+                result.append((trade_date, float(close_price)))
+                added += 1
             except (ValueError, TypeError):
                 continue
 
-    except requests.exceptions.RequestException:
-        pass
+        # Страница пришла неполной — дальше данных нет.
+        if len(rows) < _CANDLES_PAGE or added == 0:
+            break
+        offset += len(rows)
 
+    result.sort(key=lambda pair: pair[0])
     return result
