@@ -112,25 +112,27 @@ def backfill_company_prices(
         logger.warning("Бэкфилл %s: MOEX не вернул данных за %s–%s", ticker, from_date, yesterday)
         return 0
 
+    # Уже имеющиеся даты берутся одним запросом. Раньше здесь стоял SELECT на
+    # каждую точку истории; пока докачивались последние дни, это было незаметно,
+    # но на полной истории — четыре тысячи запросов к базе на одну компанию.
+    existing = {
+        row[0] for row in db.query(StockPrice.date).filter(
+            StockPrice.company_id == company.id,
+            StockPrice.date >= from_date,
+        )
+    }
+
     added = 0
     for trade_date, close_price in history:
-        # Проверяем дубликат
-        exists = (
-            db.query(StockPrice.id)
-            .filter(
-                StockPrice.company_id == company.id,
-                StockPrice.date == trade_date,
-            )
-            .first()
-        )
-        if not exists:
-            db.add(StockPrice(
-                company_id=company.id,
-                date=trade_date,
-                price=close_price,
-                source="moex",
-            ))
-            added += 1
+        if trade_date in existing:
+            continue
+        db.add(StockPrice(
+            company_id=company.id,
+            date=trade_date,
+            price=close_price,
+            source="moex",
+        ))
+        added += 1
 
     if added:
         db.commit()

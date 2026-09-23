@@ -22,6 +22,91 @@
 }
 .cv-empty code { font-size: 0.85em; }
 
+/* ── Сигнал о цене ───────────────────────────────────────────────────────
+   Стоит первым блоком и потому единственный на карточке носит заливку:
+   всё остальное объясняет ответ, а этот блок его даёт.
+
+   Цвет берётся из состояния сигнала, а не из знака запаса. Разница
+   существенна для «облигация выгоднее»: запас по стоимости там может быть
+   щедрым, и красить по нему значило бы показывать зелёным ровно тот случай,
+   ради которого гл. 20 и написана. */
+
+.cv-safety {
+  margin: var(--space-4) 0;
+  padding: var(--space-4);
+  border: 1px solid var(--color-border-subtle);
+  border-left-width: 4px;
+  border-radius: var(--radius-md);
+  background: var(--color-bg-subtle);
+}
+
+.cv-safety--favourable { border-left-color: var(--color-success); background: var(--color-success-soft); }
+.cv-safety--acceptable { border-left-color: var(--color-success); }
+.cv-safety--fair       { border-left-color: var(--color-border-strong); }
+.cv-safety--expensive  { border-left-color: var(--color-warning); background: var(--color-warning-soft); }
+.cv-safety--bond_better { border-left-color: var(--color-error); background: var(--color-error-soft); }
+
+.cv-safety-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+}
+
+.cv-safety-label {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.cv-safety-margin {
+  font-size: 0.95rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-secondary);
+}
+
+.cv-safety-reason {
+  margin: var(--space-2) 0 0;
+  font-size: 0.88rem;
+  line-height: 1.55;
+  color: var(--color-text-secondary);
+}
+
+/* Шесть величин в ряд: цена и опора рядом, отдача и ставка рядом — пары
+   читаются вместе, и разносить их по строкам нельзя. */
+.cv-safety-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: var(--space-3);
+  margin: var(--space-4) 0 0;
+}
+
+.cv-safety-grid div { min-width: 0; }
+
+.cv-safety-grid dt {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-quaternary);
+}
+
+.cv-safety-grid dd {
+  margin: 2px 0 0;
+  font-size: 1rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-primary);
+}
+
+.cv-safety-bad { color: var(--color-error-text); }
+
+.cv-safety-notes {
+  margin: var(--space-3) 0 0;
+  padding-left: 1.1em;
+  font-size: 0.82rem;
+  line-height: 1.55;
+  color: var(--color-text-tertiary);
+}
+
 /* ── Окно нормализации ────────────────────────────────────────────────── */
 
 .cv-windows {

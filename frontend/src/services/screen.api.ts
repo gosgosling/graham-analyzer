@@ -159,7 +159,29 @@ export interface MarketRow {
   checked: number;
   clears: boolean;
   complete: boolean;
+  /** Сигнал о цене. Пусто, когда оценка отказана или считать не из чего. */
+  safety: RowSafety | null;
   cells: (Verdict | null)[];
+}
+
+/** Сигнал о цене в строке таблицы — сокращённый вид того же, что в паспорте. */
+export interface RowSafety {
+  signal: 'favourable' | 'acceptable' | 'fair' | 'expensive' | 'bond_better'
+    | 'dangerous';
+  label: string;
+  reason: string | null;
+  /** Доля опорной оценки. Отрицательная — цена выше неё. */
+  value_margin: number | null;
+  reference: number | null;
+  earnings_yield: number | null;
+  yield_spread: number | null;
+  /** Признаки ловушки стоимости: почему дешевизна может быть не скидкой. */
+  traps: { kind: string; value: number; reason: string }[];
+  /** Тест гл. 15: чистая стоимость оборотных активов против цены. */
+  ncav: { per_share: number; threshold: number; passes: boolean; note: string } | null;
+  /** Долг к собственному капиталу; у банков и биржи не считается. */
+  leverage: number | null;
+  notes: string[];
 }
 
 export interface MarketScreenOut {

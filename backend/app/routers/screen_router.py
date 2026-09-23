@@ -18,7 +18,9 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.company import Company
+from app.models.market_assumption import MarketAssumption
 from app.services.analysis import market_snapshot, screen, screen_axes
+from app.services.analysis.company_valuation import DEFAULT_WINDOW, assess
 from app.services.analysis.sector_profiles import profile_to_dict
 
 router = APIRouter(prefix="/screen", tags=["screen"])
@@ -102,8 +104,22 @@ def market_screen(
             ) if company is not None
         ]
 
-    results = [screen.load(db, company, standard) for company in companies]
-    results = [r for r in results if r.verdicts]
+    # Пары «результат — компания» держатся вместе с самого начала.
+    #
+    # Раньше результаты отсеивались отдельным списком, а ниже шёл
+    # `zip(results, companies)`. Пока отсеивать было нечего, это работало; но
+    # стоило одной компании остаться без вердиктов — и всё, что ниже неё по
+    # списку, получало чужие данные, а хвост молча пропадал. Ошибка тихая:
+    # таблица остаётся полной на вид, просто в строке «Татнефть» стоят числа
+    # соседа.
+    pairs = [
+        (result, company)
+        for company, result in (
+            (company, screen.load(db, company, standard)) for company in companies
+        )
+        if result.verdicts
+    ]
+    results = [result for result, _ in pairs]
 
     # Банковские критерии своих колонок не получают: они есть у трёх компаний
     # из тридцати шести, и ради них таблица вырастала на четверть, а у всех
@@ -138,8 +154,18 @@ def market_screen(
                     "ours": verdict.rule.ours,
                 })
 
+    # Сигнал о цене рядом со сводом. Свод отвечает на вопрос «хороша ли
+    # компания», сигнал — «хороша ли цена», и это разные вопросы: в паспорте
+    # они стоят рядом, а в таблице до сих пор был только первый.
+    #
+    # Приговор свода передаётся готовым: он уже посчитан выше, и считать его
+    # вторым заходом внутри оценки значило бы удваивать самую дорогую часть.
+    assumption = (
+        db.query(MarketAssumption).order_by(MarketAssumption.year.desc()).first()
+    )
+
     rows = []
-    for result, company in zip(results, companies):
+    for result, company in pairs:
         by_metric = {v.metric: v for v in result.verdicts}
         # Подстановка: пустые клетки банка заполняются его собственными
         # показателями. Имя показателя едет вместе со значением — без него
@@ -156,6 +182,20 @@ def market_screen(
                 payload = spare.pop(0)
             cells.append(payload)
 
+        # Оценка может отказать — тогда сигнала просто нет, и строка живёт
+        # дальше одним сводом. Падать из-за одной компании таблица не должна.
+        safety = None
+        if assumption is not None:
+            try:
+                valuation = assess(db, company, assumption, DEFAULT_WINDOW,
+                                   screen_clears=result.clears)
+                if valuation.get("available"):
+                    payload_safety = valuation.get("safety")
+                    if payload_safety and payload_safety["signal"] != "no_signal":
+                        safety = payload_safety
+            except Exception:
+                safety = None
+
         rows.append({
             "id": company.id,
             "ticker": result.ticker,
@@ -169,6 +209,7 @@ def market_screen(
             "checked": len(result.checkable),
             "clears": result.clears,
             "complete": result.complete,
+            "safety": safety,
             "cells": cells,
         })
 

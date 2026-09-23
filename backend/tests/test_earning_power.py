@@ -751,3 +751,33 @@ def test_trend_rides_along_with_the_estimate():
     assert result.per_share.value == pytest.approx(130.0)
     assert result.trend.value == pytest.approx(160.0)
     assert result.as_dict()["trend"]["annual_growth"] is not None
+
+
+def test_тенденция_не_считается_на_коротком_ряду():
+    """Линия через три точки — не тенденция, а линия через шум.
+
+    У ЛУКОЙЛа прибыль на акцию за 2023–2025 шла 1 668 → 1 252 → 158. Наклон
+    выходит −755 в год, и тенденция даёт 271 ₽ при средней за те же годы
+    1 026 ₽: один провальный год на трёх точках определяет ответ целиком, он
+    и есть половина всей вариации. Окно сворачивается на среднюю, как у
+    Коттла для коротких рядов.
+    """
+    from app.services.analysis.earning_power import MIN_TREND_POINTS, trend_value
+
+    points = [
+        YearPoint(year=2021, eps=1189.3),
+        YearPoint(year=2022, eps=1140.2),
+        YearPoint(year=2023, eps=1667.8),
+        YearPoint(year=2024, eps=1252.1),
+        YearPoint(year=2025, eps=157.6),
+    ]
+
+    assert MIN_TREND_POINTS == 5
+    assert trend_value(points, "eps", 3) is None
+    assert trend_value(points, "eps", 4) is None
+
+    # На пяти точках тенденция появляется, и провал уже разбавлен.
+    five = trend_value(points, "eps", 5)
+    assert five is not None
+    assert five.years_used == 5
+    assert five.value > 500

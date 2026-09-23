@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import {
   fetchMarketScreen,
   type MarketScreenOut,
+  type RowSafety,
   type ScreenStatus,
   type Verdict,
 } from '../services/screen.api';
@@ -127,6 +128,48 @@ const cellTitle = (v: Verdict | null): string => {
   return parts.join('\n');
 };
 
+/** Короткая подпись сигнала: в колонку шириной в два слова длинная не влезет. */
+const SIGNAL_SHORT: Record<RowSafety['signal'], string> = {
+  favourable: 'дёшево',
+  acceptable: 'умеренно',
+  fair: 'вровень',
+  expensive: 'дорого',
+  bond_better: 'ОФЗ лучше',
+  dangerous: 'опасная',
+};
+
+/**
+ * Ячейка сигнала о цене.
+ *
+ * Свод отвечает на вопрос «хороша ли компания», сигнал — «хороша ли цена».
+ * Вопросы разные, и в одну оценку их сводить нельзя: Лукойл проходит свод
+ * целиком и при этом стоит дороже своей оценки, а МТС не проходит и вдобавок
+ * уступает облигации. Обе пары «прошла/дорого» и «не прошла/дёшево»
+ * содержательны ровно потому, что столбцы независимы.
+ */
+function SafetyCell({ safety }: { safety: RowSafety | null }) {
+  if (!safety) {
+    return <td className="ms-safety" title="Оценка не посчитана">—</td>;
+  }
+  const margin = safety.value_margin;
+  return (
+    <td
+      className={`ms-safety ms-safety--${safety.signal}`}
+      title={[
+        safety.reason,
+        safety.reference !== null ? `опорная оценка ${safety.reference.toLocaleString('ru-RU')} ₽` : null,
+        safety.yield_spread !== null ? `запас по ставке ${safety.yield_spread > 0 ? '+' : ''}${safety.yield_spread} п.п.` : null,
+        ...safety.notes,
+      ].filter(Boolean).join('\n')}
+    >
+      <b>{SIGNAL_SHORT[safety.signal]}</b>
+      {margin !== null && (
+        <i>{margin > 0 ? '+' : ''}{Math.round(margin * 100)}%</i>
+      )}
+    </td>
+  );
+}
+
 export default function MarketScreen() {
   const [standard, setStandard] = useState('defensive');
   const [allCompanies, setAllCompanies] = useState(false);
@@ -212,6 +255,14 @@ export default function MarketScreen() {
                       </span>
                     </th>
                   ))}
+                  <th
+                    className="ms-safety"
+                    title={'Запас прочности: опорная оценка против цены.\n'
+                      + 'Отдельный вопрос от свода — свод про компанию, сигнал про цену.'}
+                  >
+                    <span className="ms-col">Цена</span>
+                    <span className="ms-col-thr">запас ≥ ⅓</span>
+                  </th>
                   <th className="ms-total">Итог</th>
                 </tr>
               </thead>
@@ -254,6 +305,7 @@ export default function MarketScreen() {
                         </td>
                       );
                     })}
+                    <SafetyCell safety={row.safety} />
                     <td className="ms-total">
                       {row.clears ? (
                         <b className="ms-clear-mark">прошла</b>

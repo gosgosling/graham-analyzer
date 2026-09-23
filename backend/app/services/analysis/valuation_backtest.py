@@ -25,10 +25,18 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Optional
 
-from app.services.analysis.company_valuation import DEFAULT_WINDOW, value_band
+from app.services.analysis.company_valuation import (
+    DEFAULT_WINDOW,
+    debt_to_equity,
+    LADDER_CASH,
+    LADDER_EARNINGS,
+    LADDER_OWNER,
+    value_band,
+)
 from app.services.analysis.earning_power import (
     analyze,
     buyback_payout,
+    distortion_summary,
     load_points,
     payout_over_window,
     stability,
@@ -55,6 +63,18 @@ class BacktestYear:
     price: float
     low: Optional[float] = None
     high: Optional[float] = None
+    # Опорная цена — та, от которой считается запас прочности. Для гейта она
+    # не нужна (он смотрит на попадание полосы в цену), но ряд по годам без
+    # неё неполон: именно её читатель сравнивает с ценой на графике.
+    conservative: Optional[float] = None
+    # Оценка по лестнице прибыли при рыночной премии. Отличается от `high`:
+    # верх полосы берётся максимумом по всем трём лестницам, и у компании с
+    # сильным денежным потоком это денежная ступень, вдвое выше прибыльной.
+    # Карточка показывает именно прибыльную — та сопоставима с купоном
+    # облигации, — и ряд на графике обязан показывать ту же величину, иначе
+    # на одном экране выходят два разных числа под одним именем.
+    fair: Optional[float] = None
+    method: Optional[str] = None
     refused: Optional[str] = None
 
     @property
@@ -80,6 +100,9 @@ class BacktestYear:
             "price": round(self.price, 2),
             "low": self.low,
             "high": self.high,
+            "conservative": self.conservative,
+            "fair": self.fair,
+            "method": self.method,
             "inside": self.inside,
             "distance": self.distance,
             "refused": self.refused,
@@ -190,18 +213,28 @@ def backtest(
             payout = round(dividends + buyback, 2)
 
         report = reports.get(year)
+
+        def _num(field, _report=report):
+            value = getattr(_report, field, None) if _report else None
+            return None if value is None else float(value)
+
         verdict = structure(
-            float(report.operating_profit)
-            if report and report.operating_profit is not None else None,
-            float(report.finance_costs)
-            if report and report.finance_costs is not None else None,
+            _num("operating_profit"),
+            _num("finance_costs"),
+            # Ровно те же слагаемые, что и в живом расчёте: лизинговые
+            # проценты в знаменателе и проверка расходов по ставке того года.
+            # Ставка берётся тогдашняя — здесь ничего сегодняшнего быть не
+            # должно, включая мерку достоверности.
+            lease_interest=_num("lease_interest"),
+            debt=_num("debt"),
+            key_rate=rate,
         )
 
-        ladders = {}
+        ladders, observed = {}, {}
         for name, estimate in (
-            ("прибыль", power.earnings.get(window)),
-            ("деньги", power.cash.get(window)),
-            ("прибыль владельца", power.owner.get(window)),
+            (LADDER_EARNINGS, power.earnings.get(window)),
+            (LADDER_CASH, power.cash.get(window)),
+            (LADDER_OWNER, power.owner.get(window)),
         ):
             if estimate is None or estimate.per_share is None:
                 continue
@@ -209,6 +242,11 @@ def backtest(
                 ladders[name] = estimate.trend.value
             else:
                 ladders[name] = estimate.per_share.value
+            # Наблюдаемый рост денежной лестницы. Считается по обрезанному
+            # ряду, как и всё остальное здесь: наклон, известный на тот год, а
+            # не сегодняшний.
+            if estimate.trend is not None:
+                observed[name] = estimate.trend.annual_growth
 
         band = value_band(
             payout=payout,
@@ -223,6 +261,15 @@ def backtest(
             cash_backing=power.backing.get(window, {}).get("ratio"),
             growth_cap=growth_cap,
             basis=basis,
+            # Оба параметра обязаны ехать сюда, иначе гейт проверяет не ту
+            # модель, которую мы показываем: без `observed_growth` денежная
+            # лестница получила бы нулевой рост, без `distortion` — не получила
+            # бы надбавки за годы, где заработок подменён начислениями.
+            observed_growth=observed,
+            distortion=distortion_summary(history, window),
+            # Рычаг того года, а не сегодняшний: заглядывать вперёд нельзя и
+            # здесь.
+            leverage=debt_to_equity(_num("debt"), _num("equity")),
         )
 
         rows.append(BacktestYear(
@@ -230,6 +277,12 @@ def backtest(
             price=float(price),
             low=None if band.refused else band.low,
             high=None if band.refused else band.high,
+            conservative=None if band.refused else band.conservative,
+            fair=None if band.refused else next(
+                (item.value for item in band.ladders if item.name == LADDER_EARNINGS),
+                band.high,
+            ),
+            method=None if band.refused else band.method,
             refused=band.reason if band.refused else None,
         ))
 
