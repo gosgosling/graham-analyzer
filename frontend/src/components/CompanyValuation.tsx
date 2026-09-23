@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import {
   getCompanyValuation,
   type CompanyValuationOut,
+  type SafetyOut,
   type ValueBandOut,
 } from '../services/valuation.api';
 import ValuationCharts from './ValuationCharts';
@@ -118,6 +119,80 @@ function Verdict({ data }: { data: CompanyValuationOut }) {
   );
 }
 
+/**
+ * Сигнал о цене: запас прочности, собранный из трёх источников.
+ *
+ * Стоит **до** полосы, а не после, потому что отвечает на тот вопрос, с
+ * которым сюда пришли. Полоса объясняет ответ, но сама его не даёт: читатель
+ * вынужден делить в уме, а деление это неочевидное — «дёшево» у Грэма
+ * означает три условия сразу, и два из них к полосе отношения не имеют.
+ *
+ * Отдача показана рядом с безрисковой ставкой намеренно. Это та проверка из
+ * гл. 20, в которой нет ни одного нашего допущения о росте: отдача — деление,
+ * а полоса — формула с четырьмя входами. Когда они расходятся, верить надо
+ * делению, и видеть оба числа читатель должен одновременно.
+ */
+function Safety({ safety }: { safety: SafetyOut }) {
+  const margin = safety.value_margin;
+  return (
+    <div className={`cv-safety cv-safety--${safety.signal}`}>
+      <div className="cv-safety-head">
+        <span className="cv-safety-label">{safety.label}</span>
+        {margin !== null && (
+          <span className="cv-safety-margin">
+            запас {margin > 0 ? '+' : ''}{(margin * 100).toFixed(0)}%
+          </span>
+        )}
+      </div>
+      {safety.reason && <p className="cv-safety-reason">{safety.reason}</p>}
+
+      <dl className="cv-safety-grid">
+        <div>
+          <dt>опорная оценка</dt>
+          <dd>{fmt(safety.reference)} ₽</dd>
+        </div>
+        <div>
+          <dt>цена</dt>
+          <dd>{fmt(safety.price)} ₽</dd>
+        </div>
+        <div>
+          <dt>отдача</dt>
+          <dd>{pct(safety.earnings_yield)}</dd>
+        </div>
+        <div>
+          <dt>безрисковая</dt>
+          <dd>{pct(safety.risk_free_rate)}</dd>
+        </div>
+        <div
+          title="Отдача минус безрисковая. Гл. 14 требует, чтобы акция давала не меньше качественной облигации."
+        >
+          <dt>запас по ставке</dt>
+          <dd className={
+            safety.yield_spread !== null && safety.yield_spread < 0
+              ? 'cv-safety-bad' : undefined
+          }>
+            {safety.yield_spread === null
+              ? '—'
+              : `${safety.yield_spread > 0 ? '+' : ''}${safety.yield_spread.toFixed(1)} п.п.`}
+          </dd>
+        </div>
+        {safety.screen_clears !== null && (
+          <div>
+            <dt>свод гл. 14</dt>
+            <dd>{safety.screen_clears ? 'пройден' : 'не пройден'}</dd>
+          </div>
+        )}
+      </dl>
+
+      {safety.notes.length > 0 && (
+        <ul className="cv-safety-notes">
+          {safety.notes.map((note) => <li key={note}>{note}</li>)}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 function Content({ data, window, onWindow, companyId }: {
   data: CompanyValuationOut;
   window: number;
@@ -152,6 +227,9 @@ function Content({ data, window, onWindow, companyId }: {
         </div>
       ) : (
         <>
+          {data.safety && data.safety.signal !== 'no_signal' && (
+            <Safety safety={data.safety} />
+          )}
           <Band band={band} price={data.price} />
           <Verdict data={data} />
 

@@ -1,0 +1,143 @@
+/* График цены на карточке компании. */
+
+.pc {
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+.pc-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.pc-title h3 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.pc-sub {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.74rem;
+  color: var(--color-text-quaternary);
+  font-variant-numeric: tabular-nums;
+}
+
+.pc-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.pc-overlays,
+.pc-ranges {
+  display: flex;
+  gap: 4px;
+}
+
+/* Наложения и периоды намеренно выглядят одинаково: и то и другое — выбор
+   того, что показывать, и разводить их по форме значило бы намекать на
+   разную природу там, где её нет. Разделяет их только промежуток. */
+.pc-btn {
+  padding: 4px 10px;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--color-text-tertiary);
+  font-size: 0.78rem;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+
+.pc-btn:hover {
+  background: var(--color-bg-hover);
+  color: var(--color-text-secondary);
+}
+
+.pc-btn.is-on {
+  border-color: var(--color-border-accent);
+  background: var(--color-primary-soft);
+  color: var(--color-text-primary);
+  font-weight: 600;
+}
+
+/* Сводка над полем: те же числа, что читаются с графика, но точно. Глаз
+   снимает с кривой форму, а величину приходится угадывать по сетке. */
+.pc-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  margin-bottom: var(--space-2);
+  font-size: 0.82rem;
+  color: var(--color-text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.pc-stats b {
+  color: var(--color-text-primary);
+  font-weight: 600;
+}
+
+.pc-up   { color: var(--screen-pass-text); }
+.pc-down { color: var(--color-error-text); }
+
+.pc-canvas {
+  width: 100%;
+  min-width: 0;
+  /* Обрезка — от горизонтальной прокрутки всей страницы: recharts запоминает
+     измеренную ширину во внутренней обёртке и при сужении окна не всегда её
+     отпускает.
+
+     Ограничивать саму обёртку через `max-width` нельзя, и это выяснилось на
+     деле: recharts меряет себя по собственному элементу, потолок сбивает ему
+     измерение, и график застревал на размере по умолчанию 226×200 — то есть
+     пропадал совсем. Обрезка контейнера на измерение не влияет. */
+  overflow: hidden;
+}
+
+.pc-note {
+  margin: var(--space-2) 0 0;
+  max-width: 78ch;
+  font-size: 0.74rem;
+  line-height: 1.5;
+  color: var(--color-text-quaternary);
+}
+
+.pc-state {
+  padding: var(--space-5);
+  color: var(--color-text-tertiary);
+  font-size: 0.88rem;
+}
+
+.pc-state--error { color: var(--color-error-text); }
+
+.pc-state code {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.8rem;
+  background: var(--color-bg-subtle);
+  padding: 1px 5px;
+  border-radius: var(--radius-sm);
+}
+
+/* Кнопки уровней стоимости отделены от множителей: те меняют вторую ось,
+   эти рисуют горизонтали на первой. Разные по действию — разные по группе. */
+.pc-values {
+  display: flex;
+  gap: 4px;
+  padding-right: var(--space-3);
+  border-right: 1px solid var(--color-border-subtle);
+}
+
+.pc-btn--value.is-on {
+  border-color: var(--color-border-strong);
+  background: var(--color-bg-subtle);
+}

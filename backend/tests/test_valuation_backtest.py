@@ -121,3 +121,47 @@ def test_result_is_serialisable():
 def test_rate_spread_matches_todays_gap():
     """Ключевая 14,98% против ОФЗ 15,7–16,2% на 30.08.2026 — около пункта."""
     assert OFZ_OVER_KEY_RATE == 1.0
+
+
+# ── Гейт обязан проверять ту модель, которую мы показываем ─────────────────
+
+
+def test_бэктест_передаёт_в_оценку_всё_то_же_что_и_живой_расчёт():
+    """Защита от молчаливого расхождения гейта с показываемой оценкой.
+
+    Ошибка, ради которой тест написан: `value_band` получила два новых
+    параметра — наблюдаемый рост и долю искажённых лет, — и живой расчёт их
+    передавал, а бэктест нет. Гейт при этом проходил и выглядел исправным,
+    только проверял он другую модель: денежная лестница получала нулевой рост
+    вместо наблюдаемого, а надбавка за начисления не начислялась вовсе.
+
+    Расхождение такого рода не ловится ни одним тестом на поведение — обе
+    стороны по отдельности работают правильно. Поэтому проверяется само
+    совпадение наборов аргументов.
+    """
+    import inspect
+
+    from app.services.analysis import valuation_backtest
+    from app.services.analysis.company_valuation import assess, value_band
+    from app.services.analysis.valuation_guards import structure
+
+    def named_args(func, callee):
+        """Имена аргументов, которые `func` передаёт в вызов `callee(...)`."""
+        source = inspect.getsource(func)
+        if f"{callee}(" not in source:
+            return set()
+        tail = source.split(f"{callee}(")[1]
+        return {
+            line.split("=")[0].strip()
+            for line in tail.split("\n")
+            if "=" in line and not line.strip().startswith("#")
+        }
+
+    for callee, target in (("value_band", value_band), ("structure", structure)):
+        accepted = set(inspect.signature(target).parameters)
+        live = named_args(assess, callee) & accepted
+        back = named_args(valuation_backtest.backtest, callee) & accepted
+        assert live - back == set(), (
+            f"живой расчёт передаёт в {callee} то, чего нет в бэктесте: "
+            f"{sorted(live - back)} — гейт проверяет другую модель"
+        )

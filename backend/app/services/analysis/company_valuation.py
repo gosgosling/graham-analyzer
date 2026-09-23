@@ -40,6 +40,7 @@ from app.services.analysis.market_multiple import (
     implied_growth,
     sustainable_growth,
 )
+from app.services.analysis.margin_of_safety import assess_safety
 from app.services.analysis.valuation_guards import StructureVerdict
 
 # ── Надбавки к премии за риск, процентных пунктов ──────────────────────────
@@ -50,8 +51,55 @@ from app.services.analysis.valuation_guards import StructureVerdict
 PENALTY_SPREAD_MODERATE = 1.0     # коридор отдачи шире образцового
 PENALTY_SPREAD_WIDE = 2.0         # коридор сравним с самим уровнем
 PENALTY_COVERAGE_FRAGILE = 1.5    # проценты покрыты, но без запаса
+# Натянутое покрытие — надбавка вчетверо больше, и она самая крупная из всех.
+# Прежде такая компания просто не показывалась; теперь показывается, и цена
+# отказа должна лечь в множитель целиком, иначе смягчение вердикта превратится
+# в то, чем оно быть не должно, — в поблажку.
+#
+# Четыре пункта выбраны так, чтобы при рыночной премии 5% требуемая доходность
+# выросла примерно в полтора раза: у компании, отдающей почти всю операционную
+# прибыль кредитору, владелец и должен требовать столько.
+PENALTY_COVERAGE_STRAINED = 4.0
+
+# ── Рычаг ──────────────────────────────────────────────────────────────────
+# Отношение долга к собственному капиталу. Грэм в гл. 14 требует от
+# промышленной компании, чтобы долг не превышал капитал, — это и есть единица.
+#
+# **Зачем это нужно отдельно от покрытия процентов.** Покрытие считается по
+# `finance_costs`, а поле заполнено у пятнадцати компаний из сорока пяти:
+# ограждение, которое у двух третей базы не может сработать, ничего не
+# охраняет. Долг и капитал есть у тридцати двух, и на них опереться можно.
+#
+# Вторая причина глубже. Покрытие — величина из отчёта о прибылях, и она
+# описывает один год. Рычаг — из баланса, и он описывает положение. У
+# Аэрофлота долг вдвенадцатеро больше капитала: даже в хороший год, когда
+# проценты покрыты, любое движение вниз съедает капитал акционера целиком, и
+# оценка по заработку про это не знает ничего.
+LEVERAGE_MODERATE = 1.0
+LEVERAGE_HEAVY = 2.0
+LEVERAGE_EXTREME = 4.0
+PENALTY_LEVERAGE_HEAVY = 2.5
+PENALTY_LEVERAGE_EXTREME = 5.0
 PENALTY_HISTORY_SHORT = 1.0       # 5–6 лет
 PENALTY_HISTORY_THIN = 2.0        # меньше пяти лет
+PENALTY_ACCRUALS = 1.5            # половина окна держится на начислениях
+
+# Доля искажённых лет в окне, выше которой надбавка начисляется. Один-два года
+# из семи — обычное дело: у всякой компании бывает год, где движение оборотки
+# перевесило заработок. Половина окна означает другое — что нормальный
+# уровень выведен не из дела, а из движения денег по кругу.
+ACCRUAL_PENALTY_SHARE = 0.4
+
+# **Отказа по искажениям здесь нет, и это решение, а не упущение.** Он тут
+# стоял ровно один день: порог 0,6 от окна поверх определителя, помечавшего
+# 66% всех лет, вынес в отказ двадцать компаний из тридцати — Норникель,
+# Новатэк, Роснефть, МТС, Белугу. Бэктест при этом показал рост точности с 54%
+# до 67%, и рост был ложным: модель стала попадать чаще не потому, что считала
+# лучше, а потому, что перестала считать трудное.
+#
+# Оценку надо давать всегда, когда есть из чего считать. Ненадёжность ряда —
+# это надбавка к ставке и оговорка в тексте, а не молчание: читателю, который
+# видит «сигнала нет», нечего проверять и не с чем спорить.
 
 # Глубина, при которой история перестаёт быть поводом для надбавки. У Грэма
 # десятилетие — полный набор; семь лет книга считает достаточными для оценки.
@@ -73,11 +121,45 @@ BASIS_AVERAGE = "average"
 # P/B 17,7 (капитала просто нет).
 SUSPECT_ROE = 40.0
 
+# ── Откуда берётся рост, гл. 32 и Коттл ────────────────────────────────────
+# Названия лестниц вынесены в константы: по ним расходится правило роста, и
+# сверять строковый литерал в трёх местах — верный способ развести их.
+LADDER_EARNINGS = "прибыль"
+LADDER_CASH = "деньги"
+LADDER_OWNER = "прибыль владельца"
+
+# Выплата, выше которой удерживать уже нечего. Формула `g = ROE × (1 − payout)`
+# при выплате 96% даёт полпроцента — число, которое выглядит как измеренный
+# рост, хотя означает ровно обратное: источника роста нет. Округляем его до
+# нуля честно, а не оставляем видимость.
+#
+# Порог не сто, а девяносто, потому что выплата считается за окно лет и по
+# ней ходит шум: год со стопроцентной выплатой и год с восьмидесятипроцентной
+# дают в среднем девяносто, и удержанного там нет всё равно.
+PAYOUT_RETAINS_NOTHING = 90.0
+
+# Потолок роста для денежной лестницы. Наблюдаемый рост потока — величина
+# бойкая: у Лукойла за семь лет вышло 8,1% в год, и на бесконечном горизонте
+# это загоняет зазор `K − g` в зону, где ответ определяется третьим знаком
+# входа. Шесть процентов — порядок долгосрочного номинального роста
+# экономики, и обгонять его вечно не может никто.
+CASH_GROWTH_CAP = 6.0
+
 # ── Поправка на активы, гл. 34 ─────────────────────────────────────────────
 # Избыток: в счёт идут две трети балансовой стоимости, и к оценке по прибыли
 # прибавляется треть разницы (с. 634). Недостаток: зеркально, четверть
 # превышения срезается (с. 631).
 ASSET_WEIGHT = 2 / 3
+
+# Каким методом получена полоса. Читатель обязан видеть это рядом с числом:
+# EPV и гл. 32 отвечают на разные вопросы, и молча подменять один другим —
+# то же самое, что молча сменить единицы измерения.
+METHOD_COTTLE = "cottle"
+METHOD_EPV = "epv"
+METHOD_LABELS = {
+    METHOD_COTTLE: "множитель главы 32",
+    METHOD_EPV: "способность зарабатывать (EPV)",
+}
 EXCESS_SHARE = 1 / 3
 SHORTFALL_MULTIPLE = 2.0
 SHORTFALL_SHARE = 1 / 4
@@ -89,29 +171,52 @@ class RiskPenalty:
 
     spread: float = 0.0
     coverage: float = 0.0
+    leverage: float = 0.0
     history: float = 0.0
+    accruals: float = 0.0
     notes: list = field(default_factory=list)
 
     @property
     def total(self) -> float:
-        return round(self.spread + self.coverage + self.history, 2)
+        return round(self.spread + self.coverage + self.leverage
+                     + self.history + self.accruals, 2)
 
     def as_dict(self) -> dict:
         return {
             "spread": self.spread,
             "coverage": self.coverage,
             "history": self.history,
+            "leverage": self.leverage,
+            "accruals": self.accruals,
             "total": self.total,
             "notes": self.notes,
         }
+
+
+def debt_to_equity(
+    debt: Optional[float],
+    equity: Optional[float],
+) -> Optional[float]:
+    """Рычаг: во сколько раз долг больше собственного капитала.
+
+    Отрицательный или нулевой капитал величины не даёт — там отношение не
+    определено, а положение описывается словами, а не числом.
+    """
+    if debt is None or equity is None:
+        return None
+    if float(equity) <= 0:
+        return None
+    return round(float(debt) / float(equity), 2)
 
 
 def risk_penalty(
     stability_label: Optional[str],
     coverage_verdict: Optional[str],
     history_years: Optional[int],
+    distortion: Optional[dict] = None,
+    leverage: Optional[float] = None,
 ) -> RiskPenalty:
-    """Собирает надбавку из трёх измеримых признаков.
+    """Собирает надбавку из четырёх измеримых признаков.
 
     Неизвестное не штрафуется. Отсутствие данных — не то же самое, что
     плохие данные, и накидывать пункты за незаполненное поле значило бы
@@ -126,7 +231,12 @@ def risk_penalty(
         penalty.spread = PENALTY_SPREAD_WIDE
         penalty.notes.append("коридор отдачи на капитал сравним с самим уровнем")
 
-    if coverage_verdict == "fragile":
+    if coverage_verdict == "strained":
+        penalty.coverage = PENALTY_COVERAGE_STRAINED
+        penalty.notes.append(
+            "долг обслуживается почти всей операционной прибылью"
+        )
+    elif coverage_verdict == "fragile":
         penalty.coverage = PENALTY_COVERAGE_FRAGILE
         penalty.notes.append("проценты покрыты без запаса")
 
@@ -138,7 +248,166 @@ def risk_penalty(
             penalty.history = PENALTY_HISTORY_SHORT
             penalty.notes.append(f"история {history_years} лет — меньше семи")
 
+    # Искажённые начислениями годы из ряда не выбрасываются — см.
+    # `distortion_summary`. Но если их набралось много, нормальный уровень
+    # выведен из движения оборотного капитала, а не из заработка, и цена за
+    # такую оценку должна быть ниже.
+    share = (distortion or {}).get("share")
+    if share is not None and share > ACCRUAL_PENALTY_SHARE:
+        penalty.accruals = PENALTY_ACCRUALS
+        years = ", ".join(str(y) for y in distortion.get("years", []))
+        penalty.notes.append(
+            f"{distortion['count']} года из {distortion['of']} держатся на "
+            f"начислениях, а не на заработке ({years})"
+        )
+
+    # Рычаг — из баланса, и он описывает положение, а не один год. У
+    # Аэрофлота долг вдвенадцатеро больше капитала: даже когда проценты
+    # покрыты, любое движение вниз съедает капитал акционера целиком, и оценка
+    # по заработку про это не знает ничего.
+    if leverage is not None:
+        if leverage > LEVERAGE_EXTREME:
+            penalty.leverage = PENALTY_LEVERAGE_EXTREME
+            penalty.notes.append(
+                f"долг больше капитала в {leverage:.0f} раз — капитал "
+                f"акционера съедается любым движением вниз"
+            )
+        elif leverage > LEVERAGE_HEAVY:
+            penalty.leverage = PENALTY_LEVERAGE_HEAVY
+            penalty.notes.append(
+                f"долг больше капитала в {leverage:.1f} раза — при пороге "
+                f"главы 14 в один к одному"
+            )
+
     return penalty
+
+
+# ── Запасной метод: EPV ────────────────────────────────────────────────────
+# Выплата, ниже которой формула гл. 32 перестаёт работать. Множитель там равен
+# `payout / (K − g)`, и при нулевом числителе он обращается в ноль: компания,
+# не платящая владельцу, получает оценку «ноль рублей». Это неверно — она
+# по-прежнему зарабатывает, просто деньги пока остаются внутри.
+EPV_PAYOUT_FLOOR = 5.0
+
+
+def earning_power_value(
+    normal_earnings_per_share: Optional[float],
+    risk_free_rate: Optional[float],
+    risk_premium: Optional[float],
+    extra_premium: float = 0.0,
+) -> Optional[float]:
+    """Стоимость способности зарабатывать: прибыль ÷ требуемая доходность.
+
+    Гринвальд, earning power value. Формула предельно скупа и именно этим
+    полезна: она оценивает то, что дело зарабатывает **сегодня**, и не
+    содержит ни роста, ни выплаты. Ни одного допущения о будущем в ней нет —
+    поэтому там, где спорить не о чем, спорить и не приходится.
+
+    Родство с гл. 32 прямое, а не по аналогии. При выплате 100% и нулевом
+    росте формула Коттла `P = D / (K − g)` превращается в `P = E / K`, то есть
+    в EPV буквально. Расходятся методы ровно настолько, насколько компания
+    удерживает прибыль, и потому EPV — не «другая школа», а тот же расчёт в
+    предельном случае.
+
+    **Что EPV не видит.** Он не видит роста вовсе — ни хорошего, ни плохого.
+    Для компании, которая удерживает прибыль и зарабатывает на неё выше
+    стоимости капитала, он даёт систематически заниженную оценку, и брать его
+    там, где работает гл. 32, нельзя: он годится как нижняя граница, но не как
+    ответ.
+    """
+    if normal_earnings_per_share is None or normal_earnings_per_share <= 0:
+        return None
+    if risk_free_rate is None or risk_premium is None:
+        return None
+    required = float(risk_free_rate) + float(risk_premium) + float(extra_premium)
+    if required <= 0:
+        return None
+    return round(float(normal_earnings_per_share) / (required / 100.0), 2)
+
+
+# ── Чистая стоимость оборотных активов, гл. 15 ─────────────────────────────
+# Доля NCAV, выше которой Грэм покупать отказывался. «Разумный инвестор»,
+# гл. 15: цена не выше двух третей чистой стоимости оборотных активов. Треть —
+# запас на то, что при ликвидации активы выручат меньше балансовой величины.
+NCAV_THRESHOLD = 2 / 3
+
+
+def net_current_asset_value(
+    current_assets: Optional[float],
+    total_liabilities: Optional[float],
+    shares: Optional[float],
+) -> Optional[float]:
+    """NCAV на акцию: оборотные активы минус ВСЕ обязательства.
+
+    Гл. 15. Приём намеренно жесток: внеоборотные активы — здания, скважины,
+    лицензии — не учитываются вовсе, а обязательства вычитаются целиком,
+    включая долгосрочные. Получается оценка того, что осталось бы владельцу,
+    если бы дело закрыли завтра и продали только легко продаваемое.
+
+    Смысл в том, что эта величина **не зависит от прибыли**. Она отвечает
+    там, где молчат и гл. 32, и EPV: у компании с убытком способности
+    зарабатывать нет, а баланс есть.
+
+    **Чего ждать от неё на практике.** Грэм писал это в 1949 году, разбирая
+    рынок после депрессии, и сам называл такие бумаги редкостью. На нашей
+    базе NCAV положителен у двух компаний из сорока пяти, и обе стоят дороже
+    него. Это не сбой расчёта и не повод смягчать порог — это ответ: чистых
+    «сигарных окурков» на текущем рынке нет.
+    """
+    if None in (current_assets, total_liabilities, shares):
+        return None
+    if not shares or float(shares) <= 0:
+        return None
+    value = float(current_assets) - float(total_liabilities)
+    # Величины в отчёте — миллионы; цена акции — рубли.
+    return round(value * 1_000_000 / float(shares), 2)
+
+
+def ncav_check(
+    ncav_per_share: Optional[float],
+    price: Optional[float],
+) -> Optional[dict]:
+    """Проходит ли цена тест гл. 15. Отдельный ответ, а не часть полосы.
+
+    Соединять его с оценкой по заработку нельзя: это два разных вопроса —
+    «сколько дело зарабатывает» и «сколько осталось бы при закрытии», — и
+    усреднять их значило бы получить величину, не отвечающую ни на один.
+    """
+    if ncav_per_share is None:
+        return None
+    edge = round(ncav_per_share * NCAV_THRESHOLD, 2)
+    passes = (
+        price is not None and price > 0
+        and ncav_per_share > 0 and float(price) <= edge
+    )
+
+    # Разряды отделяются здесь, а не через `replace` по всей строке: замена по
+    # строке съедала и грамматические запятые вместе с разрядными.
+    def rub(value):
+        return f"{value:,.0f}".replace(",", "\u00a0")
+
+    if ncav_per_share <= 0:
+        note = (
+            f"NCAV отрицателен ({rub(ncav_per_share)} ₽ на акцию): "
+            f"обязательства больше оборотных активов, и при закрытии владельцу "
+            f"не осталось бы ничего"
+        )
+    elif passes:
+        note = (
+            f"цена {rub(price)} ₽ ниже двух третей NCAV ({rub(edge)} ₽) — "
+            f"случай гл. 15: дело отдают дешевле его оборотных активов"
+        )
+    else:
+        note = (
+            f"NCAV {rub(ncav_per_share)} ₽ на акцию, порог гл. 15 — "
+            f"{rub(edge)} ₽" + (f"; цена {rub(price)} ₽ выше" if price else "")
+        )
+    return {
+        "per_share": ncav_per_share,
+        "threshold": edge,
+        "passes": passes,
+        "note": note,
+    }
 
 
 def company_multiple(
@@ -159,6 +428,69 @@ def company_multiple(
         return None
     growth = sustainable_growth(roe, payout, growth_cap)
     return base_multiple(payout, risk_free_rate, risk_premium + extra_premium, growth)
+
+
+def ladder_growth(
+    ladder: str,
+    roe: Optional[float],
+    payout: Optional[float],
+    observed: Optional[float] = None,
+    growth_cap: Optional[float] = None,
+) -> tuple:
+    """Какой рост подставлять в множитель этой лестницы. → (g, откуда, оговорка).
+
+    Одного `g` на все три лестницы не бывает, и это не тонкость настройки, а
+    разная механика.
+
+    **Прибыль и прибыль владельца.** Рост финансируется удержанием: то, что
+    не роздано, прибавляется к капиталу, капитал зарабатывает свою отдачу,
+    прибыль следующего года выше. Отсюда `g = ROE × (1 − payout)` — правило
+    Коттла, и его смысл в том, что рост нельзя предположить, его нужно
+    профинансировать.
+
+    Но у формулы есть край. При выплате около ста процентов удержанного нет,
+    и она честно выдаёт около нуля — а выглядит это как измеренный рост в
+    полпроцента. Выше `PAYOUT_RETAINS_NOTHING` ставим ноль прямо и говорим,
+    почему: так читателю видно, что источника роста нет, а не что он мал.
+
+    **Деньги.** Здесь выводить рост из удержания нельзя вовсе, и это главная
+    поправка. Свободный поток растёт от капекса, а капекс из свободного
+    потока уже вычтен: подставить туда удержание значит посчитать один и тот
+    же источник дважды. Поэтому рост берётся наблюдаемый — наклон самого ряда
+    потока, — и обязательно с потолком.
+
+    Отрицательный наблюдаемый рост не переносится в формулу. Сжимающийся
+    поток — повод не покупать, а не повод получить множитель ниже: вечное
+    сжатие формула Гордона описывает не лучше, чем вечный взлёт, и честнее
+    оценить компанию по нулевому росту, а сжатие показать отдельно.
+    """
+    if ladder == LADDER_CASH:
+        cap = CASH_GROWTH_CAP if growth_cap is None else min(float(growth_cap),
+                                                             CASH_GROWTH_CAP)
+        if observed is None:
+            return 0.0, "нет ряда", (
+                "рост потока измерить не по чему — взят ноль"
+            )
+        value = float(observed)
+        if value <= 0:
+            return 0.0, "поток не растёт", (
+                f"наблюдаемый рост потока {value:.1f}% — в формулу взят ноль: "
+                f"вечное сжатие она не описывает"
+            )
+        if value > cap:
+            return cap, "наблюдаемый, подрезан", (
+                f"наблюдаемый рост потока {value:.1f}% подрезан до {cap:.1f}% — "
+                f"обгонять экономику вечно нельзя"
+            )
+        return round(value, 2), "наблюдаемый", None
+
+    if payout is not None and float(payout) >= PAYOUT_RETAINS_NOTHING:
+        return 0.0, "выплата", (
+            f"выплата {float(payout):.0f}% — удерживать нечего, рост взят "
+            f"нулевым, а не выведен из остатка"
+        )
+
+    return sustainable_growth(roe, payout, growth_cap), "удержание", None
 
 
 def asset_adjustment(
@@ -209,6 +541,11 @@ class Ladder:
     value: float
     adjusted: Optional[float] = None
     asset_note: Optional[str] = None
+    # Рост своей лестницы и то, откуда он взят. Хранится здесь, а не в полосе,
+    # потому что у денежной лестницы он другой по существу — см. ladder_growth.
+    growth: Optional[float] = None
+    growth_source: Optional[str] = None
+    growth_note: Optional[str] = None
 
     def as_dict(self) -> dict:
         return {
@@ -218,6 +555,9 @@ class Ladder:
             "value": round(self.value, 2),
             "adjusted": self.adjusted,
             "asset_note": self.asset_note,
+            "growth": self.growth,
+            "growth_source": self.growth_source,
+            "growth_note": self.growth_note,
         }
 
 
@@ -233,12 +573,24 @@ class ValueBand:
     # 71–120 до 219–225, и по её ширине уже ничего не прочитать.
     low_by_earnings: Optional[float] = None
     high_by_earnings: Optional[float] = None
+    # Опорная оценка для сигнала: лестница прибыли при множителе с надбавкой
+    # за риск. Границы полосы для этого не годятся — низ полосы берётся как
+    # минимум по всем трём лестницам, то есть это худшая ступень при худшем
+    # множителе, и запас от неё не считается осмысленно: у Лукойла низ даёт
+    # прибыль владельца в 2 123 ₽ при цене 5 234, и «запас −146%» не сообщает
+    # ничего, кроме того, что две лестницы разошлись.
+    #
+    # Опора берётся именно по прибыли: это та величина, которую оценивает
+    # формула гл. 32, и та, с которой сопоставима доходность облигации.
+    conservative: Optional[float] = None
     ladders: list = field(default_factory=list)
     penalty: Optional[RiskPenalty] = None
     basis: str = BASIS_TREND
+    method: str = METHOD_COTTLE
     multiple_high: Optional[float] = None
     multiple_low: Optional[float] = None
     growth: Optional[float] = None
+    growth_source: Optional[str] = None
     growth_uncapped: Optional[float] = None
     growth_capped: bool = False
     refused: bool = False
@@ -270,14 +622,18 @@ class ValueBand:
             "high": self.high,
             "low_by_earnings": self.low_by_earnings,
             "high_by_earnings": self.high_by_earnings,
+            "conservative": self.conservative,
             "width": self.width,
             "asset_lift": self.asset_lift,
             "ladders": [item.as_dict() for item in self.ladders],
             "penalty": self.penalty.as_dict() if self.penalty else None,
             "basis": self.basis,
+            "method": self.method,
+            "method_label": METHOD_LABELS[self.method],
             "multiple_high": self.multiple_high,
             "multiple_low": self.multiple_low,
             "growth": self.growth,
+            "growth_source": self.growth_source,
             "growth_uncapped": self.growth_uncapped,
             "growth_capped": self.growth_capped,
             "refused": self.refused,
@@ -299,6 +655,9 @@ def value_band(
     cash_backing: Optional[float] = None,
     growth_cap: Optional[float] = None,
     basis: str = "trend",
+    observed_growth: Optional[dict] = None,
+    distortion: Optional[dict] = None,
+    leverage: Optional[float] = None,
 ) -> ValueBand:
     """Полоса стоимости на акцию.
 
@@ -320,26 +679,51 @@ def value_band(
         band.reason = structure.reason
         return band
 
-    band.penalty = risk_penalty(stability_label, structure.verdict if structure else None,
-                                history_years)
+    band.penalty = risk_penalty(
+        stability_label,
+        structure.verdict if structure else None,
+        history_years,
+        distortion,
+        leverage,
+    )
 
-    band.growth = sustainable_growth(roe, payout, growth_cap)
+    # Рост базовой лестницы — прибыли. Он же показывается как «рост компании»:
+    # денежный считается отдельно и живёт внутри своей ступени.
+    band.growth, band.growth_source, growth_note = ladder_growth(
+        LADDER_EARNINGS, roe, payout, growth_cap=growth_cap
+    )
     band.growth_uncapped = sustainable_growth(roe, payout)
     band.growth_capped = growth_is_capped(roe, payout, growth_cap)
+    if growth_note:
+        band.warnings.append(growth_note)
 
-    high_multiple = company_multiple(
-        payout, roe, risk_free_rate, risk_premium, growth_cap=growth_cap
-    )
-    low_multiple = company_multiple(
-        payout, roe, risk_free_rate, risk_premium, band.penalty.total, growth_cap
-    )
-    if high_multiple is None or high_multiple.value is None:
-        band.refused = True
-        band.reason = high_multiple.problem if high_multiple else "не хватает данных"
-        return band
+    base = base_multiple(payout, risk_free_rate, risk_premium, band.growth)
 
-    band.multiple_high = high_multiple.value
-    band.multiple_low = low_multiple.value if low_multiple else None
+    # Запасной путь. Формула гл. 32 требует выплаты и роста; там, где их нет,
+    # она даёт либо ноль, либо ничего — и компания, которая исправно
+    # зарабатывает, выпадает из оценки целиком. Так выпадало семнадцать
+    # компаний из сорока пяти: не платящие владельцу и слишком молодые для
+    # того, чтобы посчитать ровность отдачи.
+    #
+    # EPV на их месте отвечает тем, что знает: прибыль ÷ требуемая доходность.
+    # Это заведомо нижняя граница — роста в ней нет вовсе, — и потому метод
+    # назван в выдаче явно. Читатель должен видеть не только число, но и то,
+    # какой формулой оно получено.
+    if base is None or base.value is None:
+        return _epv_band(
+            band, normal_earnings, risk_free_rate, risk_premium,
+            book_value_per_share, basis,
+            reason=(base.problem if base else "не хватает данных"),
+            payout=payout,
+        )
+
+    band.multiple_high = base.value
+    low_base = base_multiple(
+        payout, risk_free_rate,
+        None if risk_premium is None else risk_premium + band.penalty.total,
+        band.growth,
+    )
+    band.multiple_low = low_base.value if low_base else None
 
     if band.growth_capped:
         band.warnings.append(
@@ -358,25 +742,46 @@ def value_band(
             f"посчитана на коротком ряду"
         )
 
+    observed_growth = observed_growth or {}
     values, raw_values = [], []
     for name, normal in normal_earnings.items():
         if normal is None or normal <= 0:
             continue
-        raw = high_multiple.value * float(normal)
-        adjusted, note = asset_adjustment(raw, book_value_per_share)
+
+        growth, source, note = ladder_growth(
+            name, roe, payout, observed_growth.get(name), growth_cap
+        )
+        top = base_multiple(payout, risk_free_rate, risk_premium, growth)
+        if top is None or top.value is None:
+            # Ступень, для которой множителя не существует, молча пропускается:
+            # она не должна ни сужать полосу, ни отменять остальные.
+            continue
+        bottom = base_multiple(
+            payout, risk_free_rate,
+            None if risk_premium is None else risk_premium + band.penalty.total,
+            growth,
+        )
+
+        raw = top.value * float(normal)
+        adjusted, asset_note = asset_adjustment(raw, book_value_per_share)
+        if name == LADDER_EARNINGS and bottom is not None and bottom.value:
+            band.conservative = round(bottom.value * float(normal), 2)
         band.ladders.append(Ladder(
             name=name,
             normal_per_share=float(normal),
-            multiple=high_multiple.value,
+            multiple=top.value,
             value=raw,
             adjusted=adjusted,
-            asset_note=note,
+            asset_note=asset_note,
+            growth=growth,
+            growth_source=source,
+            growth_note=note,
         ))
         values.append(adjusted if adjusted is not None else raw)
         raw_values.append(raw)
 
-        if band.multiple_low:
-            low_raw = band.multiple_low * float(normal)
+        if bottom is not None and bottom.value:
+            low_raw = bottom.value * float(normal)
             low_adjusted, _ = asset_adjustment(low_raw, book_value_per_share)
             values.append(low_adjusted if low_adjusted is not None else low_raw)
             raw_values.append(low_raw)
@@ -473,6 +878,7 @@ def assess(
     assumption,
     window: int = DEFAULT_WINDOW,
     basis: str = BASIS_TREND,
+    screen_clears: Optional[bool] = None,
 ) -> dict:
     """Полная оценка компании: полоса стоимости и всё, из чего она сложилась.
 
@@ -484,7 +890,8 @@ def assess(
     from app.models.financial_report import FinancialReport
     from app.models.multiplier import Multiplier
     from app.services.analysis.earning_power import (
-        analyze, buyback_payout, load_points, payout_over_window, stability,
+        analyze, buyback_payout, distortion_summary, load_points,
+        payout_over_window, retention_test, stability,
     )
     from app.services.analysis.valuation_guards import molodovsky, structure
 
@@ -514,21 +921,64 @@ def assess(
         .order_by(FinancialReport.fiscal_year.desc())
         .first()
     )
+    # Ключевая ставка нужна для проверки самих финансовых расходов: величина
+    # заносится по-разному — где нетто, где без лизинговых процентов, — и
+    # верить ей в одиночку нельзя. См. `valuation_guards.costs_are_credible`.
+    key_rate = None
+    if latest is not None:
+        from app.models.key_rate import KeyRate
+
+        row = (
+            db.query(KeyRate.avg_rate)
+            .filter(KeyRate.year == latest.fiscal_year)
+            .first()
+        )
+        key_rate = None if row is None else float(row[0])
+
+    def _num(field):
+        value = getattr(latest, field, None) if latest else None
+        return None if value is None else float(value)
+
     verdict = structure(
-        float(latest.operating_profit) if latest and latest.operating_profit is not None else None,
-        float(latest.finance_costs) if latest and latest.finance_costs is not None else None,
+        _num("operating_profit"),
+        _num("finance_costs"),
+        lease_interest=_num("lease_interest"),
+        debt=_num("debt"),
+        key_rate=key_rate,
     )
 
+    # Рычаг и тест гл. 15 у финансовых институтов не считаются вовсе.
+    #
+    # У банка отношение долга к капиталу смысла не имеет: заёмные средства там
+    # сырьё, а не бремя. Тест гл. 15 тем более: «оборотные активы» кредитора —
+    # это выданные кредиты, и вычитать из них все обязательства, то есть
+    # вклады, значит считать не запас, а разницу двух сторон одного баланса.
+    #
+    # Биржа сюда же. Раньше она выпадала случайно — по незаполненному полю
+    # оборотных активов, — и заполни его кто-нибудь, MOEX получила бы тест,
+    # который к ней неприменим. Правило должно быть названо, а не получаться
+    # само.
+    financial = str(getattr(latest, "report_type", "")).lower().endswith(
+        ("bank", "exchange")
+    ) if latest is not None else False
+
+    leverage = None if financial else debt_to_equity(_num("debt"), _num("equity"))
+
     # Лестницы: у банка свободный поток не измеряет заработок, поэтому их одна.
-    ladders, averages = {}, {}
+    ladders, averages, observed = {}, {}, {}
     for name, estimate in (
-        ("прибыль", power.earnings.get(window)),
-        ("деньги", power.cash.get(window)),
-        ("прибыль владельца", power.owner.get(window)),
+        (LADDER_EARNINGS, power.earnings.get(window)),
+        (LADDER_CASH, power.cash.get(window)),
+        (LADDER_OWNER, power.owner.get(window)),
     ):
         if estimate is None or estimate.per_share is None:
             continue
         averages[name] = estimate.per_share.value
+        # Наблюдаемый рост — наклон самой лестницы. Нужен денежной ступени, где
+        # выводить рост из удержания нельзя: поток растёт от капекса, а капекс
+        # из потока уже вычтен.
+        if estimate.trend is not None:
+            observed[name] = estimate.trend.annual_growth
         # Тренд там, где он определён; иначе средняя. На коротком ряду линию
         # проводить не по чему, и подменять её нечем.
         if basis == BASIS_TREND and estimate.trend is not None:
@@ -537,6 +987,7 @@ def assess(
             ladders[name] = estimate.per_share.value
 
     backing = power.backing.get(window, {}).get("ratio")
+    distortion = distortion_summary(points, window)
     band = value_band(
         payout=payout,
         roe=steadiness.median if steadiness else None,
@@ -549,6 +1000,9 @@ def assess(
         history_years=len(points),
         cash_backing=backing,
         basis=basis,
+        observed_growth=observed,
+        distortion=distortion,
+        leverage=leverage,
         growth_cap=(
             float(assumption.long_run_growth)
             if getattr(assumption, "long_run_growth", None) is not None else None
@@ -568,6 +1022,57 @@ def assess(
         steadiness.median if steadiness else None,
         latest_multiple.pb_ratio if latest_multiple else None,
     )
+    # Запас прочности. Свод критериев — рубильник, а не слагаемое: дешёвая
+    # плохая компания у Грэма не выгодна, она плохая. Непрохождение свода не
+    # обязано ломать оценку, поэтому промах здесь гасится — сигнал просто
+    # останется без рубильника.
+    # Свод считается здесь только если вызывающий его не принёс. Сводная
+    # таблица рынка считает его сама на каждую строку, и пересчитывать вторым
+    # заходом значило бы удваивать самую дорогую часть запроса.
+    clears = screen_clears
+    if clears is None:
+        try:
+            from app.services.analysis import screen
+
+            clears = screen.load(db, company, "defensive").clears
+        except Exception:
+            clears = None
+
+    # Тест гл. 15 считается для всех, а не только для отказанных. Это
+    # самостоятельный критерий Грэма, и у прибыльной компании он тоже
+    # осмыслен: «дорого по заработку, но ниже оборотных активов» — редкое и
+    # содержательное сочетание, которое нельзя увидеть, если считать NCAV
+    # только там, где всё остальное уже провалилось.
+    ncav = None
+    if not financial:
+        ncav = ncav_check(
+            net_current_asset_value(
+                _num("current_assets"), _num("total_liabilities"),
+                _num("shares_issued"),
+            ),
+            price,
+        )
+
+    safety = assess_safety(
+        price=price,
+        reference=band.conservative or band.low,
+        band_high=band.high,
+        normal_earnings_per_share=ladders.get(LADDER_EARNINGS),
+        risk_free_rate=float(assumption.risk_free_rate),
+        screen_clears=clears,
+        book_value_per_share=power.book_value_per_share,
+        # Признаки ловушки стоимости: дисконт к балансу и утечка удержанного.
+        price_to_book=(
+            float(latest_multiple.pb_ratio)
+            if latest_multiple and latest_multiple.pb_ratio is not None else None
+        ),
+        retention=retention_test(points, window),
+        ncav=ncav,
+        leverage=leverage,
+        coverage_verdict=verdict.verdict if verdict else None,
+        structure_coverage=verdict.coverage if verdict else None,
+    )
+
     priced_in = priced_in_growth(
         price,
         ladders.get("прибыль"),
@@ -593,6 +1098,11 @@ def assess(
         "structure": verdict.as_dict(),
         "cash_backing": backing,
         "band": band.as_dict(),
+        "ncav": ncav,
+        # Сигнал по цене: полоса сама по себе ответа не даёт, её надо
+        # соотнести со ставкой и со сводом критериев.
+        "safety": safety.as_dict(),
+        "distortion": distortion,
         # Средняя остаётся рядом: расхождение с трендом показывает, насколько
         # сильно ряд движется, и его надо видеть, а не прятать за выбором.
         "averages": {name: round(value, 2) for name, value in averages.items()},
@@ -704,3 +1214,74 @@ def _price_at(db, company_id: int, year: int) -> Optional[float]:
         .first()
     )
     return None if row is None or row[0] is None else float(row[0])
+
+
+def _epv_band(
+    band: ValueBand,
+    normal_earnings: dict,
+    risk_free_rate: Optional[float],
+    risk_premium: Optional[float],
+    book_value_per_share: Optional[float],
+    basis: str,
+    reason: str,
+    payout: Optional[float],
+) -> ValueBand:
+    """Полоса по EPV — когда формула гл. 32 неприменима.
+
+    Верх берётся по рыночной премии, низ — по премии с надбавкой за риск, так
+    же как и в основном пути. Лестницы те же три: EPV делит на ставку, а не на
+    `K − g`, и на этом всё различие.
+    """
+    values, raw_values = [], []
+    for name, normal in normal_earnings.items():
+        if normal is None or normal <= 0:
+            continue
+        top = earning_power_value(normal, risk_free_rate, risk_premium)
+        if top is None:
+            continue
+        bottom = earning_power_value(
+            normal, risk_free_rate, risk_premium, band.penalty.total
+        )
+        adjusted, asset_note = asset_adjustment(top, book_value_per_share)
+        if name == LADDER_EARNINGS and bottom is not None:
+            band.conservative = bottom
+        band.ladders.append(Ladder(
+            name=name, normal_per_share=round(float(normal), 2),
+            multiple=round(top / float(normal), 2),
+            value=top, adjusted=adjusted, asset_note=asset_note,
+        ))
+        values.append(adjusted if adjusted is not None else top)
+        raw_values.append(top)
+        if bottom is not None:
+            raw_values.append(bottom)
+
+    if not values:
+        band.refused = True
+        # Сюда попадают две разные причины, и различать их обязательно.
+        # «Не хватает данных» читается как наша недоработка; отрицательная
+        # нормальная прибыль по всем трём лестницам — свойство компании, и
+        # никакой метод её не оценит по способности зарабатывать.
+        positives = [v for v in normal_earnings.values() if v is not None and v > 0]
+        band.reason = reason if positives else (
+            "нормальная прибыль отрицательна по всем трём лестницам — "
+            "оценивать по способности зарабатывать нечего"
+        )
+        return band
+
+    band.method = METHOD_EPV
+    band.basis = basis
+    band.low = round(min(min(values), min(raw_values)), 2)
+    band.high = round(max(values), 2)
+    band.growth = 0.0
+    band.growth_source = "EPV: рост не закладывается"
+    band.warnings.append(
+        f"{reason}; посчитано по способности зарабатывать (EPV): "
+        f"прибыль ÷ требуемая доходность. Рост в такой оценке равен нулю, "
+        f"поэтому она — нижняя граница, а не ответ"
+        # Приписка только там, где виновата именно выплата: у компании с
+        # ростом выше ставки формула ломается по совсем другой причине, и
+        # валить на выплату значило бы подсказывать читателю не туда.
+        + (f". Выплата {payout}% для формулы главы 32 мала"
+           if payout is not None and payout < EPV_PAYOUT_FLOOR else "")
+    )
+    return band

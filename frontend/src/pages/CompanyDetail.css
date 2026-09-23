@@ -1506,3 +1506,58 @@
     transition: none;
   }
 }
+
+/* ── Вкладки карточки ─────────────────────────────────────────────────────
+   Подчёркивание, а не кнопки-пилюли: вкладки — это части одного документа, и
+   рамка вокруг каждой превратила бы их в три отдельных предмета. Активная
+   держится на линии, остальные под ней.
+
+   Линия идёт через всю ширину и служит верхней границей содержимого: без неё
+   вкладки повисают в воздухе и читаются как панель управления. */
+
+.card-tabs {
+  display: flex;
+  gap: var(--space-4);
+  margin: var(--space-4) 0 var(--space-4);
+  border-bottom: 1px solid var(--color-border-default);
+  overflow-x: auto;
+}
+
+.card-tab {
+  position: relative;
+  padding: var(--space-2) 2px calc(var(--space-2) + 2px);
+  border: none;
+  background: none;
+  color: var(--color-text-tertiary);
+  font-size: 0.95rem;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 0.12s;
+}
+
+.card-tab:hover { color: var(--color-text-secondary); }
+
+.card-tab.is-on {
+  color: var(--color-text-primary);
+  font-weight: 600;
+}
+
+/* Полоса рисуется поверх границы контейнера, поэтому смещена ровно на её
+   толщину: иначе под активной вкладкой видны две линии подряд. */
+.card-tab.is-on::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  background: var(--color-primary);
+  border-radius: 2px 2px 0 0;
+}
+
+.card-tab:focus-visible {
+  outline: 2px solid var(--color-border-accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}

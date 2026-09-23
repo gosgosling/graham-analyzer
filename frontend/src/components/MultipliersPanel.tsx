@@ -83,6 +83,26 @@ const FACE_HINTS: Record<PanelFace, string> = {
 
 const FACE_ORDER: PanelFace[] = ['multipliers', 'passport', 'valuation'];
 
+/**
+ * Сколько лет истории показывать в свёрнутом виде.
+ *
+ * Полная таблица у ЛУКОЙЛа — восемнадцать строк, и она отодвигает пороги
+ * Грэма на экран вниз. Семь — не round number: это окно нормализации, по
+ * которому считается оценка, то есть ровно те годы, из которых она и сложена.
+ * Остальное остаётся в разворачивании, а не пропадает.
+ */
+const HIST_COLLAPSED_YEARS = 7;
+
+/** «ещё 1 год», «ещё 3 года», «ещё 11 лет» — по правилам русского счёта. */
+const plural = (n: number, one: string, few: string, many: string) => {
+  const mod100 = n % 100;
+  if (mod100 >= 11 && mod100 <= 14) return many;
+  const mod10 = n % 10;
+  if (mod10 === 1) return one;
+  if (mod10 >= 2 && mod10 <= 4) return few;
+  return many;
+};
+
 // Пороги P/E, P/B, D/E, CR, ROE и дивдоходности задаёт отраслевой профиль,
 // который приходит с бэкенда вместе с мультипликаторами: у продуктового
 // ритейлера Current Ratio 0.7 — норма, у банка D/E вообще не считается.
@@ -3027,9 +3047,19 @@ interface MultipliersPanelProps {
    * в кэше мультипликаторов. Панель работает и без них: у небанков колонок нет.
    */
   reports?: FinancialReport[];
+  /**
+   * Какую сторону показывать. Когда задано — панель управляется снаружи, и
+   * собственных кнопок переключения не рисует.
+   *
+   * Переключатель переехал на уровень страницы: сторон было три, и они
+   * соперничали со вкладками карточки, предлагая читателю два разных способа
+   * попасть в одно и то же место. Внутри панели он остался только для тех
+   * мест, где панель стоит сама по себе.
+   */
+  face?: PanelFace;
 }
 
-const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company, reports }) => {
+const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company, reports, face: faceProp }) => {
   const [refreshMsg, setRefreshMsg] = useState<string | null>(null);
   const [autoRefreshing, setAutoRefreshing] = useState(false);
   const [histPctMode, setHistPctMode] = useState(false);
@@ -3183,6 +3213,27 @@ const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company, reports })
   }, [companyId, queryClient]);
 
   const rows = histData ?? [];
+  const [histExpanded, setHistExpanded] = React.useState(false);
+
+  // Свежие годы сверху — их и показываем в свёрнутом виде. Отрезается хвост
+  // по годам, а не по позиции в списке: порядок строк задаёт сама таблица, и
+  // при другой сортировке по позиции скрылось бы не то.
+  //
+  // Год берётся из даты записи: отдельного поля года у записи нет, а дата —
+  // это конец отчётного периода.
+  const histYears = React.useMemo(() => {
+    const seen = new Set<number>();
+    rows.forEach((r) => {
+      const year = Number(String(r.date).slice(0, 4));
+      if (Number.isFinite(year)) seen.add(year);
+    });
+    return Array.from(seen).sort((a, b) => b - a);
+  }, [rows]);
+  const histCut = histYears[HIST_COLLAPSED_YEARS - 1];
+  const histHidden = Math.max(0, histYears.length - HIST_COLLAPSED_YEARS);
+  const histRows = histExpanded || histHidden === 0
+    ? rows
+    : rows.filter((r) => Number(String(r.date).slice(0, 4)) >= histCut);
 
   // Холдингу классические мультипликаторы не подходят: они описывают сумму
   // чужих бизнесов. Для него тянем оценку по СЧА и подменяем карточки.
@@ -3194,8 +3245,10 @@ const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company, reports })
     staleTime: 5 * 60 * 1000,
   });
 
-  const [face, setFace] = React.useState<PanelFace>('multipliers');
+  const [ownFace, setFace] = React.useState<PanelFace>('multipliers');
   const [flipping, setFlipping] = React.useState(false);
+  const controlled = faceProp !== undefined;
+  const face = faceProp ?? ownFace;
 
   // Переворот панели. Половина оборота, подмена содержимого, вторая половина —
   // так лицевая и оборотная стороны не обязаны быть одной высоты. Полноценный
@@ -3215,7 +3268,7 @@ const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company, reports })
         <h2 className="mult-panel-title">{FACE_TITLES[face]}</h2>
         <div className="mult-panel-controls">
           <div className="mult-faces" role="tablist" aria-label="Что показывать в панели">
-            {FACE_ORDER.filter((f) => f !== face).map((f) => (
+            {(controlled ? [] : FACE_ORDER.filter((f) => f !== face)).map((f) => (
               <button
                 key={f}
                 type="button"
@@ -3427,13 +3480,18 @@ const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company, reports })
         </>
       )}
 
-      {/* ── История мультипликаторов: под любой гранью ──
-          Она не принадлежит ни одной из сторон панели. Паспорт говорит, что
-          компания прошла или не прошла критерий, оценка — сколько она стоит;
-          и то и другое читается только вместе с рядом по годам, из которого
-          посчитано. Прятать ряд при перевороте значило бы прятать основание
-          вывода вместе с самим выводом. */}
-      {(rows.length > 0 || currentData) && (
+      {/* ── История мультипликаторов ──
+          Ряд по годам — основание и паспорта, и оценки: первый говорит, что
+          компания прошла или не прошла критерий, вторая — сколько она стоит,
+          и читается это только вместе с числами, из которых посчитано.
+          Поэтому при перевороте панели на месте ряд и оставался.
+
+          Когда сторона задана снаружи, правило меняется на противоположное.
+          Панель тогда рисуется не по одной, а по нескольку сразу — на вкладке
+          «Мультипликаторы» под таблицей стоит паспорт, — и «под любой гранью»
+          означает уже не «всегда виден», а «продублирован». Основание при
+          этом никуда не девается: оно прямо над выводом, на той же вкладке. */}
+      {(!controlled || face === 'multipliers') && (rows.length > 0 || currentData) && (
         <div className="mult-history-row">
           <div className="mult-history-header">
             <div className="mult-history-label">
@@ -3454,16 +3512,53 @@ const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company, reports })
               %
             </button>
           </div>
-          <HistTable
-            isHolding={isHolding}
-            rows={rows}
-            currentRow={currentData ?? undefined}
-            profile={profile}
-            isPreferredShare={!!company.is_preferred_share}
-            pctMode={histPctMode}
-            bankMetricsByReport={bankMetricsByReport}
-            ltmBankMetrics={ltmBankMetrics}
-          />
+          {/* Таблица и ручка развёртывания лежат в одном слое: ручка стоит
+              поверх нижних строк, а не под таблицей. Так видно, что ряд
+              продолжается, — обрыв по чистой границе читался бы как конец
+              данных, и кнопка под ним выглядела бы отдельным разделом. */}
+          <div className={`mult-history-body${histHidden > 0 && !histExpanded ? ' is-collapsed' : ''}`}>
+            <HistTable
+              isHolding={isHolding}
+              rows={histRows}
+              currentRow={currentData ?? undefined}
+              profile={profile}
+              isPreferredShare={!!company.is_preferred_share}
+              pctMode={histPctMode}
+              bankMetricsByReport={bankMetricsByReport}
+              ltmBankMetrics={ltmBankMetrics}
+            />
+            {histHidden > 0 && (
+              <button
+                type="button"
+                className="hist-expand"
+                onClick={() => setHistExpanded((v) => !v)}
+                aria-expanded={histExpanded}
+                title={histExpanded
+                  ? `Свернуть до ${HIST_COLLAPSED_YEARS} лет`
+                  : `Показать ещё ${histHidden} ${plural(histHidden, 'год', 'года', 'лет')}`}
+              >
+                <span className="hist-expand-label">
+                  {histExpanded
+                    ? 'Свернуть'
+                    : `Ещё ${histHidden} ${plural(histHidden, 'год', 'года', 'лет')}`}
+                </span>
+                {/* Две разные стрелки вместо поворота одной. Поворот здесь
+                    не работает: CSS-transform к этому элементу не применяется
+                    ни правилом, ни инлайном, хотя соседний span в той же
+                    кнопке крутится. Разбираться дальше ради галочки дороже,
+                    чем нарисовать вторую линию, а результат тот же. */}
+                <span className="hist-expand-chevron" aria-hidden>
+                  <svg viewBox="0 0 16 16" width="16" height="16">
+                    <path
+                      d={histExpanded ? 'M3 10l5-5 5 5' : 'M3 6l5 5 5-5'}
+                      fill="none" stroke="currentColor" strokeWidth="1.8"
+                      strokeLinecap="round" strokeLinejoin="round"
+                    />
+                  </svg>
+                </span>
+              </button>
+            )}
+          </div>
         </div>
       )}
     </div>

@@ -1,0 +1,286 @@
+/* Свод оценки между графиком и таблицей множителей. */
+
+.vs {
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+.vs-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-2);
+}
+
+.vs-head h3 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.vs-signal {
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.vs-signal i {
+  font-style: normal;
+  font-weight: 400;
+  opacity: 0.85;
+}
+
+.vs-signal--favourable  { background: var(--color-success-soft); color: var(--screen-pass-text); }
+.vs-signal--acceptable  { background: var(--color-success-soft); color: var(--screen-pass-text); }
+.vs-signal--fair        { background: var(--color-bg-subtle);    color: var(--color-text-secondary); }
+.vs-signal--expensive   { background: var(--color-warning-soft); color: var(--color-warning-text); }
+.vs-signal--bond_better { background: var(--color-error-soft);   color: var(--color-error-text); }
+.vs-signal--dangerous   { background: var(--color-error-soft);   color: var(--color-error-text); }
+
+.vs-lede,
+.vs-refused {
+  margin: 0 0 var(--space-4);
+  max-width: 86ch;
+  font-size: 0.84rem;
+  line-height: 1.6;
+  color: var(--color-text-tertiary);
+}
+
+.vs-refused { color: var(--color-warning-text); }
+
+/* ── Три окна ─────────────────────────────────────────────────────────────
+   Равные карточки, а не одна главная и две мелких: смысл блока в том, что ни
+   одно окно не является ответом само по себе. Подчеркнуть одно размером
+   значило бы отменить это сообщение оформлением. */
+
+.vs-windows {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.vs-window {
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  background: var(--color-bg-elevated);
+}
+
+.vs-window.is-refused { opacity: 0.7; }
+
+.vs-window-head {
+  font-size: 0.74rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-quaternary);
+  margin-bottom: var(--space-2);
+}
+
+.vs-window-main {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+  margin-bottom: var(--space-2);
+}
+
+.vs-window-main i {
+  font-style: normal;
+  font-size: 0.9rem;
+  font-weight: 400;
+  color: var(--color-text-quaternary);
+}
+
+.vs-window-refused {
+  font-size: 0.82rem;
+  color: var(--color-text-quaternary);
+  cursor: help;
+  padding: var(--space-2) 0;
+}
+
+.vs-window-rows {
+  margin: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.vs-window-rows > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.vs-window-rows dt {
+  font-size: 0.74rem;
+  color: var(--color-text-quaternary);
+}
+
+.vs-window-rows dd {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.vs-window-method {
+  margin-top: var(--space-2);
+  padding-top: var(--space-2);
+  border-top: 1px dashed var(--color-border-subtle);
+  font-size: 0.7rem;
+  color: var(--color-warning-text);
+  cursor: help;
+}
+
+/* Знак запаса красит только само число: строка целиком — про ставку или окно,
+   а не про вердикт. */
+.vs-good { color: var(--screen-pass-text); font-weight: 600; }
+.vs-fair { color: var(--color-text-secondary); }
+.vs-bad  { color: var(--color-error-text); }
+
+/* ── Сетка ставок ─────────────────────────────────────────────────────────── */
+
+.vs-rates {
+  border-top: 1px solid var(--color-border-subtle);
+  padding-top: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+.vs-rates-head h4 {
+  margin: 0 0 4px;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.vs-rates-head p {
+  margin: 0 0 var(--space-3);
+  max-width: 86ch;
+  font-size: 0.8rem;
+  line-height: 1.6;
+  color: var(--color-text-tertiary);
+}
+
+.vs-rates-head code {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.78rem;
+  background: var(--color-bg-subtle);
+  padding: 1px 5px;
+  border-radius: var(--radius-sm);
+}
+
+/* Таблица уезжает в свою прокрутку, а не тянет за собой страницу. */
+.vs-rates-scroll { overflow-x: auto; }
+
+.vs-rates-table {
+  border-collapse: collapse;
+  width: 100%;
+  min-width: 420px;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.vs-rates-table th,
+.vs-rates-table td {
+  padding: 7px 10px;
+  text-align: right;
+  border-bottom: 1px solid var(--color-border-subtle);
+  white-space: nowrap;
+}
+
+.vs-rates-table thead th {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--color-text-quaternary);
+  cursor: help;
+}
+
+.vs-rates-table tbody th {
+  text-align: left;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.vs-rate-value { font-weight: 600; color: var(--color-text-primary); }
+
+/* Сегодняшняя ставка помечена засечкой слева, а не заливкой: заливка спорила
+   бы с окраской запаса в той же строке. */
+.vs-rates-table tr.is-now th { box-shadow: inset 3px 0 0 var(--color-primary); }
+
+.vs-now-tag {
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: var(--radius-pill);
+  background: var(--color-primary-soft);
+  color: var(--color-text-secondary);
+  font-size: 0.66rem;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+/* ── Опорная цена ─────────────────────────────────────────────────────────── */
+
+.vs-reference {
+  border-top: 1px solid var(--color-border-subtle);
+  padding-top: var(--space-3);
+}
+
+.vs-reference-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin-bottom: 4px;
+}
+
+.vs-reference-label {
+  font-size: 0.74rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-quaternary);
+}
+
+.vs-reference-value {
+  font-size: 1.3rem;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.vs-reference-vs {
+  font-size: 0.82rem;
+  color: var(--color-text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.vs-reference-note {
+  margin: 0;
+  max-width: 86ch;
+  font-size: 0.76rem;
+  line-height: 1.6;
+  color: var(--color-text-quaternary);
+}
+
+.vs-state {
+  padding: var(--space-5);
+  color: var(--color-text-tertiary);
+  font-size: 0.88rem;
+}
+
+.vs-state--error { color: var(--color-error-text); }

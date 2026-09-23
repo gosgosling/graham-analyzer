@@ -108,13 +108,25 @@ export interface ValuationLadder {
   value: number;
   adjusted: number | null;
   asset_note: string | null;
+  /** Рост своей лестницы: у денежной он наблюдаемый, а не из удержания. */
+  growth: number | null;
+  growth_source: string | null;
+  growth_note: string | null;
 }
 
 export interface RiskPenaltyOut {
   spread: number;
   coverage: number;
   history: number;
+  /** Надбавка за годы, где заработок подменён движением оборотки. */
+  accruals: number;
   total: number;
+  /** Признаки ловушки стоимости: почему дешевизна может быть не скидкой. */
+  traps: { kind: string; value: number; reason: string }[];
+  /** Тест гл. 15: чистая стоимость оборотных активов против цены. */
+  ncav: { per_share: number; threshold: number; passes: boolean; note: string } | null;
+  /** Долг к собственному капиталу; у банков и биржи не считается. */
+  leverage: number | null;
   notes: string[];
 }
 
@@ -124,6 +136,8 @@ export interface ValueBandOut {
   /** Та же полоса до поправки на активы: по ней и меряется ширина. */
   low_by_earnings: number | null;
   high_by_earnings: number | null;
+  /** Опорная оценка для сигнала: прибыль при множителе с надбавкой за риск. */
+  conservative: number | null;
   width: number | null;
   asset_lift: number | null;
   ladders: ValuationLadder[];
@@ -132,6 +146,8 @@ export interface ValueBandOut {
   multiple_low: number | null;
   /** Рост, подставленный в формулу — уже с учётом потолка. */
   growth: number | null;
+  /** Откуда он взят: 'удержание', 'выплата', 'наблюдаемый'. */
+  growth_source: string | null;
   /** Он же до потолка: расхождение и есть сообщение о малом знаменателе. */
   growth_uncapped: number | null;
   growth_capped: boolean;
@@ -140,6 +156,39 @@ export interface ValueBandOut {
   warnings: string[];
   /** Чем меряется уровень: 'trend' или 'average'. */
   basis: string;
+  /** Каким методом получена полоса: множитель гл. 32 или EPV. */
+  method: 'cottle' | 'epv';
+  method_label: string;
+}
+
+/** Сигнал о цене: «благоприятная» или нет — и почему именно. */
+export type SafetySignal =
+  | 'favourable' | 'acceptable' | 'fair'
+  | 'expensive' | 'bond_better' | 'no_signal';
+
+export interface SafetyOut {
+  signal: SafetySignal;
+  label: string;
+  reason: string | null;
+  /** Доля опорной оценки. Отрицательная — цена выше неё. */
+  value_margin: number | null;
+  /** Опорная оценка: прибыль при множителе с надбавкой за риск. */
+  reference: number | null;
+  price: number | null;
+  /** Нормальная прибыль к цене, % — величина, сопоставимая с купоном. */
+  earnings_yield: number | null;
+  risk_free_rate: number | null;
+  /** Насколько отдача выше безрисковой, п.п. Минус — облигация выгоднее. */
+  yield_spread: number | null;
+  screen_clears: boolean | null;
+  replacement: {
+    ratio: number;
+    verdict: string;
+    reason: string | null;
+    value_per_share: number;
+    book_value_per_share: number;
+  } | null;
+  notes: string[];
 }
 
 export interface CompanyValuationOut {
@@ -176,6 +225,16 @@ export interface CompanyValuationOut {
   };
   cash_backing?: number | null;
   band?: ValueBandOut;
+  /** Сигнал по цене: запас прочности из трёх источников. */
+  safety?: SafetyOut;
+  /** Годы окна, где заработок подменён начислениями. */
+  distortion?: {
+    years: number[];
+    count: number;
+    of: number;
+    share: number | null;
+    window: number;
+  };
   molodovsky?: {
     reported_multiple: number | null;
     normal_multiple: number | null;
@@ -255,6 +314,101 @@ export async function getCompanySeries(
   const { data } = await api.get<CompanySeriesOut>(
     `/valuation/company/${companyId}/series`,
     { params: { window } },
+  );
+  return data;
+}
+
+
+// ── Свод для карточки компании ────────────────────────────────────────────
+
+/** Одно окно нормализации в своде. */
+export interface SummaryWindow {
+  window: number;
+  refused: boolean;
+  reason: string | null;
+  method: 'cottle' | 'epv' | null;
+  normal_earnings: number | null;
+  value: number | null;
+  /** Ступень, по которой посчитано окно. Пусто — обычная лестница прибыли. */
+  ladder: string | null;
+  reference: number | null;
+  margin: number | null;
+  signal: string | null;
+  label: string | null;
+}
+
+/** Одна строка сетки ставок. */
+export interface SummaryRate {
+  risk_free_rate: number;
+  required_return: number;
+  multiple: number | null;
+  value: number | null;
+  reference: number | null;
+  margin: number | null;
+  refused: boolean;
+}
+
+export interface ValuationSummaryOut {
+  available: boolean;
+  reason?: string | null;
+  price?: number | null;
+  window?: number;
+  assumption?: { risk_free_rate: number; risk_premium: number };
+  windows?: SummaryWindow[];
+  rates?: SummaryRate[];
+  safety?: SafetyOut | null;
+  band?: {
+    low: number | null;
+    high: number | null;
+    conservative: number | null;
+    method: 'cottle' | 'epv' | null;
+    refused: boolean;
+    reason: string | null;
+  };
+}
+
+export async function fetchValuationSummary(
+  companyId: number,
+): Promise<ValuationSummaryOut> {
+  const { data } = await api.get<ValuationSummaryOut>(
+    `/valuation/company/${companyId}/summary`,
+  );
+  return data;
+}
+
+
+// ── Оценка по годам: та, что получалась бы тогда ──────────────────────────
+
+/** Один год ряда: полоса, посчитанная по данным того года и ставке того года. */
+export interface ValuationYear {
+  year: number;
+  /** Дата, с которой оценка стала известна: отчёт выходит не 31 декабря. */
+  known_from: string;
+  price: number;
+  low: number | null;
+  high: number | null;
+  conservative: number | null;
+  /** Лестница прибыли при рыночной премии — та же величина, что в карточке. */
+  fair: number | null;
+  method: 'cottle' | 'epv' | null;
+  refused: string | null;
+  inside: boolean | null;
+}
+
+export interface ValuationHistoryOut {
+  ticker: string;
+  years: ValuationYear[];
+  hits: number;
+  counted: number;
+  verdict: string;
+  note: string;
+}
+
+export async function fetchValuationHistory(
+  companyId: number,
+): Promise<ValuationHistoryOut> {
+  const { data } = await api.get<ValuationHistoryOut>(
+    `/valuation/company/${companyId}/history`,
   );
   return data;
 }
