@@ -208,6 +208,9 @@ class YearPoint:
     depreciation_shortfall: Optional[float] = None
     # Опер. поток − (прибыль + амортизация): всё, что не заработок и не износ.
     accrual_gap: Optional[float] = None
+    # Не пусто — точка собрана из последних двенадцати месяцев, а не из
+    # годового отчёта: «LTM 1П2026». См. `with_ltm`.
+    ltm_label: Optional[str] = None
     # Год, где этот разрыв сопоставим со свободным потоком. Из ряда не
     # выбрасывается — см. `distortion_summary`, — но и молча усредняться не
     # должен.
@@ -1305,3 +1308,155 @@ def retention_test(points: Iterable[YearPoint], window: int,
         "last_year": last.year,
         "years": counted,
     }
+
+
+
+# Сколько ждать раскрытия полугодовой отчётности после конца полугодия.
+# Промежуточную консолидированную отчётность МСФО публичная компания раскрывает
+# в течение 60 дней; ЛУКОЙЛ за 1П2026 вышел в конце августа. Так же, как с
+# годовым отчётом, ошибиться в большую сторону безопаснее: лишние дни сдвинут
+# ступень, заглядывание вперёд сделает её ложной.
+INTERIM_LAG_DAYS = 60
+
+
+def _flow_ltm(fy, h1_now, h1_prev, field: str) -> Optional[float]:
+    """Поток за последние 12 месяцев: год + свежее полугодие − прошлое полугодие."""
+    from app.services.analysis.multiplier_service import _field_rub
+
+    parts = [_field_rub(r, field) for r in (fy, h1_now, h1_prev)]
+    if any(part is None for part in parts):
+        return None
+    return parts[0] + parts[1] - parts[2]
+
+
+def with_ltm(db, company_id: int, points: list, as_of) -> list:
+    """Ряд, где последняя годовая точка заменена последними двенадцатью месяцами.
+
+    Годовой ряд запаздывает: ступень по отчёту за 2017 год ЛУКОЙЛа жила с
+    апреля 2018-го по апрель 2019-го, а прибыль 2018 года рынок видел весь год
+    по квартальным отчётам. Здесь последняя годовая точка заменяется на LTM:
+
+        поток за 12 мес = год Y−1 + 1П года Y − 1П года Y−1
+        баланс          = на конец 1П года Y
+
+    Заменяется, а не добавляется: добавленная точка посчитала бы второе
+    полугодие Y−1 дважды. Число акций — то же, что у годовой точки, чтобы
+    приведение к дроблениям осталось прежним; выкуп за полгода на
+    нормальный уровень не влияет.
+
+    Возвращает исходный ряд без изменений, если любого из трёх отчётов нет или
+    свежее полугодие к `as_of` ещё не раскрыто.
+    """
+    from datetime import date, timedelta
+    from dataclasses import replace
+
+    from app.models.financial_report import FinancialReport
+    from app.services.analysis.multiplier_service import _field_rub
+
+    if not points:
+        return points
+    last = points[-1]
+    year = last.year + 1
+    if as_of < date(year, 6, 30) + timedelta(days=INTERIM_LAG_DAYS):
+        return points
+
+    def report(fiscal_year, period):
+        return (
+            db.query(FinancialReport)
+            .filter(
+                FinancialReport.company_id == company_id,
+                FinancialReport.fiscal_year == fiscal_year,
+                FinancialReport.period_type == period,
+            )
+            .first()
+        )
+
+    from app.services.analysis.multiplier_service import comparative_prior
+
+    fy = report(last.year, "ANNUAL")
+    h1_now = report(year, "SEMI_ANNUAL")
+    # Прошлое полугодие — из сравнительной колонки свежего отчёта, если она
+    # заполнена: при пересчёте между полугодиями вычитать надо сопоставимое, а
+    # не опубликованное год назад. См. `FinancialReport.comparative`.
+    h1_prev = comparative_prior(h1_now, report(last.year, "SEMI_ANNUAL")) if h1_now else None
+    if not (fy and h1_now and h1_prev and last.shares_normalized):
+        return points
+
+    profit = _flow_ltm(fy, h1_now, h1_prev, "net_income_reported")
+    if profit is None:
+        return points
+    depreciation = _flow_ltm(fy, h1_now, h1_prev, "depreciation_amortization")
+    capex = _flow_ltm(fy, h1_now, h1_prev, "capex")
+    operating_cash = _flow_ltm(fy, h1_now, h1_prev, "operating_cash_flow")
+    equity = _field_rub(h1_now, "equity")
+    shares = float(last.shares_normalized)
+
+    def per_share(value):
+        return None if value is None else round(value * 1_000_000 / shares, 6)
+
+    # Поток и поддерживающий капекс — теми же долями, что в годовой точке:
+    # разделить капекс полугодия по приёму Гринвальда не по чему, а доля
+    # поддерживающего — свойство дела, не полугодия.
+    fcf = None
+    if operating_cash is not None and capex is not None:
+        fcf = operating_cash - capex
+    maintenance = capex
+    if capex is not None and last.capex and last.capex_maintenance is not None:
+        maintenance = capex * (last.capex_maintenance / last.capex)
+    owner = None
+    if None not in (profit, depreciation, maintenance):
+        owner = profit + depreciation - maintenance
+
+    gap = None
+    distorted = False
+    if None not in (operating_cash, depreciation):
+        gap = round(operating_cash - profit - depreciation, 3)
+        if fcf:
+            distorted = abs(gap) > abs(fcf) * ACCRUAL_GAP_SHARE
+
+    rolled = replace(
+        last,
+        eps=per_share(profit),
+        fcf_per_share=per_share(fcf),
+        owner_earnings_per_share=per_share(owner),
+        roe=_to_equity(profit, equity),
+        fcf_to_equity=_to_equity(fcf, equity),
+        owner_earnings_to_equity=_to_equity(owner, equity),
+        book_value_per_share=per_share(equity),
+        capex=capex,
+        capex_maintenance=maintenance,
+        depreciation=depreciation,
+        accrual_gap=gap,
+        distorted=distorted,
+        ltm_label=f"LTM 1П{year}",
+    )
+    return [*points[:-1], rolled]
+
+
+def graham_numbers(points: list) -> dict:
+    """Число Грэма по каждому году ряда: √(22,5 × EPS за 3 года × BVPS).
+
+    Цена, при которой выполняется ценовой критерий защитного инвестора из
+    гл. 14 «Разумного инвестора»: P/E к средней прибыли за три года не выше
+    15 и P/B не выше 1,5, то есть их произведение не выше 22,5.
+
+    Мерка другой природы, чем справедливая: в ней нет ни ставки, ни выплаты,
+    ни роста. Поэтому она не страдает от того, на чём спотыкается формула
+    капитализации, — от цикла ставок и от запаздывания роста выплат. У
+    ЛУКОЙЛа в июне 2018 года она давала около 6 900 ₽ при цене 4 206, тогда
+    как наша справедливая была ниже цены.
+
+    Нет числа, если средняя прибыль за три года или балансовая стоимость
+    неположительны: корень из отрицательного произведения Грэм не считал бы.
+    """
+    ordered = sorted(points, key=lambda p: p.year)
+    out = {}
+    for i, point in enumerate(ordered):
+        tail = [p.eps for p in ordered[max(0, i - 2): i + 1] if p.eps is not None]
+        if len(tail) < 3 or not point.book_value_per_share:
+            continue
+        eps3 = sum(tail) / 3
+        if eps3 <= 0 or point.book_value_per_share <= 0:
+            continue
+        out[point.year] = round((22.5 * eps3 * float(point.book_value_per_share)) ** 0.5, 2)
+    return out

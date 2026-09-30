@@ -51,8 +51,17 @@ function WindowCard({ item, price }: { item: SummaryWindow; price: number | null
         </div>
       ) : (
         <>
-          <div className="vs-window-main">{ru(item.value)} <i>₽</i></div>
+          {/* Крупно — опорная: по ней считается запас, и на истории она
+              разделяет удачные и неудачные покупки втрое лучше справедливой.
+              Справедливая остаётся строкой ниже — как верх расчёта. */}
+          <div className="vs-window-main" title="Опорная цена — от неё считается запас">
+            {ru(item.reference)} <i>₽</i>
+          </div>
           <dl className="vs-window-rows">
+            <div>
+              <dt>справедливая</dt>
+              <dd>{ru(item.value)} ₽</dd>
+            </div>
             <div>
               {/* На длинных окнах лестница прибыли бывает пуста — у Аэрофлота
                   за десять лет она отрицательна, там ковид и двадцать второй
@@ -61,10 +70,6 @@ function WindowCard({ item, price }: { item: SummaryWindow; price: number | null
                   компании — это не прибыль, а поток. */}
               <dt>{item.ladder ?? 'нормальная прибыль'}</dt>
               <dd>{ru(item.normal_earnings)} ₽</dd>
-            </div>
-            <div>
-              <dt>опорная цена</dt>
-              <dd>{ru(item.reference)} ₽</dd>
             </div>
             <div>
               <dt>запас к цене {ru(price)} ₽</dt>
@@ -92,7 +97,8 @@ function RateRow({ item, current }: { item: SummaryRate; current: number }) {
       </th>
       <td>{ru(item.required_return, 0)}%</td>
       <td>{ru(item.multiple, 2)}</td>
-      <td className="vs-rate-value">{ru(item.value)} ₽</td>
+      <td className="vs-rate-value">{ru(item.reference)} ₽</td>
+      <td className="vs-rate-fair">{ru(item.value)} ₽</td>
       <td className={marginClass(item.margin)}>{pct(item.margin)}</td>
     </tr>
   );
@@ -121,7 +127,7 @@ export default function ValuationSummary({ companyId }: { companyId: number }) {
   return (
     <section className="vs">
       <header className="vs-head">
-        <h3>Справедливая стоимость</h3>
+        <h3>Опорная цена и справедливая стоимость</h3>
         {safety && safety.signal !== 'no_signal' && (
           <span className={`vs-signal vs-signal--${safety.signal}`}>
             {safety.label}
@@ -164,7 +170,8 @@ export default function ValuationSummary({ companyId }: { companyId: number }) {
                     <th scope="col">ОФЗ</th>
                     <th scope="col" title="Безрисковая плюс премия за риск">Требуемая</th>
                     <th scope="col">Множитель</th>
-                    <th scope="col">Оценка</th>
+                    <th scope="col" title="Оценка с надбавкой за риск — от неё считается запас">Опорная</th>
+                    <th scope="col" title="Та же оценка при рыночной премии, без надбавки">Справедливая</th>
                     <th scope="col" title="Доля опорной оценки; отрицательный — цена выше неё">Запас</th>
                   </tr>
                 </thead>

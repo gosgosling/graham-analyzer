@@ -395,9 +395,38 @@ export interface ValuationYear {
   inside: boolean | null;
 }
 
+/**
+ * Отрезок истории оценки: отчёт один, ставка своя.
+ *
+ * Внутри ступени по отчёту оценка пересчитывается раз в месяц по средней
+ * ключевой ставке за двенадцать месяцев до этого дня. Отрезок, содержащий
+ * сегодняшний день, считается по ставке из допущений — как карточка.
+ */
+export interface ValuationSegment {
+  from: string;
+  till: string;
+  year: number;
+  key_rate: number;
+  current: boolean;
+  fair: number | null;
+  reference: number | null;
+  low: number | null;
+  high: number | null;
+  method: 'cottle' | 'epv' | null;
+  refused: string | null;
+  /** Безрисковая этого отрезка и откуда она: ОФЗ 10 лет, допущения или заменитель. */
+  risk_free: number;
+  risk_free_source: string;
+  /** Число Грэма: √(22,5 × EPS за 3 года × BVPS). От ставки не зависит. */
+  graham: number | null;
+  /** На чём держится ступень: «отчёт 2024» или «LTM 1П2026». */
+  basis: string;
+}
+
 export interface ValuationHistoryOut {
   ticker: string;
   years: ValuationYear[];
+  segments: ValuationSegment[];
   hits: number;
   counted: number;
   verdict: string;

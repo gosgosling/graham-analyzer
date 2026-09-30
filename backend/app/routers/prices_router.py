@@ -24,10 +24,11 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.company import Company
 from app.models.financial_report import FinancialReport
+from app.models.multiplier import Multiplier
 from app.models.stock_price import StockPrice
+from app.utils.per_share import per_share
 
 router = APIRouter(prefix="/companies", tags=["prices"])
-
 # Сколько ждать публикации годового отчёта после конца периода. По российским
 # правилам раскрытия эмитент обязан опубликовать годовую отчётность МСФО в
 # течение 120 дней; крупные компании укладываются в март-апрель.
@@ -59,6 +60,20 @@ def _published_on(report: FinancialReport) -> date:
     return period_end + PUBLICATION_LAG
 
 
+def _gap(mark: Optional[dict], field: str) -> Optional[str]:
+    """Причина, по которой множителя за этот день нет. None — множитель есть."""
+    if mark is None:
+        return "первый годовой отчёт ещё не опубликован"
+    value = mark[field]
+    if value is None:
+        return (f"в отчёте за {mark['year']} год нет "
+                f"{'прибыли' if field == 'eps' else 'капитала'}")
+    if value <= 0:
+        return (f"за {mark['year']} год {'убыток' if field == 'eps' else 'капитал отрицателен'}"
+                f" — множитель не определён")
+    return None
+
+
 @router.get("/{company_id}/prices")
 def price_history(
     company_id: int,
@@ -81,29 +96,42 @@ def price_history(
             "points": [], "reports": [], "summary": None,
         }
 
-    # Годовые отчёты, отсортированные по дате публикации: по ним и нарезается
-    # шкала. Отчёты без прибыли или без числа акций в наложение не годятся —
-    # делить будет не на что.
-    reports = sorted(
-        (
-            report for report in db.query(FinancialReport).filter(
-                FinancialReport.company_id == company_id,
-                FinancialReport.period_type == "ANNUAL",
-            )
-            if report.net_income_reported is not None and report.shares_issued
-        ),
-        key=_published_on,
+    # Прибыль и капитал на акцию берутся из мультипликаторов по отчётам — из
+    # того же источника, что и таблица под графиком, а не из отчёта напрямую.
+    #
+    # Сперва здесь делилось `net_income_reported` на `shares_issued` из самого
+    # отчёта, и график разошёлся с таблицей в трёх местах сразу:
+    #   · ЛУКОЙЛ до 2014 года отчитывался в долларах — мультипликатор это
+    #     пересчитывает, а прямое деление давало EPS около 10 ₽ вместо 443;
+    #   · у Сбера за 2016 и 2018 годы пуста отчётная прибыль, за 2021 и 2022 —
+    #     число размещённых акций, и отчёт выпадал целиком, а множитель на
+    #     графике держался на отчёте трёхлетней давности;
+    #   · оценка у нас ведётся по акциям в обращении, а прямое деление брало
+    #     размещённые.
+    # Мультипликатор всё это уже разрешил: валюту, число акций, запасные поля.
+    # Считать то же самое второй раз и по-другому значило бы рисовать над
+    # таблицей числа, которые с ней не сходятся.
+    rows = (
+        db.query(Multiplier, FinancialReport)
+        .join(FinancialReport, Multiplier.report_id == FinancialReport.id)
+        .filter(
+            Multiplier.company_id == company_id,
+            Multiplier.type == "report_based",
+            FinancialReport.period_type == "ANNUAL",
+        )
+        .all()
     )
 
     marks = []
-    for report in reports:
-        shares = float(report.shares_issued)
-        equity = float(report.equity) if report.equity is not None else None
+    for mult, report in sorted(rows, key=lambda pair: _published_on(pair[1])):
+        shares = float(mult.shares_used) if mult.shares_used else None
+        eps = float(mult.eps) if mult.eps is not None else None
+        equity = float(mult.equity) if mult.equity is not None else None
         marks.append({
             "published": _published_on(report),
             "year": int(report.fiscal_year),
-            "eps": float(report.net_income_reported) * 1_000_000 / shares,
-            "bvps": (equity * 1_000_000 / shares) if equity else None,
+            "eps": eps,
+            "bvps": (equity * 1_000_000 / shares) if equity and shares else None,
         })
 
     points = []
@@ -117,12 +145,17 @@ def price_history(
         mark = marks[cursor] if cursor >= 0 else None
         points.append({
             "date": row.date.isoformat(),
-            "price": round(price, 2),
+            "price": per_share(price),
             "pe": (round(price / mark["eps"], 2)
                    if mark and mark["eps"] and mark["eps"] > 0 else None),
             "pb": (round(price / mark["bvps"], 2)
                    if mark and mark["bvps"] and mark["bvps"] > 0 else None),
             "basis_year": mark["year"] if mark else None,
+            # Почему множителя нет. Пропуск без причины на графике выглядит
+            # как сбой, а причины здесь ровно три, и все — про компанию или
+            # отчётность, а не про расчёт.
+            "pe_gap": _gap(mark, "eps"),
+            "pb_gap": _gap(mark, "bvps"),
         })
 
     values = [p["price"] for p in points]
@@ -133,8 +166,8 @@ def price_history(
         # без них ступеньки на кривой множителя выглядят как сбой данных.
         "reports": [
             {"year": m["year"], "published": m["published"].isoformat(),
-             "eps": round(m["eps"], 2),
-             "bvps": round(m["bvps"], 2) if m["bvps"] else None}
+             "eps": per_share(m["eps"]),
+             "bvps": per_share(m["bvps"]) if m["bvps"] else None}
             for m in marks
         ],
         "summary": {
@@ -144,6 +177,6 @@ def price_history(
             "min": min(values),
             "max": max(values),
             "last": values[-1],
-            "average": round(sum(values) / len(values), 2),
+            "average": per_share(sum(values) / len(values)),
         },
     }

@@ -421,3 +421,35 @@ def test_рычаг_дорожает_ступенями():
     assert risk_penalty(None, None, None, None, 12.0).leverage == PENALTY_LEVERAGE_EXTREME
     # Неизвестный рычаг не штрафуется, как и всё прочее неизвестное.
     assert risk_penalty(None, None, None, None, None).leverage == 0.0
+
+
+# ── Потолок множителя ──────────────────────────────────────────────────────
+
+
+def test_потолок_срезает_множитель_и_сохраняет_надбавку_за_риск():
+    """На пике оба множителя выше потолка — но опорный не должен с ним слиться.
+
+    Иначе надбавка за риск исчезала бы ровно там, где риск выше всего: при
+    низкой ставке, когда K − g схлопывается.
+    """
+    from app.services.analysis.company_valuation import MULTIPLE_CAP, cap_multiples
+
+    top, bottom, capped = cap_multiples(20.0, 16.0)
+    assert capped is True
+    assert top == pytest.approx(MULTIPLE_CAP)
+    assert bottom == pytest.approx(MULTIPLE_CAP * 16 / 20)   # отношение то же
+
+    assert cap_multiples(6.0, 5.0) == (6.0, 5.0, False)
+
+
+def test_при_низкой_ставке_полоса_упирается_в_потолок():
+    """Случай 2020 года: ставка 5%, рост 6,5% — множитель без потолка ~25."""
+    from app.services.analysis.company_valuation import MULTIPLE_CAP
+
+    # Надбавка за риск нужна явно: без неё опорная равна справедливой по
+    # построению, и сохранять между ними было бы нечего.
+    band = clean_band(payout=60.0, roe=16.0, risk_free_rate=5.0, risk_premium=5.0,
+                      growth_cap=6.5, stability_label="разбросано")
+    assert band.multiple_high == pytest.approx(MULTIPLE_CAP)
+    assert band.multiple_low < band.multiple_high
+    assert any("срезан" in w for w in band.warnings)
