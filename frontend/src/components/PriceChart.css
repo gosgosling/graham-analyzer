@@ -93,6 +93,8 @@
 .pc-canvas {
   width: 100%;
   min-width: 0;
+  /* Опора для подсветки отрезка: она позиционируется от поля графика. */
+  position: relative;
   /* Обрезка — от горизонтальной прокрутки всей страницы: recharts запоминает
      измеренную ширину во внутренней обёртке и при сужении окна не всегда её
      отпускает.
@@ -140,4 +142,85 @@
 .pc-btn--value.is-on {
   border-color: var(--color-border-strong);
   background: var(--color-bg-subtle);
+}
+
+/* Легенда затенения и оговорка — под полем, мелко: они объясняют график, а
+   не спорят с ним. Оговорка ещё тише легенды: легенда говорит, что значит
+   тень, оговорка — насколько вообще верить линиям. */
+.pc-legend,
+.pc-disclaimer {
+  margin: var(--space-2) 0 0;
+  max-width: 86ch;
+  font-size: 0.74rem;
+  line-height: 1.5;
+  color: var(--color-text-tertiary);
+}
+
+.pc-disclaimer { color: var(--color-text-quaternary); font-style: italic; }
+
+.pc-legend-swatch {
+  display: inline-block;
+  width: 12px;
+  height: 10px;
+  margin-right: 6px;
+  vertical-align: -1px;
+  border-radius: 2px;
+  background: var(--color-text-tertiary);
+  opacity: 0.35;
+}
+
+/* ─── Выделенный протяжкой отрезок ─────────────────────────────────────── */
+/* Строка живёт рядом со статистикой периода и намеренно на неё похожа: это
+   те же величины, но за выбранный кусок. Отличает её левая черта — иначе при
+   беглом взгляде две строки цифр сливаются в одну. */
+.pc-span {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+  padding: 6px 10px;
+  border-left: 2px solid var(--color-primary);
+  border-radius: 0 6px 6px 0;
+  background: var(--color-bg-subtle, rgba(127, 127, 127, 0.08));
+  font-size: 0.82rem;
+  color: var(--color-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.pc-span b {
+  color: var(--color-text-primary);
+  font-weight: 600;
+}
+
+.pc-span .pc-up b,
+.pc-span .pc-down b {
+  color: inherit;
+}
+
+.pc-span-arrow {
+  color: var(--color-text-tertiary);
+}
+
+.pc-span-aside {
+  color: var(--color-text-tertiary);
+  margin-left: auto;
+}
+
+/* Во время протяжки текст не должен выделяться синим, как в редакторе. */
+.pc-canvas {
+  user-select: none;
+}
+
+/* Подсветка выделенного отрезка. Наложение, а не элемент внутри графика:
+   `ReferenceArea` заставлял бы recharts пересчитывать все серии на каждое
+   движение мыши — замер давал около 400 мс на движение. Здесь двигается
+   один div, а график во время протяжки не трогается вовсе. */
+.pc-band {
+  position: absolute;
+  z-index: 1;
+  pointer-events: none;
+  background: var(--color-primary-soft, rgba(37, 99, 235, 0.08));
+  border-left: 1px dashed var(--color-primary);
+  border-right: 1px dashed var(--color-primary);
 }

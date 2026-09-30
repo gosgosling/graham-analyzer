@@ -432,6 +432,9 @@ export interface FinancialReportCreate {
     total_liabilities?: number | null;
     current_liabilities?: number | null;
     equity?: number | null;
+    /** Неконтролирующая доля участия, млн. В equity не входит: там капитал
+     *  акционеров материнской компании. Без неё баланс не сходится */
+    non_controlling_interest?: number | null;
     /** Гудвил из баланса, млн — только от покупки бизнеса */
     goodwill?: number | null;
     /** Прочие НМА из баланса, млн — без гудвила */

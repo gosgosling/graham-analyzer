@@ -44,6 +44,7 @@ export function emptyFinancialReportPayload(
     total_liabilities: null,
     current_liabilities: null,
     equity: null,
+    non_controlling_interest: null,
     goodwill: null,
     intangible_assets: null,
     cash_and_equivalents: null,
@@ -127,8 +128,10 @@ export function financialReportToCreatePayload(
     total_liabilities: r.total_liabilities ?? null,
     current_liabilities: r.current_liabilities ?? null,
     equity: r.equity ?? null,
-    // Без этих двух строк правка отчёта через форму молча обнуляла бы гудвил:
-    // сервер пишет весь список полей схемы, а пропущенное приходит как null.
+    // Без этих строк правка отчёта через форму молча обнуляла бы гудвил и долю
+    // миноритариев: сервер пишет весь список полей схемы, а пропущенное
+    // приходит как null.
+    non_controlling_interest: r.non_controlling_interest ?? null,
     goodwill: r.goodwill ?? null,
     intangible_assets: r.intangible_assets ?? null,
     cash_and_equivalents: r.cash_and_equivalents ?? null,
