@@ -93,7 +93,9 @@ export function hintFor(
   profile: SectorProfile | null | undefined,
   metric: SectorMetricKey,
 ): string {
-  return getBand(profile, metric).hint;
+  // Пороги приходят из профиля с точкой: «≤ 1.2 — хорошо». На экране —
+  // запятая, как во всех остальных числах.
+  return getBand(profile, metric).hint.replace(/(\d)\.(\d)/g, '$1,$2');
 }
 
 /**

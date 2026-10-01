@@ -1,0 +1,516 @@
+/* Вкладка «Оценка»: формула сверху, её слагаемые ниже. */
+
+.vt {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  margin-bottom: var(--space-6);
+  color: var(--color-text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.vt-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-6);
+}
+
+.vt-head h2 {
+  margin: 0 0 4px;
+  font-size: 1.35rem;
+  font-weight: 600;
+}
+
+.vt-head p {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--color-text-secondary);
+}
+
+/* Окно — одно на всю вкладку: раньше их было два, и какой что меняет,
+   приходилось угадывать. */
+.vt-window {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.vt-window-hint {
+  font-size: 0.76rem;
+  color: var(--color-text-quaternary);
+}
+
+.vt-segmented {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-surface);
+}
+
+.vt-segmented button,
+.vt-pills button {
+  min-height: 32px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.vt-segmented button:hover,
+.vt-pills button:hover { color: var(--color-text-primary); }
+
+.vt-segmented button.is-on,
+.vt-pills button.is-on {
+  background: var(--color-bg-active);
+  color: var(--color-text-primary);
+  font-weight: 600;
+}
+
+.vt-pills { display: flex; flex-wrap: wrap; gap: 2px; }
+
+.vt-pills button {
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: var(--radius-pill);
+  font-size: 0.76rem;
+}
+
+.vt-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+  padding: var(--space-6) var(--space-6);
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-xl);
+}
+
+.vt-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+}
+
+.vt-card-head--stack {
+  flex-direction: column;
+  gap: 4px;
+}
+
+.vt-card-head h3 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.vt-card-head p,
+.vt-card-aside {
+  margin: 0;
+  font-size: 0.84rem;
+  color: var(--color-text-secondary);
+}
+
+.vt-card-aside b { color: var(--color-text-primary); font-weight: 600; }
+
+.vt-pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-5);
+}
+
+.vt-kicker {
+  font-size: 0.76rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+}
+
+.vt-state {
+  padding: var(--space-5);
+  color: var(--color-text-tertiary);
+  font-size: 0.9rem;
+}
+
+.vt-text,
+.vt-note {
+  margin: 0;
+  font-size: 0.84rem;
+  line-height: 1.55;
+  color: var(--color-text-secondary);
+}
+
+.vt-note { font-size: 0.78rem; color: var(--color-text-quaternary); }
+
+.vt-good  { color: var(--color-success-accent); }
+.vt-warn  { color: var(--color-warning-accent); }
+.vt-dim   { color: var(--color-text-tertiary); }
+.vt-strong { font-weight: 600; }
+
+/* ── Формула ───────────────────────────────────────────────────────────── */
+
+.vt-equation { gap: var(--space-4); padding: var(--space-6) var(--space-8); }
+
+.vt-eq-row {
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-4);
+}
+
+.vt-eq-term {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-elevated);
+}
+
+.vt-eq-term--result {
+  border-color: var(--color-chart-ref-line);
+}
+
+.vt-eq-term--result .vt-kicker,
+.vt-eq-term--result .vt-eq-value { color: var(--color-chart-ref-line); }
+
+.vt-eq-value {
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.vt-eq-note {
+  font-size: 0.82rem;
+  color: var(--color-text-quaternary);
+}
+
+.vt-eq-op {
+  display: flex;
+  align-items: center;
+  font-size: 1.75rem;
+  color: var(--color-text-quaternary);
+}
+
+.vt-eq-foot {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-6);
+  font-size: 0.88rem;
+  color: var(--color-text-secondary);
+}
+
+.vt-eq-foot b { color: var(--color-text-primary); font-weight: 600; }
+
+/* ── График прибыли ────────────────────────────────────────────────────── */
+
+.vt-chart {
+  display: flex;
+  gap: 10px;
+  padding-bottom: 22px;
+}
+
+.vt-chart-axis {
+  position: relative;
+  flex-shrink: 0;
+  width: 44px;
+  height: 220px;
+  font-size: 0.7rem;
+  color: var(--color-text-quaternary);
+}
+
+.vt-chart-axis span {
+  position: absolute;
+  right: 0;
+  transform: translateY(-50%);
+}
+
+.vt-chart-field {
+  position: relative;
+  flex-grow: 1;
+  min-width: 0;
+  height: 220px;
+}
+
+.vt-chart-field svg { display: block; overflow: visible; }
+
+.vt-chart-window { fill: var(--color-primary-soft); opacity: 0.5; }
+.vt-chart-grid   { stroke: var(--color-chart-grid); stroke-width: 1; }
+.vt-chart-zero   { stroke: var(--color-border-strong); stroke-width: 1; }
+
+.vt-bar         { fill: var(--color-bg-active); }
+.vt-bar--window { fill: var(--color-chart-line-1); }
+
+.vt-chart-trend {
+  stroke: var(--color-text-primary);
+  stroke-width: 2;
+}
+
+.vt-chart-average {
+  stroke: var(--color-text-secondary);
+  stroke-width: 1.25;
+  stroke-dasharray: 4 4;
+}
+
+.vt-chart-mark {
+  position: absolute;
+  right: 0;
+  transform: translateY(-140%);
+  font-size: 0.74rem;
+  font-weight: 600;
+}
+
+.vt-chart-years {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  left: 0;
+  height: 14px;
+  font-size: 0.7rem;
+  color: var(--color-text-quaternary);
+}
+
+.vt-chart-years span {
+  position: absolute;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+.vt-keys {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  font-size: 0.78rem;
+  color: var(--color-text-secondary);
+}
+
+.vt-keys span { display: inline-flex; align-items: center; gap: 6px; }
+
+.vt-key-bar {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  background: var(--color-chart-line-1);
+}
+
+.vt-key-trend {
+  width: 14px;
+  height: 2px;
+  background: var(--color-text-primary);
+}
+
+.vt-key-average {
+  width: 14px;
+  border-top: 2px dashed var(--color-text-secondary);
+}
+
+/* ── Множитель ─────────────────────────────────────────────────────────── */
+
+.vt-formula {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: var(--space-4) var(--space-5);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-subtle);
+}
+
+.vt-formula span {
+  font-size: 0.84rem;
+  color: var(--color-text-secondary);
+}
+
+.vt-formula b {
+  font-size: 1.35rem;
+  font-weight: 600;
+}
+
+.vt-rows { margin: 0; }
+
+.vt-rows > div {
+  display: grid;
+  /* Доли, а не «auto»: длинная расшифровка справа иначе забирала всю ширину,
+     и подпись слева сжималась до слова в строке (Роснефть, строка «Рост»). */
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.vt-rows > div:last-child { border-bottom: 0; }
+
+.vt-rows dt,
+.vt-rows dd {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+}
+
+.vt-rows dt { font-size: 0.9rem; }
+
+.vt-rows dd {
+  align-items: flex-end;
+  font-size: 0.95rem;
+  font-weight: 600;
+  text-align: right;
+}
+
+.vt-row-note {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 0.76rem;
+  line-height: 1.5;
+  color: var(--color-text-quaternary);
+}
+
+.vt-rows small {
+  font-size: 0.76rem;
+  font-weight: 400;
+  color: var(--color-text-quaternary);
+}
+
+/* ── Таблицы ───────────────────────────────────────────────────────────── */
+
+.vt-table-scroll { overflow-x: auto; }
+
+.vt-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.vt-table th,
+.vt-table td {
+  padding: 10px 8px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.vt-table thead th {
+  padding-top: 0;
+  font-size: 0.76rem;
+  font-weight: 500;
+  color: var(--color-text-quaternary);
+}
+
+.vt-table th:first-child { text-align: left; }
+
+.vt-table tbody tr { border-top: 1px solid var(--color-border-subtle); }
+
+.vt-table tbody th { font-weight: 500; }
+
+.vt-table tr.is-now { background: var(--color-primary-soft); }
+.vt-table tr.is-now th { font-weight: 600; }
+
+.vt-now {
+  margin-left: 6px;
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--color-text-link);
+}
+
+.vt-basis {
+  margin-left: 8px;
+  font-size: 0.74rem;
+  font-weight: 500;
+  color: var(--color-chart-ref-line);
+}
+
+/* ── Проверки ──────────────────────────────────────────────────────────── */
+
+.vt-checks {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.vt-checks li {
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.vt-checks li:last-child { border-bottom: 0; }
+
+.vt-checks li > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.9rem;
+}
+
+.vt-checks small {
+  font-size: 0.78rem;
+  color: var(--color-text-quaternary);
+}
+
+.vt-check-icon { flex-shrink: 0; margin-top: 2px; }
+.vt-check-icon--pass { color: var(--color-success-accent); }
+.vt-check-icon--warn { color: var(--color-warning-accent); }
+.vt-check-icon--fail { color: var(--color-error-accent); }
+.vt-check-icon--none { color: var(--color-text-quaternary); }
+
+.vt-foot {
+  font-size: 0.78rem;
+  color: var(--color-text-quaternary);
+}
+
+.vt-foot a { color: var(--color-text-link); }
+
+.vt-disclaimer {
+  max-width: 90ch;
+  margin: var(--space-3) 0 0;
+  line-height: 1.5;
+}
+
+.vt-eq-disclaimer {
+  flex-basis: 100%;
+  order: 3;
+  font-size: 0.78rem;
+  color: var(--color-text-quaternary);
+}
+
+/* ── Узкий экран ───────────────────────────────────────────────────────── */
+
+@media (max-width: 960px) {
+  .vt-pair { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (max-width: 720px) {
+  .vt-window { align-items: flex-start; }
+
+  .vt-equation { padding: var(--space-5) var(--space-4); }
+
+  .vt-eq-row { flex-direction: column; gap: var(--space-2); }
+
+  .vt-eq-op { justify-content: center; font-size: 1.25rem; }
+
+  .vt-eq-value { font-size: 1.6rem; }
+
+  .vt-card { padding: var(--space-5) var(--space-4); }
+
+  /* Слагаемое и его расшифровка — друг под другом: в две колонки
+     расшифровка отжимала подпись в столбик по слову. */
+  .vt-rows > div { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+
+  .vt-rows dd { align-items: flex-start; text-align: left; }
+
+  .vt-formula b { font-size: 1.1rem; }
+}

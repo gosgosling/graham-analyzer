@@ -15,8 +15,30 @@ const OPTIONS: Option[] = [
   { key: 'dark',  label: 'Тёмная',   icon: '☾', ariaLabel: 'Тёмная тема' },
 ];
 
-const ThemeToggle: React.FC = () => {
+/**
+ * `compact` — одна кнопка для шапки: показывает нынешнюю тему и по нажатию
+ * переходит к следующей (светлая → тёмная → по системе).
+ */
+const ThemeToggle: React.FC<{ compact?: boolean }> = ({ compact = false }) => {
   const { mode, setMode } = useTheme();
+
+  if (compact) {
+    const index = OPTIONS.findIndex((o) => o.key === mode);
+    const current = OPTIONS[index >= 0 ? index : 0];
+    const order: ThemeMode[] = ['light', 'dark', 'auto'];
+    const next = OPTIONS.find((o) => o.key === order[(order.indexOf(current.key) + 1) % order.length])!;
+    return (
+      <button
+        type="button"
+        className="theme-toggle-compact"
+        onClick={() => setMode(next.key)}
+        title={`Тема: ${current.label.toLowerCase()}. Нажмите — ${next.label.toLowerCase()}`}
+        aria-label={`${current.ariaLabel}. Переключить на: ${next.ariaLabel.toLowerCase()}`}
+      >
+        <span aria-hidden>{current.icon}</span>
+      </button>
+    );
+  }
 
   return (
     <div className="theme-toggle" role="radiogroup" aria-label="Тема оформления">

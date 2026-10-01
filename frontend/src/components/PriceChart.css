@@ -3,8 +3,8 @@
 .pc {
   background: var(--color-bg-surface);
   border: 1px solid var(--color-border-subtle);
-  border-radius: var(--radius-lg);
-  padding: var(--space-4);
+  border-radius: var(--radius-xl);
+  padding: var(--space-5) var(--space-6) var(--space-4);
   margin-bottom: var(--space-4);
 }
 
@@ -17,74 +17,125 @@
   margin-bottom: var(--space-3);
 }
 
+.pc-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-6);
+}
+
 .pc-title h3 {
   margin: 0;
-  font-size: 1.05rem;
+  font-size: 1rem;
   font-weight: 600;
   color: var(--color-text-primary);
 }
 
-.pc-sub {
-  display: block;
-  margin-top: 2px;
-  font-size: 0.74rem;
-  color: var(--color-text-quaternary);
-  font-variant-numeric: tabular-nums;
-}
-
-.pc-controls {
+/* Легенда — рядом с заголовком, а не под графиком: читают её до того, как
+   смотрят на линии, а не после. */
+.pc-keys {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-3);
+  gap: var(--space-2) var(--space-4);
+  font-size: 0.8rem;
+  color: var(--color-text-secondary);
 }
 
-.pc-overlays,
+.pc-key {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pc-key-line {
+  display: inline-block;
+  width: 14px;
+  height: 2px;
+  border-radius: 1px;
+}
+
+.pc-key-line--dash,
+.pc-key-line--dot {
+  height: 0;
+  background: none !important;
+  border-top: 2px dashed;
+}
+
+.pc-key-line--dot { border-top-style: dotted; }
+
+.pc-key-zone {
+  display: inline-block;
+  width: 12px;
+  height: 10px;
+  border-radius: 2px;
+}
+
 .pc-ranges {
   display: flex;
-  gap: 4px;
+  flex-wrap: wrap;
+  gap: 2px;
 }
 
 /* Наложения и периоды намеренно выглядят одинаково: и то и другое — выбор
    того, что показывать, и разводить их по форме значило бы намекать на
    разную природу там, где её нет. Разделяет их только промежуток. */
 .pc-btn {
-  padding: 4px 10px;
-  border: 1px solid var(--color-border-default);
+  min-height: 30px;
+  padding: 0 12px;
+  border: 1px solid transparent;
   border-radius: var(--radius-pill);
   background: transparent;
-  color: var(--color-text-tertiary);
-  font-size: 0.78rem;
+  color: var(--color-text-secondary);
+  font-size: 0.8rem;
+  font-family: inherit;
   cursor: pointer;
   transition: background 0.12s, border-color 0.12s, color 0.12s;
 }
 
 .pc-btn:hover {
   background: var(--color-bg-hover);
-  color: var(--color-text-secondary);
+  color: var(--color-text-primary);
 }
 
 .pc-btn.is-on {
+  background: var(--color-bg-active);
+  color: var(--color-text-primary);
+  font-weight: 600;
+}
+
+/* Дополнительные линии — тише периода: они не главное на графике, и
+   выглядеть наравне с выбором окна им незачем. */
+.pc-btn--small {
+  min-height: 26px;
+  padding: 0 10px;
+  border-color: var(--color-border-default);
+  font-size: 0.76rem;
+}
+
+.pc-btn--small.is-on {
   border-color: var(--color-border-accent);
   background: var(--color-primary-soft);
-  color: var(--color-text-primary);
-  font-weight: 600;
 }
 
-/* Сводка над полем: те же числа, что читаются с графика, но точно. Глаз
-   снимает с кривой форму, а величину приходится угадывать по сетке. */
-.pc-stats {
+.pc-foot {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-4);
-  margin-bottom: var(--space-2);
-  font-size: 0.82rem;
-  color: var(--color-text-tertiary);
-  font-variant-numeric: tabular-nums;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+  margin-top: var(--space-3);
 }
 
-.pc-stats b {
-  color: var(--color-text-primary);
-  font-weight: 600;
+.pc-more {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.pc-more-label {
+  font-size: 0.76rem;
+  color: var(--color-text-quaternary);
 }
 
 .pc-up   { color: var(--screen-pass-text); }
@@ -93,6 +144,8 @@
 .pc-canvas {
   width: 100%;
   min-width: 0;
+  /* Опора для подсветки отрезка: она позиционируется от поля графика. */
+  position: relative;
   /* Обрезка — от горизонтальной прокрутки всей страницы: recharts запоминает
      измеренную ширину во внутренней обёртке и при сужении окна не всегда её
      отпускает.
@@ -128,16 +181,100 @@
   border-radius: var(--radius-sm);
 }
 
-/* Кнопки уровней стоимости отделены от множителей: те меняют вторую ось,
-   эти рисуют горизонтали на первой. Разные по действию — разные по группе. */
-.pc-values {
-  display: flex;
-  gap: 4px;
-  padding-right: var(--space-3);
-  border-right: 1px solid var(--color-border-subtle);
+/* Легенда затенения и оговорка — под полем, мелко: они объясняют график, а
+   не спорят с ним. Оговорка ещё тише легенды: легенда говорит, что значит
+   тень, оговорка — насколько вообще верить линиям. */
+.pc-legend,
+.pc-disclaimer {
+  margin: var(--space-2) 0 0;
+  max-width: 86ch;
+  font-size: 0.74rem;
+  line-height: 1.5;
+  color: var(--color-text-tertiary);
 }
 
-.pc-btn--value.is-on {
-  border-color: var(--color-border-strong);
-  background: var(--color-bg-subtle);
+.pc-disclaimer { margin: 0; color: var(--color-text-quaternary); }
+
+.pc-legend-swatch {
+  display: inline-block;
+  width: 12px;
+  height: 10px;
+  margin-right: 6px;
+  vertical-align: -1px;
+  border-radius: 2px;
+  background: var(--color-text-tertiary);
+  opacity: 0.35;
 }
+
+/* ─── Выделенный протяжкой отрезок ─────────────────────────────────────── */
+/* Строка живёт рядом со статистикой периода и намеренно на неё похожа: это
+   те же величины, но за выбранный кусок. Отличает её левая черта — иначе при
+   беглом взгляде две строки цифр сливаются в одну. */
+.pc-span {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+  padding: 6px 10px;
+  border-left: 2px solid var(--color-primary);
+  border-radius: 0 6px 6px 0;
+  background: var(--color-bg-subtle, rgba(127, 127, 127, 0.08));
+  font-size: 0.82rem;
+  color: var(--color-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.pc-span b {
+  color: var(--color-text-primary);
+  font-weight: 600;
+}
+
+.pc-span .pc-up b,
+.pc-span .pc-down b {
+  color: inherit;
+}
+
+.pc-span-arrow {
+  color: var(--color-text-tertiary);
+}
+
+.pc-span-aside {
+  color: var(--color-text-tertiary);
+  margin-left: auto;
+}
+
+/* Во время протяжки текст не должен выделяться синим, как в редакторе. */
+.pc-canvas {
+  user-select: none;
+}
+
+/* Подсветка выделенного отрезка. Наложение, а не элемент внутри графика:
+   `ReferenceArea` заставлял бы recharts пересчитывать все серии на каждое
+   движение мыши — замер давал около 400 мс на движение. Здесь двигается
+   один div, а график во время протяжки не трогается вовсе. */
+.pc-band {
+  position: absolute;
+  z-index: 1;
+  pointer-events: none;
+  background: var(--color-primary-soft, rgba(37, 99, 235, 0.08));
+  border-left: 1px dashed var(--color-primary);
+  border-right: 1px dashed var(--color-primary);
+}
+
+/* Засечки событий и их легенда. */
+.pc-event { cursor: help; }
+
+.pc-key--events { gap: 5px; }
+
+.pc-key-mark {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-left: 4px;
+  border-radius: 2px;
+}
+
+.pc-key-mark:first-child { margin-left: 0; }
+.pc-key-mark--round { border-radius: 50%; }
+.pc-key-mark--diamond { transform: rotate(45deg) scale(0.85); }

@@ -26,6 +26,8 @@ import {
   computeHistRowYoY,
   fcfPerShare,
   fcfToEquityPct,
+  metricPct,
+  metricPp,
   snapshotFromCurrent,
   snapshotFromRecord,
   YOY_NA,
@@ -51,8 +53,13 @@ import {
   type RoeDriver,
   type RoeSourceVerdict,
 } from '../utils/roeBreakdown';
-import CompanyValuation from './CompanyValuation';
 import CompanyPassport from './CompanyPassport';
+import {
+  fetchValuationHistory,
+  fetchValuationSummary,
+  type ValuationHistoryOut,
+  type ValuationSummaryOut,
+} from '../services/valuation.api';
 import './MultipliersPanel.css';
 
 // ─── Цветовая кодировка ──────────────────────────────────────────────────────
@@ -67,21 +74,19 @@ const FLIP_HALF_MS = 170;
  * Сейчас первыми показываются мультипликаторы, потому что к ним привыкли;
  * порядок кнопок уже отражает будущий, а не нынешний.
  */
-type PanelFace = 'multipliers' | 'passport' | 'valuation';
+type PanelFace = 'multipliers' | 'passport';
 
 const FACE_TITLES: Record<PanelFace, string> = {
   multipliers: 'Мультипликаторы',
-  passport: 'Паспорт компании',
-  valuation: 'Оценка стоимости',
+  passport: 'Консервативные критерии',
 };
 
 const FACE_HINTS: Record<PanelFace, string> = {
   multipliers: 'Показатели за каждый год как есть',
   passport: 'Семь осей главы 13 с порогами защитного и активного инвестора',
-  valuation: 'Полоса стоимости по Грэму и Додду',
 };
 
-const FACE_ORDER: PanelFace[] = ['multipliers', 'passport', 'valuation'];
+const FACE_ORDER: PanelFace[] = ['multipliers', 'passport'];
 
 /**
  * Сколько лет истории показывать в свёрнутом виде.
@@ -92,6 +97,10 @@ const FACE_ORDER: PanelFace[] = ['multipliers', 'passport', 'valuation'];
  * Остальное остаётся в разворачивании, а не пропадает.
  */
 const HIST_COLLAPSED_YEARS = 7;
+
+/** Откуда прибыль в P/E мультипликаторов — и почему P/E оценки может отличаться. */
+const PE_BASIS_TIP =
+  'P/E здесь — от прибыли без разовых статей, если аналитик их выделил; иначе она совпадает с отчётной. Оценка стоимости считает от прибыли как в отчёте, поэтому P/E там может отличаться.';
 
 /** «ещё 1 год», «ещё 3 года», «ещё 11 лет» — по правилам русского счёта. */
 const plural = (n: number, one: string, few: string, many: string) => {
@@ -404,8 +413,9 @@ function roeSpreadBadge(
     spread <= 0
       ? ' Отдача не превышает безрисковую: держать ОФЗ выгоднее, чем владеть капиталом компании.'
       : '';
+  const rounded = Math.round(spread * 10) / 10;
   return {
-    text: `${spread > 0 ? '+' : ''}${spread.toFixed(1)}`,
+    text: rounded === 0 ? '0,0' : `${rounded > 0 ? '+' : '−'}${dec(Math.abs(rounded), 1)}`,
     level,
     tip: arithmetic + verdict + (source ? `\n\n${source.tip}` : ''),
   };
@@ -485,7 +495,7 @@ function MetricBadge({
   }
   return (
     <span className={`mult-cell ${level}${filledTipClass}`} title={filledTip}>
-      {value.toFixed(2)}{suffix}
+      {dec(value, 2)}{suffix}
     </span>
   );
 }
@@ -892,7 +902,7 @@ function DividendYieldBadge({
       : (isPreferredShare ? 'Доходность по привилегированным акциям' : undefined);
     return (
       <span className={`mult-cell ${lvl}${tip ? ' mult-cell-tip' : ''}`} title={tip}>
-        {shown.toFixed(2)}%{hasSpecial ? <span className="div-special-mark">*</span> : null}
+        {dec(shown, 2)}%{hasSpecial ? <span className="div-special-mark">*</span> : null}
       </span>
     );
   }
@@ -918,6 +928,14 @@ function DividendYieldBadge({
       —
     </span>
   );
+}
+
+/**
+ * Число с десятичной запятой и пробелом в тысячах. `toFixed` давал «3143.27»
+ * рядом с «5 365» из соседней колонки — две разные записи в одной таблице.
+ */
+function dec(n: number, digits: number): string {
+  return n.toLocaleString('ru-RU', { minimumFractionDigits: digits, maximumFractionDigits: digits });
 }
 
 function fmt(n: number | null, decimals = 2): string {
@@ -976,7 +994,7 @@ const PORTFOLIO_TRILLION_THRESHOLD_MLN = 10_000_000; // 10 000 млрд = 5 зн
 
 function fmtPortfolio(n: number | null, inTrillions: boolean): string {
   if (n === null || n === undefined) return '—';
-  return (n / (inTrillions ? 1_000_000 : 1_000)).toFixed(2);
+  return dec(n / (inTrillions ? 1_000_000 : 1_000), 2);
 }
 
 /**
@@ -1018,7 +1036,7 @@ function moneyColumnScale(values: (number | null | undefined)[]): MoneyScale {
 /** Значение в млн ₽ → число в единице колонки (сама единица — в заголовке). */
 function fmtMoney(n: number | null | undefined, scale: MoneyScale): string {
   if (n === null || n === undefined) return '—';
-  return (n / scale.divisor).toFixed(2);
+  return dec(n / scale.divisor, 2);
 }
 
 /** Масштабы всех денежных колонок таблицы — по одному на колонку. */
@@ -1288,9 +1306,13 @@ const CurrentCards: React.FC<CurrentCardsProps> = ({
       label: 'P/E',
       value: data.pe_ratio,
       level: peLevelContext(profile, data.pe_ratio, income),
-      hint: 'Цена / Прибыль',
+      // Мультипликаторы считаются от нормализованной прибыли (`net_income`),
+      // оценка — от отчётной. У ЛУКОЙЛа за LTM это 1 072 ₽ против 738 ₽ на
+      // акцию, P/E 5,0 против 7,3: без подписи на одной странице стояли два
+      // P/E и выглядели ошибкой.
+      hint: 'Цена / прибыль без разовых статей',
       threshold: isLoss ? 'Убыток — P/E не применим' : hintFor(profile, 'pe'),
-      tip: getBand(profile, 'pe').note ?? undefined,
+      tip: [getBand(profile, 'pe').note, PE_BASIS_TIP].filter(Boolean).join('\n\n'),
     },
     {
       label: 'P/B',
@@ -1335,7 +1357,7 @@ const CurrentCards: React.FC<CurrentCardsProps> = ({
       label: 'Долг/Капитал',
       value: data.debt_to_equity,
       level: deLevel(profile, data.debt_to_equity),
-      hint: 'Total Liabilities / Equity',
+      hint: 'Обязательства / капитал',
       threshold:
         data.equity !== null &&
         data.equity !== undefined &&
@@ -1366,7 +1388,7 @@ const CurrentCards: React.FC<CurrentCardsProps> = ({
       nullHint: 'Нет операционных расходов или доходов в отчёте',
       tip: getBand(profile, 'cir').note ?? undefined,
     }] : [{
-      label: 'Current Ratio',
+      label: 'Ликвидность',
       value: data.current_ratio,
       level: levelFor(profile, 'cr', data.current_ratio),
       hint: crBand.applicable ? 'Текущая ликвидность' : 'CR не применим для данного типа компании',
@@ -1374,7 +1396,7 @@ const CurrentCards: React.FC<CurrentCardsProps> = ({
       tip: crBand.tooltip_lines.join('\n') || undefined,
     }]),
     {
-      label: 'Div. Yield',
+      label: 'Див. доходность',
       // При наличии разовой выплаты показываем и оцениваем регулярную часть:
       // спецдивиденд в следующем году не повторится.
       value: hasSpecialDividend ? regularYield : data.dividend_yield,
@@ -1413,11 +1435,11 @@ const CurrentCards: React.FC<CurrentCardsProps> = ({
   const pfcfYield = pfcfToFcfYield(pfcf ?? null);
   const pfcfCard: DashboardCard = pfcfCardMode === 'yield'
     ? {
-        label: 'FCF yld',
+        label: 'FCF-доходность',
         value: pfcfYield,
         level: fcfYieldLevel(pfcfYield, ltmFcf ?? null),
         hint: 'Доходность FCF = 100 / P/FCF',
-        threshold: (ltmFcf ?? 0) < 0 ? 'FCF отрицателен' : '≥ 6.7% — хорошо',
+        threshold: (ltmFcf ?? 0) < 0 ? 'FCF отрицателен' : '≥ 6,7% — хорошо',
         suffix: '%',
         toggleable: true,
       }
@@ -1436,7 +1458,7 @@ const CurrentCards: React.FC<CurrentCardsProps> = ({
       label: 'FCF/NI',
       value: fcfNiUi.value,
       level: fcfNiUi.level,
-      hint: 'Качество прибыли (FCF / Net Income)',
+      hint: 'Свободный поток к прибыли',
       threshold:
         income !== null && income <= 0
           ? 'Прибыль ≤ 0 — показатель не применим'
@@ -1546,45 +1568,43 @@ const LtmMeta: React.FC<{ data: CurrentMultipliers }> = ({ data }) => {
   const sourceLabel: Record<string, string> = {
     annual: 'Годовой отчёт',
     ytd_full_year: 'YTD за 4 квартала (= год)',
-    semi_annual_derived: 'LTM: FY + H1 − H1 прошл. года',
-    quarterly_3_derived: 'LTM: FY + 9М − 9М прошл. года',
-    interim_derived: 'LTM: FY + YTD − YTD прошл. года',
+    semi_annual_derived: 'год + 1-е полугодие − то же год назад',
+    quarterly_3_derived: 'год + 9 месяцев − то же год назад',
+    interim_derived: 'год + начало года − то же год назад',
     insufficient: 'Только промежуточные отчёты — LTM не считается',
   };
   const src = data.ltm_source
     ? sourceLabel[data.ltm_source]
       ?? (data.ltm_source.endsWith('_derived')
-        ? 'LTM: FY + YTD − YTD прошл. года'
+        ? 'год + начало года − то же год назад'
         : data.ltm_source)
     : '—';
 
   return (
     <div className="ltm-meta-bar">
       <span className="ltm-meta-item">
-        <span className="ltm-meta-icon">💰</span>
-        <span className="ltm-meta-label">Текущая цена:</span>
+        <span className="ltm-meta-label">Цена</span>
         <span className="ltm-meta-value">
           {data.current_price !== null ? `${formatPerShare(data.current_price)} ₽` : 'не задана'}
         </span>
       </span>
       <span className="ltm-meta-item">
-        <span className="ltm-meta-icon">📊</span>
-        <span className="ltm-meta-label">Капитализация:</span>
+        <span className="ltm-meta-label">Капитализация</span>
         <span className="ltm-meta-value">
           <SharesCapHover explanation={data.shares_cap_explanation}>
             {fmtMln(data.market_cap)}
           </SharesCapHover>
         </span>
       </span>
-      <span className="ltm-meta-item">
-        <span className="ltm-meta-icon">📈</span>
-        <span className="ltm-meta-label">LTM источник:</span>
+      <span className="ltm-meta-item" title="Как собраны последние двенадцать месяцев (LTM)">
+        <span className="ltm-meta-label">12 месяцев</span>
         <span className="ltm-meta-value">{src}</span>
       </span>
       <span className="ltm-meta-item">
-        <span className="ltm-meta-icon">📅</span>
-        <span className="ltm-meta-label">Баланс от:</span>
-        <span className="ltm-meta-value">{data.balance_report_date ?? '—'}</span>
+        <span className="ltm-meta-label">Баланс на</span>
+        <span className="ltm-meta-value">
+          {data.balance_report_date ? data.balance_report_date.split('-').reverse().join('.') : '—'}
+        </span>
       </span>
     </div>
   );
@@ -1597,7 +1617,7 @@ const LtmMeta: React.FC<{ data: CurrentMultipliers }> = ({ data }) => {
 interface MetricTooltipProps {
   profile: SectorProfile;
   metric: 'cr';
-  anchorRef: React.RefObject<HTMLTableCellElement | null>;
+  anchorRef: React.RefObject<HTMLElement | null>;
 }
 
 /**
@@ -1652,29 +1672,6 @@ const MetricTooltip: React.FC<MetricTooltipProps> = ({ profile, metric, anchorRe
     document.body,
   );
 };
-
-interface HistTableProps {
-  rows: MultiplierRecord[];
-  currentRow?: CurrentMultipliers;
-  profile: SectorProfile;
-  /** Тикер представляет привилегированные акции — влияет на отображение Div. Yield */
-  isPreferredShare?: boolean;
-  /** report_id → банковские показатели этого отчёта (пусто у небанков) */
-  bankMetricsByReport?: Map<number, BankMetrics>;
-  /**
-   * Банковские показатели строки LTM. Отдельно от `bankMetricsByReport`,
-   * потому что считаются не по одному отчёту: потоки берутся за скользящий
-   * год, а баланс — с последнего отчёта. Без этого строка LTM показывала бы
-   * удвоенное полугодие рядом с честными годовыми строками.
-   */
-  ltmBankMetrics?: BankMetrics | null;
-  /**
-   * Холдинг: P/E, P/B, отдача на капитал и плечо считаются по консолидации,
-   * то есть описывают сумму чужих бизнесов. Колонки убираются целиком —
-   * прочерк заставил бы объяснять словами то, что проще не показывать.
-   */
-  isHolding?: boolean;
-}
 
 /** Всплывающая подсказка: цена в ячейке — на конец периода; рядом — на дату публикации отчёта. */
 const HistPriceCell: React.FC<{ row: MultiplierRecord }> = ({ row }) => {
@@ -1909,117 +1906,136 @@ const HistChangeCell: React.FC<{ change: YoYDisplay }> = ({ change }) => (
   </span>
 );
 
-function histYoYCell(
-  pctMode: boolean,
-  change: YoYDisplay | null | undefined,
-  content: React.ReactNode,
-  className?: string,
-): React.ReactNode {
-  if (pctMode) {
-    return (
-      <td className={className}>
-        <HistChangeCell change={change ?? YOY_NA} />
-      </td>
-    );
-  }
-  return <td className={className}>{content}</td>;
+// ─── Столбцы и ячейки истории ────────────────────────────────────────────────
+//
+// Таблица умеет стоять двумя способами: годы строками (как раньше) и годы
+// колонками (как лист Value Line). Чтобы подсветка, подсказки и переключатели
+// не разъехались между ориентациями, обе собираются из одного набора: список
+// столбцов (что показываем и как подписано) и ячейки одного периода (что
+// показываем в каждом). Ориентация решает только, куда их положить.
+
+type HistColKey =
+  | 'price' | 'ref' | 'margin' | 'cap'
+  | 'pe' | 'pb' | 'pfcf' | 'div' | 'cir'
+  | 'roe' | 'spread' | 'fcfNi'
+  | 'de' | 'cr' | 'ndFcf' | 'netDebt'
+  | 'roa' | 'cor' | 'npl' | 'coverage' | 'ldr' | 'n11' | 'portfolio'
+  | 'revenue' | 'profit' | 'fcf' | 'capex'
+  | 'eps' | 'shares';
+
+type SheetOrientation = 'rows' | 'cols';
+
+const HIST_GROUPS = [
+  'Цена и оценка',
+  'Мультипликаторы',
+  'Отдача',
+  'Долг и ликвидность',
+  'Банк',
+  'Деньги',
+  'На акцию',
+] as const;
+type HistGroup = (typeof HIST_GROUPS)[number];
+
+interface HistFlags {
+  isBank: boolean;
+  noLeverage: boolean;
+  showCir: boolean;
+  showFcf: boolean;
+  showRatios: boolean;
+  hasValuation: boolean;
 }
 
-/**
- * Ячейка банковского показателя в таблице истории.
- *
- * Значение и светофор считает бэкенд (`bank_metrics.py`) — здесь только
- * отображение. Год без данных даёт прочерк: у банка пустое поле означает
- * «не выписано из примечания», а не «риска нет».
- */
-function bankMetricCell(
-  metrics: BankMetrics | null | undefined,
-  key: keyof BankMetrics,
-  pctMode = false,
-  change?: YoYDisplay | null,
-): React.ReactNode {
-  // В режиме «Δ к прошлому году» банковские колонки показывают изменение
-  // в процентных пунктах — иначе они одни оставались бы с абсолютными
-  // значениями, и строка читалась бы как смесь двух разных величин.
-  if (pctMode) {
-    return (
-      <td className="col-mult col-compact col-bank">
-        <HistChangeCell change={change ?? YOY_NA} />
-      </td>
-    );
-  }
+function histFlags(profile: SectorProfile, isHolding: boolean, hasValuation: boolean): HistFlags {
+  // У банка плечо — это бизнес-модель, а не риск, ликвидность считается
+  // нормативами ЦБ, а FCF неприменим концептуально. Биржа: обязательства —
+  // чужие деньги и зеркальные позиции клиринга, поэтому плечо, ликвидность и
+  // чистый долг не выводятся, но свободный поток есть. У холдинга P/E, P/B и
+  // ROE по консолидации описывают сумму чужих бизнесов.
+  const isBank = profile?.key === 'bank';
+  const isExchange = profile?.key === 'exchange';
+  return {
+    isBank,
+    noLeverage: isBank || isExchange || isHolding,
+    showCir: isBank || isExchange,
+    showFcf: !isBank && !isHolding,
+    showRatios: !isHolding,
+    hasValuation,
+  };
+}
 
-  const value = (metrics?.[key] ?? null) as number | null;
-  const status = metrics?.statuses?.[key as string] ?? 'n/a';
-  const level = status === 'good' ? 'good' : status === 'normal' ? 'warn' : status === 'bad' ? 'bad' : 'neutral';
-  // Доля проблемных и покрытие могут быть посчитаны по просрочке 90+, когда
-  // эмитент не раскрыл стадии. Просрочка уже Стадии 3 — в неё не попадают
-  // реструктуризации, — поэтому такие значения занижены и помечаются.
-  const byOverdue =
-    metrics?.npl_basis === 'overdue_90' && (key === 'npl_ratio' || key === 'npl_coverage');
+/** Запас прочности словами ячейки: ниже −100% — «цена в N раз выше». */
+function marginText(margin: number): string {
+  if (margin < -1) return `×${dec(1 - margin, 1)}`;
+  const pct = Math.round(margin * 100);
+  return `${pct > 0 ? '+' : pct < 0 ? '−' : ''}${Math.abs(pct)}%`;
+}
+
+const MARGIN_GOOD = 0.15;
+
+function marginLevel(margin: number | null): Level {
+  if (margin === null) return 'neutral';
+  if (margin >= MARGIN_GOOD) return 'good';
+  return margin >= 0 ? 'warn' : 'bad';
+}
+
+const MarginCell: React.FC<{ margin: number | null }> = ({ margin }) => {
+  if (margin === null) {
+    return <span className="mult-cell neutral mult-cell-tip" title="Оценки за этот период нет">—</span>;
+  }
+  const tip = margin < -1
+    ? `Цена выше опорной стоимости в ${dec(1 - margin, 1)} раза`
+    : margin >= MARGIN_GOOD
+      ? 'Цена ниже опорной на 15% и больше — запас прочности есть'
+      : margin >= 0
+        ? 'Цена ниже опорной, но запас тоньше 15%'
+        : 'Цена выше опорной стоимости';
   return (
-    <td className="col-mult col-compact col-bank">
-      <span className={byOverdue ? 'metric-with-flag' : undefined}>
-        <MetricBadge
-          value={value}
-          level={level as Level}
-          tip={metrics?.hints?.[key as string]}
-          nullHint={metrics ? 'Поле не заполнено в отчёте' : 'Нет банковских данных за период'}
-        />
-        {byOverdue && (
-          <span
-            className="metric-flag"
-            title="Посчитано по ссудам с задержкой платежа свыше 90 дней: разбивку по стадиям эмитент за этот год не раскрыл. Просрочка уже Стадии 3 — реструктурированные кредиты, по которым платежи идут, в неё не попадают, поэтому доля проблемных занижена, а покрытие завышено."
-          >
-            !
-          </span>
-        )}
-      </span>
-    </td>
+    <span className={`mult-cell ${marginLevel(margin)} mult-cell-tip`} title={tip}>
+      {marginText(margin)}
+    </span>
   );
+};
+
+/** Изменение запаса прочности — в пунктах, как у всех долей. */
+function marginChange(current: number | null, previous: number | null): YoYDisplay {
+  if (current === null || previous === null) return YOY_NA;
+  return metricPp(current * 100, previous * 100, 'higher_better', 'Запас прочности');
 }
 
-interface HistTableRowProps {
-  periodCell: React.ReactNode;
-  rowClassName?: string;
+interface HistRowCellsInput {
   record?: MultiplierRecord;
-  snapshot: ReturnType<typeof snapshotFromRecord>;
+  snapshot: HistRowSnapshot;
   dividendYield?: number | null;
   yoy: HistRowYoY | null;
   pctMode: boolean;
   pfcfColMode: PfcfColMode;
-  /** ROE по прибыли или по свободному потоку */
   roeColMode: RoeColMode;
-  /** «На акцию»: прибыль или свободный поток */
   perShareColMode: PerShareColMode;
   profile: SectorProfile;
-  /** Строка за предыдущий год — для атрибуции изменения ROE */
+  /** Период годом раньше — для атрибуции ROE и режима «изменение». */
   previous?: HistRowSnapshot | null;
   isPreferredShare: boolean;
-  /** Портфель показывать в триллионах — решается на уровне всей колонки. */
   portfolioInTrillions?: boolean;
-  /** Единицы денежных колонок, общие на колонку (см. moneyColumnScale). */
   moneyScales?: MoneyScales;
-  /** Единица числа акций, общая на колонку. null — у каждой ячейки своя. */
   sharesScale?: { factor: number; unit: string } | null;
-  /** Банковские показатели этого периода; у строки LTM их нет. */
   bankMetrics?: BankMetrics | null;
-  /**
-   * Cost/Income приходит не из `bank_metrics`, а из кэша мультипликаторов:
-   * он считается в общем расчёте вместе с P/E и ROE.
-   */
   costToIncome?: number | null;
-  /** Банковские показатели прошлого периода — для режима «Δ к прошлому году». */
   previousBankMetrics?: BankMetrics | null;
   previousCostToIncome?: number | null;
-  /** Холдинг: колонки по консолидации не выводятся. См. HistTableProps. */
-  isHolding?: boolean;
+  /** Опорная стоимость по отчёту этого периода и прошлого. */
+  reference?: number | null;
+  previousReference?: number | null;
+  flags: HistFlags;
 }
 
-const HistTableRow: React.FC<HistTableRowProps> = ({
-  isHolding = false,
-  periodCell,
-  rowClassName,
+interface HistCell {
+  node: React.ReactNode;
+  className?: string;
+}
+
+type HistCells = Partial<Record<HistColKey, HistCell>>;
+
+function histRowCells({
   record,
   snapshot,
   dividendYield,
@@ -2038,9 +2054,22 @@ const HistTableRow: React.FC<HistTableRowProps> = ({
   costToIncome,
   previousBankMetrics,
   previousCostToIncome,
-}) => {
-  // Изменения банковских показателей считаются только в режиме процентов:
-  // в обычном режиме предыдущий период не нужен.
+  reference = null,
+  previousReference = null,
+  flags,
+}: HistRowCellsInput): HistCells {
+  const out: HistCells = {};
+  // В режиме «изменение» любая ячейка показывает прирост к прошлому году —
+  // иначе строка читалась бы как смесь двух разных величин.
+  const put = (
+    key: HistColKey,
+    change: YoYDisplay | null | undefined,
+    content: React.ReactNode,
+    className?: string,
+  ) => {
+    out[key] = { node: pctMode ? <HistChangeCell change={change ?? YOY_NA} /> : content, className };
+  };
+
   const bankYoY = pctMode
     ? computeBankYoY(
         bankMetrics as unknown as Record<string, number | null> | null,
@@ -2049,6 +2078,42 @@ const HistTableRow: React.FC<HistTableRowProps> = ({
         previousCostToIncome,
       )
     : null;
+
+  const bank = (key: HistColKey, metric: keyof BankMetrics, change?: YoYDisplay | null) => {
+    if (pctMode) {
+      out[key] = { node: <HistChangeCell change={change ?? YOY_NA} />, className: 'col-mult col-compact col-bank' };
+      return;
+    }
+    const value = (bankMetrics?.[metric] ?? null) as number | null;
+    const status = bankMetrics?.statuses?.[metric as string] ?? 'n/a';
+    const level = status === 'good' ? 'good' : status === 'normal' ? 'warn' : status === 'bad' ? 'bad' : 'neutral';
+    // Доля проблемных и покрытие могут быть посчитаны по просрочке 90+, когда
+    // эмитент не раскрыл стадии. Просрочка уже Стадии 3 — в неё не попадают
+    // реструктуризации, — поэтому такие значения занижены и помечаются.
+    const byOverdue =
+      bankMetrics?.npl_basis === 'overdue_90' && (metric === 'npl_ratio' || metric === 'npl_coverage');
+    out[key] = {
+      className: 'col-mult col-compact col-bank',
+      node: (
+        <span className={byOverdue ? 'metric-with-flag' : undefined}>
+          <MetricBadge
+            value={value}
+            level={level as Level}
+            tip={bankMetrics?.hints?.[metric as string]}
+            nullHint={bankMetrics ? 'Поле не заполнено в отчёте' : 'Нет банковских данных за период'}
+          />
+          {byOverdue && (
+            <span
+              className="metric-flag"
+              title="Посчитано по ссудам с задержкой платежа свыше 90 дней: разбивку по стадиям эмитент за этот год не раскрыл. Просрочка уже Стадии 3 — реструктурированные кредиты, по которым платежи идут, в неё не попадают, поэтому доля проблемных занижена, а покрытие завышено."
+            >
+              !
+            </span>
+          )}
+        </span>
+      ),
+    };
+  };
 
   const income = snapshot.ltm_net_income;
   const isLoss = income !== null && income < 0;
@@ -2070,236 +2135,908 @@ const HistTableRow: React.FC<HistTableRowProps> = ({
     : noIncome ? 'Нет данных о чистой прибыли (net_income)'
     : noPrice ? 'Нет цены / акций'
     : undefined;
-
   const pbHint = negEquity
     ? 'Отрицательный капитал — P/B не рассчитывается'
     : noEquity ? 'Нет данных о капитале (equity)'
     : noPrice ? 'Нет цены / акций'
     : undefined;
-
   const deHint = negEquity
     ? 'Отрицательный капитал: формула даёт отрицательный результат'
     : noLiab ? 'Нет данных об обязательствах (total_liabilities)'
     : noEquity ? 'Нет данных о капитале (equity)'
     : undefined;
 
-  // Тот же признак, что и в заголовке: колонки строки обязаны совпадать
-  // с колонками шапки, иначе таблица «поедет».
-  const isBank = profile?.key === 'bank';
-  // Биржа: обязательства — чужие деньги и зеркальные позиции клиринга, поэтому
-  // плечо, ликвидность и чистый долг не выводятся, как у банка. Но кредитных
-  // показателей у неё нет, а свободный поток есть — колонки набираются
-  // тремя признаками, а не одним «банк / не банк».
-  const isExchange = profile?.key === 'exchange';
-  const noLeverage = isBank || isExchange || isHolding;  // D/E, CR, Net Debt, ND/FCF
-  const showCir = isBank || isExchange;      // Cost/Income
-  // У холдинга поток тоже консолидированный: складывает деньги дочек, до
-  // которых центр не дотягивается без дивиденда.
-  const showFcf = !isBank && !isHolding;     // P/FCF, FCF/NI, FCF, CAPEX
-  const showRatios = !isHolding;             // P/E, P/B, ROE
+  // ── Цена и оценка ──
+  put(
+    'price',
+    yoy?.price,
+    record ? <HistPriceCell row={record} /> : (snapshot.price_used !== null ? formatPerShare(snapshot.price_used) : '—'),
+    !pctMode && record ? 'col-price-cell' : undefined,
+  );
+  if (flags.hasValuation) {
+    const margin = reference !== null && snapshot.price_used !== null && reference > 0
+      ? (reference - snapshot.price_used) / reference
+      : null;
+    const prevMargin = previousReference !== null && previous?.price_used != null && previousReference > 0
+      ? (previousReference - previous.price_used) / previousReference
+      : null;
+    put(
+      'ref',
+      metricPct(reference, previousReference, 'higher_better', 'Опорная стоимость'),
+      reference === null
+        ? <span className="mult-cell neutral mult-cell-tip" title="Оценка за этот период не посчитана">—</span>
+        : (
+          <span className="hist-ref" title="Опорная стоимость по отчёту этого периода — расчёт, а не прогноз">
+            {Math.abs(reference) >= 100 ? dec(Math.round(reference), 0) : formatPerShare(reference)}
+          </span>
+        ),
+    );
+    put('margin', marginChange(margin, prevMargin), <MarginCell margin={margin} />);
+  }
+  put(
+    'cap',
+    yoy?.cap,
+    <HistCapCell
+      marketCapMln={snapshot.market_cap}
+      explanation={record?.shares_cap_explanation}
+      scale={moneyScales.cap}
+    />,
+  );
 
+  // ── Мультипликаторы ──
+  if (flags.showRatios) {
+    put('pe', yoy?.pe, (
+      <MetricBadge
+        value={snapshot.pe_ratio}
+        level={peLevelContext(profile, snapshot.pe_ratio, income)}
+        nullHint={peHint}
+      />
+    ));
+    put('pb', yoy?.pb, (
+      <PbMetricBadge
+        profile={profile}
+        pb={snapshot.pb_ratio}
+        equity={snapshot.equity}
+        pbTangible={snapshot.pb_tangible}
+        goodwillShare={snapshot.goodwill_to_assets}
+        intangiblesShare={snapshot.intangibles_to_equity}
+        nullHint={pbHint}
+      />
+    ));
+  }
+  if (flags.showFcf) {
+    put('pfcf', yoy?.pfcf, <HistPfcfCell mode={pfcfColMode} pfcf={snapshot.price_to_fcf} fcf={snapshot.ltm_fcf} />);
+  }
+  put('div', yoy?.div, (
+    <DividendYieldBadge
+      profile={profile}
+      dividendYield={dividendYield ?? record?.dividend_yield ?? null}
+      dividendYieldRegular={snapshot.dividend_yield_regular}
+      specialDividendsPerShare={snapshot.ltm_special_dividends_per_share}
+      ltmDividendsPerShare={snapshot.ltm_dividends_per_share}
+      priceUsed={snapshot.price_used}
+      isPreferredShare={isPreferredShare}
+    />
+  ));
+  if (flags.showCir) {
+    out.cir = {
+      className: 'col-mult col-compact col-bank',
+      node: pctMode ? (
+        <HistChangeCell change={bankYoY?.cir ?? YOY_NA} />
+      ) : (
+        <MetricBadge
+          value={costToIncome ?? null}
+          level={levelFor(profile, 'cir', costToIncome ?? null)}
+          suffix="%"
+          tip={hintFor(profile, 'cir')}
+          nullHint="Нет операционных расходов или доходов в отчёте"
+        />
+      ),
+    };
+  }
 
-  const priceContent = record
-    ? <HistPriceCell row={record} />
-    : (snapshot.price_used !== null ? formatPerShare(snapshot.price_used) : '—');
+  // ── Отдача ──
+  if (flags.showRatios) {
+    // В режиме потока порог отрасли не применяем: он откалиброван под
+    // прибыль, а поток к капиталу у здоровой компании с большим капексом
+    // законно ниже. Красить его красным по чужой мерке значило бы врать.
+    put('roe', yoy?.roe, roeColMode === 'fcf'
+      ? <FcfToEquityCell value={fcfToEquityPct(snapshot)} />
+      : (
+        <RoeMetricBadge
+          profile={profile}
+          roe={snapshot.roe}
+          equity={snapshot.equity}
+          explanationTip={roeInfo.tip}
+          misleading={roeInfo.driver.misleading}
+        />
+      ));
+    const spread = roeSpreadBadge(snapshot.roe_spread, snapshot.roe, snapshot.key_rate, roeInfo.source);
+    put(
+      'spread',
+      metricPp(snapshot.roe_spread, previous?.roe_spread ?? null, 'higher_better', 'ROE сверх ключевой'),
+      spread
+        ? <span className={`mult-cell ${spread.level} mult-cell-tip`} title={spread.tip}>{spread.text}</span>
+        : <span className="mult-cell neutral mult-cell-tip" title="Нет ключевой ставки за этот период">—</span>,
+    );
+  }
+  if (flags.showFcf) {
+    put('fcfNi', yoy?.fcfNi, <MetricBadge value={fcfNiRow.value} level={fcfNiRow.level} nullHint={fcfNiRow.nullHint} />);
+  }
+
+  // ── Долг и ликвидность ──
+  if (!flags.noLeverage) {
+    put('de', yoy?.de, (
+      <DeMetricBadge profile={profile} de={snapshot.debt_to_equity} equity={snapshot.equity} fallbackHint={deHint} />
+    ));
+    put('cr', yoy?.cr, (
+      <MetricBadge
+        value={snapshot.current_ratio}
+        level={levelFor(profile, 'cr', snapshot.current_ratio)}
+        nullHint={
+          noCurr
+            ? 'Нет оборотных активов или краткосрочных обязательств'
+            : !crBand.applicable
+              ? 'CR не применим для данного типа компании'
+              : undefined
+        }
+      />
+    ));
+    put('ndFcf', yoy?.ndFcf, (
+      <HistNetDebtFcfCell ratio={snapshot.net_debt_to_fcf} netDebt={snapshot.net_debt} fcf={snapshot.ltm_fcf} />
+    ));
+    put('netDebt', yoy?.netDebt, <HistNetDebtCell netDebtMln={snapshot.net_debt} scale={moneyScales.netDebt} />, 'col-compact');
+  }
+
+  // ── Банк ──
+  if (flags.isBank) {
+    bank('roa', 'roa', bankYoY?.roa);
+    bank('cor', 'cost_of_risk', bankYoY?.cost_of_risk);
+    bank('npl', 'npl_ratio', bankYoY?.npl_ratio);
+    bank('coverage', 'npl_coverage', bankYoY?.npl_coverage);
+    bank('ldr', 'loans_to_deposits', bankYoY?.loans_to_deposits);
+    bank('n11', 'capital_adequacy_core', bankYoY?.capital_adequacy_core);
+    // Портфель — знаменатель трёх соседних показателей. Без него не отличить
+    // «риск снизился» от «портфель раздули».
+    put(
+      'portfolio',
+      bankYoY?.gross_loans,
+      fmtPortfolio((bankMetrics?.gross_loans ?? null) as number | null, !!portfolioInTrillions),
+      'col-portfolio',
+    );
+  }
+
+  // ── Деньги ──
+  put('revenue', yoy?.revenue, fmtMoney(snapshot.ltm_revenue, moneyScales.revenue));
+  put('profit', yoy?.profit, fmtMoney(snapshot.ltm_net_income, moneyScales.profit), isLoss ? 'cell-loss' : undefined);
+  if (flags.showFcf) {
+    put(
+      'fcf',
+      yoy?.fcf,
+      fmtMoney(snapshot.ltm_fcf, moneyScales.fcf),
+      snapshot.ltm_fcf !== null && snapshot.ltm_fcf < 0 ? 'cell-loss' : undefined,
+    );
+    put('capex', yoy?.capex, fmtMoney(snapshot.ltm_capex, moneyScales.capex), 'col-compact');
+  }
+
+  // ── На акцию ──
+  // EPS и число акций — пара, которая объясняет разрыв между «прибыль
+  // выросла» и «моя прибыль выросла». Без них допэмиссия невидима.
+  put(
+    'eps',
+    yoy?.eps,
+    perShareColMode === 'fcf' ? formatPerShare(fcfPerShare(snapshot)) : formatPerShare(snapshot.eps),
+    isLoss ? 'cell-loss' : undefined,
+  );
+  put('shares', yoy?.shares, (() => {
+    const n = snapshot.shares_used;
+    if (n === null || n === undefined) return '—';
+    if (sharesScale) return dec(n / sharesScale.factor, 2);
+    const [factor, unit] = shareScaleOf(n);
+    return (
+      <>
+        {dec(n / factor, 2)}
+        <span className="hist-shares-unit">{unit}</span>
+      </>
+    );
+  })());
+
+  return out;
+}
+
+/** Кнопка ⇄ у показателя с парой. */
+const SwapButton: React.FC<{ label: string; title: string; onClick: () => void }> = ({ label, title, onClick }) => (
+  <button type="button" className="col-toggle-btn hist-swap" onClick={onClick} title={title} aria-label={title}>
+    ⇄{label && <span className="hist-swap-label"> {label}</span>}
+  </button>
+);
+
+/** CR с отраслевой подсказкой — заголовок столбца или подпись строки. */
+const CrHead: React.FC<{ profile: SectorProfile; as: 'th' | 'label' }> = ({ profile, as }) => {
+  const [open, setOpen] = React.useState(false);
+  const ref = React.useRef<HTMLElement | null>(null);
+  const body = (
+    <>
+      {as === 'th' ? 'CR' : 'Текущая ликвидность'}
+      <span className="cr-header-hint-icon" aria-hidden>ⓘ</span>
+      {open && <MetricTooltip profile={profile} metric="cr" anchorRef={ref} />}
+    </>
+  );
+  const handlers = { onMouseEnter: () => setOpen(true), onMouseLeave: () => setOpen(false) };
+  return as === 'th'
+    ? <th ref={ref as React.Ref<HTMLTableCellElement>} className="col-mult col-cr-header" {...handlers}>{body}</th>
+    : <span ref={ref as React.Ref<HTMLSpanElement>} className="hist-label-cr" {...handlers}>{body}</span>;
+};
+
+interface HistColumn {
+  key: HistColKey;
+  group: HistGroup;
+  /** Название для выбора строк — без единиц и переключателей. */
+  name: string;
+  /** Заголовок столбца, когда годы идут строками. */
+  th: React.ReactElement<{ className?: string }>;
+  /** Подпись строки, когда годы идут колонками. */
+  label: React.ReactNode;
+  /** Пороги и смысл — подсказка у подписи. */
+  tip?: string;
+}
+
+interface HistColumnsInput {
+  profile: SectorProfile;
+  flags: HistFlags;
+  moneyScales: MoneyScales;
+  sharesScale: { factor: number; unit: string } | null;
+  portfolioInTrillions: boolean;
+  hasCoreFcf: boolean;
+  pfcfColMode: PfcfColMode;
+  roeColMode: RoeColMode;
+  perShareColMode: PerShareColMode;
+  togglePfcf: () => void;
+  toggleRoe: () => void;
+  togglePerShare: () => void;
+}
+
+function bandTip(profile: SectorProfile, metric: Parameters<typeof hintFor>[1], what: string): string {
+  const band = getBand(profile, metric);
+  return [what, hintFor(profile, metric), band.note].filter(Boolean).join('\n');
+}
+
+function histColumns({
+  profile,
+  flags,
+  moneyScales,
+  sharesScale,
+  portfolioInTrillions,
+  hasCoreFcf,
+  pfcfColMode,
+  roeColMode,
+  perShareColMode,
+  togglePfcf,
+  toggleRoe,
+  togglePerShare,
+}: HistColumnsInput): HistColumn[] {
+  const cols: HistColumn[] = [];
+  const add = (c: HistColumn) => cols.push(c);
+  const money = (key: HistColKey, group: HistGroup, name: string, unit: string, tip?: string, extra = '') => add({
+    key,
+    group,
+    name,
+    tip,
+    th: (
+      <th key={key} className={`col-rev col-header-unit-col${extra}`} title={tip}>
+        <ColHeaderWithUnit title={name} unit={unit} />
+      </th>
+    ),
+    label: `${name}, ${unit}`,
+  });
+
+  // ── Цена и оценка ──
+  add({
+    key: 'price',
+    group: 'Цена и оценка',
+    name: 'Цена',
+    tip: 'Цена на конец периода. Наведите на значение — цена на дату выхода отчёта.',
+    th: (
+      <th key="price" className="col-price col-header-unit-col"
+        title="В ячейке — цена на дату окончания отчётного периода. Наведите для цены на дату публикации (если заполнено в отчёте).">
+        <ColHeaderWithUnit title="Цена" unit="₽" align="right" />
+      </th>
+    ),
+    label: 'Цена, ₽',
+  });
+  if (flags.hasValuation) {
+    add({
+      key: 'ref',
+      group: 'Цена и оценка',
+      name: 'Опорная стоимость',
+      tip: 'Опорная стоимость по отчёту этого периода: нормальная прибыль × множитель. Расчёт, а не прогноз.',
+      th: (
+        <th key="ref" className="col-price col-header-unit-col" title="Опорная стоимость по отчёту этого периода">
+          <ColHeaderWithUnit title="Опорная" unit="₽" align="right" />
+        </th>
+      ),
+      label: <span className="hist-label-ref">Опорная стоимость, ₽</span>,
+    });
+    add({
+      key: 'margin',
+      group: 'Цена и оценка',
+      name: 'Запас прочности',
+      tip: 'Насколько цена ниже опорной. Зелёным — запас 15% и больше; «×2,3» — цена выше опорной в 2,3 раза.',
+      th: <th key="margin" className="col-mult" title="Насколько цена ниже опорной стоимости">Запас</th>,
+      label: 'Запас прочности',
+    });
+  }
+  money('cap', 'Цена и оценка', 'Кап.', moneyScales.cap.unit, 'Капитализация по акциям в обращении');
+  cols[cols.length - 1].label = `Капитализация, ${moneyScales.cap.unit}`;
+  cols[cols.length - 1].name = 'Капитализация';
+
+  // ── Мультипликаторы ──
+  if (flags.showRatios) {
+    add({
+      key: 'pe',
+      group: 'Мультипликаторы',
+      name: 'P/E',
+      tip: [bandTip(profile, 'pe', 'Цена / прибыль без разовых статей.'), PE_BASIS_TIP].join('\n\n'),
+      th: <th key="pe" className="col-mult" title={PE_BASIS_TIP}>P/E</th>,
+      label: 'P/E',
+    });
+    add({
+      key: 'pb',
+      group: 'Мультипликаторы',
+      name: 'P/B',
+      tip: bandTip(profile, 'pb', 'Цена / балансовая стоимость.'),
+      th: <th key="pb" className="col-mult">P/B</th>,
+      label: 'P/B',
+    });
+  }
+  if (flags.showFcf) {
+    const pfcfName = pfcfColMode === 'pfcf' ? 'P/FCF' : 'FCF-доходность';
+    add({
+      key: 'pfcf',
+      group: 'Мультипликаторы',
+      name: 'P/FCF',
+      tip: pfcfColMode === 'pfcf'
+        ? 'Капитализация / свободный поток. ≤ 15 хорошо, ≤ 25 терпимо.'
+        : 'Свободный поток / капитализация, %. ≥ 6,7% хорошо, ≥ 4% терпимо.',
+      th: <HistPfcfHeader key="pfcf" mode={pfcfColMode} onToggle={togglePfcf} />,
+      label: (
+        <>
+          {pfcfColMode === 'pfcf' ? 'P/FCF' : 'FCF-доходность, %'}
+          <SwapButton label={pfcfColMode === 'pfcf' ? 'доходность' : 'P/FCF'} title={`Показать ${pfcfColMode === 'pfcf' ? 'FCF-доходность' : 'P/FCF'} вместо ${pfcfName}`} onClick={togglePfcf} />
+        </>
+      ),
+    });
+  }
+  add({
+    key: 'div',
+    group: 'Мультипликаторы',
+    name: 'Дивидендная доходность',
+    tip: bandTip(profile, 'dy', 'Дивиденды за 12 месяцев / цена.'),
+    th: <th key="div" className="col-mult col-header-unit-col"><ColHeaderWithUnit title="Div" unit="%" align="right" /></th>,
+    label: 'Дивидендная доходность, %',
+  });
+  if (flags.showCir) {
+    add({
+      key: 'cir',
+      group: 'Мультипликаторы',
+      name: 'Расходы / доходы',
+      tip: 'Cost/Income: операционные расходы к операционным доходам',
+      th: (
+        <th key="cir" className="col-mult col-compact col-bank col-header-unit-col" title="Cost/Income: операционные расходы к операционным доходам">
+          <ColHeaderWithUnit title="CIR" unit="%" align="right" />
+        </th>
+      ),
+      label: 'Расходы / доходы, %',
+    });
+  }
+
+  // ── Отдача ──
+  if (flags.showRatios) {
+    add({
+      key: 'roe',
+      group: 'Отдача',
+      name: 'ROE',
+      tip: roeColMode === 'fcf'
+        ? 'Свободный поток к капиталу, %. Порог отрасли не применяется: он откалиброван под прибыль.'
+        : bandTip(profile, 'roe', 'Прибыль к капиталу, %. Наведите на значение — из чего она сложилась.'),
+      th: <HistRoeHeader key="roe" mode={roeColMode} onToggle={toggleRoe} />,
+      label: (
+        <>
+          {roeColMode === 'fcf' ? 'FCF / капитал, %' : 'ROE, %'}
+          {flags.showFcf && <SwapButton label={roeColMode === 'fcf' ? 'ROE' : 'FCF/E'} title="Переключить ROE ↔ свободный поток к капиталу" onClick={toggleRoe} />}
+        </>
+      ),
+    });
+    add({
+      key: 'spread',
+      group: 'Отдача',
+      name: 'ROE сверх ключевой ставки',
+      tip: 'ROE минус средняя ключевая ставка года, п.п. Ноль и ниже — держать ОФЗ выгоднее, чем капитал компании.',
+      th: (
+        <th key="spread" className="col-mult col-header-unit-col" title="ROE минус ключевая ставка">
+          <ColHeaderWithUnit title="ROE−ставка" unit="п.п." align="right" />
+        </th>
+      ),
+      label: 'ROE сверх ключевой ставки, п.п.',
+    });
+  }
+  if (flags.showFcf) {
+    add({
+      key: 'fcfNi',
+      group: 'Отдача',
+      name: 'FCF / прибыль',
+      tip: 'Качество прибыли: ≥ 1 — прибыль подтверждена деньгами, 0,7–1 — норма, ниже — сомнительно.',
+      th: <th key="fcfNi" className="col-mult col-compact" title="FCF / Net Income — качество прибыли">FCF/NI</th>,
+      label: 'FCF / прибыль',
+    });
+  }
+
+  // ── Долг и ликвидность ──
+  if (!flags.noLeverage) {
+    add({
+      key: 'de',
+      group: 'Долг и ликвидность',
+      name: 'Обязательства / капитал',
+      tip: bandTip(profile, 'de', 'Все обязательства к собственному капиталу.'),
+      th: <th key="de" className="col-mult">D/E</th>,
+      label: 'Обязательства / капитал',
+    });
+    add({
+      key: 'cr',
+      group: 'Долг и ликвидность',
+      name: 'Текущая ликвидность',
+      th: <CrHead key="cr" profile={profile} as="th" />,
+      label: <CrHead profile={profile} as="label" />,
+    });
+    add({
+      key: 'ndFcf',
+      group: 'Долг и ликвидность',
+      name: 'Чистый долг / FCF',
+      tip: 'Сколько лет свободного потока нужно, чтобы погасить чистый долг. ≤ 3 хорошо, ≤ 5 терпимо; отрицательный — денег больше, чем долга.',
+      th: <th key="ndFcf" className="col-mult col-compact" title="Net Debt / LTM FCF — лет погашения">ND/FCF</th>,
+      label: 'Чистый долг / FCF, лет',
+    });
+    add({
+      key: 'netDebt',
+      group: 'Долг и ликвидность',
+      name: 'Чистый долг',
+      tip: 'Долг минус денежные средства. Отрицательный — денег больше, чем займов.',
+      th: (
+        <th key="netDebt" className="col-rev col-compact col-net-debt-header col-header-unit-col" title="Чистый долг = Долг − Наличность">
+          <ColHeaderWithUnit title="Net Debt" unit={moneyScales.netDebt.unit} uppercase={false} align="right" />
+        </th>
+      ),
+      label: `Чистый долг, ${moneyScales.netDebt.unit}`,
+    });
+  }
+
+  // ── Банк ──
+  if (flags.isBank) {
+    const bankCol = (key: HistColKey, short: string, name: string, tip: string, unit = '%') => add({
+      key,
+      group: 'Банк',
+      name,
+      tip,
+      th: (
+        <th key={key} className="col-mult col-compact col-bank col-header-unit-col" title={tip}>
+          <ColHeaderWithUnit title={short} unit={unit} align="right" />
+        </th>
+      ),
+      label: `${name}, ${unit}`,
+    });
+    bankCol('roa', 'ROA', 'Отдача активов', 'Отдача активов: прибыль / активы. В отличие от ROE её нельзя поднять плечом');
+    bankCol('cor', 'CoR', 'Стоимость риска', 'Стоимость риска: резерв за период / кредитный портфель');
+    bankCol('npl', 'NPL', 'Доля проблемных', 'Доля обесцененных кредитов (Stage 3 / 90+) в портфеле');
+    bankCol('coverage', 'Покрытие', 'Покрытие резервами', 'Накопленный резерв к обесцененным кредитам (Стадия 3 + POCI)');
+    bankCol('ldr', 'LDR', 'Кредиты / депозиты', 'Чистые кредиты к средствам клиентов');
+    bankCol('n11', 'Н1.1', 'Достаточность капитала', 'Достаточность основного капитала (Н1.1 / CET1)');
+    const unit = portfolioInTrillions ? 'трлн ₽' : 'млрд ₽';
+    add({
+      key: 'portfolio',
+      group: 'Банк',
+      name: 'Кредитный портфель',
+      tip: 'Кредитный портфель до вычета резерва — знаменатель ROA, стоимости риска и доли проблемных',
+      th: (
+        <th key="portfolio" className="col-rev col-portfolio col-header-unit-col"
+          title="Кредитный портфель до вычета резерва — знаменатель ROA, стоимости риска и доли проблемных">
+          <ColHeaderWithUnit title="Портфель" unit={unit} />
+        </th>
+      ),
+      label: `Кредитный портфель, ${unit}`,
+    });
+  }
+
+  // ── Деньги ──
+  money('revenue', 'Деньги', 'Выручка', moneyScales.revenue.unit);
+  money('profit', 'Деньги', 'Прибыль', moneyScales.profit.unit, 'Чистая прибыль без разовых статей, если аналитик их выделил');
+  if (flags.showFcf) {
+    const fcfTip = hasCoreFcf
+      ? 'FCF ядра = Операционный поток − CAPEX − приток от роста банковского баланса'
+      : 'FCF = Операционный поток − CAPEX';
+    money('fcf', 'Деньги', hasCoreFcf ? 'FCF ядра' : 'FCF', moneyScales.fcf.unit, fcfTip);
+    cols[cols.length - 1].label = `${hasCoreFcf ? 'Свободный поток ядра' : 'Свободный поток'}, ${moneyScales.fcf.unit}`;
+    cols[cols.length - 1].name = 'Свободный поток';
+    money('capex', 'Деньги', 'CAPEX', moneyScales.capex.unit, 'Капитальные затраты', ' col-compact');
+    cols[cols.length - 1].label = `Капзатраты, ${moneyScales.capex.unit}`;
+    cols[cols.length - 1].name = 'Капзатраты';
+  }
+
+  // ── На акцию ──
+  add({
+    key: 'eps',
+    group: 'На акцию',
+    name: 'Прибыль на акцию',
+    tip: perShareColMode === 'fcf'
+      ? 'Свободный поток на акцию — та же шкала, что у EPS'
+      : 'Прибыль на акцию от тех же акций, что и капитализация: цена / EPS в точности равна P/E этого периода',
+    th: <HistPerShareHeader key="eps" mode={perShareColMode} onToggle={togglePerShare} />,
+    label: (
+      <>
+        {perShareColMode === 'fcf' ? 'Поток на акцию, ₽' : 'Прибыль на акцию, ₽'}
+        {flags.showFcf && <SwapButton label={perShareColMode === 'fcf' ? 'EPS' : 'FCF/акц'} title="Переключить прибыль на акцию ↔ поток на акцию" onClick={togglePerShare} />}
+      </>
+    ),
+  });
+  const sharesTip =
+    'Число акций, использованных в капитализации. '
+    + (sharesScale ? '' : 'После дробления счёт меняется на порядки, поэтому единица стоит у каждого значения. ')
+    + 'В режиме «изменение» показывает размытие: рост — доля акционера уменьшилась, выкуп — увеличилась';
+  add({
+    key: 'shares',
+    group: 'На акцию',
+    name: 'Акций в обращении',
+    tip: sharesTip,
+    th: (
+      <th key="shares" className={`col-mult col-compact col-shares-header${sharesScale ? ' col-header-unit-col' : ''}`} title={sharesTip}>
+        {sharesScale ? <ColHeaderWithUnit title="Акций" unit={sharesScale.unit} align="right" /> : 'Акций'}
+      </th>
+    ),
+    label: sharesScale ? `Акций в обращении, ${sharesScale.unit}` : 'Акций в обращении',
+  });
+
+  return cols;
+}
+
+interface HistTableProps {
+  rows: MultiplierRecord[];
+  currentRow?: CurrentMultipliers;
+  profile: SectorProfile;
+  /** Тикер представляет привилегированные акции — влияет на отображение Div. Yield */
+  isPreferredShare?: boolean;
+  /** report_id → банковские показатели этого отчёта (пусто у небанков) */
+  bankMetricsByReport?: Map<number, BankMetrics>;
+  /**
+   * Банковские показатели строки LTM. Отдельно от `bankMetricsByReport`,
+   * потому что считаются не по одному отчёту: потоки берутся за скользящий
+   * год, а баланс — с последнего отчёта.
+   */
+  ltmBankMetrics?: BankMetrics | null;
+  /** Холдинг: P/E, P/B, ROE и плечо по консолидации не выводятся. */
+  isHolding?: boolean;
+  pctMode: boolean;
+  orientation?: SheetOrientation;
+  /** Скрытые читателем показатели. */
+  hidden?: ReadonlySet<HistColKey>;
+  /** Опорная стоимость по годам отчёта и на сегодня. Без них столбцов оценки нет. */
+  referenceByYear?: Map<number, number | null>;
+  ltmReference?: number | null;
+  /** Годы колонками: сколько ранних лет скрыто и как их раскрыть. */
+  earlierHidden?: number;
+  onToggleEarlier?: () => void;
+  earlierShown?: boolean;
+  /** Отдаёт наружу список столбцов — для выбора строк. */
+  onColumns?: (columns: HistColumn[]) => void;
+}
+
+/**
+ * Годы строками — таблица широкая, и производные показатели в ней лишние:
+ * запас прочности читается по соседним «Цена» и «Опорная», спред ROE — в
+ * подсказке у ROE. Освободившееся место нужно EPS и числу акций.
+ */
+const ROWS_ONLY_HIDDEN: ReadonlySet<HistColKey> = new Set<HistColKey>(['margin', 'spread']);
+
+const yearOf = (r: MultiplierRecord) => r.fiscal_year ?? Number(String(r.date).slice(0, 4));
+
+const HistTable: React.FC<HistTableProps> = ({
+  rows,
+  currentRow,
+  profile,
+  isPreferredShare = false,
+  pctMode,
+  bankMetricsByReport,
+  ltmBankMetrics,
+  isHolding = false,
+  orientation = 'rows',
+  hidden,
+  referenceByYear,
+  ltmReference = null,
+  earlierHidden = 0,
+  onToggleEarlier,
+  earlierShown = false,
+  onColumns,
+}) => {
+  const [pfcfColMode, setPfcfColMode] = React.useState<PfcfColMode>('pfcf');
+  // Прибыль или деньги: ROE и «на акцию» переключаются на свободный поток.
+  const [roeColMode, setRoeColMode] = React.useState<RoeColMode>('profit');
+  const [perShareColMode, setPerShareColMode] = React.useState<PerShareColMode>('eps');
+
+  const hasValuation = Boolean(referenceByYear && referenceByYear.size > 0);
+  const flags = histFlags(profile, isHolding, hasValuation);
+
+  // Поток ядра приходит только у гибридов. Если он есть хоть в одной строке,
+  // столбец показывает именно его — и заголовок обязан об этом сказать.
+  const hasCoreFcf =
+    rows.some((r) => r.ltm_core_fcf != null) || currentRow?.ltm_core_fcf != null;
+
+  // Единица числа акций — одна на столбец, если значения одного порядка.
+  const sharesScale = React.useMemo(() => {
+    const values: number[] = [];
+    if (currentRow?.shares_used != null) values.push(currentRow.shares_used);
+    rows.forEach((r) => r.shares_used != null && values.push(r.shares_used));
+    return shareColumnScale(values);
+  }, [rows, currentRow]);
+
+  // Единицы денежных столбцов — по самому крупному значению каждого,
+  // включая LTM: иначе единица «поедет» на первой же публикации.
+  const moneyScales = React.useMemo<MoneyScales>(() => {
+    const snapshots = rows.map(snapshotFromRecord);
+    if (currentRow) snapshots.push(snapshotFromCurrent(currentRow));
+    const scaleOf = (pick: (s: HistRowSnapshot) => number | null | undefined) =>
+      moneyColumnScale(snapshots.map(pick));
+    return {
+      cap: scaleOf((s) => s.market_cap),
+      netDebt: scaleOf((s) => s.net_debt),
+      fcf: scaleOf((s) => s.ltm_fcf),
+      capex: scaleOf((s) => s.ltm_capex),
+      revenue: scaleOf((s) => s.ltm_revenue),
+      profit: scaleOf((s) => s.ltm_net_income),
+    };
+  }, [rows, currentRow]);
+
+  const portfolioInTrillions = React.useMemo(() => {
+    const values: number[] = [];
+    const push = (m: BankMetrics | null | undefined) => {
+      const v = m?.gross_loans;
+      if (typeof v === 'number') values.push(Math.abs(v));
+    };
+    push(ltmBankMetrics);
+    rows.forEach((r) => r.report_id != null && push(bankMetricsByReport?.get(r.report_id)));
+    return values.some((v) => v >= PORTFOLIO_TRILLION_THRESHOLD_MLN);
+  }, [rows, bankMetricsByReport, ltmBankMetrics]);
+
+  const allColumns = histColumns({
+    profile,
+    flags,
+    moneyScales,
+    sharesScale,
+    portfolioInTrillions,
+    hasCoreFcf,
+    pfcfColMode,
+    roeColMode,
+    perShareColMode,
+    togglePfcf: () => setPfcfColMode((m) => (m === 'pfcf' ? 'yield' : 'pfcf')),
+    toggleRoe: () => setRoeColMode((m) => (m === 'profit' ? 'fcf' : 'profit')),
+    togglePerShare: () => setPerShareColMode((m) => (m === 'eps' ? 'fcf' : 'eps')),
+  });
+  const columnKeys = allColumns.map((c) => c.key).join(',');
+  React.useEffect(() => {
+    onColumns?.(allColumns);
+    // Список меняется только с набором ключей; подписи с переключателями
+    // пересобираются на каждом рендере и наружу не нужны.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [columnKeys]);
+  const columns = allColumns.filter(
+    (c) => !hidden?.has(c.key) && !(orientation === 'rows' && ROWS_ONLY_HIDDEN.has(c.key)),
+  );
+
+  // ── Периоды: LTM и годовые, свежие первыми ──
+  interface Period {
+    id: string;
+    label: React.ReactNode;
+    isLtm: boolean;
+    cells: HistCells;
+  }
+  const common = {
+    pctMode,
+    pfcfColMode,
+    roeColMode,
+    perShareColMode,
+    profile,
+    isPreferredShare,
+    portfolioInTrillions,
+    moneyScales,
+    sharesScale,
+    flags,
+  };
+  const refOf = (r: MultiplierRecord | undefined) =>
+    r ? referenceByYear?.get(yearOf(r)) ?? null : null;
+  const yoyOf = (cur: HistRowSnapshot, prev: HistRowSnapshot | null) =>
+    pctMode && prev ? computeHistRowYoY(cur, prev, pfcfColMode, roeColMode, perShareColMode) : null;
+
+  const periods: Period[] = [];
+  if (currentRow) {
+    const snapshot = snapshotFromCurrent(currentRow);
+    const previous = rows.length > 0 ? snapshotFromRecord(rows[0]) : null;
+    periods.push({
+      id: 'ltm',
+      isLtm: true,
+      label: <span className="badge-ltm" title="Последние 12 месяцев">LTM</span>,
+      cells: histRowCells({
+        ...common,
+        snapshot,
+        previous,
+        dividendYield: currentRow.dividend_yield,
+        yoy: yoyOf(snapshot, previous),
+        // Потоковые показатели (ROA, маржа, стоимость риска) — за скользящий
+        // год, балансовые — с отчёта `balance_report_id`.
+        bankMetrics:
+          ltmBankMetrics ??
+          (currentRow.balance_report_id != null ? bankMetricsByReport?.get(currentRow.balance_report_id) : null),
+        costToIncome: currentRow.cost_to_income,
+        previousBankMetrics:
+          rows.length > 0 && rows[0].report_id != null ? bankMetricsByReport?.get(rows[0].report_id) : null,
+        previousCostToIncome: rows.length > 0 ? rows[0].cost_to_income : null,
+        reference: ltmReference,
+        previousReference: refOf(rows[0]),
+      }),
+    });
+  }
+  rows.forEach((r, index) => {
+    const snapshot = snapshotFromRecord(r);
+    const prevRecord = index + 1 < rows.length ? rows[index + 1] : undefined;
+    const previous = prevRecord ? snapshotFromRecord(prevRecord) : null;
+    periods.push({
+      id: String(r.id),
+      isLtm: false,
+      label: periodLabel(r),
+      cells: histRowCells({
+        ...common,
+        record: r,
+        snapshot,
+        previous,
+        yoy: yoyOf(snapshot, previous),
+        bankMetrics: r.report_id != null ? bankMetricsByReport?.get(r.report_id) : null,
+        costToIncome: r.cost_to_income,
+        previousBankMetrics:
+          prevRecord?.report_id != null ? bankMetricsByReport?.get(prevRecord.report_id) : null,
+        previousCostToIncome: prevRecord ? prevRecord.cost_to_income : null,
+        reference: refOf(r),
+        previousReference: refOf(prevRecord),
+      }),
+    });
+  });
+
+  // Годы колонками открываются на свежих: справа LTM и последние годы,
+  // ранние — прокруткой влево. На узком экране иначе видно только 2016-й.
+  const colsWrapRef = React.useRef<HTMLDivElement | null>(null);
+  React.useLayoutEffect(() => {
+    const el = colsWrapRef.current;
+    if (orientation !== 'cols' || !el) return undefined;
+    el.scrollLeft = el.scrollWidth;
+    // На телефоне лист лежит на скрытой вкладке: ширины у него нет, пока
+    // вкладку не открыли. Прокручиваем, когда она появляется.
+    if (typeof ResizeObserver === 'undefined') return undefined;
+    let wasHidden = el.clientWidth === 0;
+    const observer = new ResizeObserver(() => {
+      if (wasHidden && el.clientWidth > 0) el.scrollLeft = el.scrollWidth;
+      wasHidden = el.clientWidth === 0;
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [orientation, periods.length]);
+
+  if (periods.length === 0) {
+    return (
+      <div className="hist-table-wrapper">
+        <table className="hist-table"><tbody><tr>
+          <td className="table-empty">Нет данных. Добавьте годовые отчёты и нажмите «Обновить цену».</td>
+        </tr></tbody></table>
+      </div>
+    );
+  }
+
+  // Группы подряд: подпись группы над её столбцами (годы строками) или
+  // отдельной строкой над её показателями (годы колонками).
+  const groupRuns: { group: HistGroup; columns: HistColumn[] }[] = [];
+  columns.forEach((c) => {
+    const last = groupRuns[groupRuns.length - 1];
+    if (last && last.group === c.group) last.columns.push(c);
+    else groupRuns.push({ group: c.group, columns: [c] });
+  });
+
+  if (orientation === 'cols') {
+    // Старые годы слева, свежие справа, LTM — последней колонкой.
+    const ordered = [...periods].reverse();
+    return (
+      <div
+        ref={colsWrapRef}
+        className={`hist-table-wrapper hist-table-wrapper--cols${pctMode ? ' hist-table-wrapper--pct' : ''}`}
+      >
+        <table className="hist-table hist-table--cols" style={{ '--periods': ordered.length } as React.CSSProperties}>
+          <thead>
+            <tr>
+              <th className="col-label">
+                {earlierHidden > 0 || earlierShown ? (
+                  <button type="button" className="hist-earlier" onClick={onToggleEarlier}>
+                    {earlierShown ? 'Скрыть ранние' : `← ещё ${earlierHidden} ${plural(earlierHidden, 'год', 'года', 'лет')}`}
+                  </button>
+                ) : null}
+              </th>
+              {ordered.map((p) => (
+                <th key={p.id} className={p.isLtm ? 'col-period col-period--ltm' : 'col-period'}>
+                  {p.isLtm ? <span title="Последние 12 месяцев">12 мес.</span> : p.label}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {groupRuns.map((run) => (
+              <React.Fragment key={run.group}>
+                <tr className="hist-group-row">
+                  <th colSpan={ordered.length + 1} scope="rowgroup"><span>{run.group}</span></th>
+                </tr>
+                {run.columns.map((c) => (
+                  <tr key={c.key}>
+                    <th scope="row" className="col-label" title={c.tip}>
+                      <span className={c.tip ? 'hist-label hist-label--tip' : 'hist-label'}>{c.label}</span>
+                    </th>
+                    {ordered.map((p) => {
+                      const cell = p.cells[c.key];
+                      return (
+                        <td key={p.id} className={[cell?.className, p.isLtm ? 'cell-ltm' : ''].filter(Boolean).join(' ') || undefined}>
+                          {cell?.node ?? '—'}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </React.Fragment>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
 
   return (
-    <tr className={rowClassName}>
-      <td className="col-year">{periodCell}</td>
-      {histYoYCell(pctMode, yoy?.price, priceContent, !pctMode && record ? 'col-price-cell' : undefined)}
-      {histYoYCell(
-        pctMode,
-        yoy?.cap,
-        <HistCapCell
-          marketCapMln={snapshot.market_cap}
-          explanation={record?.shares_cap_explanation}
-          scale={moneyScales.cap}
-        />,
-      )}
-      {showRatios && histYoYCell(
-        pctMode,
-        yoy?.pe,
-        <MetricBadge
-          value={snapshot.pe_ratio}
-          level={peLevelContext(profile, snapshot.pe_ratio, income)}
-          nullHint={peHint}
-        />,
-      )}
-      {showRatios && histYoYCell(
-        pctMode,
-        yoy?.pb,
-        <PbMetricBadge
-          profile={profile}
-          pb={snapshot.pb_ratio}
-          equity={snapshot.equity}
-          pbTangible={snapshot.pb_tangible}
-          goodwillShare={snapshot.goodwill_to_assets}
-          intangiblesShare={snapshot.intangibles_to_equity}
-          nullHint={pbHint}
-        />,
-      )}
-      {showRatios && histYoYCell(
-        pctMode,
-        yoy?.roe,
-        // В режиме потока порог отрасли не применяем: он откалиброван под
-        // прибыль, а поток к капиталу у здоровой компании с большим капексом
-        // законно ниже. Красить его красным по чужой мерке значило бы врать.
-        roeColMode === 'fcf'
-          ? <FcfToEquityCell value={fcfToEquityPct(snapshot)} />
-          : (
-            <RoeMetricBadge
-              profile={profile}
-              roe={snapshot.roe}
-              equity={snapshot.equity}
-              explanationTip={roeInfo.tip}
-              misleading={roeInfo.driver.misleading}
-            />
-          ),
-      )}
-      {!noLeverage && histYoYCell(
-        pctMode,
-        yoy?.de,
-        <DeMetricBadge
-          profile={profile}
-          de={snapshot.debt_to_equity}
-          equity={snapshot.equity}
-          fallbackHint={deHint}
-        />,
-      )}
-      {!noLeverage && histYoYCell(
-        pctMode,
-        yoy?.cr,
-        <MetricBadge
-          value={snapshot.current_ratio}
-          level={levelFor(profile, 'cr', snapshot.current_ratio)}
-          nullHint={
-            noCurr
-              ? 'Нет оборотных активов или краткосрочных обязательств'
-              : !crBand.applicable
-                ? 'CR не применим для данного типа компании'
-                : undefined
-          }
-        />,
-      )}
-      {histYoYCell(
-        pctMode,
-        yoy?.div,
-        <DividendYieldBadge
-          profile={profile}
-          dividendYield={dividendYield ?? record?.dividend_yield ?? null}
-          dividendYieldRegular={snapshot.dividend_yield_regular}
-          specialDividendsPerShare={snapshot.ltm_special_dividends_per_share}
-          ltmDividendsPerShare={snapshot.ltm_dividends_per_share}
-          priceUsed={snapshot.price_used}
-          isPreferredShare={isPreferredShare}
-        />,
-      )}
-      {showCir && (
-        <td className="col-mult col-compact col-bank">
-          {pctMode ? (
-            <HistChangeCell change={bankYoY?.cir ?? YOY_NA} />
-          ) : (
-            <MetricBadge
-              value={costToIncome ?? null}
-              level={levelFor(profile, 'cir', costToIncome ?? null)}
-              suffix="%"
-              tip={hintFor(profile, 'cir')}
-              nullHint="Нет операционных расходов или доходов в отчёте"
-            />
-          )}
-        </td>
-      )}
-      {showFcf && histYoYCell(
-        pctMode,
-        yoy?.pfcf,
-        <HistPfcfCell mode={pfcfColMode} pfcf={snapshot.price_to_fcf} fcf={snapshot.ltm_fcf} />,
-      )}
-      {showFcf && histYoYCell(
-        pctMode,
-        yoy?.fcfNi,
-        <MetricBadge
-          value={fcfNiRow.value}
-          level={fcfNiRow.level}
-          nullHint={fcfNiRow.nullHint}
-        />,
-      )}
-      {!noLeverage && histYoYCell(
-        pctMode,
-        yoy?.ndFcf,
-        <HistNetDebtFcfCell
-          ratio={snapshot.net_debt_to_fcf}
-          netDebt={snapshot.net_debt}
-          fcf={snapshot.ltm_fcf}
-        />,
-      )}
-      {!noLeverage && histYoYCell(
-        pctMode,
-        yoy?.netDebt,
-        <HistNetDebtCell netDebtMln={snapshot.net_debt} scale={moneyScales.netDebt} />,
-        'col-compact',
-      )}
-      {showFcf && histYoYCell(
-        pctMode,
-        yoy?.fcf,
-        fmtMoney(snapshot.ltm_fcf, moneyScales.fcf),
-        snapshot.ltm_fcf !== null && snapshot.ltm_fcf < 0 ? 'cell-loss' : undefined,
-      )}
-      {showFcf && histYoYCell(
-        pctMode,
-        yoy?.capex,
-        fmtMoney(snapshot.ltm_capex, moneyScales.capex),
-        'col-compact',
-      )}
-      {isBank && bankMetricCell(bankMetrics, 'roa', pctMode, bankYoY?.roa)}
-      {isBank && bankMetricCell(bankMetrics, 'cost_of_risk', pctMode, bankYoY?.cost_of_risk)}
-      {isBank && bankMetricCell(bankMetrics, 'npl_ratio', pctMode, bankYoY?.npl_ratio)}
-      {isBank && bankMetricCell(bankMetrics, 'npl_coverage', pctMode, bankYoY?.npl_coverage)}
-      {isBank && bankMetricCell(bankMetrics, 'loans_to_deposits', pctMode, bankYoY?.loans_to_deposits)}
-      {isBank && bankMetricCell(bankMetrics, 'capital_adequacy_core', pctMode, bankYoY?.capital_adequacy_core)}
-      {/* Портфель — знаменатель трёх колонок слева. Без него не отличить
-          «риск снизился» от «портфель раздули». */}
-      {isBank &&
-        histYoYCell(
-          pctMode,
-          bankYoY?.gross_loans,
-          fmtPortfolio((bankMetrics?.gross_loans ?? null) as number | null, !!portfolioInTrillions),
-          'col-portfolio',
-        )}
-      {histYoYCell(pctMode, yoy?.revenue, fmtMoney(snapshot.ltm_revenue, moneyScales.revenue))}
-      {histYoYCell(
-        pctMode,
-        yoy?.profit,
-        fmtMoney(snapshot.ltm_net_income, moneyScales.profit),
-        isLoss ? 'cell-loss' : undefined,
-      )}
-      {/* EPS и число акций — пара, которая объясняет разрыв между «прибыль
-          выросла» и «моя прибыль выросла». Без них допэмиссия невидима:
-          все остальные колонки от неё не меняются. */}
-      {histYoYCell(
-        pctMode,
-        yoy?.eps,
-        perShareColMode === 'fcf'
-          ? formatPerShare(fcfPerShare(snapshot))
-          : formatPerShare(snapshot.eps),
-        isLoss ? 'cell-loss' : undefined,
-      )}
-      {histYoYCell(
-        pctMode,
-        yoy?.shares,
-        (() => {
-          const n = snapshot.shares_used;
-          if (n === null || n === undefined) return '—';
-          if (sharesScale) return (n / sharesScale.factor).toFixed(2);
-          const [factor, unit] = shareScaleOf(n);
-          return (
-            <>
-              {(n / factor).toFixed(2)}
-              <span className="hist-shares-unit">{unit}</span>
-            </>
-          );
-        })(),
-      )}
-    </tr>
+    <div className={`hist-table-wrapper${pctMode ? ' hist-table-wrapper--pct' : ''}`}>
+      <table className="hist-table">
+        <thead>
+          <tr className="hist-group-head">
+            <th className="col-year" />
+            {groupRuns.map((run) => (
+              <th key={run.group} colSpan={run.columns.length} className="hist-group-th">
+                <span>{run.group}</span>
+              </th>
+            ))}
+          </tr>
+          <tr>
+            <th className="col-year">Период</th>
+            {columns.map((c) => React.cloneElement(c.th, {
+              key: c.key,
+              className: [c.th.props.className, groupRuns.some((g) => g.columns[0].key === c.key) ? 'col-group-start' : '']
+                .filter(Boolean).join(' '),
+            }))}
+          </tr>
+        </thead>
+        <tbody>
+          {periods.map((p) => (
+            <tr key={p.id} className={p.isLtm ? 'row-ltm' : 'row-hist'}>
+              <td className="col-year">{p.label}</td>
+              {columns.map((c) => {
+                const cell = p.cells[c.key];
+                const start = groupRuns.some((g) => g.columns[0].key === c.key);
+                return (
+                  <td key={c.key} className={[cell?.className, start ? 'col-group-start' : ''].filter(Boolean).join(' ') || undefined}>
+                    {cell?.node ?? '—'}
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 };
 
@@ -2338,342 +3075,6 @@ const HistoryDepth: React.FC<{ years: number }> = ({ years }) => {
         {word} данных
         {years < GRAHAM_YEARS && <span className="mult-depth-of"> из 10 по Грэму</span>}
       </span>
-    </div>
-  );
-};
-
-const HistTable: React.FC<HistTableProps & { pctMode: boolean }> = ({
-  rows,
-  currentRow,
-  profile,
-  isPreferredShare = false,
-  pctMode,
-  bankMetricsByReport,
-  ltmBankMetrics,
-  isHolding = false,
-}) => {
-  const [crTooltipVisible, setCrTooltipVisible] = React.useState(false);
-  const [pfcfColMode, setPfcfColMode] = React.useState<PfcfColMode>('pfcf');
-  // Прибыль или деньги: ROE и «на акцию» переключаются на свободный поток.
-  const [roeColMode, setRoeColMode] = React.useState<RoeColMode>('profit');
-  const [perShareColMode, setPerShareColMode] = React.useState<PerShareColMode>('eps');
-  const crThRef = React.useRef<HTMLTableCellElement | null>(null);
-
-  // У банка плечо — это бизнес-модель, а не риск, ликвидность считается
-  // нормативами ЦБ, а FCF неприменим концептуально. Показывать эти колонки
-  // прочерками — значит заставлять объяснять их словами.
-  const isBank = profile?.key === 'bank';
-  // Биржа: обязательства — чужие деньги и зеркальные позиции клиринга, поэтому
-  // плечо, ликвидность и чистый долг не выводятся, как у банка. Но кредитных
-  // показателей у неё нет, а свободный поток есть — колонки набираются
-  // тремя признаками, а не одним «банк / не банк».
-  const isExchange = profile?.key === 'exchange';
-  const noLeverage = isBank || isExchange || isHolding;  // D/E, CR, Net Debt, ND/FCF
-  const showCir = isBank || isExchange;      // Cost/Income
-  // У холдинга поток тоже консолидированный: складывает деньги дочек, до
-  // которых центр не дотягивается без дивиденда.
-  const showFcf = !isBank && !isHolding;     // P/FCF, FCF/NI, FCF, CAPEX
-  const showRatios = !isHolding;             // P/E, P/B, ROE
-
-  // Поток ядра приходит только у гибридов. Если он есть хоть в одной строке,
-  // колонка показывает именно его — и заголовок обязан об этом сказать.
-  const hasCoreFcf =
-    rows.some((r) => r.ltm_core_fcf != null) || currentRow?.ltm_core_fcf != null;
-
-  // Масштаб колонки портфеля — по самому крупному значению в ней.
-  // Единица числа акций — одна на колонку, если значения одного порядка.
-  // Компанию с масштабным дроблением (ВТБ) определяем по самим данным.
-  const sharesScale = React.useMemo(() => {
-    const values: number[] = [];
-    if (currentRow?.shares_used != null) values.push(currentRow.shares_used);
-    rows.forEach((r) => r.shares_used != null && values.push(r.shares_used));
-    return shareColumnScale(values);
-  }, [rows, currentRow]);
-
-  // Единицы денежных колонок — по самому крупному значению каждой из них,
-  // включая строку LTM: она в таблице такая же строка, и её порядок величины
-  // обязан участвовать в выборе, иначе единица «поедет» на первой же публикации.
-  const moneyScales = React.useMemo<MoneyScales>(() => {
-    const snapshots = rows.map(snapshotFromRecord);
-    if (currentRow) snapshots.push(snapshotFromCurrent(currentRow));
-    const scaleOf = (pick: (s: HistRowSnapshot) => number | null | undefined) =>
-      moneyColumnScale(snapshots.map(pick));
-    return {
-      cap: scaleOf((s) => s.market_cap),
-      netDebt: scaleOf((s) => s.net_debt),
-      fcf: scaleOf((s) => s.ltm_fcf),
-      capex: scaleOf((s) => s.ltm_capex),
-      revenue: scaleOf((s) => s.ltm_revenue),
-      profit: scaleOf((s) => s.ltm_net_income),
-    };
-  }, [rows, currentRow]);
-
-  const portfolioInTrillions = React.useMemo(() => {
-    const values: number[] = [];
-    const push = (m: BankMetrics | null | undefined) => {
-      const v = m?.gross_loans;
-      if (typeof v === 'number') values.push(Math.abs(v));
-    };
-    push(ltmBankMetrics);
-    rows.forEach((r) => r.report_id != null && push(bankMetricsByReport?.get(r.report_id)));
-    return values.some((v) => v >= PORTFOLIO_TRILLION_THRESHOLD_MLN);
-  }, [rows, bankMetricsByReport, ltmBankMetrics]);
-
-  return (
-    <div className={`hist-table-wrapper${pctMode ? ' hist-table-wrapper--pct' : ''}`}>
-      <table className="hist-table">
-        <thead>
-          <tr>
-            <th className="col-year">Период</th>
-            <th
-              className="col-price col-header-unit-col"
-              title="В ячейке — цена на дату окончания отчётного периода. Наведите для цены на дату публикации (если заполнено в отчёте)."
-            >
-              <ColHeaderWithUnit title="Цена" unit="₽" align="right" />
-            </th>
-            <th className="col-mkt col-header-unit-col">
-              <ColHeaderWithUnit title="Кап." unit={moneyScales.cap.unit} />
-            </th>
-            {showRatios && <th className="col-mult">P/E</th>}
-            {showRatios && <th className="col-mult">P/B</th>}
-            {showRatios && (
-              <HistRoeHeader
-                mode={roeColMode}
-                onToggle={() => setRoeColMode((m) => (m === 'profit' ? 'fcf' : 'profit'))}
-              />
-            )}
-            {!noLeverage && <th className="col-mult">D/E</th>}
-            {!noLeverage && (
-              <th
-                ref={crThRef}
-                className="col-mult col-cr-header"
-                onMouseEnter={() => setCrTooltipVisible(true)}
-                onMouseLeave={() => setCrTooltipVisible(false)}
-              >
-                CR
-                <span className="cr-header-hint-icon" aria-hidden>ⓘ</span>
-                {crTooltipVisible && (
-                  <MetricTooltip profile={profile} metric="cr" anchorRef={crThRef} />
-                )}
-              </th>
-            )}
-            <th className="col-mult col-header-unit-col"><ColHeaderWithUnit title="Div" unit="%" align="right" /></th>
-            {showCir && (
-              <th className="col-mult col-compact col-bank col-header-unit-col" title="Cost/Income: операционные расходы к операционным доходам">
-                <ColHeaderWithUnit title="CIR" unit="%" align="right" />
-              </th>
-            )}
-            {showFcf && (
-              <HistPfcfHeader
-                mode={pfcfColMode}
-                onToggle={() => setPfcfColMode((m) => (m === 'pfcf' ? 'yield' : 'pfcf'))}
-              />
-            )}
-            {showFcf && <th className="col-mult col-compact" title="FCF / Net Income — качество прибыли (безразмерное соотношение)">FCF/NI</th>}
-            {!noLeverage && <th className="col-mult col-compact" title="Net Debt / LTM FCF — лет погашения">ND/FCF</th>}
-            {!noLeverage && (
-              <th className="col-rev col-compact col-net-debt-header col-header-unit-col" title="Чистый долг = Долг − Наличность">
-                <ColHeaderWithUnit
-                  title="Net Debt"
-                  unit={moneyScales.netDebt.unit}
-                  uppercase={false}
-                  align="right"
-                />
-              </th>
-            )}
-            {showFcf && (
-              <th
-                className="col-rev col-header-unit-col"
-                title={
-                  hasCoreFcf
-                    ? 'FCF ядра = Операционный поток − CAPEX − приток от роста банковского баланса'
-                    : 'FCF = Операционный поток − CAPEX'
-                }
-              >
-                <ColHeaderWithUnit
-                  title={hasCoreFcf ? 'FCF ЯДРА' : 'FCF'}
-                  unit={moneyScales.fcf.unit}
-                />
-              </th>
-            )}
-            {showFcf && (
-              <th className="col-rev col-compact col-header-unit-col" title="Капитальные затраты (положительное число)">
-                <ColHeaderWithUnit title="CAPEX" unit={moneyScales.capex.unit} />
-              </th>
-            )}
-            {/* Банковские колонки стоят там же, где у остальных компаний
-                FCF-семейство: риск и капитал — то, чем банк заменяет
-                свободный денежный поток в оценке. */}
-            {isBank && (
-              <th
-                className="col-mult col-compact col-bank col-header-unit-col"
-                title="Отдача активов: прибыль / активы. В отличие от ROE её нельзя поднять плечом"
-              >
-                <ColHeaderWithUnit title="ROA" unit="%" align="right" />
-              </th>
-            )}
-            {isBank && (
-              <th className="col-mult col-compact col-bank col-header-unit-col" title="Стоимость риска: резерв за период / кредитный портфель">
-                <ColHeaderWithUnit title="CoR" unit="%" align="right" />
-              </th>
-            )}
-            {isBank && (
-              <th className="col-mult col-compact col-bank col-header-unit-col" title="Доля обесцененных кредитов (Stage 3 / 90+) в портфеле">
-                <ColHeaderWithUnit title="NPL" unit="%" align="right" />
-              </th>
-            )}
-            {isBank && (
-              <th className="col-mult col-compact col-bank col-header-unit-col" title="Накопленный резерв к обесцененным кредитам (Стадия 3 + POCI)">
-                <ColHeaderWithUnit title="Покрытие" unit="%" align="right" />
-              </th>
-            )}
-            {isBank && (
-              <th className="col-mult col-compact col-bank col-header-unit-col" title="Чистые кредиты к средствам клиентов">
-                <ColHeaderWithUnit title="LDR" unit="%" align="right" />
-              </th>
-            )}
-            {isBank && (
-              <th className="col-mult col-compact col-bank col-header-unit-col" title="Достаточность основного капитала (Н1.1 / CET1)">
-                <ColHeaderWithUnit title="Н1.1" unit="%" align="right" />
-              </th>
-            )}
-            {isBank && (
-              <th
-                className="col-rev col-portfolio col-header-unit-col"
-                title="Кредитный портфель до вычета резерва — знаменатель ROA, стоимости риска и доли проблемных"
-              >
-                <ColHeaderWithUnit
-                  title="Портфель"
-                  unit={portfolioInTrillions ? 'трлн ₽' : 'млрд ₽'}
-                />
-              </th>
-            )}
-            <th className="col-rev col-header-unit-col">
-              <ColHeaderWithUnit title="Выручка" unit={moneyScales.revenue.unit} />
-            </th>
-            <th className="col-ni col-header-unit-col">
-              <ColHeaderWithUnit title="Прибыль" unit={moneyScales.profit.unit} />
-            </th>
-            <HistPerShareHeader
-              mode={perShareColMode}
-              onToggle={() => setPerShareColMode((m) => (m === 'eps' ? 'fcf' : 'eps'))}
-            />
-            <th
-              className={`col-mult col-compact col-shares-header${sharesScale ? ' col-header-unit-col' : ''}`}
-              title={
-                'Число акций, использованных в капитализации. ' +
-                (sharesScale
-                  ? ''
-                  : 'После дробления счёт меняется на порядки, поэтому единица стоит у каждого значения. ') +
-                'В режиме % показывает размытие: рост — доля акционера уменьшилась, выкуп — увеличилась'
-              }
-            >
-              {sharesScale ? (
-                <ColHeaderWithUnit title="Акций" unit={sharesScale.unit} align="right" />
-              ) : (
-                'Акций'
-              )}
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {currentRow && (
-            <HistTableRow
-              isHolding={isHolding}
-              rowClassName="row-ltm"
-              periodCell={<span className="badge-ltm">LTM</span>}
-              snapshot={snapshotFromCurrent(currentRow)}
-              dividendYield={currentRow.dividend_yield}
-              yoy={
-                pctMode && rows.length > 0
-                  ? computeHistRowYoY(
-                      snapshotFromCurrent(currentRow),
-                      snapshotFromRecord(rows[0]),
-                      pfcfColMode,
-                      roeColMode,
-                      perShareColMode,
-                    )
-                  : null
-              }
-              pctMode={pctMode}
-              pfcfColMode={pfcfColMode}
-              roeColMode={roeColMode}
-              perShareColMode={perShareColMode}
-              profile={profile}
-              previous={rows.length > 0 ? snapshotFromRecord(rows[0]) : null}
-              isPreferredShare={isPreferredShare}
-              portfolioInTrillions={portfolioInTrillions}
-              moneyScales={moneyScales}
-              sharesScale={sharesScale}
-              // Потоковые показатели (ROA, маржа, стоимость риска) — за
-              // скользящий год, балансовые — с отчёта `balance_report_id`.
-              // Всё это уже посчитано на бэкенде; отчёт остаётся запасным
-              // источником, если LTM-показателей нет.
-              bankMetrics={
-                ltmBankMetrics ??
-                (currentRow.balance_report_id != null
-                  ? bankMetricsByReport?.get(currentRow.balance_report_id)
-                  : null)
-              }
-              costToIncome={currentRow.cost_to_income}
-              previousBankMetrics={
-                rows.length > 0 && rows[0].report_id != null
-                  ? bankMetricsByReport?.get(rows[0].report_id)
-                  : null
-              }
-              previousCostToIncome={rows.length > 0 ? rows[0].cost_to_income : null}
-            />
-          )}
-
-          {rows.map((r, index) => (
-            <HistTableRow
-              isHolding={isHolding}
-              key={r.id}
-              rowClassName="row-hist"
-              periodCell={periodLabel(r)}
-              record={r}
-              snapshot={snapshotFromRecord(r)}
-              yoy={
-                pctMode && index + 1 < rows.length
-                  ? computeHistRowYoY(
-                      snapshotFromRecord(r),
-                      snapshotFromRecord(rows[index + 1]),
-                      pfcfColMode,
-                      roeColMode,
-                      perShareColMode,
-                    )
-                  : null
-              }
-              pctMode={pctMode}
-              pfcfColMode={pfcfColMode}
-              roeColMode={roeColMode}
-              perShareColMode={perShareColMode}
-              profile={profile}
-              previous={index + 1 < rows.length ? snapshotFromRecord(rows[index + 1]) : null}
-              isPreferredShare={isPreferredShare}
-              portfolioInTrillions={portfolioInTrillions}
-              moneyScales={moneyScales}
-              sharesScale={sharesScale}
-              bankMetrics={r.report_id != null ? bankMetricsByReport?.get(r.report_id) : null}
-              costToIncome={r.cost_to_income}
-              previousBankMetrics={
-                index + 1 < rows.length && rows[index + 1].report_id != null
-                  ? bankMetricsByReport?.get(rows[index + 1].report_id!)
-                  : null
-              }
-              previousCostToIncome={index + 1 < rows.length ? rows[index + 1].cost_to_income : null}
-            />
-          ))}
-
-          {rows.length === 0 && !currentRow && (
-            <tr>
-              <td colSpan={17} className="table-empty">
-                Нет данных. Добавьте годовые отчёты и нажмите «Обновить цену».
-              </td>
-            </tr>
-          )}
-        </tbody>
-      </table>
     </div>
   );
 };
@@ -3057,9 +3458,142 @@ interface MultipliersPanelProps {
    * мест, где панель стоит сама по себе.
    */
   face?: PanelFace;
+  /**
+   * «Лист» — только ряд по годам с переключателями, для карточки компании:
+   * текущие показатели там в шапке, графики — над листом. «Панель» — прежний
+   * вид со всем сразу.
+   */
+  layout?: 'panel' | 'sheet';
 }
 
-const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company, reports, face: faceProp }) => {
+/** Сколько лет видно в листе, когда годы идут колонками. */
+const SHEET_COLS_YEARS = 10;
+const SHEET_ORIENTATION_KEY = 'ga.sheet.orientation';
+const SHEET_HIDDEN_KEY = 'ga.sheet.hidden';
+
+function readStored<T>(key: string, fallback: T): T {
+  try {
+    const raw = window.localStorage.getItem(key);
+    return raw === null ? fallback : (JSON.parse(raw) as T);
+  } catch {
+    return fallback;
+  }
+}
+
+function writeStored(key: string, value: unknown) {
+  try {
+    window.localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // приватное окно или запрет хранилища — выбор просто не запомнится
+  }
+}
+
+/** Переключатель из двух-трёх положений. */
+function Segmented<T extends string>({ value, options, onChange, label }: {
+  value: T;
+  options: { key: T; label: string; title?: string }[];
+  onChange: (next: T) => void;
+  label: string;
+}) {
+  return (
+    <span className="seg" role="radiogroup" aria-label={label}>
+      {options.map((o) => (
+        <button
+          key={o.key}
+          type="button"
+          role="radio"
+          aria-checked={value === o.key}
+          className={value === o.key ? 'seg-btn is-on' : 'seg-btn'}
+          title={o.title}
+          onClick={() => onChange(o.key)}
+        >
+          {o.label}
+        </button>
+      ))}
+    </span>
+  );
+}
+
+/** Какие показатели показывать: список с галочками, сгруппированный как таблица. */
+const RowsChooser: React.FC<{
+  columns: HistColumn[];
+  hidden: ReadonlySet<HistColKey>;
+  onChange: (next: Set<HistColKey>) => void;
+  noun: string;
+}> = ({ columns, hidden, onChange, noun }) => {
+  const [open, setOpen] = useState(false);
+  const rootRef = React.useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    const esc = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
+    document.addEventListener('mousedown', close);
+    document.addEventListener('keydown', esc);
+    return () => {
+      document.removeEventListener('mousedown', close);
+      document.removeEventListener('keydown', esc);
+    };
+  }, [open]);
+  const shown = columns.filter((c) => !hidden.has(c.key)).length;
+  const groups = HIST_GROUPS.filter((g) => columns.some((c) => c.group === g));
+  const toggle = (key: HistColKey) => {
+    const next = new Set(hidden);
+    if (next.has(key)) next.delete(key);
+    else next.add(key);
+    onChange(next);
+  };
+  return (
+    <div className="rows-chooser" ref={rootRef}>
+      <button type="button" className="rows-chooser-btn" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
+        {noun}: {shown} из {columns.length} ▾
+      </button>
+      {open && (
+        <div className="rows-chooser-pop" role="dialog" aria-label="Какие показатели показывать">
+          {groups.map((g) => (
+            <div key={g} className="rows-chooser-group">
+              <div className="rows-chooser-group-title">{g}</div>
+              {columns.filter((c) => c.group === g).map((c) => (
+                <label key={c.key} className="rows-chooser-item">
+                  <input type="checkbox" checked={!hidden.has(c.key)} onChange={() => toggle(c.key)} />
+                  {c.name}
+                </label>
+              ))}
+            </div>
+          ))}
+          {hidden.size > 0 && (
+            <button type="button" className="rows-chooser-reset" onClick={() => onChange(new Set())}>
+              Показать все
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+/**
+ * Пояснение по нажатию — для экранов без наведения. Подсказки в таблице живут
+ * в атрибуте title, а на телефоне его не увидеть: здесь нажатие на ячейку с
+ * подсказкой поднимает её текст в панель снизу.
+ */
+const TouchTip: React.FC<{ tip: { head: string; body: string } | null; onClose: () => void }> = ({ tip, onClose }) => {
+  if (!tip) return null;
+  return createPortal(
+    <div className="touch-tip" role="dialog" aria-label={tip.head} onClick={onClose}>
+      <div className="touch-tip-sheet" onClick={(e) => e.stopPropagation()}>
+        <span className="touch-tip-grip" aria-hidden />
+        <div className="touch-tip-head">{tip.head}</div>
+        <div className="touch-tip-body">{tip.body}</div>
+        <button type="button" className="touch-tip-close" onClick={onClose}>Понятно</button>
+      </div>
+    </div>,
+    document.body,
+  );
+};
+
+const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company, reports, face: faceProp, layout = 'panel' }) => {
   const [refreshMsg, setRefreshMsg] = useState<string | null>(null);
   const [autoRefreshing, setAutoRefreshing] = useState(false);
   const [histPctMode, setHistPctMode] = useState(false);
@@ -3180,7 +3714,7 @@ const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company, reports, f
         queryClient.invalidateQueries({ queryKey: ['multipliers-history', companyId] });
         queryClient.invalidateQueries({ queryKey: ['company', companyId] });
         if (res.success && res.price !== null) {
-          setRefreshMsg(`✓ Цена актуальна: ${formatPerShare(res.price)} ₽`);
+          setRefreshMsg('Цена обновлена');
         } else {
           setRefreshMsg('⚠ Не удалось получить актуальную цену');
         }
@@ -3245,6 +3779,82 @@ const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company, reports, f
     staleTime: 5 * 60 * 1000,
   });
 
+  // ── Лист по годам ──
+  const isSheet = layout === 'sheet';
+  const [orientation, setOrientationState] = React.useState<SheetOrientation>(
+    () => readStored<SheetOrientation>(SHEET_ORIENTATION_KEY, 'cols'),
+  );
+  const setOrientation = (next: SheetOrientation) => {
+    setOrientationState(next);
+    writeStored(SHEET_ORIENTATION_KEY, next);
+  };
+  const [hiddenCols, setHiddenColsState] = React.useState<Set<HistColKey>>(
+    () => new Set(readStored<HistColKey[]>(SHEET_HIDDEN_KEY, [])),
+  );
+  const setHiddenCols = (next: Set<HistColKey>) => {
+    setHiddenColsState(next);
+    writeStored(SHEET_HIDDEN_KEY, Array.from(next));
+  };
+  const [sheetColumns, setSheetColumns] = React.useState<HistColumn[]>([]);
+  const [earlierShown, setEarlierShown] = React.useState(false);
+  const [touchTip, setTouchTip] = React.useState<{ head: string; body: string } | null>(null);
+
+  // Опорная по годам — тот же ряд, что ступенька на графике цены: ключ
+  // общий, запрос уходит один раз.
+  const { data: valuationHistory } = useQuery<ValuationHistoryOut>({
+    queryKey: ['valuation-history', companyId],
+    queryFn: () => fetchValuationHistory(companyId),
+    staleTime: 10 * 60 * 1000,
+    enabled: isSheet,
+  });
+  const { data: valuationSummary } = useQuery<ValuationSummaryOut>({
+    queryKey: ['valuation-summary', companyId],
+    queryFn: () => fetchValuationSummary(companyId),
+    staleTime: 10 * 60 * 1000,
+    enabled: isSheet,
+  });
+  const referenceByYear = React.useMemo(() => {
+    const map = new Map<number, number | null>();
+    (valuationHistory?.years ?? []).forEach((y) => map.set(y.year, y.refused ? null : y.conservative));
+    return map;
+  }, [valuationHistory]);
+  const ltmReference = valuationSummary?.available && !valuationSummary.band?.refused
+    ? valuationSummary.safety?.reference ?? valuationSummary.headline?.reference ?? null
+    : null;
+
+  // Годы колонками: видно последние десять лет, остальные — по кнопке слева.
+  const colsCut = histYears[SHEET_COLS_YEARS - 1];
+  const colsHidden = Math.max(0, histYears.length - SHEET_COLS_YEARS);
+  const sheetRows = orientation === 'cols'
+    ? (earlierShown || colsHidden === 0 ? rows : rows.filter((r) => Number(String(r.date).slice(0, 4)) >= colsCut))
+    : histRows;
+
+  const onSheetClick = (e: React.MouseEvent) => {
+    if (typeof window === 'undefined' || !window.matchMedia?.('(hover: none)').matches) return;
+    const target = (e.target as HTMLElement).closest('[title]') as HTMLElement | null;
+    if (!target || !e.currentTarget.contains(target)) return;
+    const body = target.getAttribute('title');
+    if (!body) return;
+    const textOf = (el: Element | null | undefined) => {
+      if (!el) return '';
+      const copy = el.cloneNode(true) as HTMLElement;
+      copy.querySelectorAll('button').forEach((btn) => btn.remove());
+      return copy.textContent?.replace(/\s+/g, ' ').trim() ?? '';
+    };
+    const cell = target.closest('td, th') as HTMLTableCellElement | null;
+    const row = cell?.parentElement;
+    // Годы колонками: подпись строки — показатель. Годы строками: показатель
+    // в заголовке столбца, а в строке — период.
+    const rowLabel = textOf(row?.querySelector('th.col-label'));
+    const period = textOf(row?.querySelector('td.col-year'));
+    const table = cell?.closest('table');
+    const headRow = table?.tHead?.rows[table.tHead.rows.length - 1];
+    const column = !rowLabel && cell && headRow ? textOf(headRow.cells[cell.cellIndex]) : '';
+    const value = target === cell ? '' : textOf(target);
+    const head = [rowLabel || column, period, value].filter(Boolean).join(' · ');
+    setTouchTip({ head: head || 'Пояснение', body });
+  };
+
   const [ownFace, setFace] = React.useState<PanelFace>('multipliers');
   const [flipping, setFlipping] = React.useState(false);
   const controlled = faceProp !== undefined;
@@ -3260,6 +3870,165 @@ const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company, reports, f
     globalThis.setTimeout(() => setFace(next), FLIP_HALF_MS);
     globalThis.setTimeout(() => setFlipping(false), FLIP_HALF_MS * 2);
   };
+
+  if (isSheet) {
+    const typeLabel = company.company_type === 'holding'
+      ? 'Холдинг'
+      : company.company_type === 'exchange'
+        ? 'Биржа'
+        : company.company_type === 'hybrid' ? 'Гибрид' : null;
+    return (
+      <div className="ys">
+        <div className="ys-controls">
+          <div className="ys-controls-main">
+            <Segmented<SheetOrientation>
+              label="Как расположить годы"
+              value={orientation}
+              onChange={setOrientation}
+              options={[
+                { key: 'cols', label: 'Годы в колонках' },
+                { key: 'rows', label: 'Годы в строках' },
+              ]}
+            />
+            <Segmented<'values' | 'pct'>
+              label="Значения или изменение"
+              value={histPctMode ? 'pct' : 'values'}
+              onChange={(v) => setHistPctMode(v === 'pct')}
+              options={[
+                { key: 'values', label: 'Значения' },
+                { key: 'pct', label: 'Изменение, %', title: 'Изменение к прошлому году' },
+              ]}
+            />
+            {sheetColumns.length > 0 && (
+              <RowsChooser
+                columns={orientation === 'rows' ? sheetColumns.filter((c) => !ROWS_ONLY_HIDDEN.has(c.key)) : sheetColumns}
+                hidden={hiddenCols}
+                onChange={setHiddenCols}
+                noun={orientation === 'cols' ? 'Строки' : 'Столбцы'}
+              />
+            )}
+          </div>
+          <div className="ys-legend" title={profile.summary}>
+            <span>Пороги: {profile.label.toLowerCase()}</span>
+            <span className="ys-dot good">хорошо</span>
+            <span className="ys-dot warn">терпимо</span>
+            <span className="ys-dot bad">плохо</span>
+            <span className="ys-dot loss">убыток</span>
+          </div>
+        </div>
+
+        {typeLabel && (
+          <div className="mult-type-warning">
+            <b>{typeLabel}.</b>{' '}
+            {company.company_type === 'holding'
+              ? 'Мультипликаторы по консолидированной отчётности складывают выручку и долг дочерних компаний. Для холдинга корректна оценка по сумме частей, а не P/E консолидации.'
+              : company.company_type === 'exchange'
+                ? 'Обязательства — средства участников торгов и позиции клиринга, поэтому плечо, ликвидность и чистый долг не считаются. Свободный поток очищен от прироста клиентских остатков.'
+                : 'Внутри компании есть финансовый бизнес: клиентские средства раздувают баланс, а их приток попадает в операционный поток. Ликвидность, чистый долг и FCF здесь искажены.'}
+          </div>
+        )}
+
+        {currentData && rows.length < GRAHAM_YEARS && <HistoryDepth years={rows.length} />}
+
+        {(autoRefreshing || !initialPriceSynced || currentLoading || histLoading) ? (
+          <div className="mult-loading">
+            {autoRefreshing || !initialPriceSynced ? 'Обновляем цену и загружаем показатели…' : 'Загрузка показателей…'}
+          </div>
+        ) : (
+          <div
+            className={`mult-history-body${orientation === 'rows' && histHidden > 0 && !histExpanded ? ' is-collapsed' : ''}`}
+            onClick={onSheetClick}
+          >
+            <HistTable
+              isHolding={isHolding}
+              rows={sheetRows}
+              currentRow={currentData ?? undefined}
+              profile={profile}
+              isPreferredShare={!!company.is_preferred_share}
+              pctMode={histPctMode}
+              bankMetricsByReport={bankMetricsByReport}
+              ltmBankMetrics={ltmBankMetrics}
+              orientation={orientation}
+              hidden={hiddenCols}
+              referenceByYear={referenceByYear}
+              ltmReference={ltmReference}
+              earlierHidden={colsHidden}
+              earlierShown={earlierShown}
+              onToggleEarlier={() => setEarlierShown((v) => !v)}
+              onColumns={setSheetColumns}
+            />
+            {orientation === 'rows' && histHidden > 0 && (
+              <button
+                type="button"
+                className="hist-expand"
+                onClick={() => setHistExpanded((v) => !v)}
+                aria-expanded={histExpanded}
+              >
+                <span className="hist-expand-label">
+                  {histExpanded ? 'Свернуть' : `Ещё ${histHidden} ${plural(histHidden, 'год', 'года', 'лет')}`}
+                </span>
+                <span className="hist-expand-chevron" aria-hidden>
+                  <svg viewBox="0 0 16 16" width="16" height="16">
+                    <path d={histExpanded ? 'M3 10l5-5 5 5' : 'M3 6l5 5 5-5'} fill="none" stroke="currentColor"
+                      strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </span>
+              </button>
+            )}
+          </div>
+        )}
+        {currentError && (
+          <div className="mult-error">Нет данных: убедитесь, что добавлены финансовые отчёты и задана текущая цена.</div>
+        )}
+
+        <div className="ys-foot">
+          <p className="ys-note">
+            Цвет — пороги отрасли. Пунктир — есть подсказка: наведите, а на телефоне нажмите.
+            ⇄ меняет показатель на парный. «LTM» и «12 мес.» — последние двенадцать месяцев
+            {currentData?.balance_report_date ? `, баланс на ${currentData.balance_report_date.split('-').reverse().join('.')}` : ''}.
+            Опорная — расчёт по отчётности и допущениям, а не прогноз цены.
+          </p>
+          <div className="ys-admin">
+            {autoRefreshing && !refreshMutation.isPending && (
+              <span className="refresh-auto-indicator"><span className="refresh-auto-spinner" aria-hidden />обновляем цену…</span>
+            )}
+            {refreshMsg && <span className="refresh-msg">{refreshMsg}</span>}
+            <label className="legend-profile" title="Метод анализа: какие показатели применимы">
+              <span className="legend-profile-label">Тип:</span>
+              <select
+                className="legend-profile-select"
+                value={company.company_type ?? 'industrial'}
+                onChange={(e) => typeMutation.mutate(e.target.value as CompanyType)}
+                disabled={typeMutation.isPending}
+              >
+                {COMPANY_TYPE_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value} title={opt.hint}>{opt.label}</option>
+                ))}
+              </select>
+            </label>
+            <label className="legend-profile" title={profile.summary}>
+              <span className="legend-profile-label">Пороги:</span>
+              <select
+                className="legend-profile-select"
+                value={company.sector_profile_key ?? ''}
+                onChange={(e) => profileMutation.mutate(e.target.value || null)}
+                disabled={profileMutation.isPending || !profileOptions}
+              >
+                <option value="">По отрасли автоматически</option>
+                {(profileOptions ?? []).map((opt) => (
+                  <option key={opt.key} value={opt.key} title={opt.summary}>{opt.label}</option>
+                ))}
+              </select>
+            </label>
+            <button className="btn-refresh" onClick={() => refreshMutation.mutate()} disabled={refreshMutation.isPending}>
+              {refreshMutation.isPending ? 'Обновляем…' : '↺ Обновить цену'}
+            </button>
+          </div>
+        </div>
+        <TouchTip tip={touchTip} onClose={() => setTouchTip(null)} />
+      </div>
+    );
+  }
 
   return (
     <div className={`mult-panel${flipping ? ' is-flipping' : ''}`}>
@@ -3298,9 +4067,7 @@ const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company, reports, f
         </div>
       </div>
 
-      {face === 'valuation' ? (
-        <CompanyValuation companyId={companyId} />
-      ) : face === 'passport' ? (
+      {face === 'passport' ? (
         <CompanyPassport companyId={companyId} />
       ) : (
         <>
@@ -3369,7 +4136,7 @@ const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company, reports, f
             disabled={profileMutation.isPending || !profileOptions}
           >
             <option value="">
-              Авто по сектору{company.sector ? ` «${company.sector}»` : ''}
+              По отрасли автоматически
             </option>
             {(profileOptions ?? []).map((opt) => (
               <option key={opt.key} value={opt.key} title={opt.summary}>
@@ -3404,7 +4171,10 @@ const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company, reports, f
                 {currentData && (
                   <>
                     <LtmMeta data={currentData} />
-                    <HistoryDepth years={rows.length} />
+                    {/* Глубина истории — только как предупреждение: «18 лет
+                        данных» отдельной плашкой ничего не сообщало, а «4 года
+                        из 10 по Грэму» меняет доверие ко всем карточкам ниже. */}
+                    {rows.length < GRAHAM_YEARS && <HistoryDepth years={rows.length} />}
                     <CurrentCards
                       data={currentData}
                       profile={profile}
@@ -3447,7 +4217,7 @@ const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company, reports, f
                           </span>
                         </div>
                         <div className="ltm-fin-item">
-                          <span className="ltm-fin-label">Размещено (общее)</span>
+                          <span className="ltm-fin-label">Акций выпущено</span>
                           <span className="ltm-fin-value">
                             {currentData.shares_issued !== null
                               ? currentData.shares_issued.toLocaleString('ru-RU')

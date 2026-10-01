@@ -160,8 +160,73 @@ def test_бэктест_передаёт_в_оценку_всё_то_же_что
     for callee, target in (("value_band", value_band), ("structure", structure)):
         accepted = set(inspect.signature(target).parameters)
         live = named_args(assess, callee) & accepted
-        back = named_args(valuation_backtest.backtest, callee) & accepted
+        # Вызов переехал в `year_models`: там готовится год, а гейт и график
+        # лишь подставляют ставку. Сторожить надо место, где вызов живёт.
+        back = named_args(valuation_backtest.year_models, callee) & accepted
         assert live - back == set(), (
             f"живой расчёт передаёт в {callee} то, чего нет в бэктесте: "
             f"{sorted(live - back)} — гейт проверяет другую модель"
         )
+
+
+def test_отрезки_оценки_без_заглядывания_вперёд_и_с_сегодняшним_краем(monkeypatch):
+    """Ступень начинается в день раскрытия; ставка — средняя до дня отрезка.
+
+    Последний отрезок, содержащий сегодняшний день, считается по ставке из
+    допущений: карточка под графиком считается по ней же, и правый край
+    обязан с ней совпадать.
+    """
+    from datetime import date, timedelta
+
+    from app.services.analysis import valuation_backtest as vb
+
+    seen = []
+
+    class Band:
+        refused = False
+        reason = None
+        low = high = conservative = 100.0
+        method = "cottle"
+        ladders = []
+
+    def evaluate(rate, premium, cap=None, risk_free=None):
+        seen.append((rate, risk_free))
+        return Band()
+
+    monkeypatch.setattr(vb, "year_models", lambda db, company, window=7, **kw: [
+        (2023, 1.0, evaluate), (2024, 1.0, evaluate),
+    ])
+    # Ряд пуст — значит, ни точки LTM, ни числа Грэма; проверяются ступени.
+    monkeypatch.setattr(vb, "load_points", lambda db, company_id: [])
+
+    class Rates:
+        def trailing(self, day):
+            return 10.0 if day < date(2025, 1, 1) else 12.0
+
+    class Ofz:
+        def on(self, day):
+            return 8.0
+
+    today = date(2025, 6, 15)
+    lag = timedelta(days=120)
+    class Company:
+        id = 1
+
+    out = vb.valuation_segments(None, Company(), 5.0, Rates(), today_rate=15.0,
+                                today=today, lag=lag, ofz=Ofz())
+    # Безрисковая в истории — фактическая доходность ОФЗ, а не ключевая + 1:
+    # заменитель после шоков завышал её на три пункта.
+    assert out[0]["risk_free"] == 8.0 and out[0]["risk_free_source"] == "ОФЗ 10 лет"
+    # Сегодняшний отрезок — по допущениям, как карточка.
+    assert out[-1]["risk_free_source"] == "допущения"
+
+    assert out[0]["from"] == (date(2023, 12, 31) + lag).isoformat()
+    assert out[0]["year"] == 2023 and out[0]["key_rate"] == 10.0
+    # Отчёт за 2024 год сменяет ступень ровно в день своего раскрытия.
+    switch = next(x for x in out if x["year"] == 2024)
+    assert switch["from"] == (date(2024, 12, 31) + lag).isoformat()
+    # Правый край — ставка из допущений, и он один.
+    assert out[-1]["current"] is True and out[-1]["key_rate"] == 15.0
+    assert sum(x["current"] for x in out) == 1
+    # Ни один отрезок не начинается позже сегодняшнего дня.
+    assert all(x["from"] <= today.isoformat() for x in out)

@@ -14,16 +14,27 @@ import {
 import { FinancialReport } from '../types';
 import MultipliersPanel from '../components/MultipliersPanel';
 import PriceChart from '../components/PriceChart';
-import ValuationSummary from '../components/ValuationSummary';
+import ValuationTab from '../components/ValuationTab';
+import ConservativeCriteria from '../components/ConservativeCriteria';
+import {
+  AsideNotes,
+  AsideToc,
+  AsideValuation,
+  marginLabel,
+  rubLabel,
+  useCompanyVerdict,
+} from '../components/CompanyVerdict';
 import BankMetricsPanel from '../components/BankMetricsPanel';
 import HoldingPanel from '../components/HoldingPanel';
 import VerificationBadge from '../components/VerificationBadge';
 import ReportDetailModal from '../components/ReportDetailModal';
 import AiParsePdfModal from '../components/AiParsePdfModal';
 import { formatPerShare } from '../utils/perShare';
-import { formatMln } from '../utils/format';
-import { shadeHex, isLightBrandHex, isNeutralBrandForHero } from '../utils/brandColor';
+import { isLightBrandHex, isNeutralBrandForHero } from '../utils/brandColor';
 import { resolveSharesForMultipliers, explainSharesCapBasis } from '../utils/shareCounts';
+import { fetchPriceHistory, type PriceHistoryOut } from '../services/prices.api';
+import { fetchPassport, type PassportOut } from '../services/screen.api';
+import { getCompanyCurrentMultipliers } from '../services';
 import SharesCapHover from '../components/SharesCapHover';
 import { getCompanyLogoCandidates } from '../utils/companyLogo';
 import { isMisclassifiedAsPreferred } from '../utils/companyShareClass';
@@ -31,13 +42,58 @@ import './CompanyDetail.css';
 
 type ReportPeriodFilter = 'all' | 'annual' | 'quarterly' | 'semi_annual';
 
-type CardTab = 'info' | 'multipliers' | 'valuation';
+/**
+ * Разделы карточки. На большом экране они идут подряд, одной страницей: лист
+ * читается сверху вниз — цена и оценка, ряд по годам, как посчитано, по каким
+ * критериям, из каких отчётов. На телефоне длинную страницу листать неудобно,
+ * и те же разделы становятся вкладками под шапкой.
+ */
+type CardSection = 'overview' | 'years' | 'valuation' | 'criteria' | 'reports' | 'about';
 
-const TABS: { key: CardTab; label: string; hint: string }[] = [
-  { key: 'info', label: 'Общая информация', hint: 'Что это за компания, её отчёты и описание' },
-  { key: 'multipliers', label: 'Мультипликаторы', hint: 'Цена, показатели по годам и пороги Грэма' },
-  { key: 'valuation', label: 'Оценка стоимости', hint: 'Полоса стоимости и запас прочности' },
+const SECTIONS: { key: Exclude<CardSection, 'overview'>; label: string; tab: string }[] = [
+  { key: 'years', label: 'Показатели по годам', tab: 'По годам' },
+  { key: 'valuation', label: 'Как получилась оценка', tab: 'Оценка' },
+  { key: 'criteria', label: 'Консервативные критерии', tab: 'Критерии' },
+  { key: 'reports', label: 'Отчёты и данные', tab: 'Отчёты' },
+  { key: 'about', label: 'О компании', tab: 'О компании' },
 ];
+
+const STANDARD_LABEL: Record<string, string> = {
+  IFRS: 'МСФО',
+  RAS: 'РСБУ',
+  US_GAAP: 'US GAAP',
+  UK_GAAP: 'UK GAAP',
+};
+
+/** «2025 год», «1-е полугодие 2026» — для метки в шапке. */
+function periodShort(report: FinancialReport): string {
+  const pt = report.period_type.toLowerCase();
+  if (pt === 'annual') return `${report.fiscal_year} год`;
+  if (pt === 'semi_annual') return `1-е полугодие ${report.fiscal_year}`;
+  return `${report.fiscal_quarter} кв. ${report.fiscal_year}`;
+}
+
+/** «за 2025 год», «за 1-е полугодие 2026», «за 3 кв. 2025». */
+function periodPhrase(report: FinancialReport): string {
+  const pt = report.period_type.toLowerCase();
+  if (pt === 'annual') return `за ${report.fiscal_year} год`;
+  if (pt === 'semi_annual') return `за 1-е полугодие ${report.fiscal_year}`;
+  return `за ${report.fiscal_quarter} кв. ${report.fiscal_year}`;
+}
+
+const ru = (value: number, digits = 0) =>
+  value.toLocaleString('ru-RU', { minimumFractionDigits: digits, maximumFractionDigits: digits });
+
+/** Миллионы рублей → «3,14 трлн ₽». */
+function capLabel(mln: number): string {
+  const abs = Math.abs(mln);
+  if (abs >= 1_000_000) return `${ru(mln / 1_000_000, 2)} трлн ₽`;
+  if (abs >= 1_000) return `${ru(mln / 1_000, 1)} млрд ₽`;
+  return `${ru(mln, 0)} млн ₽`;
+}
+
+/** «2026-09-30» → «30.09.2026». */
+const dotDate = (iso: string) => iso.split('-').reverse().join('.');
 
 const CompanyDetail: React.FC = () => {
   const { companyId } = useParams<{ companyId: string }>();
@@ -46,11 +102,11 @@ const CompanyDetail: React.FC = () => {
   const [selectedReport, setSelectedReport] = useState<FinancialReport | null>(null);
   const [aiParseMode, setAiParseMode] = useState<'create' | 'compare' | 'batch' | null>(null);
   // Состояние раздела отчётов
-  const [reportsExpanded, setReportsExpanded] = useState(true);
+  const [reportsExpanded, setReportsExpanded] = useState(false);
   const [reportPeriodFilter, setReportPeriodFilter] = useState<ReportPeriodFilter>('annual');
   const [reportStandardFilter, setReportStandardFilter] = useState<string>('all');
   const [showAllReports, setShowAllReports] = useState(false);
-  const [tab, setTab] = useState<CardTab>('multipliers');
+  const [mobileSection, setMobileSection] = useState<CardSection>('overview');
   const [editingDescription, setEditingDescription] = useState(false);
   const [descriptionDraft, setDescriptionDraft] = useState('');
 
@@ -155,6 +211,76 @@ const CompanyDetail: React.FC = () => {
     enabled: !!companyId,
   });
 
+  // Цена в шапке — из той же истории, что и график, и с тем же ключом кэша:
+  // раньше шапка брала цену из последнего отчёта, график — с биржи, а
+  // мультипликаторы — из T-Invest, и на одной странице стояли три цены.
+  const { data: priceHistory } = useQuery<PriceHistoryOut>({
+    queryKey: ['price-history', Number(companyId)],
+    queryFn: () => fetchPriceHistory(Number(companyId)),
+    staleTime: 30 * 60 * 1000,
+    enabled: !!companyId,
+  });
+
+  // Отраслевой профиль — по-русски и тот же, по которому считаются пороги.
+  const { data: passport } = useQuery<PassportOut>({
+    queryKey: ['screen-passport', Number(companyId)],
+    queryFn: () => fetchPassport(Number(companyId)),
+    staleTime: 5 * 60 * 1000,
+    enabled: !!companyId,
+  });
+
+  // Всё, что карточка говорит о компании: фраза, запас, критерии.
+  const verdict = useCompanyVerdict(Number(companyId));
+
+  // P/E, P/B и дивиденды в шапке — те же, что в листе по годам (строка LTM).
+  const { data: currentMultipliers } = useQuery({
+    queryKey: ['multipliers-current', Number(companyId)],
+    queryFn: () => getCompanyCurrentMultipliers(Number(companyId)),
+    staleTime: 5 * 60 * 1000,
+    enabled: !!companyId,
+    retry: false,
+  });
+
+  // «Обратить внимание» уходит под график, когда с ним боковая колонка
+  // вылезает ниже графика больше чем на четверть: иначе рядом с графиком
+  // остаётся пустое поле, а колонка тянется в одиночку.
+  const [notesBelow, setNotesBelow] = useState(false);
+  const overviewMainRef = useRef<HTMLDivElement | null>(null);
+  const asideRef = useRef<HTMLElement | null>(null);
+  const notesRef = useRef<HTMLElement | null>(null);
+  const notesHeightInAside = useRef(0);
+  useEffect(() => {
+    const main = overviewMainRef.current;
+    const aside = asideRef.current;
+    if (!main || !aside || typeof ResizeObserver === 'undefined') return undefined;
+    const OVERFLOW = 1.25;
+    const GAP = 16;
+    const decide = () => {
+      // В одну колонку (планшет, телефон) колонка и так стоит под графиком.
+      if (window.innerWidth <= 1100) {
+        setNotesBelow(false);
+        return;
+      }
+      const chart = main.querySelector('.pc') as HTMLElement | null;
+      const chartHeight = chart?.offsetHeight ?? 0;
+      if (chartHeight === 0) return;
+      const asideHeight = aside.offsetHeight;
+      if (!notesBelow) {
+        if (asideHeight > chartHeight * OVERFLOW) {
+          notesHeightInAside.current = notesRef.current?.offsetHeight ?? 0;
+          setNotesBelow(true);
+        }
+      } else if (asideHeight + GAP + notesHeightInAside.current <= chartHeight * OVERFLOW) {
+        setNotesBelow(false);
+      }
+    };
+    const observer = new ResizeObserver(decide);
+    observer.observe(main);
+    observer.observe(aside);
+    decide();
+    return () => observer.disconnect();
+  }, [notesBelow, companyId, verdict.loading, company?.id]);
+
   // Сброс ошибочного «префы» (старая кнопка-индикатор: клик по «Обыкн.» включал префы у SIBN и т.п.)
   const misclassifiedFixRef = useRef<number | null>(null);
   useEffect(() => {
@@ -212,10 +338,14 @@ const CompanyDetail: React.FC = () => {
           <span className="report-compact-period">{periodLabel}</span>
           <span className="report-compact-date">{report.report_date}</span>
           <div className="report-compact-meta">
-            <span className="report-compact-standard">{report.accounting_standard}</span>
-            <span className="report-compact-currency">{report.currency}</span>
+            <span className="report-compact-standard">
+              {STANDARD_LABEL[report.accounting_standard] ?? report.accounting_standard}
+            </span>
+            {report.currency !== 'RUB' && (
+              <span className="report-compact-currency">{report.currency}</span>
+            )}
             {report.dividends_paid && (
-              <span className="report-compact-dividend">💵</span>
+              <span className="report-compact-dividend">дивиденды</span>
             )}
             <VerificationBadge
               autoExtracted={report.auto_extracted}
@@ -232,28 +362,6 @@ const CompanyDetail: React.FC = () => {
       </div>
     );
   };
-
-  /** Ч/б/серый бренд — оставляем стандартный фиолетовый градиент шапки */
-  const useBrandInHero = useMemo(
-    () =>
-      Boolean(
-        company?.brand_color && !isNeutralBrandForHero(company.brand_color),
-      ),
-    [company?.brand_color],
-  );
-
-  const brandLight = useMemo(
-    () =>
-      Boolean(
-        useBrandInHero && company?.brand_color && isLightBrandHex(company.brand_color),
-      ),
-    [useBrandInHero, company?.brand_color],
-  );
-
-  const gradientEndColor = useMemo(() => {
-    if (!useBrandInHero || !company?.brand_color) return null;
-    return shadeHex(company.brand_color, brandLight ? 0.34 : 0.52);
-  }, [useBrandInHero, company?.brand_color, brandLight]);
 
   const logoCandidates = useMemo(
     () => (company ? getCompanyLogoCandidates(company) : []),
@@ -290,274 +398,253 @@ const CompanyDetail: React.FC = () => {
     );
   }
 
-  // Вычисляем базовую статистику (используем рублёвые значения)
-  // Финансовые показатели хранятся в МИЛЛИОНАХ ₽ — при отображении делим на 1000 для млрд
+  // Капитализация — по той же цене, что в шапке, и по акциям последнего
+  // отчёта (в обращении, как во всех расчётах проекта).
   const latestReport = reports && reports.length > 0 ? reports[0] : null;
   const latestSharesForCap = latestReport ? resolveSharesForMultipliers(latestReport) : null;
   const latestCapExplanation = latestReport
     ? explainSharesCapBasis(latestReport, latestSharesForCap)
     : null;
-  const marketCapMln = latestReport?.price_per_share_rub && latestSharesForCap
-    ? (latestReport.price_per_share_rub * latestSharesForCap) / 1_000_000
+
+  const points = priceHistory?.points ?? [];
+  const lastPoint = points.length > 0 ? points[points.length - 1] : null;
+  const prevPoint = points.length > 1 ? points[points.length - 2] : null;
+  const price = lastPoint?.price ?? latestReport?.price_per_share_rub ?? null;
+  const priceDate = lastPoint?.date ?? latestReport?.report_date ?? null;
+  const dayChange = lastPoint && prevPoint && prevPoint.price > 0
+    ? { abs: lastPoint.price - prevPoint.price, rel: lastPoint.price / prevPoint.price - 1 }
+    : null;
+  const marketCapMln = price && latestSharesForCap
+    ? (price * latestSharesForCap) / 1_000_000
     : null;
 
-  /** Значения отчёта хранятся в млн ₽; показываем в млн/млрд/трлн. */
-  const fmtMln = (n: number | null | undefined): string => formatMln(n);
+  // Какие данные стоят за карточкой: вся история отчётов, а не один отчёт.
+  const reportYears = (reports ?? []).map((r) => r.fiscal_year).filter(Boolean);
+  const coverage = latestReport && reportYears.length > 0
+    ? `отчёты ${Math.min(...reportYears)}–${Math.max(...reportYears)}, последний — `
+      + `${STANDARD_LABEL[latestReport.accounting_standard] ?? latestReport.accounting_standard} `
+      + periodPhrase(latestReport)
+    : null;
+  const coverageChip = latestReport
+    ? `${STANDARD_LABEL[latestReport.accounting_standard] ?? latestReport.accounting_standard} · ${periodShort(latestReport)}`
+    : null;
+
+  // Разовые статьи последнего года: мультипликаторы считаются без них, оценка —
+  // от прибыли как в отчёте. Расхождение больше десятой — повод сказать.
+  const latestAnnual = (reports ?? []).find((r) => r.period_type.toLowerCase() === 'annual') ?? null;
+  const oneOffs = latestAnnual
+    && latestAnnual.net_income != null
+    && latestAnnual.net_income_reported != null
+    && Math.abs(latestAnnual.net_income - latestAnnual.net_income_reported)
+      > 0.1 * Math.max(Math.abs(latestAnnual.net_income), Math.abs(latestAnnual.net_income_reported))
+    ? { year: latestAnnual.fiscal_year, reported: latestAnnual.net_income_reported, normalized: latestAnnual.net_income }
+    : null;
+
+  // Фирменный цвет — плашкой под именем, как выделение маркером. Ч/б/серый
+  // бренд плашки не получает: на тёмной теме он сливается с фоном.
+  const brand = company.brand_color && !isNeutralBrandForHero(company.brand_color)
+    ? company.brand_color
+    : null;
+  const brandInk = brand && isLightBrandHex(brand) ? '#111827' : '#ffffff';
+
+  const pe = currentMultipliers?.pe_ratio ?? null;
+  const pb = currentMultipliers?.pb_ratio ?? null;
+  const dy = currentMultipliers?.dividend_yield ?? null;
+  const qualityTone = verdict.quality === 'strong' ? 'good' : verdict.quality === 'weak' ? 'bad' : 'neutral';
+  const tabbed = (key: CardSection) => `cd-tabbed${mobileSection === key ? ' is-current' : ''}`;
 
   return (
-    <div className="company-detail-container">
-      {/* Хедер с кнопкой назад */}
-      <div className="detail-header">
-        <button onClick={() => navigate('/companies')} className="btn-back">
-          ← Назад к списку
-        </button>
-      </div>
-
-      {/* Основная информация о компании */}
-      <div
-        className={`company-hero${useBrandInHero ? ' company-hero--branded' : ''}${
-          brandLight ? ' company-hero--light-brand' : ''
-        }`}
-        style={
-          useBrandInHero && company.brand_color && gradientEndColor
-            ? {
-                background: `linear-gradient(135deg, ${company.brand_color} 0%, ${gradientEndColor} 100%)`,
-              }
-            : undefined
-        }
-      >
-        <div className="company-hero-main">
-          {logoSrc && (
-            <img
-              key={logoSrc}
-              src={logoSrc}
-              alt=""
-              className="company-hero-logo"
-              referrerPolicy="no-referrer"
-              loading="eager"
-              decoding="async"
-              onError={() => setLogoAttempt((a) => a + 1)}
-            />
-          )}
-          <div className="company-title-section">
-            <h1 className="company-title">{company.name}</h1>
-            <div className="company-meta">
-              <span className="company-ticker">{company.ticker}</span>
-              <span className="company-sector">{company.sector || 'Не указан'}</span>
-              <span className="company-currency">💱 {company.currency}</span>
+    <div className="company-detail-container cd-page">
+      <section className="cd-card cd-head">
+        <div className="cd-head-top">
+          <div className="cd-identity">
+            <button onClick={() => navigate('/companies')} className="cd-back" type="button">
+              ← Все компании
+            </button>
+            <div className="cd-name-row">
+              {logoSrc && (
+                <img
+                  key={logoSrc}
+                  src={logoSrc}
+                  alt=""
+                  className="cd-logo"
+                  referrerPolicy="no-referrer"
+                  loading="eager"
+                  decoding="async"
+                  onError={() => setLogoAttempt((a) => a + 1)}
+                />
+              )}
+              <h1 className="cd-name">
+                <span
+                  className={brand ? 'cd-name-mark' : undefined}
+                  style={brand ? { background: brand, color: brandInk } : undefined}
+                >
+                  {company.name}
+                </span>
+              </h1>
+              <span className="cd-chips">
+                <span className="cd-chip cd-chip--ticker">{company.ticker}</span>
+                {passport?.profile?.label && <span className="cd-chip">{passport.profile.label}</span>}
+                {coverageChip && <span className="cd-chip" title={coverage ?? undefined}>{coverageChip}</span>}
+              </span>
             </div>
-          </div>
-        </div>
-        
-        {latestReport && (
-          <div className="company-quick-stats">
-            {latestReport.price_per_share_rub && (
-              <div className="quick-stat">
-                <span className="stat-label">Цена акции</span>
-                <span className="stat-value">
-                  {formatPerShare(latestReport.price_per_share_rub)} ₽
-                </span>
-                {latestReport.currency === 'USD' && latestReport.price_per_share && (
-                  <span className="stat-hint">({formatPerShare(latestReport.price_per_share)} USD)</span>
-                )}
-                <span className="stat-date">на {latestReport.report_date}</span>
-              </div>
-            )}
-            {marketCapMln && (
-              <div className="quick-stat">
-                <span className="stat-label">Капитализация</span>
-                <span className="stat-value">
-                  <SharesCapHover explanation={latestCapExplanation}>
-                    {fmtMln(marketCapMln)}
-                  </SharesCapHover>
-                </span>
-                <span className="stat-date">на {latestReport.report_date}</span>
-              </div>
+            {!verdict.loading && (
+              <p className="cd-verdict">
+                <strong>{verdict.headline}.</strong> {verdict.lede}
+              </p>
             )}
           </div>
-        )}
-      </div>
 
-      {/* Вкладки карточки.
-          Три раздела отвечают на три разных вопроса: что это за компания,
-          что показывают её числа и сколько она стоит. Раньше всё это лежало
-          одной лентой, и до порогов Грэма нужно было пролистать описание,
-          таблицу отчётов и две заглушки. */}
-      <nav className="card-tabs" role="tablist" aria-label="Разделы карточки">
-        {TABS.map(({ key, label, hint }) => (
+          {price !== null && (
+            <div className="cd-quote">
+              {/* Округление то же, что в оценке ниже: 5 350,5 в шапке и 5 351
+                  под ней читались бы как две разные цены. */}
+              <span className="cd-price">
+                {Math.abs(price) >= 100 ? ru(price) : formatPerShare(price)} ₽
+              </span>
+              {dayChange && (
+                <span className={`cd-change ${dayChange.abs >= 0 ? 'is-up' : 'is-down'}`}>
+                  {dayChange.abs >= 0 ? '+' : '−'}{Math.abs(dayChange.abs) >= 100 ? ru(Math.abs(dayChange.abs)) : formatPerShare(Math.abs(dayChange.abs))} ₽
+                  {' · '}
+                  {dayChange.rel >= 0 ? '+' : '−'}{ru(Math.abs(dayChange.rel) * 100, 2)}% за день
+                </span>
+              )}
+              <span className="cd-quote-meta">
+                {marketCapMln !== null && (
+                  <>
+                    капитализация{' '}
+                    <SharesCapHover explanation={latestCapExplanation}>
+                      {capLabel(marketCapMln)}
+                    </SharesCapHover>
+                    {' · '}
+                  </>
+                )}
+                {priceDate && <>цена на {dotDate(priceDate)}</>}
+              </span>
+            </div>
+          )}
+        </div>
+
+        <div className={`cd-stats ${tabbed('overview')}`}>
+          <a className="cd-stat" href="#valuation">
+            <span className="cd-stat-label">Опорная</span>
+            <span className="cd-stat-value cd-stat-value--ref">{verdict.available ? rubLabel(verdict.reference) : '—'}</span>
+            <span className="cd-stat-sub">расчёт, не прогноз</span>
+          </a>
+          <a className="cd-stat" href="#valuation">
+            <span className="cd-stat-label">Запас прочности</span>
+            <span className={`cd-stat-value cd-tone--${verdict.marginTone}`}>{marginLabel(verdict.margin)}</span>
+            <span className="cd-stat-sub">
+              {verdict.margin === null ? 'нет оценки' : verdict.margin < 0 ? 'цена выше опорной' : 'цена ниже опорной'}
+            </span>
+          </a>
+          <a className="cd-stat" href="#years" title="Цена / прибыль без разовых статей за последние 12 месяцев">
+            <span className="cd-stat-label">P/E</span>
+            <span className="cd-stat-value">{pe !== null ? ru(pe, 1) : '—'}</span>
+            <span className="cd-stat-sub">без разовых</span>
+          </a>
+          <a className="cd-stat" href="#years">
+            <span className="cd-stat-label">P/B</span>
+            <span className="cd-stat-value">{pb !== null ? ru(pb, 2) : '—'}</span>
+            <span className="cd-stat-sub">по балансу</span>
+          </a>
+          <a className="cd-stat" href="#years">
+            <span className="cd-stat-label">Дивиденды</span>
+            <span className="cd-stat-value">{dy !== null ? `${ru(dy, 1)}%` : '—'}</span>
+            <span className="cd-stat-sub">за 12 мес.</span>
+          </a>
+          <a className="cd-stat" href="#criteria">
+            <span className="cd-stat-label">Критерии</span>
+            <span className={`cd-stat-value cd-tone--${qualityTone}`}>
+              {verdict.total > 0 ? `${verdict.passed} из ${verdict.total}` : '—'}
+            </span>
+            <span className="cd-stat-sub">консервативные</span>
+          </a>
+        </div>
+      </section>
+
+      <nav className="cd-mobile-tabs" role="tablist" aria-label="Разделы карточки">
+        {[{ key: 'overview' as CardSection, tab: 'Обзор' }, ...SECTIONS].map((s) => (
           <button
-            key={key}
+            key={s.key}
             type="button"
             role="tab"
-            aria-selected={tab === key}
-            className={`card-tab${tab === key ? ' is-on' : ''}`}
-            onClick={() => setTab(key)}
-            title={hint}
+            aria-selected={mobileSection === s.key}
+            className={`cd-mobile-tab${mobileSection === s.key ? ' is-on' : ''}`}
+            onClick={() => setMobileSection(s.key)}
           >
-            {label}
+            {s.tab}
           </button>
         ))}
       </nav>
 
-      {tab === 'multipliers' && (
-        <>
+      <div className={`cd-overview ${tabbed('overview')}`}>
+        <div className="cd-overview-main" ref={overviewMainRef}>
           <PriceChart companyId={company.id!} />
-          <ValuationSummary companyId={company.id!} />
-          <MultipliersPanel company={company} reports={reports} face="multipliers" />
-        </>
-      )}
-      {tab === 'valuation' && (
-        <MultipliersPanel company={company} reports={reports} face="valuation" />
-      )}
+          {notesBelow && <AsideNotes verdict={verdict} oneOffs={oneOffs} wide />}
+        </div>
+        <aside className="ca" ref={asideRef}>
+          <AsideValuation verdict={verdict} />
+          {!notesBelow && <AsideNotes ref={notesRef} verdict={verdict} oneOffs={oneOffs} />}
+          <AsideToc
+            sections={SECTIONS.map((s) => ({
+              id: s.key,
+              label: s.label,
+              note: s.key === 'valuation' && verdict.available && verdict.reference !== null
+                ? rubLabel(verdict.reference)
+                : s.key === 'criteria' && verdict.total > 0
+                  ? `${verdict.passed} из ${verdict.total}`
+                  : s.key === 'reports' && reports
+                    ? String(reports.length)
+                    : undefined,
+            }))}
+          />
+        </aside>
+      </div>
+
+      <section id="years" className={`cd-card ${tabbed('years')}`}>
+        <div className="cd-section-head">
+          <h2 className="cd-section-title">Показатели по годам</h2>
+          <span className="cd-section-sub">МСФО · годовые отчёты и последние 12 месяцев</span>
+        </div>
+        <MultipliersPanel company={company} reports={reports} layout="sheet" />
+      </section>
 
       {/* Холдинг: стоимость складывается из долей, а не из консолидированной
           отчётности — там результаты дочек, а не доля акционера. */}
-      {tab === 'multipliers' && company.company_type === 'holding' && (
-        <HoldingPanel company={company} reports={reports} />
+      {company.company_type === 'holding' && (
+        <div className={tabbed('years')}>
+          <HoldingPanel company={company} reports={reports} />
+        </div>
       )}
 
       {/* Блок финансового бизнеса: риск, качество портфеля, фондирование,
           капитал. У кредитора это вся компания (определяется типом отчёта),
-          у гибрида — сегмент внутри обычной: тип отчёта у него общий, поэтому
-          проверяем тип компании отдельно. */}
-      {tab === 'multipliers' && reports &&
+          у гибрида — сегмент внутри обычной. */}
+      {reports &&
         (reports.some((r) => r.report_type === 'bank') ||
           company.company_type === 'hybrid' ||
           company.company_type === 'exchange') && (
-          <BankMetricsPanel
-            companyId={company.id!}
-            reports={reports}
-            companyType={company.company_type}
-          />
+          <div className={tabbed('years')}>
+            <BankMetricsPanel
+              companyId={company.id!}
+              reports={reports}
+              companyType={company.company_type}
+            />
+          </div>
         )}
 
-      {/* Пороги Грэма — последним блоком вкладки мультипликаторов: сперва
-          числа как есть, потом приговор по ним. */}
-      {tab === 'multipliers' && (
-        <MultipliersPanel company={company} reports={reports} face="passport" />
-      )}
+      <section id="valuation" className={`cd-card ${tabbed('valuation')}`}>
+        <ValuationTab companyId={company.id!} />
+      </section>
 
-      {/* Основная сетка с информацией */}
-      {tab === 'info' && (
-      <div className="company-content-grid">
-        {/* Левая колонка - Основная информация */}
-        <div className="content-column">
-          <section className="info-card">
-            <h2 className="card-title">📊 Основная информация</h2>
-            <div className="info-grid">
-              <div className="info-item">
-                <span className="info-label">FIGI:</span>
-                <span className="info-value">{company.figi}</span>
-              </div>
-              <div className="info-item">
-                <span className="info-label">ISIN:</span>
-                <span className="info-value">{company.isin || 'Не указан'}</span>
-              </div>
-              <div className="info-item">
-                <span className="info-label">Тикер:</span>
-                <span className="info-value">{company.ticker}</span>
-              </div>
-              <div className="info-item">
-                <span className="info-label">Валюта:</span>
-                <span className="info-value">{company.currency}</span>
-              </div>
-              <div className="info-item">
-                <span className="info-label">Размер лота:</span>
-                <span className="info-value">{company.lot}</span>
-              </div>
-              <div className="info-item">
-                <span className="info-label">API торговля:</span>
-                <span className={`info-badge ${company.api_trade_available_flag ? 'active' : 'inactive'}`}>
-                  {company.api_trade_available_flag ? '✓ Доступна' : '✗ Недоступна'}
-                </span>
-              </div>
-            </div>
-          </section>
+      <section id="criteria" className={`cd-card ${tabbed('criteria')}`}>
+        <ConservativeCriteria companyId={company.id!} />
+      </section>
 
-          {/* Описание бизнеса */}
-          <section className="info-card company-description-card">
-            <div className="company-description-header">
-              <h2 className="card-title" style={{ margin: 0, paddingBottom: 0, borderBottom: 'none' }}>
-                🏢 О компании
-              </h2>
-              <div className="company-description-actions">
-                {company.business_description_source && !editingDescription && (
-                  <span
-                    className={`company-description-source company-description-source--${company.business_description_source}`}
-                    title={
-                      company.business_description_updated_at
-                        ? `Обновлено: ${new Date(company.business_description_updated_at).toLocaleString('ru-RU')}`
-                        : undefined
-                    }
-                  >
-                    {company.business_description_source === 'manual' ? '✏️ Вручную' : '🤖 Из отчёта'}
-                  </span>
-                )}
-                {!editingDescription ? (
-                  <button
-                    type="button"
-                    className="company-description-btn company-description-btn--secondary"
-                    onClick={() => {
-                      setDescriptionDraft(company.business_description || '');
-                      setEditingDescription(true);
-                    }}
-                  >
-                    {company.business_description ? 'Редактировать' : 'Добавить'}
-                  </button>
-                ) : (
-                  <>
-                    <button
-                      type="button"
-                      className="company-description-btn company-description-btn--secondary"
-                      onClick={() => setEditingDescription(false)}
-                      disabled={descriptionMutation.isPending}
-                    >
-                      Отмена
-                    </button>
-                    <button
-                      type="button"
-                      className="company-description-btn company-description-btn--primary"
-                      disabled={descriptionMutation.isPending}
-                      onClick={() => {
-                        if (!company.id) return;
-                        const trimmed = descriptionDraft.trim();
-                        descriptionMutation.mutate({
-                          id: company.id,
-                          text: trimmed || null,
-                        });
-                      }}
-                    >
-                      {descriptionMutation.isPending ? 'Сохранение…' : 'Сохранить'}
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
-            {editingDescription ? (
-              <textarea
-                className="company-description-editor"
-                value={descriptionDraft}
-                onChange={(e) => setDescriptionDraft(e.target.value)}
-                placeholder="Опишите деятельность компании: основные направления бизнеса, география, ключевые продукты…"
-                rows={8}
-              />
-            ) : company.business_description ? (
-              <div className="company-description-text">{company.business_description}</div>
-            ) : (
-              <div className="placeholder-content company-description-empty">
-                <p>Описание пока не заполнено.</p>
-                <p className="placeholder-hint">
-                  Добавьте вручную или загрузите отчёт через AI-парсер — описание подтянется
-                  из раздела примечаний «1. Информация о компании».
-                </p>
-              </div>
-            )}
-          </section>
-
-        </div>
-
-        {/* Правая колонка - Отчеты и новости */}
-        <div className="content-column">
+      {/* Отчёты — со всеми инструментами: добавление, AI-парсер, проверка,
+          удаление. Режим только для чтения спрячет их позже целиком. */}
+      <section id="reports" className={`cd-card cd-card--flush ${tabbed('reports')}`}>
           {/* Финансовые отчеты */}
           <section className="info-card">
             {/* Заголовок: сворачивание по клику на название; справа — как в списке компаний + стрелка */}
@@ -568,7 +655,7 @@ const CompanyDetail: React.FC = () => {
                 title="Открыть таблицу всех полей по периодам"
               >
                 <h2 className="card-title" style={{ margin: 0, paddingBottom: 0, borderBottom: 'none', display: 'flex', alignItems: 'center', gap: 8 }}>
-                  📋 Финансовые отчеты
+                  Финансовые отчёты
                   {reports && reports.length > 0 && (
                     <span className="reports-count-badge">{reports.length}</span>
                   )}
@@ -577,7 +664,7 @@ const CompanyDetail: React.FC = () => {
                       className="reports-unverified-pill"
                       title={`${unverifiedCount} отчётов требуют проверки аналитиком`}
                     >
-                      🤖 {unverifiedCount} не проверено
+                      {unverifiedCount} не проверено
                     </span>
                   )}
                 </h2>
@@ -735,74 +822,124 @@ const CompanyDetail: React.FC = () => {
             </div>
           </section>
 
-          {/* Последние финансовые показатели */}
-          {latestReport && (
-            <section className="info-card">
-              <h2 className="card-title">💰 Последние показатели</h2>
-              <div className="financial-metrics">
-                {latestReport.revenue_rub && (
-                  <div className="metric-item">
-                    <span className="metric-label">Выручка</span>
-                    <span className="metric-value">{fmtMln(latestReport.revenue_rub)}</span>
-                    {latestReport.currency === 'USD' && latestReport.revenue && (
-                      <span className="metric-hint">
-                        ({fmtMln(latestReport.revenue)} в USD)
-                      </span>
-                    )}
-                  </div>
+      </section>
+
+      <section id="about" className={`cd-card cd-card--flush ${tabbed('about')}`}>
+      <div className="company-content-grid">
+        <div className="content-column">
+          {/* Описание бизнеса */}
+          <section className="info-card company-description-card">
+            <div className="company-description-header">
+              <h2 className="card-title" style={{ margin: 0, paddingBottom: 0, borderBottom: 'none' }}>
+                О компании
+              </h2>
+              <div className="company-description-actions">
+                {company.business_description_source && !editingDescription && (
+                  <span
+                    className={`company-description-source company-description-source--${company.business_description_source}`}
+                    title={
+                      company.business_description_updated_at
+                        ? `Обновлено: ${new Date(company.business_description_updated_at).toLocaleString('ru-RU')}`
+                        : undefined
+                    }
+                  >
+                    {company.business_description_source === 'manual' ? 'вручную' : 'из отчёта'}
+                  </span>
                 )}
-                {latestReport.net_income_rub && (
-                  <div className="metric-item">
-                    <span className="metric-label">Чистая прибыль</span>
-                    <span className="metric-value">{fmtMln(latestReport.net_income_rub)}</span>
-                    {latestReport.currency === 'USD' && latestReport.net_income && (
-                      <span className="metric-hint">
-                        ({fmtMln(latestReport.net_income)} в USD)
-                      </span>
-                    )}
-                  </div>
-                )}
-                {latestReport.total_assets_rub && (
-                  <div className="metric-item">
-                    <span className="metric-label">Активы</span>
-                    <span className="metric-value">{fmtMln(latestReport.total_assets_rub)}</span>
-                    {latestReport.currency === 'USD' && latestReport.total_assets && (
-                      <span className="metric-hint">
-                        ({fmtMln(latestReport.total_assets)} в USD)
-                      </span>
-                    )}
-                  </div>
-                )}
-                {latestReport.equity_rub && (
-                  <div className="metric-item">
-                    <span className="metric-label">Капитал</span>
-                    <span className="metric-value">{fmtMln(latestReport.equity_rub)}</span>
-                    {latestReport.currency === 'USD' && latestReport.equity && (
-                      <span className="metric-hint">
-                        ({fmtMln(latestReport.equity)} в USD)
-                      </span>
-                    )}
-                  </div>
+                {!editingDescription ? (
+                  <button
+                    type="button"
+                    className="company-description-btn company-description-btn--secondary"
+                    onClick={() => {
+                      setDescriptionDraft(company.business_description || '');
+                      setEditingDescription(true);
+                    }}
+                  >
+                    {company.business_description ? 'Редактировать' : 'Добавить'}
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      className="company-description-btn company-description-btn--secondary"
+                      onClick={() => setEditingDescription(false)}
+                      disabled={descriptionMutation.isPending}
+                    >
+                      Отмена
+                    </button>
+                    <button
+                      type="button"
+                      className="company-description-btn company-description-btn--primary"
+                      disabled={descriptionMutation.isPending}
+                      onClick={() => {
+                        if (!company.id) return;
+                        const trimmed = descriptionDraft.trim();
+                        descriptionMutation.mutate({
+                          id: company.id,
+                          text: trimmed || null,
+                        });
+                      }}
+                    >
+                      {descriptionMutation.isPending ? 'Сохранение…' : 'Сохранить'}
+                    </button>
+                  </>
                 )}
               </div>
-              <p className="report-date-info">По данным отчета от {latestReport.report_date}</p>
-            </section>
-          )}
+            </div>
+            {editingDescription ? (
+              <textarea
+                className="company-description-editor"
+                value={descriptionDraft}
+                onChange={(e) => setDescriptionDraft(e.target.value)}
+                placeholder="Опишите деятельность компании: основные направления бизнеса, география, ключевые продукты…"
+                rows={8}
+              />
+            ) : company.business_description ? (
+              <div className="company-description-text">{company.business_description}</div>
+            ) : (
+              <div className="placeholder-content company-description-empty">
+                <p>Описания пока нет.</p>
+              </div>
+            )}
+          </section>
 
-          {/* Новости - заглушка */}
+        </div>
+        <div className="content-column">
           <section className="info-card">
-            <h2 className="card-title">📰 Новости</h2>
-            <div className="placeholder-content">
-              <p>Новости компании появятся здесь</p>
-              <p className="placeholder-hint">
-                Планируется интеграция с источниками новостей для отображения актуальной информации
-              </p>
+            <h2 className="card-title">Биржевые данные</h2>
+            <div className="info-grid">
+              <div className="info-item">
+                <span className="info-label">FIGI</span>
+                <span className="info-value">{company.figi}</span>
+              </div>
+              <div className="info-item">
+                <span className="info-label">ISIN</span>
+                <span className="info-value">{company.isin || '—'}</span>
+              </div>
+              <div className="info-item">
+                <span className="info-label">Тикер</span>
+                <span className="info-value">{company.ticker}</span>
+              </div>
+              <div className="info-item">
+                <span className="info-label">Валюта</span>
+                <span className="info-value">{company.currency?.toUpperCase()}</span>
+              </div>
+              <div className="info-item">
+                <span className="info-label">Размер лота</span>
+                <span className="info-value">{company.lot}</span>
+              </div>
+              <div className="info-item">
+                <span className="info-label">Торговля через API</span>
+                <span className={`info-badge ${company.api_trade_available_flag ? 'active' : 'inactive'}`}>
+                  {company.api_trade_available_flag ? 'доступна' : 'недоступна'}
+                </span>
+              </div>
             </div>
           </section>
 
         </div>
       </div>
-      )}
+      </section>
 
       {/* Модальное окно просмотра отчёта */}
       {selectedReport && (
@@ -840,7 +977,6 @@ const CompanyDetail: React.FC = () => {
           onClose={() => setAiParseMode(null)}
         />
       )}
-
     </div>
   );
 };
@@ -918,7 +1054,6 @@ const AddReportMenu: React.FC<AddReportMenuProps> = ({
             className="add-report-menu-item"
             onClick={run(onManualAdd)}
           >
-            <span className="add-report-menu-item-icon">✍️</span>
             <span className="add-report-menu-item-body">
               <span className="add-report-menu-item-title">Заполнить форму</span>
               <span className="add-report-menu-item-sub">
@@ -936,7 +1071,6 @@ const AddReportMenu: React.FC<AddReportMenuProps> = ({
             className="add-report-menu-item"
             onClick={run(onAiCreate)}
           >
-            <span className="add-report-menu-item-icon">🤖</span>
             <span className="add-report-menu-item-body">
               <span className="add-report-menu-item-title">Загрузить один PDF</span>
               <span className="add-report-menu-item-sub">
@@ -950,7 +1084,6 @@ const AddReportMenu: React.FC<AddReportMenuProps> = ({
             className="add-report-menu-item"
             onClick={run(onAiBatch)}
           >
-            <span className="add-report-menu-item-icon">📁</span>
             <span className="add-report-menu-item-body">
               <span className="add-report-menu-item-title">Папка с PDF (пакет)</span>
               <span className="add-report-menu-item-sub">
@@ -964,7 +1097,6 @@ const AddReportMenu: React.FC<AddReportMenuProps> = ({
             className="add-report-menu-item"
             onClick={run(onAiCompare)}
           >
-            <span className="add-report-menu-item-icon">🔍</span>
             <span className="add-report-menu-item-body">
               <span className="add-report-menu-item-title">Сравнить PDF с базой</span>
               <span className="add-report-menu-item-sub">

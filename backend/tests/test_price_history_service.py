@@ -53,11 +53,14 @@ def moex(monkeypatch):
     class FakeMoex:
         def __init__(self) -> None:
             self.calls: List[Tuple[str, date, date]] = []
+            self.boards: List[str] = []
             self.rows: List[Tuple[date, float]] = []
             self.raises_for: set[str] = set()
 
-        def __call__(self, ticker: str, from_date: date, till_date: date):
+        def __call__(self, ticker: str, from_date: date, till_date: date,
+                     board: str = "TQBR"):
             self.calls.append((ticker, from_date, till_date))
+            self.boards.append(board)
             if ticker in self.raises_for:
                 raise RuntimeError("MOEX недоступен")
             return list(self.rows)
@@ -104,8 +107,10 @@ def test_company_without_reports_is_skipped(db, company, moex):
 
 
 def test_up_to_date_company_is_not_requested_again(db, company, moex):
-    """Последняя запись за вчера — цены актуальны."""
-    _report(db, company, TODAY - timedelta(days=30))
+    """Ряд покрывает всё — от первого отчёта до вчера: в MOEX не ходим."""
+    start = TODAY - timedelta(days=30)
+    _report(db, company, start)
+    db.add(StockPrice(company_id=company.id, date=start, price=99.0, source="moex"))
     db.add(StockPrice(company_id=company.id, date=YESTERDAY, price=100.0, source="moex"))
     db.commit()
 
@@ -148,8 +153,10 @@ def test_first_backfill_starts_from_earliest_report(db, company, moex):
 
 def test_incremental_backfill_continues_from_next_day(db, company, moex):
     """Уже есть цены до какой-то даты — запрашиваем со следующего дня."""
-    _report(db, company, TODAY - timedelta(days=30))
+    start = TODAY - timedelta(days=30)
+    _report(db, company, start)
     last_stored = TODAY - timedelta(days=10)
+    db.add(StockPrice(company_id=company.id, date=start, price=89.0, source="moex"))
     db.add(StockPrice(company_id=company.id, date=last_stored, price=90.0, source="moex"))
     db.commit()
     moex.rows = [(last_stored + timedelta(days=1), 91.0)]
@@ -172,6 +179,110 @@ def test_force_from_overrides_stored_history(db, company, moex):
 
     assert added == 1
     assert moex.calls == [("TEST", forced_from, YESTERDAY)]
+
+
+# ─── Докачка истории назад ───────────────────────────────────────────────────
+
+
+def test_history_is_filled_backwards_when_series_starts_late(db, company, moex):
+    """Ряд начат с середины — недостающее начало докачивается назад.
+
+    Ради этого случая правило и появилось: докачка шла только вперёд, и ряд,
+    начатый однажды 21 марта 2026 года, так и оставался полугодовым у всех
+    компаний — назад его не дотягивало ничто.
+    """
+    start = TODAY - timedelta(days=200)
+    _report(db, company, start)
+    first_stored = TODAY - timedelta(days=40)
+    db.add(StockPrice(company_id=company.id, date=first_stored, price=90.0, source="moex"))
+    db.add(StockPrice(company_id=company.id, date=YESTERDAY, price=95.0, source="moex"))
+    db.commit()
+    moex.rows = [(start, 70.0)]
+
+    added = backfill_company_prices(db, company)
+
+    assert added == 1
+    assert moex.calls == [("TEST", start, first_stored - timedelta(days=1))]
+
+
+def test_backwards_and_forwards_in_one_pass(db, company, moex):
+    """Недостаёт и начала, и последних дней — оба диапазона за один вызов."""
+    start = TODAY - timedelta(days=200)
+    _report(db, company, start)
+    first_stored = TODAY - timedelta(days=40)
+    last_stored = TODAY - timedelta(days=10)
+    db.add(StockPrice(company_id=company.id, date=first_stored, price=90.0, source="moex"))
+    db.add(StockPrice(company_id=company.id, date=last_stored, price=91.0, source="moex"))
+    db.commit()
+
+    backfill_company_prices(db, company)
+
+    assert moex.calls == [
+        ("TEST", start, first_stored - timedelta(days=1)),
+        ("TEST", last_stored + timedelta(days=1), YESTERDAY),
+    ]
+
+
+def test_small_gap_at_the_start_is_not_a_hole(db, company, moex):
+    """Первый торговый день после отчёта — не сама дата отчёта.
+
+    Выходные, праздники, январские каникулы биржи: ряд, начавшийся через
+    неделю после отчёта, полный, и перезапрашивать его начало незачем.
+    """
+    start = TODAY - timedelta(days=60)
+    _report(db, company, start)
+    db.add(StockPrice(company_id=company.id, date=start + timedelta(days=7),
+                      price=90.0, source="moex"))
+    db.add(StockPrice(company_id=company.id, date=YESTERDAY, price=95.0, source="moex"))
+    db.commit()
+
+    assert backfill_company_prices(db, company) == 0
+    assert moex.calls == []
+
+
+def test_history_is_not_requested_before_the_floor(db, company, moex):
+    """Отчёты с 2008 года — но цены раньше 2010-го не грузятся."""
+    _report(db, company, date(2008, 12, 31))
+
+    backfill_company_prices(db, company)
+
+    assert moex.calls[0][1] == price_history_service.HISTORY_FLOOR
+
+
+def test_legacy_boards_fill_years_before_unification(db, company, moex):
+    """До 9 июня 2014 года бумага могла торговаться не в TQBR.
+
+    У Башнефти 2012–2013 годы лежат в режиме EQNE, а в TQBR свечи начинаются
+    только с 9 июня 2014-го. Запрос по одному основному режиму возвращал ряд,
+    обрезанный ровно по этой дате.
+    """
+    _report(db, company, date(2012, 1, 1))
+    tqbr = [(date(2014, 6, 9), 2464.7)]
+    legacy = [(date(2012, 1, 3), 1380.0), (date(2014, 6, 9), 9999.0)]
+
+    def fake(ticker, from_date, till_date, board="TQBR"):
+        moex.calls.append((ticker, from_date, till_date))
+        moex.boards.append(board)
+        return list(tqbr if board == "TQBR" else legacy if board == "EQNE" else [])
+
+    price_history_service.get_price_history = fake
+
+    backfill_company_prices(db, company)
+
+    stored = _stored(db, company.id)
+    assert (date(2012, 1, 3), 1380.0) in stored
+    # День, найденный в основном режиме, запасным не перекрывается.
+    assert (date(2014, 6, 9), 2464.7) in stored
+    assert set(moex.boards) >= {"TQBR", "TQNE", "EQBR", "EQNE"}
+
+
+def test_legacy_boards_are_not_asked_after_unification(db, company, moex):
+    """Для лет после объединения режимов запасные не запрашиваются вовсе."""
+    _report(db, company, TODAY - timedelta(days=30))
+
+    backfill_company_prices(db, company)
+
+    assert moex.boards == ["TQBR"]
 
 
 # ─── Идемпотентность ─────────────────────────────────────────────────────────
@@ -222,3 +333,99 @@ def test_one_broken_company_does_not_stop_the_rest(db, company, moex):
 
     assert result == {"TEST": 1}
     assert "BROKEN" not in result
+
+
+# ─── Бумага сменила имя ──────────────────────────────────────────────────────
+
+def test_history_before_a_rename_is_asked_under_the_old_name(db, company, moex):
+    """ISS хранит торги под тем символом, что был в тот день, и связи между
+    старым и новым именем у биржи нет. Запрос всей истории по нынешнему тикеру
+    возвращал пустоту за годы до переименования — цена лежала под FIVE."""
+    company.ticker = "X5"
+    company.former_tickers = [{"ticker": "FIVE", "until": "2024-11-22"}]
+    db.commit()
+    _report(db, company, date(2021, 12, 31))
+
+    backfill_company_prices(db, company)
+
+    assert moex.calls == [
+        ("FIVE", date(2021, 12, 31), date(2024, 11, 22)),
+        ("X5", date(2024, 11, 23), YESTERDAY),
+    ]
+
+
+def _main_board(moex) -> List[Tuple[str, date, date]]:
+    """Запросы по основному режиму: запасные доски — отдельная забота."""
+    return [call for call, board in zip(moex.calls, moex.boards) if board == "TQBR"]
+
+
+def test_a_chain_of_three_names_is_split_by_each_rename(db, company, moex):
+    """ОГК-4 → Э.ОН Россия → Юнипро: у одной компании три символа.
+
+    Самое старое звено сюда не попадает: OGKD кончился в 2007 году, а история
+    не грузится раньше HISTORY_FLOOR. Спрашивать его не за что."""
+    company.ticker = "UPRO"
+    company.former_tickers = [
+        {"ticker": "EONR", "until": "2016-06-30"},
+        {"ticker": "OGKD", "until": "2007-04-24"},
+    ]
+    db.commit()
+    _report(db, company, date(2006, 12, 31))
+
+    backfill_company_prices(db, company)
+
+    assert _main_board(moex) == [
+        ("EONR", date(2010, 1, 1), date(2016, 6, 30)),
+        ("UPRO", date(2016, 7, 1), YESTERDAY),
+    ]
+
+
+def test_every_link_of_the_chain_is_asked_when_all_are_in_range(db, company, moex):
+    company.ticker = "UPRO"
+    company.former_tickers = [
+        {"ticker": "EONR", "until": "2016-06-30"},
+        {"ticker": "OGKD", "until": "2007-04-24"},
+    ]
+    db.commit()
+    _report(db, company, date(2006, 12, 31))
+
+    backfill_company_prices(db, company, force_from=date(2005, 1, 1))
+
+    assert _main_board(moex) == [
+        ("OGKD", date(2005, 1, 1), date(2007, 4, 24)),
+        ("EONR", date(2007, 4, 25), date(2016, 6, 30)),
+        ("UPRO", date(2016, 7, 1), YESTERDAY),
+    ]
+
+
+def test_a_name_retired_before_the_range_is_not_asked(db, company, moex):
+    """Отчёты начинаются после переименования — старый символ не нужен."""
+    company.ticker = "VKCO"
+    company.former_tickers = [{"ticker": "MAIL", "until": "2021-12-13"}]
+    db.commit()
+    _report(db, company, date(2022, 12, 31))
+
+    backfill_company_prices(db, company)
+
+    assert moex.calls == [("VKCO", date(2022, 12, 31), YESTERDAY)]
+
+
+def test_a_company_that_never_changed_its_name_asks_once(db, company, moex):
+    _report(db, company, date(2024, 12, 31))
+
+    backfill_company_prices(db, company)
+
+    assert moex.calls == [("TEST", date(2024, 12, 31), YESTERDAY)]
+
+
+def test_the_boundary_day_belongs_to_the_old_name(db, company, moex):
+    """`until` — последний день старого символа, а не первый день нового."""
+    company.ticker = "CNRU"
+    company.former_tickers = [{"ticker": "CIAN", "until": "2025-04-02"}]
+    db.commit()
+    _report(db, company, date(2025, 4, 2))
+
+    backfill_company_prices(db, company)
+
+    assert moex.calls[0] == ("CIAN", date(2025, 4, 2), date(2025, 4, 2))
+    assert moex.calls[1] == ("CNRU", date(2025, 4, 3), YESTERDAY)

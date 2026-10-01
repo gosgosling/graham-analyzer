@@ -195,6 +195,45 @@ def fetch_share_instrument_by_figi(token: str, base_url: str, figi: str) -> Opti
     return _pick_inst(data)
 
 
+def instrument_is_wanted(company: Dict) -> bool:
+    """Брать ли инструмент в базу.
+
+    Два условия, и оба обязательны.
+
+    **Относится к нашему рынку** — российская регистрация, российская страна
+    риска или торги на Мосбирже. Это старое правило, оно не менялось.
+
+    **Торгуется за рубли.** Условие новое, и вот зачем. У российского эмитента
+    бывает вторая линия за рубежом, и страна риска у неё та же — поэтому
+    первое правило её пропускало. В базе от этого заводился двойник: `CIAN@US`
+    рядом с `CNRU`, `FIVE@GS` рядом с `X5`, долларовый `VEON` рядом с
+    рублёвым `VEON-RX`. Наполнить их нечем — котировки мы берём у Мосбиржи, а
+    там этих бумаг нет, — и все шесть таких записей стояли с нулём отчётов и
+    единственной замороженной ценой из T-Invest.
+
+    Удалять их бесполезно: следующая же синхронизация заводит их заново.
+    Поэтому отсев перенесён сюда, на вход.
+
+    Отсутствие валюты нарушением не считается: выше она по умолчанию `RUB`,
+    и молчаливо выбрасывать бумагу из-за пустого поля было бы хуже.
+    """
+    currency = str(company.get("currency") or "RUB").upper()
+    if currency != "RUB":
+        return False
+
+    isin = str(company.get("isin") or "").upper()
+    country = str(company.get("country_of_risk") or "").upper()
+    exchange = str(company.get("exchange") or "").upper()
+
+    is_russian = (
+        isin.startswith("RU")
+        or "RU" in country
+        or currency == "RUB"
+    )
+    is_moex = any(name in exchange for name in ("MOEX", "MOSCOW", "MCX"))
+    return is_russian or is_moex
+
+
 def get_tinkoff_companies() -> List[Dict]:
     """
     Получает список компаний из T Invest API (Tinkoff Invest API).
@@ -300,31 +339,8 @@ def get_tinkoff_companies() -> List[Dict]:
                         skipped_count += 1
                         continue
                     
-                    # Фильтрация: только российские компании или торгующие на Мосбирже
-                    is_russian = False
-                    is_moex = False
-                    
-                    # Проверка 1: ISIN начинается с "RU" (российская регистрация)
-                    if company['isin']:
-                        isin_upper = str(company['isin']).upper()
-                        is_russian = isin_upper.startswith('RU')
-                    
-                    # Проверка 2: Страна риска - Россия
-                    if company['country_of_risk']:
-                        country = str(company['country_of_risk']).upper()
-                        is_russian = is_russian or 'RU' in country or 'RUS' in country or 'RUSSIA' in country or country == 'RU'
-                    
-                    # Проверка 3: Торгуется на Московской бирже
-                    if company['exchange']:
-                        exchange = str(company['exchange']).upper()
-                        is_moex = 'MOEX' in exchange or 'MOSCOW' in exchange or 'MCX' in exchange or 'MOEX' == exchange
-                    
-                    # Проверка 4: Валюта RUB также может указывать на российские компании
-                    if company['currency'] and str(company['currency']).upper() == 'RUB':
-                        is_russian = True
-                    
-                    # Добавляем только если компания российская ИЛИ торгуется на Мосбирже
-                    if is_russian or is_moex:
+                    # Российская бумага, торгуемая за рубли, — см. предикат
+                    if instrument_is_wanted(company):
                         logo_url, brand_color = extract_brand_from_instrument(instrument)
                         # В списке Shares часто нет brand — догружаем ShareBy (с небольшой паузой)
                         if not logo_url or not brand_color:

@@ -42,6 +42,12 @@ def main() -> int:
             return 1
 
         rates = {row.year: float(row.avg_rate) for row in db.query(KeyRate)}
+        # Безрисковая — средняя доходность 10-летних ОФЗ за год, где кривая
+        # есть (с 2014-го); раньше — ключевая плюс надбавка.
+        from app.services.market.ofz_service import OfzSeries
+
+        ofz = OfzSeries.load(db)
+        risk_free = {year: ofz.year_average(year) for year in rates if ofz.year_average(year)}
         premium = float(assumption.risk_premium)
         cap = (
             float(assumption.long_run_growth)
@@ -73,7 +79,8 @@ def main() -> int:
         basis = "average" if "--average" in flags else "trend"
         print(f"Уровень: {'простая средняя' if basis == 'average' else 'линия тенденции'}\n")
         results = [
-            backtest(db, company, premium, rates, growth_cap=cap, basis=basis)
+            backtest(db, company, premium, rates, growth_cap=cap, basis=basis,
+                     risk_free_rates=risk_free)
             for company in companies
         ]
 
@@ -98,7 +105,7 @@ def _compare(db, companies: list, premium: float, rates: dict, cap) -> None:
     for basis, label in (("average", "средняя"), ("trend", "тенденция")):
         inside = above = below = 0
         for company in companies:
-            for row in backtest(db, company, premium, rates,
+            for row in backtest(db, company, premium, rates, risk_free_rates=risk_free,
                                 growth_cap=cap, basis=basis).counted:
                 if row.inside:
                     inside += 1

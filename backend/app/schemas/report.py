@@ -147,6 +147,9 @@ class ReportFigures(BaseModel):
     total_liabilities: Optional[float] = None
     current_liabilities: Optional[float] = None
     equity: Optional[float] = None
+    # Неконтролирующая доля участия, млн. В `equity` не входит: там капитал
+    # акционеров материнской компании. Нужна, чтобы баланс сходился точно
+    non_controlling_interest: Optional[float] = None
     # Гудвил из баланса, млн — вычитается при расчёте материального капитала
     goodwill: Optional[float] = None
     # Прочие НМА из баланса, млн — БЕЗ гудвила. Из материального капитала не

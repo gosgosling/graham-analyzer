@@ -219,7 +219,10 @@ function AxisRow({ axis, verdicts }: { axis: ScreenAxis; verdicts: Verdict[] }) 
   // оговорка берут свой текст из тех же примечаний, и без этой проверки одна
   // и та же фраза печаталась дважды подряд: красным и серым.
   const said = new Set([doubt, caveat].filter(Boolean));
-  const prose = [...verdicts.map((v) => v.note), axis.note]
+  // Примечания неприменимых критериев сюда не идут: у ЛУКОЙЛа под пройденной
+  // рентабельностью стояло «эта величина для такой компании не считается» —
+  // это было про банковскую стоимость риска, а читалось как про ROE.
+  const prose = [...verdicts.filter((v) => v.status !== 'n/a').map((v) => v.note), axis.note]
     .filter((v, i, all) => v && !said.has(v) && all.indexOf(v) === i)
     .slice(0, 2)
     .join('. ');
@@ -315,16 +318,8 @@ export default function CompanyPassport({ companyId }: Props) {
 
   return (
     <div className="pp">
-      <div className="pp-head">
-        <div className="pp-title">
-          <b>{data.company.ticker}</b>
-          <span>{data.company.name}</span>
-          <em title={data.profile.summary}>профиль: {data.profile.label.toLowerCase()}</em>
-        </div>
-      </div>
-
       <div className="pp-section">
-        <span>семь осей · пороги</span>
+        <span title={data.profile.summary}>пороги: {data.profile.label.toLowerCase()}</span>
         <div className="pp-switch">
           {Object.entries(data.screens).map(([key, s]) => (
             <button
@@ -333,7 +328,7 @@ export default function CompanyPassport({ companyId }: Props) {
               className={key === standard ? 'is-on' : undefined}
               onClick={() => setStandard(key)}
             >
-              {key === 'defensive' ? 'защитного' : 'активного'} инвестора
+              {key === 'defensive' ? 'Защитный инвестор, гл. 14' : 'Активный инвестор, гл. 15'}
             </button>
           ))}
         </div>
@@ -349,7 +344,7 @@ export default function CompanyPassport({ companyId }: Props) {
       </div>
 
       <div className="pp-section">
-        <span>уровень</span>
+        <span>итог</span>
         <i />
       </div>
 
@@ -367,7 +362,7 @@ export default function CompanyPassport({ companyId }: Props) {
             </div>
             <p>
               {s.clears
-                ? `Все ${s.checked} критериев пройдены.`
+                ? `Выполнены все ${s.checked} условий по семи осям.`
                 : s.failed.length
                   ? `${s.passed} из ${s.checked}. Не прошла: ${s.failed
                       .map((m) => s.verdicts.find((v) => v.metric === m)?.metric_label ?? m)
@@ -380,9 +375,7 @@ export default function CompanyPassport({ companyId }: Props) {
       </div>
 
       <p className="pp-foot">
-        Балла здесь нет намеренно. Грэм требует прохождения всех критериев сразу, а не
-        суммы очков: компания с шестью пятёрками и одним нулём у него не проходит, и
-        усреднение это скрыло бы.
+        Баллов нет: у Грэма компания проходит, только если выполнены все условия сразу.
       </p>
     </div>
   );

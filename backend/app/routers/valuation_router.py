@@ -225,6 +225,7 @@ def _headline(payload: dict) -> dict:
 @router.get("/company/{company_id}/summary")
 def company_summary(
     company_id: int,
+    window: int = Query(DEFAULT_WINDOW, ge=3, le=15, description="окно нормализации для сетки ставок, лет"),
     db: Session = Depends(get_db),
 ) -> dict:
     """Компактный свод: три окна, сетка ставок, опорная цена с запасом.
@@ -239,17 +240,17 @@ def company_summary(
         raise HTTPException(status_code=404, detail=f"Компания {company_id} не найдена")
 
     base = _assumption(db, None)
-    current = assess(db, company, base, DEFAULT_WINDOW)
+    current = assess(db, company, base, window)
     if not current.get("available"):
         return {"available": False, "reason": current.get("reason")}
 
     windows = []
-    for window in SUMMARY_WINDOWS:
-        payload = assess(db, company, base, window)
+    for span in SUMMARY_WINDOWS:
+        payload = assess(db, company, base, span)
         band = payload.get("band") or {}
         safety = payload.get("safety") or {}
         windows.append({
-            "window": window,
+            "window": span,
             "refused": bool(band.get("refused")),
             "reason": band.get("reason"),
             "method": band.get("method"),
@@ -270,13 +271,18 @@ def company_summary(
 
     rates = []
     for rate in SUMMARY_RATES:
-        payload = assess(db, company, _RateShim(base, rate), DEFAULT_WINDOW)
+        payload = assess(db, company, _RateShim(base, rate), window)
         band = payload.get("band") or {}
         safety = payload.get("safety") or {}
         rates.append({
             "risk_free_rate": rate,
             "required_return": rate + float(base.risk_premium),
             "multiple": band.get("multiple_high"),
+            # Прибыль, от которой считана опорная этой строки. Множитель
+            # опорной — это опорная, делённая на неё: в сетке стоял множитель
+            # справедливой (4,52), а рядом опорная, посчитанная по 4,10, и
+            # строка не перемножалась.
+            "normal_earnings": _headline(payload)["normal"],
             "value": _headline(payload)["value"],
             "reference": safety.get("reference"),
             "margin": safety.get("value_margin"),
@@ -284,10 +290,22 @@ def company_summary(
         })
 
     safety = current.get("safety") or {}
+    headline = _headline(current)
     return {
         "available": True,
         "price": current.get("price"),
-        "window": DEFAULT_WINDOW,
+        "trap_signs": current.get("trap_signs") or [],
+        "trap_level": current.get("trap_level"),
+        "window": window,
+        # Оценка выбранного окна одной строкой — для формулы «прибыль ×
+        # множитель = опорная» во вкладке оценки.
+        "headline": {
+            "normal_earnings": headline["normal"],
+            "value": headline["value"],
+            "ladder": headline["ladder"],
+            "reference": safety.get("reference"),
+            "margin": safety.get("value_margin"),
+        },
         "assumption": {
             "risk_free_rate": float(base.risk_free_rate),
             "risk_premium": float(base.risk_premium),
@@ -339,39 +357,55 @@ def company_valuation_history(
     assumption = _assumption(db, None)
     rates = {row.year: float(row.avg_rate) for row in db.query(KeyRate)}
 
-    # **Ставка сдвинута на год вперёд, и это не то же самое, что в гейте.**
+    # **Ставка — та, что известна на дату публикации отчёта.**
     #
-    # Гейт сравнивает оценку за год Y с ценой того же года Y, и ставка ему
-    # нужна тоже за год Y. На графике ступень живёт иначе: отчёт за 2022-й
-    # выходит весной 2023-го и стоит до весны 2024-го, то есть ступень по
-    # отчёту года Y покрывает год Y+1 целиком. Считать её по ставке года Y
-    # значит показывать деньги прошлого года по цене позапрошлого.
+    # Здесь недолго стояла средняя ставка следующего года: ступень по отчёту
+    # за Y живёт весь год Y+1, и казалось естественным брать его ставку. Но
+    # в апреле Y+1, когда отчёт выходит, средняя за Y+1 ещё не известна —
+    # это заглядывание вперёд, только спрятанное в ставку. На всей базе оно
+    # вышло наружу сразу: сигнал «цена ниже справедливой» с подглядыванием
+    # разводил доходность за два года на 29 пунктов (+15% против −14%), а
+    # честный — на 10 (0% против −10%). Втрое лучше за счёт знания будущего.
     #
-    # На данных это вышло наружу сразу: последняя ступень ЛУКОЙЛа покрывает
-    # апрель 2026 — сегодня, но бралась по ключевой 2025 года (19,13%), и
-    # опорная выходила 3 429 ₽ против 4 047 ₽ в карточке под тем же графиком.
-    # Одна и та же величина двумя числами на одном экране.
-    #
-    # Для последней ступени ставка берётся из допущений рынка: она про
-    # сегодня, и карточка считается по ней же.
+    # Поэтому ступень по отчёту за Y считается по средней ставке года Y —
+    # она к публикации известна целиком. Исключение — последняя ступень,
+    # доходящая до сегодняшнего дня: её ставка из допущений рынка известна
+    # сейчас, и карточка под графиком считается по ней же.
+    today_rate = float(assumption.risk_free_rate) - OFZ_OVER_KEY_RATE
+    current_year = date.today().year
     shifted = {
-        year: rates.get(year + 1, float(assumption.risk_free_rate) - OFZ_OVER_KEY_RATE)
+        year: (rates[year] if year + 1 < current_year else today_rate)
         for year in rates
     }
 
+    from app.services.market.ofz_service import OfzSeries
+
+    ofz = OfzSeries.load(db)
     result = backtest(
         db, company,
         risk_premium=float(assumption.risk_premium),
         key_rates=shifted,
+        # Безрисковая года — средняя доходность 10-летних ОФЗ за этот год,
+        # кроме последнего: его ступень доходит до сегодня и считается по
+        # допущениям, как карточка.
+        risk_free_rates={
+            year: ofz.year_average(year)
+            for year in shifted if year + 1 < current_year and ofz.year_average(year)
+        },
         growth_cap=(
             float(assumption.long_run_growth)
             if getattr(assumption, "long_run_growth", None) is not None else None
         ),
     )
 
+    from app.utils.disclosure import disclosure_dates
+
+    disclosed = disclosure_dates(db, company.id)
     years = []
     for row in result.years:
-        known_from = date(row.year, 12, 31) + PUBLICATION_LAG
+        known_from = disclosed.get(
+            (row.year, "ANNUAL"), date(row.year, 12, 31) + PUBLICATION_LAG,
+        )
         years.append({
             "year": row.year,
             "known_from": known_from.isoformat(),
@@ -385,9 +419,31 @@ def company_valuation_history(
             "inside": row.inside,
         })
 
+    # Отрезки по дневной ставке — то, что рисует график. Годы выше остаются для
+    # сводки попаданий: гейт сравнивает оценку года с ценой того же года, и
+    # ему нужна одна ставка на год.
+    from app.services.analysis.valuation_backtest import valuation_segments
+    from app.services.market.key_rate_service import RateSeries
+
+    series = RateSeries.load(db)
+    segments = valuation_segments(
+        db, company,
+        risk_premium=float(assumption.risk_premium),
+        rates=series,
+        today_rate=today_rate,
+        today=date.today(),
+        lag=PUBLICATION_LAG,
+        growth_cap=(
+            float(assumption.long_run_growth)
+            if getattr(assumption, "long_run_growth", None) is not None else None
+        ),
+        ofz=ofz,
+    ) if series else []
+
     return {
         "ticker": result.ticker,
         "years": years,
+        "segments": segments,
         "hits": result.hits,
         "counted": len(result.counted),
         "verdict": result.verdict,

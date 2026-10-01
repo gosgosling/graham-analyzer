@@ -138,6 +138,10 @@ export interface ChartColors {
   line6: string;
   refGood: string;
   refBad: string;
+  /** Опорная стоимость: `--color-chart-ref-line`. */
+  refLine: string;
+  /** Заливка «цена ниже опорной»: `--color-chart-zone-below`. */
+  zoneBelow: string;
   tooltipBg: string;
   tooltipBorder: string;
   dotStroke: string;
@@ -155,6 +159,8 @@ const LIGHT_CHART: ChartColors = {
   line6: '#ec4899',
   refGood: '#22c55e',
   refBad: '#ef4444',
+  refLine: '#ea580c',
+  zoneBelow: 'rgba(16, 185, 129, 0.18)',
   tooltipBg: '#ffffff',
   tooltipBorder: '#e2e8f0',
   dotStroke: '#ffffff',
@@ -172,6 +178,8 @@ const DARK_CHART: ChartColors = {
   line6: '#f472b6',
   refGood: '#34d399',
   refBad: '#f87171',
+  refLine: '#fb923c',
+  zoneBelow: 'rgba(52, 211, 153, 0.22)',
   tooltipBg: '#222937',
   tooltipBorder: 'rgba(255,255,255,0.10)',
   dotStroke: '#222937',

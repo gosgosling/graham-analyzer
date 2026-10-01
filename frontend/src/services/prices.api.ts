@@ -18,6 +18,9 @@ export interface PricePoint {
   pb: number | null;
   /** Год отчёта, по которому посчитаны множители этого дня. */
   basis_year: number | null;
+  /** Почему множителя за этот день нет: убыток, нет данных в отчёте, отчёт не вышел. */
+  pe_gap: string | null;
+  pb_gap: string | null;
 }
 
 /** Публикация годового отчёта — засечка на оси времени. */
@@ -28,10 +31,20 @@ export interface PriceReportMark {
   bvps: number | null;
 }
 
+/** Засечка на графике: выход отчёта, дивидендная отсечка, сплит. */
+export interface PriceEvent {
+  date: string;
+  kind: 'report' | 'dividend' | 'split';
+  label: string;
+  detail: string | null;
+  value?: number | null;
+}
+
 export interface PriceHistoryOut {
   company: { id: number; ticker: string; name: string };
   points: PricePoint[];
   reports: PriceReportMark[];
+  events?: PriceEvent[];
   summary: {
     from: string;
     till: string;

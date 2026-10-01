@@ -1,0 +1,125 @@
+/* Консервативные критерии: раздел и его показатели друг под другом. */
+
+.cc-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.cc-lede {
+  margin: 10px 0 6px;
+  font-size: 0.86rem;
+  line-height: 1.55;
+  color: var(--color-text-tertiary);
+}
+
+.cc-state { padding: 18px 0; color: var(--color-text-tertiary); }
+
+.cc-table-wrap { overflow-x: auto; }
+
+.cc-table {
+  width: 100%;
+  min-width: 720px;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  font-variant-numeric: tabular-nums;
+}
+.cc-col-section { width: 200px; }
+.cc-col-num { width: 140px; }
+.cc-col-book { width: 170px; }
+.cc-col-mark { width: 64px; }
+
+.cc-table th {
+  text-align: left;
+  font-size: 0.76rem;
+  font-weight: 500;
+  color: var(--color-text-tertiary);
+  padding: 10px 12px 8px 0;
+  border-bottom: 1px solid var(--color-border-strong);
+}
+.cc-table td {
+  padding: 9px 12px 9px 0;
+  vertical-align: top;
+  border-bottom: 1px solid var(--color-border-subtle);
+  color: var(--color-text-secondary);
+}
+.cc-table tr.cc-last td,
+.cc-table td.cc-section { border-bottom-color: var(--color-border-strong); }
+.cc-table .is-num { text-align: right; }
+.cc-table .is-mark { text-align: center; padding-right: 0; }
+
+.cc-section { display: table-cell; }
+.cc-section-name { display: block; font-weight: 600; color: var(--color-text-primary); }
+.cc-section-status { display: block; font-size: 0.78rem; }
+.cc-section-status--pass { color: var(--color-success-strong); }
+.cc-section-status--fail { color: var(--color-error-strong); }
+.cc-section-status--unknown { color: var(--color-text-tertiary); }
+[data-theme='dark'] .cc-section-status--pass { color: var(--color-success-text); }
+[data-theme='dark'] .cc-section-status--fail { color: var(--color-error-text); }
+
+.cc-metric span:first-child { color: var(--color-text-primary); }
+.cc-metric small {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--color-text-tertiary);
+}
+.cc-ours {
+  margin-left: 6px;
+  font-size: 0.7rem;
+  padding: 0 5px;
+  border-radius: var(--radius-xs);
+  border: 1px solid var(--color-border-default);
+  color: var(--color-text-tertiary);
+  vertical-align: 1px;
+}
+.cc-value { font-weight: 600; color: var(--color-text-primary) !important; }
+.cc-book { color: var(--color-text-tertiary) !important; }
+
+.cc-mark { font-weight: 600; }
+.cc-mark--pass { color: var(--color-success-strong); }
+.cc-mark--marginal { color: var(--color-warning-strong); }
+.cc-mark--fail { color: var(--color-error-strong); }
+.cc-mark--unknown { color: var(--color-text-tertiary); font-size: 0.8rem; }
+[data-theme='dark'] .cc-mark--pass { color: var(--color-success-text); }
+[data-theme='dark'] .cc-mark--marginal { color: var(--color-warning-text); }
+[data-theme='dark'] .cc-mark--fail { color: var(--color-error-text); }
+
+.cc-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin-top: 12px;
+  font-size: 0.86rem;
+  color: var(--color-text-secondary);
+}
+.cc-more {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-size: 0.84rem;
+  color: var(--color-text-link);
+  cursor: pointer;
+}
+.cc-details { margin-top: 16px; }
+
+/* Телефон: таблица превращается в список по разделам */
+@media (max-width: 760px) {
+  .cc-table { min-width: 0; }
+  .cc-table thead { display: none; }
+  .cc-table, .cc-table tbody, .cc-table tr, .cc-table td { display: block; width: auto; }
+  .cc-table tr { display: grid; grid-template-columns: 1fr auto auto; gap: 0 10px; padding: 8px 0; border-bottom: 1px solid var(--color-border-subtle); }
+  .cc-table td { border: 0; padding: 0; }
+  .cc-table td.cc-section { grid-column: 1 / -1; display: flex; justify-content: space-between; padding: 10px 0 4px; }
+  .cc-table td.cc-metric { grid-column: 1; }
+  .cc-table td.cc-value { grid-column: 2; }
+  .cc-table td.is-mark { grid-column: 3; }
+  .cc-table td.is-num:not(.cc-value) { grid-column: 1; text-align: left; font-size: 0.76rem; color: var(--color-text-tertiary); }
+  .cc-table td.is-num:not(.cc-value)::before { content: 'порог '; }
+  .cc-table td.cc-book::before { content: 'в книге '; }
+}

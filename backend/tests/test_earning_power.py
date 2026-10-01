@@ -781,3 +781,46 @@ def test_тенденция_не_считается_на_коротком_ряд
     assert five is not None
     assert five.years_used == 5
     assert five.value > 500
+
+
+def test_число_грэма_это_корень_из_22_5_eps3_bvps():
+    """Гл. 14: P/E к средней за три года ≤ 15 и P/B ≤ 1,5 — произведение 22,5.
+
+    ЛУКОЙЛ, июнь 2018 года: средняя прибыль 2015–2017 годов 433 ₽, балансовая
+    4 891 ₽ — число Грэма около 6 900 ₽ при цене 4 206.
+    """
+    from app.services.analysis.earning_power import graham_numbers
+
+    points = [
+        YearPoint(year=2015, eps=420.0, book_value_per_share=4500.0),
+        YearPoint(year=2016, eps=290.0, book_value_per_share=4700.0),
+        YearPoint(year=2017, eps=590.0, book_value_per_share=4891.0),
+    ]
+    got = graham_numbers(points)
+    assert 2016 not in got                        # двух лет мало
+    assert got[2017] == pytest.approx((22.5 * 433.33 * 4891) ** 0.5, rel=1e-3)
+    assert 6800 < got[2017] < 7000
+
+
+def test_числа_грэма_нет_при_убытке_или_отрицательном_капитале():
+    from app.services.analysis.earning_power import graham_numbers
+
+    loss = [YearPoint(year=y, eps=-10.0, book_value_per_share=100.0) for y in (2020, 2021, 2022)]
+    assert graham_numbers(loss) == {}
+    negative_equity = [YearPoint(year=y, eps=10.0, book_value_per_share=-5.0) for y in (2020, 2021, 2022)]
+    assert graham_numbers(negative_equity) == {}
+
+
+def test_ltm_не_подставляется_до_конца_полугодия():
+    """До 30 июня полугодия не существует — LTM нет, база не трогается вовсе.
+
+    Дальше решает дата раскрытия самого отчёта (`app.utils.disclosure`):
+    фактическая, если есть, иначе 30 июня + 60 дней. Иначе оценка в июле
+    знала бы полугодие, которого рынок ещё не видел.
+    """
+    from datetime import date
+
+    from app.services.analysis.earning_power import with_ltm
+
+    points = [YearPoint(year=2025, eps=100.0, shares_normalized=1_000_000.0)]
+    assert with_ltm(None, 1, points, date(2026, 6, 29)) is points

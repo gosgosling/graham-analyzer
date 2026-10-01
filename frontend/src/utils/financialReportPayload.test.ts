@@ -6,7 +6,11 @@
  * дивидендов. Тест держит полноту списка: пропущенное поле означает, что
  * значение уедет на бэкенд как `undefined` и молча заменится дефолтом.
  */
-import { emptyFinancialReportPayload } from './financialReportPayload';
+import { FinancialReport } from '../types';
+import {
+  emptyFinancialReportPayload,
+  financialReportToCreatePayload,
+} from './financialReportPayload';
 
 // Поля, которых не хватало в разошедшихся копиях, — за ними следим отдельно.
 const PREVIOUSLY_MISSED = [
@@ -61,5 +65,38 @@ describe('emptyFinancialReportPayload', () => {
     expect(annual.period_type).toBe('annual');
     expect(annual.fiscal_quarter).toBeNull();
     expect(annual.report_date).toBe('2025-12-31');
+  });
+});
+
+
+describe('financialReportToCreatePayload', () => {
+  const report = (fields: Record<string, unknown>) =>
+    ({
+      period_type: 'ANNUAL',
+      fiscal_year: 2024,
+      accounting_standard: 'IFRS',
+      source: 'manual',
+      report_date: '2024-12-31',
+      equity: 5940,
+      ...fields,
+    }) as unknown as FinancialReport;
+
+  it('переносит долю миноритариев, а не обнуляет её при правке', () => {
+    // Сервер пишет весь список полей схемы, и пропущенное приходит как null.
+    // У Циана за 2024 год доля 4 069 млн — без неё баланс разъезжается на
+    // треть, и правильный отчёт объявляется испорченным.
+    const payload = financialReportToCreatePayload(
+      report({ non_controlling_interest: 4069 }),
+      3,
+    );
+
+    expect(payload.non_controlling_interest).toBe(4069);
+  });
+
+  it('пустая доля остаётся пустой, а не превращается в ноль', () => {
+    // Ноль означает «миноритариев нет» — это другое утверждение.
+    const payload = financialReportToCreatePayload(report({}), 3);
+
+    expect(payload.non_controlling_interest).toBeNull();
   });
 });

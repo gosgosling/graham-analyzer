@@ -69,6 +69,14 @@ const SWAP_LABEL: Record<string, string> = {
   cost_to_income_average: 'CIR',
 };
 
+/** Банковские критерии своего столбца не имеют — им нужно полное имя. */
+const FAIL_LABEL: Record<string, string> = {
+  capital_core: 'Достаточность капитала Н1.1 (банки)',
+  cost_of_risk_average: 'Стоимость риска (банки)',
+  npl_ratio: 'Доля проблемных кредитов (банки)',
+  cost_to_income_average: 'Расходы к доходам (банки)',
+};
+
 const cls = (v: Verdict) => {
   const base = `ms-cell ms-cell--${v.status.replace('/', '')}`;
   if (v.status !== 'fail') return base;
@@ -134,7 +142,7 @@ const SIGNAL_SHORT: Record<RowSafety['signal'], string> = {
   acceptable: 'умеренно',
   fair: 'вровень',
   expensive: 'дорого',
-  bond_better: 'ОФЗ лучше',
+  bond_better: 'ОФЗ выгоднее',
   dangerous: 'опасная',
 };
 
@@ -164,7 +172,13 @@ function SafetyCell({ safety }: { safety: RowSafety | null }) {
     >
       <b>{SIGNAL_SHORT[safety.signal]}</b>
       {margin !== null && (
-        <i>{margin > 0 ? '+' : ''}{Math.round(margin * 100)}%</i>
+        // За минус сто процентов запас перестаёт читаться: «−368%» — это
+        // цена в 4,7 раза выше опорной, так и пишем.
+        <i>
+          {margin < -1
+            ? `×${(1 - margin).toLocaleString('ru-RU', { maximumFractionDigits: 1 })}`
+            : `${Math.round(margin * 100) > 0 ? '+' : Math.round(margin * 100) < 0 ? '−' : ''}${Math.abs(Math.round(margin * 100))}%`}
+        </i>
       )}
     </td>
   );
@@ -183,13 +197,10 @@ export default function MarketScreen() {
   return (
     <div className="ms">
       <header className="ms-head">
-        <h1>Экран Грэма</h1>
+        <h1>Консервативные критерии</h1>
         <p className="ms-lede">
-          Критерии глав 14 и 15 «Разумного инвестора», применённые ко всей проверенной
-          части базы. Пороги, у которых отрасль имеет свою полосу, сдвинуты
-          пропорционально: профиль промышленной компании — это в точности числа Грэма,
-          и остальные отрасли читаются как «во сколько раз мягче или строже». Книжное
-          значение остаётся в подсказке каждой ячейки.
+          Критерии глав 14 и 15 «Разумного инвестора» для всех компаний базы. Где у отрасли
+          свои пороги, они сдвинуты; книжное значение — в подсказке заголовка.
         </p>
       </header>
 
@@ -219,7 +230,7 @@ export default function MarketScreen() {
             checked={allCompanies}
             onChange={(e) => setAllCompanies(e.target.checked)}
           />
-          вся база, включая непроверенное
+          показать и непроверенные отчёты
         </label>
       </div>
 
@@ -251,7 +262,7 @@ export default function MarketScreen() {
                         {c.metric === 'revenue' && c.book !== null
                           ? `≥ ${Math.round(c.book / 1000)} млрд`
                           : c.book_text.replace(/(\d)\.(\d)/g, '$1,$2')}
-                        {c.ours && <i title="Порог наш, а не книжный"> ·наш</i>}
+                        {c.ours && <i title="Порог наш, а не книжный">*</i>}
                       </span>
                     </th>
                   ))}
@@ -320,13 +331,17 @@ export default function MarketScreen() {
               </tbody>
             </table>
           </div>
+          <p className="ms-footnote">
+            * Порог наш: в книге его нет или он не подходит российскому рынку.
+            Оценки «дёшево» и «дорого» — расчёт по отчётности, а не прогноз и не
+            индивидуальная инвестиционная рекомендация.
+          </p>
 
           <section className="ms-fails">
             <h2>Что валит чаще всего</h2>
             <p>
-              Столбец, по которому не проходит большинство, говорит уже не о компаниях.
-              Либо мерка чужая для этого рынка, либо у рынка есть общая черта, которую
-              критерий и ловит.
+              Если критерий не проходит большинство, дело либо в мерке, которая не
+              подходит рынку, либо в общей черте самого рынка.
             </p>
             <ul>
               {Object.entries(data.summary.fails).map(([metric, count]) => {
@@ -334,7 +349,7 @@ export default function MarketScreen() {
                 const share = count / data.summary.total;
                 return (
                   <li key={metric}>
-                    <span className="ms-fail-label">{column?.label ?? metric}</span>
+                    <span className="ms-fail-label">{column?.label ?? FAIL_LABEL[metric] ?? metric}</span>
                     <span className="ms-fail-bar">
                       <i style={{ width: `${Math.round(share * 100)}%` }} />
                     </span>

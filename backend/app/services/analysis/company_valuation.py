@@ -34,6 +34,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Optional
 
+from app.utils.per_share import per_share
 from app.services.analysis.market_multiple import (
     base_multiple,
     growth_is_capped,
@@ -137,6 +138,33 @@ LADDER_OWNER = "прибыль владельца"
 # ней ходит шум: год со стопроцентной выплатой и год с восьмидесятипроцентной
 # дают в среднем девяносто, и удержанного там нет всё равно.
 PAYOUT_RETAINS_NOTHING = 90.0
+
+# Номинальный рост компании, раздающей всё. Цель ЦБ по инфляции.
+#
+# При полной выплате удерживать нечего, и `ROE × (1 − payout)` честно даёт
+# ноль. Но ставка K, от которой он отнимается, номинальная — в 16% доходности
+# ОФЗ сидит инфляция. Ноль при номинальной ставке утверждает, что прибыль
+# вечно стоит на месте в рублях, то есть в реальном выражении сжимается на
+# инфляцию каждый год. Это известная ловушка: Баффет в 1977 году разбирал её
+# как главный способ, которым инфляция обирает акционера, — и для компании с
+# реальными активами и ценами, которые идут за инфляцией, такое допущение
+# ошибочно.
+#
+# Проверено на ЛУКОЙЛе, из-за которого правка и появилась. Цена 5 370 ₽ при
+# нормальной прибыли 966 ₽ — рынок платит 5,56 прибыли. Формула при g = 0 даёт
+# 4,59 и оценку 4 434 ₽; при g = 4% — 5,66 и 5 472 ₽, то есть ровно цену.
+# Весь спор с рынком сводился к одному: ноль или инфляция. Собственная история
+# ЛУКОЙЛа отвечает сама — прибыль на акцию выросла примерно с 390 ₽ в
+# 2010–2013 годах до 1 150 ₽ в 2021–2025-м, около 9% в год при выплатах от
+# трети до всей прибыли.
+#
+# На всей базе нижняя граница роста в 4% сигнал не портит: разрыв доходностей
+# «ниже опорной / выше опорной» остаётся +32 п.п.
+#
+# Только для полной выплаты. Где компания удерживает прибыль, рост считается
+# из отдачи на капитал, и низкий рост там — настоящий признак слабого дела, а
+# не артефакт; поднимать его до инфляции значило бы его прятать.
+NOMINAL_GROWTH_FLOOR = 4.0
 
 # Потолок роста для денежной лестницы. Наблюдаемый рост потока — величина
 # бойкая: у Лукойла за семь лет вышло 8,1% в год, и на бесконечном горизонте
@@ -282,6 +310,78 @@ def risk_penalty(
     return penalty
 
 
+# ── Потолок множителя ──────────────────────────────────────────────────────
+# Больше этого формула компанию не капитализирует.
+#
+# Множитель `выплата ÷ (K − g)` взлетает, когда требуемая доходность
+# подходит к росту, и это свойство формулы, а не компании. На истории базы
+# (150 компанио-лет) медиана множителя 5,4, три четверти — ниже 8,3, а почти
+# всё, что выше десяти, приходится на отчёты за 2019–2020 годы, когда ключевая
+# ставка опускалась к 4–5%: Башнефть 29, Алроса 26, Магнит 26, Сургутнефтегаз
+# 25. Это не десять разных компаний, подорожавших одновременно, а одна и та же
+# схлопнувшаяся разность в знаменателе.
+#
+# Число выбрано по истории, а не по вкусу: покупка в день раскрытия отчёта,
+# цена через два года, 124 наблюдения —
+#
+#     без потолка, 12 и 10     ниже опорной +13%, выше −7%,   разрыв +20 п.п.
+#     потолок 8                ниже опорной +21%, выше −10%,  разрыв +32 п.п.
+#
+# Потолки 10 и 12 не меняют ничего, 8 — заметно улучшает. Оговорка: разница
+# держится на двух десятках случаев «дёшево», это направление, а не закон.
+# Восемь близко и к грэмовским 8,5 — множителю компании без роста в формуле
+# 1962 года: выше него формула платит уже за рост, которого при таком
+# знаменателе не видно.
+MULTIPLE_CAP = 8.0
+
+
+def cap_multiples(top: Optional[float], bottom: Optional[float],
+                  gap: Optional[float] = None) -> tuple:
+    """Срезает множитель по потолку, сохраняя надбавку за риск.
+
+    Срезать оба по одному потолку нельзя: на пике оба его превышают, и
+    опорная сравнялась бы со справедливой — надбавка за риск исчезла бы ровно
+    там, где риск выше всего.
+
+    **Надбавка сохраняется в доходностях, а не в пропорции.** Прежде опорный
+    множитель уменьшался в той же пропорции, что и верхний. Но пропорция
+    `(K − g) / (K − g + надбавка)` сама падает вместе со ставкой, и за
+    потолком опорная начинала дешеветь при снижении ставки: у ЛУКОЙЛа на
+    трёхлетнем окне при ОФЗ 10% выходило 8 256 ₽, при 8% — 7 982 ₽. Снижение
+    ставки не может удешевлять компанию.
+
+    Обратная величина множителя — это доходность, которой требует инвестор:
+    `1/верхний = (K − g) / выплата`, `1/опорный = (K − g + надбавка) /
+    выплата`. Их разность, `надбавка / выплата`, от ставки не зависит, и
+    именно её потолок и сохраняет:
+
+        1/опорный = 1/потолок + (1/опорный − 1/верхний)
+
+    За потолком оба множителя замирают: верхний на восьми, опорный — на том
+    значении, какое он имел, когда верхний до потолка дошёл. У EPV выплаты
+    нет (она равна единице), и формула та же. → (верхний, опорный, срезан ли).
+
+    `gap` — та же разность, посчитанная из неокруглённых входов. Множители
+    приходят округлёнными до сотых, и разность их обратных величин плавает
+    на доли процента: опорная при 8% выходила на 2 ₽ ниже, чем при 10%.
+    """
+    if top is None or top <= MULTIPLE_CAP:
+        return top, bottom, False
+    if bottom is None or bottom <= 0:
+        return MULTIPLE_CAP, bottom, True
+    if gap is None:
+        gap = 1.0 / bottom - 1.0 / top
+    gap = max(0.0, gap)
+    return MULTIPLE_CAP, 1.0 / (1.0 / MULTIPLE_CAP + gap), True
+
+
+def _yield_gap(top, bottom) -> Optional[float]:
+    """Надбавка в доходностях, `1/опорный − 1/верхний`, из неокруглённых входов."""
+    if top is None or bottom is None or bottom.value is None or not top.payout:
+        return None
+    return (bottom.spread - top.spread) / top.payout
+
+
 # ── Запасной метод: EPV ────────────────────────────────────────────────────
 # Выплата, ниже которой формула гл. 32 перестаёт работать. Множитель там равен
 # `payout / (K − g)`, и при нулевом числителе он обращается в ноль: компания,
@@ -322,7 +422,7 @@ def earning_power_value(
     required = float(risk_free_rate) + float(risk_premium) + float(extra_premium)
     if required <= 0:
         return None
-    return round(float(normal_earnings_per_share) / (required / 100.0), 2)
+    return per_share(float(normal_earnings_per_share) / (required / 100.0))
 
 
 # ── Чистая стоимость оборотных активов, гл. 15 ─────────────────────────────
@@ -360,7 +460,7 @@ def net_current_asset_value(
         return None
     value = float(current_assets) - float(total_liabilities)
     # Величины в отчёте — миллионы; цена акции — рубли.
-    return round(value * 1_000_000 / float(shares), 2)
+    return per_share(value * 1_000_000 / float(shares))
 
 
 def ncav_check(
@@ -375,7 +475,7 @@ def ncav_check(
     """
     if ncav_per_share is None:
         return None
-    edge = round(ncav_per_share * NCAV_THRESHOLD, 2)
+    edge = per_share(ncav_per_share * NCAV_THRESHOLD)
     passes = (
         price is not None and price > 0
         and ncav_per_share > 0 and float(price) <= edge
@@ -449,9 +549,9 @@ def ladder_growth(
     профинансировать.
 
     Но у формулы есть край. При выплате около ста процентов удержанного нет,
-    и она честно выдаёт около нуля — а выглядит это как измеренный рост в
-    полпроцента. Выше `PAYOUT_RETAINS_NOTHING` ставим ноль прямо и говорим,
-    почему: так читателю видно, что источника роста нет, а не что он мал.
+    и она честно выдаёт около нуля — реального роста. Ставка же K номинальная,
+    и вычитать из неё реальный ноль нельзя. Выше `PAYOUT_RETAINS_NOTHING` рост
+    берётся номинальный, на уровне инфляции, — см. `NOMINAL_GROWTH_FLOOR`.
 
     **Деньги.** Здесь выводить рост из удержания нельзя вовсе, и это главная
     поправка. Свободный поток растёт от капекса, а капекс из свободного
@@ -485,9 +585,10 @@ def ladder_growth(
         return round(value, 2), "наблюдаемый", None
 
     if payout is not None and float(payout) >= PAYOUT_RETAINS_NOTHING:
-        return 0.0, "выплата", (
-            f"выплата {float(payout):.0f}% — удерживать нечего, рост взят "
-            f"нулевым, а не выведен из остатка"
+        return NOMINAL_GROWTH_FLOOR, "инфляция", (
+            f"выплата {float(payout):.0f}% — удерживать нечего, и реального роста "
+            f"формула не видит; номинальный взят на уровне цели ЦБ по инфляции "
+            f"{NOMINAL_GROWTH_FLOOR:.0f}%, потому что ставка K тоже номинальная"
         )
 
     return sustainable_growth(roe, payout, growth_cap), "удержание", None
@@ -515,7 +616,7 @@ def asset_adjustment(
     if counted_assets > value:
         excess = counted_assets - value
         adjusted = value + EXCESS_SHARE * excess
-        return round(adjusted, 2), (
+        return per_share(adjusted), (
             f"активы избыточны: ⅔ балансовой стоимости {counted_assets:.0f} выше "
             f"оценки по прибыли {value:.0f}, к оценке добавлена треть разницы"
         )
@@ -523,12 +624,12 @@ def asset_adjustment(
     ceiling = SHORTFALL_MULTIPLE * book_value_per_share
     if value > ceiling:
         adjusted = value - SHORTFALL_SHARE * (value - ceiling)
-        return round(adjusted, 2), (
+        return per_share(adjusted), (
             f"активов не хватает: оценка {value:.0f} выше двойной балансовой "
             f"стоимости {ceiling:.0f}, превышение срезано на четверть"
         )
 
-    return round(value, 2), None
+    return per_share(value), None
 
 
 @dataclass
@@ -550,9 +651,9 @@ class Ladder:
     def as_dict(self) -> dict:
         return {
             "name": self.name,
-            "normal_per_share": round(self.normal_per_share, 2),
+            "normal_per_share": per_share(self.normal_per_share),
             "multiple": self.multiple,
-            "value": round(self.value, 2),
+            "value": per_share(self.value),
             "adjusted": self.adjusted,
             "asset_note": self.asset_note,
             "growth": self.growth,
@@ -593,6 +694,10 @@ class ValueBand:
     growth_source: Optional[str] = None
     growth_uncapped: Optional[float] = None
     growth_capped: bool = False
+    # Отдача на капитал, от которой выведен рост, и откуда она взята: медиана
+    # за годы или нормальная прибыль к нынешнему капиталу (см. `growth_roe`).
+    growth_roe: Optional[float] = None
+    growth_roe_source: Optional[str] = None
     refused: bool = False
     reason: Optional[str] = None
     warnings: list = field(default_factory=list)
@@ -636,10 +741,142 @@ class ValueBand:
             "growth_source": self.growth_source,
             "growth_uncapped": self.growth_uncapped,
             "growth_capped": self.growth_capped,
+            "growth_roe": self.growth_roe,
+            "growth_roe_source": self.growth_roe_source,
             "refused": self.refused,
             "reason": self.reason,
             "warnings": self.warnings,
         }
+
+
+# ── Ловушка стоимости ──────────────────────────────────────────────────────
+TRAP_PERSISTENT_YEARS = 3       # дисконт к балансу держится столько годовых отчётов подряд
+TRAP_LOW_PAYOUT = 35.0          # %, до акционеров доходит меньше этой доли прибыли
+TRAP_ASSETS_IDLE = 0.67         # оценка по заработку ниже двух третей балансовой
+TRAP_LIKELY = "likely"          # «похоже на ловушку»
+TRAP_POSSIBLE = "possible"      # «есть признаки ловушки»
+
+
+def trap_level(signs: list) -> Optional[str]:
+    """Насколько громко предупреждать. → 'likely', 'possible' или None.
+
+    Без глубокого дисконта к балансу предупреждения нет вовсе: ловушка — это
+    бумага, которую рынок оценивает дёшево, а не любая компания с низкой
+    выплатой. Первая версия считала признаки на равных и предупреждала у 45
+    компаний из полутора сотен — у трети рынка, и слово переставало что-то
+    значить. С дисконтом как обязательным признаком — 23, из них 8 с
+    дисконтом, который держится три года.
+    """
+    kinds = {s["kind"] for s in signs}
+    if "deep_discount" not in kinds or len(kinds) < 2:
+        return None
+    if "persistent_discount" in kinds:
+        return TRAP_LIKELY
+    return TRAP_POSSIBLE
+
+
+def trap_signs(safety: dict, payout: Optional[float], report_pb: list) -> list:
+    """Признаки ловушки стоимости — для предупреждения, не для расчёта.
+
+    Грэм называл так бумагу, дешёвую по всем меркам, которая годами остаётся
+    дешёвой: рынок не ошибается, а трезво оценивает, что до миноритария этот
+    капитал не дойдёт. Башнефть — учебный случай: P/B 0,2, прибыль есть,
+    дивиденды платятся, а цена стоит.
+
+    Ни один признак не доказывает ловушку. Проверено на истории: затяжной
+    дисконт сам по себе худшей доходности не предсказывает, глубокий дисконт
+    к балансу — предсказывает (ниже опорной при P/B < 0,5: +13% за два года
+    против +48%). Поэтому признаки только собираются и показываются вместе,
+    а решает аналитик: кто контролирует компанию и как она делится деньгами.
+
+    `report_pb` — P/B по последним годовым отчётам, свежий первым.
+    """
+    signs = []
+    traps = {t.get("kind"): t for t in safety.get("traps") or []}
+
+    deep = traps.get("deep_discount")
+    if deep:
+        signs.append({
+            "kind": "deep_discount",
+            "title": f"Рынок платит {deep['value']:.2f} балансовой стоимости".replace(".", ","),
+            "detail": "Меньше половины капитала. На истории такая дешевизна чаще "
+                      "оказывалась ловушкой, чем скидкой.",
+        })
+
+    recent = report_pb[:TRAP_PERSISTENT_YEARS]
+    if len(recent) == TRAP_PERSISTENT_YEARS and all(0 < v < 0.5 for v in recent):
+        signs.append({
+            "kind": "persistent_discount",
+            "title": f"Дисконт к балансу держится {TRAP_PERSISTENT_YEARS} года подряд",
+            "detail": "P/B ниже 0,5 по каждому из последних годовых отчётов: рынок "
+                      "давно не согласен с балансом, и у этого обычно есть причина.",
+        })
+
+    replacement = safety.get("replacement") or {}
+    ratio = replacement.get("ratio")
+    if ratio is not None and ratio < TRAP_ASSETS_IDLE:
+        signs.append({
+            "kind": "assets_idle",
+            "title": "Капитал не отрабатывает свою стоимость",
+            "detail": (f"Оценка по заработку {replacement.get('value_per_share', 0):,.0f} ₽ "
+                       f"против {replacement.get('book_value_per_share', 0):,.0f} ₽ "
+                       f"балансовой стоимости на акцию.").replace(",", " "),
+        })
+
+    if payout is not None and 0 <= float(payout) < TRAP_LOW_PAYOUT:
+        signs.append({
+            "kind": "low_payout",
+            "title": f"До акционеров доходит {float(payout):.0f}% прибыли",
+            "detail": "Остальное остаётся в компании. Если оно не превращается в рост "
+                      "капитала, для миноритария его нет.",
+        })
+
+    leak = traps.get("retention_leak")
+    if leak:
+        signs.append({
+            "kind": "retention_leak",
+            "title": "Удержанная прибыль не доходит до капитала",
+            "detail": leak.get("reason"),
+        })
+    return signs
+
+
+ROE_MEDIAN = "медиана за годы"
+ROE_NORMAL = "нормальная прибыль к капиталу"
+
+
+def growth_roe(
+    median_roe: Optional[float],
+    normal_earnings: Optional[float],
+    book_value_per_share: Optional[float],
+) -> tuple:
+    """Отдача на капитал, от которой выводится рост. → (ROE, откуда).
+
+    Рост в формуле — `ROE × (1 − выплата)`: удержанное прибавляется к
+    капиталу и зарабатывает свою отдачу. Вопрос в том, **какую** отдачу.
+
+    Медиана за десять лет помнит лучшие годы. У Северстали она 37%: в неё
+    входят 2018 и 2021 годы с отдачей 71% и 97%. Но удерживала компания как
+    раз в плохие годы — в 2022 и 2025 дивидендов не было, а отдача была 25% и
+    6%. Медиана, умноженная на удержание, дала 12% роста, потолок срезал до
+    9%, и множитель вышел как у растущей компании в разгар спада.
+
+    Поэтому берётся меньшее из двух: медиана и нормальная прибыль на акцию,
+    делённая на сегодняшнюю балансовую стоимость. Вторая — та отдача, которую
+    оценка и так предполагает в числителе: сколько компания нормально
+    зарабатывает на капитале, который у неё есть сейчас. У Северстали это
+    19%, у ЛУКОЙЛа — 20% при медиане 12%, и там остаётся медиана: правка
+    может только опустить рост, но не поднять.
+    """
+    if median_roe is None:
+        return None, None
+    if (normal_earnings is None or book_value_per_share is None
+            or book_value_per_share <= 0 or normal_earnings <= 0):
+        return float(median_roe), ROE_MEDIAN
+    normal = float(normal_earnings) / float(book_value_per_share) * 100.0
+    if normal < float(median_roe):
+        return round(normal, 2), ROE_NORMAL
+    return float(median_roe), ROE_MEDIAN
 
 
 def value_band(
@@ -673,6 +910,10 @@ def value_band(
     потому, что число будет ложным.
     """
     band = ValueBand(basis=basis)
+    roe, band.growth_roe_source = growth_roe(
+        roe, normal_earnings.get(LADDER_EARNINGS), book_value_per_share,
+    )
+    band.growth_roe = None if roe is None else round(roe, 2)
 
     if structure is not None and not structure.valuation_allowed:
         band.refused = True
@@ -717,13 +958,22 @@ def value_band(
             payout=payout,
         )
 
-    band.multiple_high = base.value
     low_base = base_multiple(
         payout, risk_free_rate,
         None if risk_premium is None else risk_premium + band.penalty.total,
         band.growth,
     )
-    band.multiple_low = low_base.value if low_base else None
+    high, low, capped = cap_multiples(
+        base.value, low_base.value if low_base else None, _yield_gap(base, low_base),
+    )
+    band.multiple_high = round(high, 2)
+    band.multiple_low = round(low, 2) if low is not None else None
+    if capped:
+        band.warnings.append(
+            f"множитель {base.value:.1f} срезан до {MULTIPLE_CAP:.0f}: требуемая "
+            f"доходность подошла к росту, и ответ определяет уже разность в "
+            f"знаменателе, а не компания"
+        )
 
     if band.growth_capped:
         band.warnings.append(
@@ -762,14 +1012,18 @@ def value_band(
             growth,
         )
 
-        raw = top.value * float(normal)
+        top_m, bottom_m, _ = cap_multiples(
+            top.value, bottom.value if bottom is not None else None,
+            _yield_gap(top, bottom),
+        )
+        raw = top_m * float(normal)
         adjusted, asset_note = asset_adjustment(raw, book_value_per_share)
-        if name == LADDER_EARNINGS and bottom is not None and bottom.value:
-            band.conservative = round(bottom.value * float(normal), 2)
+        if name == LADDER_EARNINGS and bottom_m:
+            band.conservative = per_share(bottom_m * float(normal))
         band.ladders.append(Ladder(
             name=name,
             normal_per_share=float(normal),
-            multiple=top.value,
+            multiple=top_m,
             value=raw,
             adjusted=adjusted,
             asset_note=asset_note,
@@ -780,8 +1034,8 @@ def value_band(
         values.append(adjusted if adjusted is not None else raw)
         raw_values.append(raw)
 
-        if bottom is not None and bottom.value:
-            low_raw = bottom.value * float(normal)
+        if bottom_m:
+            low_raw = bottom_m * float(normal)
             low_adjusted, _ = asset_adjustment(low_raw, book_value_per_share)
             values.append(low_adjusted if low_adjusted is not None else low_raw)
             raw_values.append(low_raw)
@@ -791,10 +1045,10 @@ def value_band(
         band.reason = "нормальная прибыль не положительна ни по одной лестнице"
         return band
 
-    band.low = round(min(values), 2)
-    band.high = round(max(values), 2)
-    band.low_by_earnings = round(min(raw_values), 2)
-    band.high_by_earnings = round(max(raw_values), 2)
+    band.low = per_share(min(values))
+    band.high = per_share(max(values))
+    band.low_by_earnings = per_share(min(raw_values))
+    band.high_by_earnings = per_share(max(raw_values))
     return band
 
 
@@ -894,10 +1148,17 @@ def assess(
         payout_over_window, retention_test, stability,
     )
     from app.services.analysis.valuation_guards import molodovsky, structure
+    from app.services.analysis.earning_power import graham_numbers, with_ltm
+    from datetime import date as _date
 
     points = load_points(db, company.id)
     if not points:
         return {"available": False, "reason": "нет годовых отчётов"}
+    # Последняя годовая точка заменяется последними двенадцатью месяцами, если
+    # оба полугодия раскрыты: иначе оценка до следующей весны держится на
+    # отчёте, которому уже больше года. У ЛУКОЙЛа это 158 ₽ прибыли на акцию
+    # за 2025 год с разовыми списаниями против 738 ₽ за LTM 1П2026.
+    points = with_ltm(db, company.id, points, _date.today())
 
     is_lender = str(getattr(company, "company_type", "")).upper().endswith("LENDER")
     power = analyze(points, with_cash=not is_lender)
@@ -1073,6 +1334,19 @@ def assess(
         structure_coverage=verdict.coverage if verdict else None,
     )
 
+    report_pb = [
+        float(m.pb_ratio)
+        for m in (
+            db.query(Multiplier)
+            .filter(Multiplier.company_id == company.id, Multiplier.type == "report_based")
+            .order_by(Multiplier.date.desc())
+            .limit(TRAP_PERSISTENT_YEARS)
+            .all()
+        )
+        if m.pb_ratio is not None
+    ]
+    signs = trap_signs(safety.as_dict(), payout, report_pb)
+
     priced_in = priced_in_growth(
         price,
         ladders.get("прибыль"),
@@ -1102,6 +1376,10 @@ def assess(
         # Сигнал по цене: полоса сама по себе ответа не даёт, её надо
         # соотнести со ставкой и со сводом критериев.
         "safety": safety.as_dict(),
+        # Признаки ловушки стоимости — сведены для предупреждения на первом
+        # экране. На расчёт не влияют: см. `trap_signs`.
+        "trap_signs": signs,
+        "trap_level": trap_level(signs),
         "distortion": distortion,
         # Средняя остаётся рядом: расхождение с трендом показывает, насколько
         # сильно ряд движется, и его надо видеть, а не прятать за выбором.
@@ -1149,11 +1427,17 @@ def series(db, company, window: int = DEFAULT_WINDOW) -> dict:
     Средние отдаются отдельно от ряда: линия средней рисуется по всему полю,
     а не по годам, и смешивать её с точками ряда нельзя.
     """
-    from app.services.analysis.earning_power import analyze, load_points
+    from app.services.analysis.earning_power import analyze, load_points, with_ltm
+    from datetime import date as _date
 
     points = load_points(db, company.id)
     if not points:
         return {"available": False, "years": [], "averages": {}}
+    # Тот же ряд, что у `assess`: последний год заменён последними двенадцатью
+    # месяцами. Без этого график во вкладке оценки рисовал 158 ₽ прибыли
+    # ЛУКОЙЛа за 2025 год, а оценка стояла на LTM, и средняя на графике
+    # (916 ₽) не сходилась со средней в расчёте (999 ₽).
+    points = with_ltm(db, company.id, points, _date.today())
 
     is_lender = str(getattr(company, "company_type", "")).upper().endswith("LENDER")
     power = analyze(points, with_cash=not is_lender)
@@ -1164,6 +1448,9 @@ def series(db, company, window: int = DEFAULT_WINDOW) -> dict:
     years = [
         {
             "year": point.year,
+            # Подпись LTM-точки, например «LTM 1П2026»: на оси она стоит под
+            # годом отчёта, но это уже не он.
+            "ltm_label": getattr(point, "ltm_label", None),
             "eps": rounded(point.eps),
             "fcf_per_share": rounded(point.fcf_per_share),
             "owner_earnings_per_share": rounded(point.owner_earnings_per_share),
@@ -1242,6 +1529,14 @@ def _epv_band(
         bottom = earning_power_value(
             normal, risk_free_rate, risk_premium, band.penalty.total
         )
+        # Тот же потолок, что и в основном пути: `1 / K` при низкой ставке
+        # тоже доходит до десяти, и держать для EPV другое правило значило бы
+        # менять ответ от смены метода, а не от смены компании.
+        top_m, bottom_m, _ = cap_multiples(
+            top / float(normal), bottom / float(normal) if bottom else None,
+        )
+        top = round(top_m * float(normal), 2)
+        bottom = round(bottom_m * float(normal), 2) if bottom_m else bottom
         adjusted, asset_note = asset_adjustment(top, book_value_per_share)
         if name == LADDER_EARNINGS and bottom is not None:
             band.conservative = bottom

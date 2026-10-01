@@ -3,9 +3,12 @@
    движением, а не собирается взглядом из плиток. */
 
 .pp {
-  --pp-mono: 'SF Mono', 'JetBrains Mono', 'Cascadia Mono', Menlo, Consolas, monospace;
+  /* Был моноширинный — третий шрифт на странице. Цифры и так одной ширины
+     благодаря tabular-nums. */
+  --pp-mono: var(--font-sans);
   padding: var(--space-4) var(--space-5) var(--space-5);
   color: var(--color-text-primary);
+  font-variant-numeric: tabular-nums;
 }
 
 .pp-state {

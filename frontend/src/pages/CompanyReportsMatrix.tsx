@@ -120,6 +120,12 @@ const MATRIX_ROWS: MatrixRowDef[] = [
   { key: 'total_liabilities', label: 'Обязательства всего', kind: 'number', hint: 'млн' },
   { key: 'current_liabilities', label: 'Краткоср. обязательства', kind: 'number', hint: 'млн', hideFor: ['lender', 'exchange']},
   { key: 'equity', label: 'Капитал', kind: 'number', hint: 'млн' },
+  {
+    key: 'non_controlling_interest',
+    label: 'Неконтролирующая доля',
+    kind: 'number',
+    hint: 'млн · в «Капитал» не входит',
+  },
   { key: 'dividends_per_share', label: 'Дивиденд на акцию', kind: 'number', hint: 'полные единицы валюты' },
   { key: 'dividends_paid', label: 'Дивиденды выплачивались', kind: 'bool' },
   {

@@ -1443,3 +1443,296 @@
 .hist-expand-chevron {
   display: inline-flex;
 }
+
+/* ── Лист по годам (карточка компании) ─────────────────────────────────────
+   Таблица в двух ориентациях из одних ячеек. Подсветка уровня в тёмной теме —
+   подложкой (цветной текст на тёмном теряется), в светлой — цветом и
+   насыщенностью цифры (заливки на белом рябят пятнами). */
+
+.ys { display: flex; flex-direction: column; gap: 12px; }
+
+.ys-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+}
+.ys-controls-main { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+
+.seg {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: var(--radius-md);
+  background: var(--color-bg-subtle);
+  border: 1px solid var(--color-border-subtle);
+}
+.seg-btn {
+  border: 0;
+  background: transparent;
+  color: var(--color-text-tertiary);
+  font: inherit;
+  font-size: 0.82rem;
+  padding: 4px 11px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.seg-btn:hover { color: var(--color-text-primary); }
+.seg-btn.is-on {
+  background: var(--color-bg-surface);
+  color: var(--color-text-primary);
+  font-weight: 500;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.10);
+}
+[data-theme='dark'] .seg-btn.is-on { background: var(--color-bg-overlay); box-shadow: none; }
+
+.rows-chooser { position: relative; }
+.rows-chooser-btn {
+  font: inherit;
+  font-size: 0.82rem;
+  padding: 6px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border-subtle);
+  background: var(--color-bg-subtle);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+.rows-chooser-btn:hover { color: var(--color-text-primary); }
+.rows-chooser-pop {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 6px);
+  left: 0;
+  width: 520px;
+  max-width: calc(100vw - 32px);
+  padding: 14px 16px;
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-overlay);
+  border: 1px solid var(--color-border-default);
+  box-shadow: var(--shadow-3);
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 18px;
+}
+.rows-chooser-group-title {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--color-text-tertiary);
+  margin-bottom: 4px;
+}
+.rows-chooser-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 0.84rem;
+  color: var(--color-text-secondary);
+  padding: 2px 0;
+  cursor: pointer;
+}
+.rows-chooser-reset {
+  grid-column: 1 / -1;
+  justify-self: start;
+  border: 0;
+  background: none;
+  color: var(--color-text-link);
+  font: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+  padding: 0;
+}
+
+.ys-legend {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  align-items: center;
+  font-size: 0.78rem;
+  color: var(--color-text-tertiary);
+}
+.ys-dot { display: inline-flex; align-items: center; gap: 5px; }
+.ys-dot::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.ys-dot.good { color: var(--color-success-text); }
+.ys-dot.warn { color: var(--color-warning-text); }
+.ys-dot.bad  { color: var(--color-error-text); }
+.ys-dot.loss { color: var(--color-loss-text); }
+
+.ys-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 10px 24px;
+}
+.ys-note {
+  margin: 0;
+  max-width: 760px;
+  font-size: 0.78rem;
+  line-height: 1.55;
+  color: var(--color-text-tertiary);
+}
+.ys-admin { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+
+/* Группы в таблице */
+.hist-group-head th {
+  padding-top: 8px;
+  padding-bottom: 0;
+  border-bottom: 0;
+  text-align: left;
+  text-transform: none;
+  letter-spacing: 0.01em;
+}
+.hist-group-th span {
+  display: block;
+  padding-bottom: 5px;
+  border-bottom: 1px solid var(--color-border-strong);
+  font-size: 0.74rem;
+  color: var(--color-text-tertiary);
+}
+.hist-table .col-group-start { padding-left: 16px; }
+.hist-group-th + .hist-group-th { padding-left: 16px; }
+
+.hist-ref { color: var(--color-chart-ref-line, #ea580c); }
+.hist-label-ref { color: var(--color-chart-ref-line, #ea580c); }
+
+/* Годы колонками */
+.hist-table--cols {
+  --label-w: 250px;
+  --period-w: 82px;
+  table-layout: fixed;
+  width: calc(var(--label-w) + var(--periods, 11) * var(--period-w));
+  min-width: 100%;
+}
+.hist-table--cols th.col-label,
+.hist-table--cols td.col-label {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  width: var(--label-w);
+  text-align: left;
+  background: var(--color-bg-surface);
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 0.86rem;
+  color: var(--color-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.hist-table--cols thead th.col-label { background: var(--color-table-header-bg); }
+.hist-table--cols th.col-period {
+  width: var(--period-w);
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 0.84rem;
+}
+.hist-table--cols th.col-period--ltm { color: var(--color-text-primary); }
+.hist-table--cols td.cell-ltm { background: var(--color-accent-indigo-soft); font-weight: 600; }
+.hist-table--cols .hist-group-row th > span { position: sticky; left: 6px; }
+.hist-table--cols .hist-group-row th {
+  text-align: left;
+  padding: 14px 6px 5px;
+  font-size: 0.74rem;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0.01em;
+  color: var(--color-text-tertiary);
+  background: var(--color-bg-surface);
+  border-bottom: 1px solid var(--color-border-strong);
+}
+.hist-table--cols tbody tr:hover th.col-label { background: var(--color-table-row-hover); }
+.hist-label--tip { border-bottom: 1px dotted var(--color-border-strong); cursor: help; }
+.hist-label-cr { cursor: help; }
+.hist-swap {
+  margin-left: 6px;
+  font-size: 0.72rem;
+  padding: 0 5px;
+  border-radius: var(--radius-xs);
+  border: 1px solid var(--color-border-default);
+  color: var(--color-text-link);
+  background: transparent;
+  vertical-align: 1px;
+}
+.hist-swap-label { font-size: 0.7rem; }
+.hist-earlier {
+  border: 1px solid var(--color-border-default);
+  background: transparent;
+  color: var(--color-text-link);
+  font: inherit;
+  font-size: 0.76rem;
+  text-transform: none;
+  letter-spacing: 0;
+  padding: 2px 8px;
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+}
+
+/* Светлая тема: цвет вместо заливки */
+[data-theme='light'] .ys .mult-cell.good,
+[data-theme='light'] .ys .mult-cell.warn,
+[data-theme='light'] .ys .mult-cell.bad {
+  background: transparent;
+  padding-left: 0;
+  padding-right: 0;
+}
+[data-theme='light'] .ys .mult-cell.good { color: var(--color-success-strong); }
+[data-theme='light'] .ys .mult-cell.warn { color: var(--color-warning-strong); }
+[data-theme='light'] .ys .mult-cell.bad  { color: var(--color-error-strong); }
+[data-theme='light'] .ys .mult-cell.loss { background: transparent; border-color: transparent; color: var(--color-error-strong); }
+[data-theme='light'] .ys .row-ltm td,
+[data-theme='light'] .ys .hist-table--cols td.cell-ltm { background: var(--color-bg-subtle); border-bottom-color: var(--color-table-border); }
+
+/* Пояснение снизу — для экранов без наведения */
+.touch-tip {
+  position: fixed;
+  inset: 0;
+  z-index: 10060;
+  background: var(--color-bg-modal-scrim);
+  display: flex;
+  align-items: flex-end;
+}
+.touch-tip-sheet {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--color-bg-surface);
+  border-radius: 18px 18px 0 0;
+  padding: 10px 18px calc(18px + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.touch-tip-grip {
+  align-self: center;
+  width: 36px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--color-border-strong);
+}
+.touch-tip-head { font-weight: 600; font-size: 0.98rem; color: var(--color-text-primary); }
+.touch-tip-body { white-space: pre-line; font-size: 0.9rem; line-height: 1.5; color: var(--color-text-secondary); }
+.touch-tip-close {
+  align-self: stretch;
+  margin-top: 4px;
+  padding: 10px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border-default);
+  background: var(--color-bg-subtle);
+  color: var(--color-text-primary);
+  font: inherit;
+}
+
+@media (max-width: 760px) {
+  .hist-table--cols { --label-w: 136px; --period-w: 72px; }
+  .hist-table--cols th.col-label,
+  .hist-table--cols td.col-label { font-size: 0.8rem; }
+  .hist-swap-label { display: none; }
+  .ys-legend > span:first-child { display: none; }
+}

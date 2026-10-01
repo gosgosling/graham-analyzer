@@ -230,7 +230,9 @@ def test_growth_cap_unblocks_a_high_return_company():
     """
     from app.services.analysis.company_valuation import METHOD_COTTLE, METHOD_EPV
 
-    fallback = clean_band(roe=30.0, payout=20.0)
+    # Капитал согласован с отдачей: 100 ₽ прибыли на 300 ₽ капитала — 33%,
+    # иначе рост вывелся бы из меньшей из двух отдач (см. `growth_roe`).
+    fallback = clean_band(roe=30.0, payout=20.0, book_value_per_share=300.0)
     assert fallback.refused is False
     assert fallback.method == METHOD_EPV
     assert "бесконечность" in " ".join(fallback.warnings)
@@ -238,7 +240,7 @@ def test_growth_cap_unblocks_a_high_return_company():
     # отправлять читателя не туда.
     assert "Выплата" not in " ".join(fallback.warnings)
 
-    allowed = clean_band(roe=30.0, payout=20.0, growth_cap=9.0)
+    allowed = clean_band(roe=30.0, payout=20.0, growth_cap=9.0, book_value_per_share=300.0)
     assert allowed.method == METHOD_COTTLE
     assert allowed.refused is False
     assert allowed.growth == pytest.approx(9.0)
@@ -421,3 +423,110 @@ def test_рычаг_дорожает_ступенями():
     assert risk_penalty(None, None, None, None, 12.0).leverage == PENALTY_LEVERAGE_EXTREME
     # Неизвестный рычаг не штрафуется, как и всё прочее неизвестное.
     assert risk_penalty(None, None, None, None, None).leverage == 0.0
+
+
+# ── Потолок множителя ──────────────────────────────────────────────────────
+
+
+def test_потолок_срезает_множитель_и_сохраняет_надбавку_за_риск():
+    """На пике оба множителя выше потолка — но опорный не должен с ним слиться.
+
+    Иначе надбавка за риск исчезала бы ровно там, где риск выше всего: при
+    низкой ставке, когда K − g схлопывается.
+    """
+    from app.services.analysis.company_valuation import MULTIPLE_CAP, cap_multiples
+
+    top, bottom, capped = cap_multiples(20.0, 16.0)
+    assert capped is True
+    assert top == pytest.approx(MULTIPLE_CAP)
+    # Надбавка в доходностях та же: 1/16 − 1/20 = 1/опорный − 1/8.
+    assert 1 / bottom - 1 / top == pytest.approx(1 / 16 - 1 / 20)
+    assert bottom < MULTIPLE_CAP
+
+    assert cap_multiples(6.0, 5.0) == (6.0, 5.0, False)
+
+
+def test_за_потолком_снижение_ставки_не_удешевляет_опорную():
+    """ЛУКОЙЛ, окно 3 года: при ОФЗ 8% опорная выходила ниже, чем при 10%.
+
+    Выплата 99,5%, рост 4%, премия 5%, надбавка 2 п.п. Чем ниже ставка, тем
+    выше или равна опорная — никогда не ниже.
+    """
+    from app.services.analysis.company_valuation import cap_multiples
+
+    payout, growth, premium, extra = 0.995, 0.04, 0.05, 0.02
+    previous = 0.0
+    for rate in (0.16, 0.13, 0.10, 0.08, 0.06):
+        top = payout / (rate + premium - growth)
+        bottom = payout / (rate + premium + extra - growth)
+        _, capped_bottom, _ = cap_multiples(top, bottom)
+        assert capped_bottom >= previous - 1e-9
+        previous = capped_bottom
+
+
+def test_при_низкой_ставке_полоса_упирается_в_потолок():
+    """Случай 2020 года: ставка 5%, рост 6,5% — множитель без потолка ~25."""
+    from app.services.analysis.company_valuation import MULTIPLE_CAP
+
+    # Надбавка за риск нужна явно: без неё опорная равна справедливой по
+    # построению, и сохранять между ними было бы нечего.
+    band = clean_band(payout=60.0, roe=16.0, risk_free_rate=5.0, risk_premium=5.0,
+                      growth_cap=6.5, stability_label="разбросано")
+    assert band.multiple_high == pytest.approx(MULTIPLE_CAP)
+    assert band.multiple_low < band.multiple_high
+    assert any("срезан" in w for w in band.warnings)
+
+
+def test_рост_выводится_из_меньшей_отдачи_медианы_или_нормальной():
+    """Северсталь: медиана за 10 лет 37%, нормальная прибыль к капиталу 19%.
+
+    Медиана помнит 2018 и 2021 годы, а удерживала компания в плохие. Рост
+    берётся от меньшей отдачи; у ЛУКОЙЛа, где нормальная выше медианы,
+    остаётся медиана — правка только опускает рост.
+    """
+    from app.services.analysis.company_valuation import (
+        ROE_MEDIAN, ROE_NORMAL, growth_roe,
+    )
+
+    roe, source = growth_roe(37.0, 121.0, 631.0)
+    assert source == ROE_NORMAL
+    assert roe == pytest.approx(19.18, abs=0.01)
+
+    assert growth_roe(12.3, 1235.0, 6185.0) == (12.3, ROE_MEDIAN)
+    assert growth_roe(12.3, None, 6185.0) == (12.3, ROE_MEDIAN)
+    assert growth_roe(None, 100.0, 500.0) == (None, None)
+
+    band = clean_band(roe=37.0, payout=66.6, normal_earnings={"прибыль": 121.0},
+                      book_value_per_share=631.0)
+    assert band.growth_roe_source == ROE_NORMAL
+    assert band.growth == pytest.approx(19.18 * (1 - 0.666), abs=0.05)
+
+
+def test_ловушка_требует_глубокого_дисконта():
+    """Башнефть: четыре признака, дисконт держится три года — «похоже на ловушку».
+
+    Без дисконта к балансу предупреждения нет, сколько бы ни было прочих
+    признаков: низкая выплата у растущей компании — не ловушка.
+    """
+    from app.services.analysis.company_valuation import (
+        TRAP_LIKELY, TRAP_POSSIBLE, trap_level, trap_signs,
+    )
+
+    safety = {
+        "traps": [{"kind": "deep_discount", "value": 0.2, "reason": "P/B 0.20"}],
+        "replacement": {"ratio": 0.4, "value_per_share": 2470, "book_value_per_share": 6188},
+    }
+    signs = trap_signs(safety, payout=30.2, report_pb=[0.23, 0.43, 0.39])
+    assert {s["kind"] for s in signs} == {
+        "deep_discount", "persistent_discount", "assets_idle", "low_payout",
+    }
+    assert trap_level(signs) == TRAP_LIKELY
+
+    # Дисконт только в последнем отчёте — признаки есть, но слабее.
+    fresh = trap_signs(safety, payout=30.2, report_pb=[0.23, 0.61, 0.7])
+    assert trap_level(fresh) == TRAP_POSSIBLE
+
+    # Без дисконта — ничего, даже при низкой выплате и простаивающем капитале.
+    no_discount = trap_signs({"replacement": safety["replacement"]}, payout=20.0,
+                             report_pb=[1.2, 1.1, 1.0])
+    assert no_discount and trap_level(no_discount) is None
