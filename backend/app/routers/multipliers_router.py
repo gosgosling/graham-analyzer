@@ -20,7 +20,7 @@ from typing import Any, List, Optional
 
 from app.database import get_db
 from app.models.company import Company
-from app.services.share_splits import shares_factor
+from app.services.share_splits import company_splits, shares_factor
 from app.models.financial_report import FinancialReport
 from app.models.multiplier import Multiplier
 from app.schemas import (
@@ -211,7 +211,8 @@ def get_multipliers_history(
                 mult_type=type,
                 limit=limit,
             )
-    return [_multiplier_to_response(m, splits=company.share_splits) for m in history]
+    splits = company_splits(db, company)
+    return [_multiplier_to_response(m, splits=splits) for m in history]
 
 
 # ---------------------------------------------------------------------------
@@ -276,7 +277,7 @@ def get_report_multipliers(
     )
 
     if cached:
-        return _multiplier_to_response(cached, splits=company.share_splits)
+        return _multiplier_to_response(cached, splits=company_splits(db, company))
 
     # Не нашли — вычисляем и сохраняем
     saved = multiplier_service.save_report_based_multiplier(db=db, report=report)
@@ -289,7 +290,7 @@ def get_report_multipliers(
             ),
         )
     return _multiplier_to_response(saved, report_override=report,
-                                   splits=company.share_splits)
+                                   splits=company_splits(db, company))
 
 
 # ---------------------------------------------------------------------------

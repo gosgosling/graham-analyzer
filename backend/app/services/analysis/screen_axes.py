@@ -429,6 +429,14 @@ def _loss_free(points, attr: str, span: int = STABILITY_SPAN):
     return len(window) - len(losses), len(window), losses
 
 
+def _years_with(points, attr: str, span: int) -> int:
+    """Сколько лет из последних `span` у ряда заполнено."""
+    known = sorted(p.year for p in points if getattr(p, attr) is not None)
+    if not known:
+        return 0
+    return sum(1 for y in known if y > known[-1] - span)
+
+
 def _growth_percent(points, attr: str, span: int = GROWTH_SPAN,
                     smooth: int = 3) -> Optional[float]:
     percent, _ = _growth_with_gap(points, attr, span, smooth)
@@ -929,36 +937,39 @@ def growth(points, is_lender: bool, live=None) -> Axis:
         short_cash = _growth_percent(points, "fcf_per_share", GROWTH_SPAN_SHORT,
                                      CASH_SMOOTH_SHORT)
         cash_run = _growth_percent(points, "fcf_per_share")
+        # Окно сглаженных концов срабатывает уже на шести годах, и «за 10 лет»
+        # тогда значило бы «за сколько нашлось». Для потока требуем почти всё
+        # десятилетие: пропуск двух лет (2022-й) допустим, больше — нет.
+        if _years_with(points, "fcf_per_share", GROWTH_SPAN) < GROWTH_SPAN - 2:
+            cash_run = None
         # Разворот, не попавший в годовые точки, касается обеих строк потока
         # одинаково: конец окна у них общий.
         ltm_note = _ltm_cash_note(points, live)
-        span, note = GROWTH_SPAN, None
-        if cash_run is None:
-            # Сглаживание тройками в пять лет не помещается: тройка с каждого
-            # конца требует шести лет. Берём пары — поток шумнее прибыли, и
-            # одиночные годы по краям были бы слишком ненадёжной опорой.
-            cash_run = _growth_percent(points, "fcf_per_share", GROWTH_SPAN_SHORT,
-                                       CASH_SMOOTH_SHORT)
-            span = GROWTH_SPAN_SHORT
-            note = "Десяти лет потока в базе нет — взят пятилетний отрезок"
-        metrics.append(Metric(
-            key="cash_growth", label=f"Прирост FCF за {span} лет", unit="%",
-            value=cash_run, series=_series(points, "fcf_per_share"),
-            tone=_tone(cash_run), suspect=_implausible(cash_run),
-            note=_join_notes(note, _reversal_note(cash_run, short_cash, "поток"),
-                             ltm_note),
-        ))
+        # Десяти лет потока нет — значит, нет и десятилетнего теста. Прежде он
+        # тихо пересчитывался по пяти годам (шести точкам — отсюда «за 6 лет»)
+        # и вставал рядом с пятилетним, повторяя его цифру. Теперь строки нет:
+        # критерий не считается, а не проходит чужим основанием.
+        if cash_run is not None:
+            metrics.append(Metric(
+                key="cash_growth", label=f"Прирост FCF за {GROWTH_SPAN} лет", unit="%",
+                value=cash_run, series=_series(points, "fcf_per_share"),
+                tone=_tone(cash_run), suspect=_implausible(cash_run),
+                note=_join_notes(_reversal_note(cash_run, short_cash, "поток"), ltm_note),
+            ))
         # Пятилетний рост потока — на тот же отрезок, что и короткий тест по
         # прибыли, чтобы их можно было сравнивать между собой. Когда прибыль
         # обваливается на переписанной строке отчёта, а деньги нет, разницу
-        # видно только при одинаковом окне. Сама величина посчитана выше.
+        # видно только при одинаковом окне.
         metrics.append(Metric(
             key="cash_growth_short",
             label=f"Прирост FCF за {GROWTH_YEARS_BACK_SHORT} лет", unit="%",
             value=short_cash, tone=_tone(short_cash),
+            series=_series(points, "fcf_per_share") if cash_run is None else (),
             suspect=_implausible(short_cash),
-            note=_join_notes("То же окно, что и у короткого теста по прибыли",
-                             ltm_note),
+            note=_join_notes(
+                "То же окно, что и у короткого теста по прибыли" if cash_run is not None
+                else "Десяти лет потока в базе нет — проверяется только этот отрезок",
+                ltm_note),
         ))
     return Axis(
         key="growth", label="Рост",

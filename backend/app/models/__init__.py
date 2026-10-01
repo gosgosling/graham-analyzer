@@ -5,6 +5,8 @@ from app.models.holding_stake import HoldingStake
 from app.models.key_rate import KeyRate
 from app.models.key_rate_daily import KeyRateDaily
 from app.models.ofz_yield import OfzYield
+from app.models.market_index import MarketIndexValue
+from app.models.user import AuthToken, User, UserSession
 from app.models.market_assumption import MarketAssumption
 from app.models.stock_price import StockPrice
 from app.models.multiplier import Multiplier
@@ -24,6 +26,10 @@ __all__ = [
     "KeyRate",
     "KeyRateDaily",
     "OfzYield",
+    "MarketIndexValue",
+    "User",
+    "UserSession",
+    "AuthToken",
     "MarketAssumption",
     "StockPrice",
     "Multiplier",

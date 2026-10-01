@@ -1126,6 +1126,12 @@ def priced_in_growth(
 DEFAULT_WINDOW = 7
 
 
+# Короче трёх лет окно не бывает: двух точек не хватает даже на тенденцию.
+MIN_WINDOW = 3
+# Окна, которые предлагает страница оценки.
+STANDARD_WINDOWS = (3, 5, 7, 10)
+
+
 def assess(
     db,
     company,
@@ -1159,6 +1165,14 @@ def assess(
     # отчёте, которому уже больше года. У ЛУКОЙЛа это 158 ₽ прибыли на акцию
     # за 2025 год с разовыми списаниями против 738 ₽ за LTM 1П2026.
     points = with_ltm(db, company.id, points, _date.today())
+    # Окно не длиннее истории. У Астры четыре года отчётов, и «нормальная
+    # прибыль за десять лет» была бы той же четырёхлетней под чужой подписью —
+    # а подпись читатель принимает за обещание.
+    # Берём самое длинное из стандартных окон, что помещается в историю, —
+    # те же 3, 5, 7 и 10 лет, что предлагает страница: иначе шапка считала бы
+    # по четырём годам, а вкладка оценки — по трём.
+    if window > len(points):
+        window = max([w for w in STANDARD_WINDOWS if w <= len(points)], default=MIN_WINDOW)
 
     is_lender = str(getattr(company, "company_type", "")).upper().endswith("LENDER")
     power = analyze(points, with_cash=not is_lender)
@@ -1404,6 +1418,10 @@ def assess(
             "year": assumption.year,
             "risk_free_rate": float(assumption.risk_free_rate),
             "risk_premium": float(assumption.risk_premium),
+            # Откуда ставка: кривая ОФЗ за месяц или ручные допущения года.
+            "risk_free_source": getattr(assumption, "risk_free_source", "допущения"),
+            "risk_free_note": getattr(assumption, "risk_free_note", None),
+            "manual_risk_free_rate": getattr(assumption, "manual_risk_free_rate", None),
         },
         # Отношение цены к границам полосы: больше единицы — рынок платит выше
         # оценки. Считается здесь, чтобы страница не делила сама.

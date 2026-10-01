@@ -466,3 +466,15 @@ def manual_backfill_all(db: Session = Depends(get_db)):
         total_added=sum(result.values()),
         by_ticker=result,
     )
+
+
+@router.get(
+    "/overview",
+    summary="Сводка о рынке: индексы, ставки, оценка рынка по годам",
+)
+def market_overview(db: Session = Depends(get_db)) -> dict:
+    """Для раздела «Рынок»: IMOEX и MCFTR, RGBI с доходностью, ключевая
+    ставка, ОФЗ 10 лет и P/E рынка по нашим проверенным компаниям."""
+    from app.services.analysis.market_overview import overview
+
+    return overview(db)

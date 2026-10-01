@@ -32,7 +32,13 @@ from app.services.analysis.market_multiple import (
 router = APIRouter(prefix="/valuation", tags=["valuation"])
 
 
-def _assumption(db: Session, year: Optional[int]) -> MarketAssumption:
+def _assumption(db: Session, year: Optional[int]):
+    """Допущения года. Без года — сегодняшние, со ставкой из кривой ОФЗ.
+
+    Явно указанный год — разбор прошлого, и там ставка та, что записана.
+    Сегодняшняя оценка считается от средней доходности ОФЗ за месяц: ручное
+    число устаревало, стоило рынку сдвинуться.
+    """
     query = db.query(MarketAssumption)
     row = (
         db.get(MarketAssumption, year) if year is not None
@@ -46,6 +52,10 @@ def _assumption(db: Session, year: Optional[int]) -> MarketAssumption:
                 "python -m scripts.set_market_assumption"
             ),
         )
+    if year is None:
+        from app.services.market.ofz_service import live_assumption
+
+        return live_assumption(db, row)
     return row
 
 
@@ -245,7 +255,18 @@ def company_summary(
         return {"available": False, "reason": current.get("reason")}
 
     windows = []
+    history = current.get("history_years")
     for span in SUMMARY_WINDOWS:
+        # Окно длиннее истории не считаем: оно совпало бы с самым длинным
+        # доступным и выглядело бы отдельным мнением.
+        if history is not None and span > history:
+            windows.append({
+                "window": span, "refused": True,
+                "reason": f"история отчётов — {history} лет, окно длиннее не набирается",
+                "method": None, "normal_earnings": None, "value": None, "ladder": None,
+                "reference": None, "margin": None, "signal": None, "label": None,
+            })
+            continue
         payload = assess(db, company, base, span)
         band = payload.get("band") or {}
         safety = payload.get("safety") or {}
@@ -269,8 +290,12 @@ def company_summary(
             "label": safety.get("label"),
         })
 
+    # Сетка ставок начинается с сегодняшней: при живой ставке 16,7% строка
+    # «16% · сейчас» была бы неправдой. Ниже — круглые ставки из сетки.
+    now_rate = float(base.risk_free_rate)
+    grid = [now_rate] + [r for r in SUMMARY_RATES if r < now_rate - 0.5]
     rates = []
-    for rate in SUMMARY_RATES:
+    for rate in grid:
         payload = assess(db, company, _RateShim(base, rate), window)
         band = payload.get("band") or {}
         safety = payload.get("safety") or {}
@@ -296,7 +321,7 @@ def company_summary(
         "price": current.get("price"),
         "trap_signs": current.get("trap_signs") or [],
         "trap_level": current.get("trap_level"),
-        "window": window,
+        "window": current.get("window", window),
         # Оценка выбранного окна одной строкой — для формулы «прибыль ×
         # множитель = опорная» во вкладке оценки.
         "headline": {
@@ -309,6 +334,8 @@ def company_summary(
         "assumption": {
             "risk_free_rate": float(base.risk_free_rate),
             "risk_premium": float(base.risk_premium),
+            "risk_free_source": getattr(base, "risk_free_source", "допущения"),
+            "risk_free_note": getattr(base, "risk_free_note", None),
         },
         "windows": windows,
         "rates": rates,
@@ -438,6 +465,7 @@ def company_valuation_history(
             if getattr(assumption, "long_run_growth", None) is not None else None
         ),
         ofz=ofz,
+        current_source=getattr(assumption, "risk_free_source", "допущения"),
     ) if series else []
 
     return {
