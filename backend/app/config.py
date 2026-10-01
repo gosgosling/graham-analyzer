@@ -23,6 +23,33 @@ class Settings(BaseSettings):
     # запроса; в обычной работе и на демо — выключено.
     SQL_ECHO: bool = False
 
+    # ─── Аккаунты ───
+    # Читать сайт можно без входа. Аккаунты — для сообщества; роль admin
+    # открывает правку данных. Первого администратора создаёт команда
+    #   python -m scripts.create_admin
+    # Сессия: абсолютный срок и тайм-аут простоя.
+    SESSION_TTL_HOURS: int = 12
+    SESSION_IDLE_MINUTES: int = 120
+    # Cookie только по https. Локально (http://localhost) — False,
+    # на сервере обязательно True.
+    COOKIE_SECURE: bool = False
+    # Откуда принимаются запросы со страниц: CORS и защита от CSRF.
+    # Через запятую, без завершающего слэша.
+    ALLOWED_ORIGINS: str = "http://localhost:3000"
+    # Перебор пароля: столько неудачных попыток с одного адреса за окно.
+    LOGIN_MAX_ATTEMPTS: int = 5
+    LOGIN_WINDOW_MINUTES: int = 15
+    # Адрес сайта — для ссылок в письмах.
+    PUBLIC_SITE_URL: str = "http://localhost:3000"
+    # Почта для писем (подтверждение адреса, сброс пароля). Пусто — письма
+    # не отправляются, а ссылка пишется в журнал сервера: так удобно локально.
+    SMTP_HOST: str = ""
+    SMTP_PORT: int = 587
+    SMTP_USER: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_FROM: str = ""
+    SMTP_STARTTLS: bool = True
+
     # Redis
     REDIS_URL: str = "redis://localhost:6379/0"
     
@@ -84,3 +111,7 @@ class Settings(BaseSettings):
         case_sensitive = True
 
 settings = Settings()
+
+
+def allowed_origins() -> list[str]:
+    return [o.strip().rstrip('/') for o in settings.ALLOWED_ORIGINS.split(',') if o.strip()]

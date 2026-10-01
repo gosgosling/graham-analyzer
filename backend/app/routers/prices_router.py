@@ -27,6 +27,7 @@ from app.models.financial_report import FinancialReport
 from app.models.multiplier import Multiplier
 from app.models.stock_price import StockPrice
 from app.utils.disclosure import ANNUAL_LAG, PUBLICATION_MIN_LAG  # noqa: F401 — реэкспорт для тестов
+from app.services.share_splits import company_splits, shares_factor, split_note
 from app.utils.per_share import per_share
 
 router = APIRouter(prefix="/companies", tags=["prices"])
@@ -72,7 +73,7 @@ def _money_ru(value: Optional[float], currency: Optional[str]) -> str:
     return f"{text} {unit}"
 
 
-def _events(db: Session, company_id: int) -> list:
+def _events(db: Session, company_id: int, splits: Optional[list] = None) -> list:
     """Засечки на графике: выход отчётов, дивидендные отсечки, сплиты.
 
     Отчёт — МСФО, годовой и полугодовой, в день раскрытия (`disclosed_on`).
@@ -112,12 +113,15 @@ def _events(db: Session, company_id: int) -> list:
     for event in db.query(CorporateEvent).filter(CorporateEvent.company_id == company_id):
         if event.kind == "dividend":
             day = (event.last_buy_date + timedelta(days=1)) if event.last_buy_date else event.date
-            value = float(event.value) if event.value is not None else None
+            # Сумма — на нынешнюю акцию, как и цена на графике.
+            scale = shares_factor(splits or [], event.date)
+            value = float(event.value) / scale if event.value is not None else None
             out.append({
                 "date": day.isoformat(),
                 "kind": "dividend",
                 "label": "Дивидендная отсечка",
                 "detail": (f"{_money_ru(value, event.currency)} на акцию"
+                           + (" в пересчёте на нынешние акции" if scale != 1 else "")
                            + (f"; последний день покупки {event.last_buy_date:%d.%m.%Y}"
                               if event.last_buy_date else "")
                            + f"; реестр {event.date:%d.%m.%Y}"),
@@ -183,16 +187,25 @@ def price_history(
         .all()
     )
 
+    # Цены и величины на акцию хранятся как торговались тогда. Через сплит
+    # они несравнимы: у Белуги до дробления 8:1 акция стоила 5 000 ₽, после —
+    # 600 ₽, а опорная на графике посчитана уже на нынешние акции. Поэтому
+    # график приводит всё к сегодняшнему числу акций: цену дня — по сплитам
+    # после этого дня, прибыль и капитал на акцию — по сплитам после конца
+    # отчётного периода.
+    splits = company_splits(db, company)
+
     marks = []
     for mult, report in sorted(rows, key=lambda pair: _published_on(pair[1])):
         shares = float(mult.shares_used) if mult.shares_used else None
-        eps = float(mult.eps) if mult.eps is not None else None
+        scale = shares_factor(splits, mult.date)
+        eps = float(mult.eps) / scale if mult.eps is not None else None
         equity = float(mult.equity) if mult.equity is not None else None
         marks.append({
             "published": _published_on(report),
             "year": int(report.fiscal_year),
             "eps": eps,
-            "bvps": (equity * 1_000_000 / shares) if equity and shares else None,
+            "bvps": (equity * 1_000_000 / shares / scale) if equity and shares else None,
         })
 
     points = []
@@ -202,7 +215,7 @@ def price_history(
         # искать подходящий отчёт заново для каждого дня незачем.
         while cursor + 1 < len(marks) and marks[cursor + 1]["published"] <= row.date:
             cursor += 1
-        price = float(row.price)
+        price = float(row.price) / shares_factor(splits, row.date)
         mark = marks[cursor] if cursor >= 0 else None
         points.append({
             "date": row.date.isoformat(),
@@ -231,7 +244,9 @@ def price_history(
              "bvps": per_share(m["bvps"]) if m["bvps"] else None}
             for m in marks
         ],
-        "events": _events(db, company_id),
+        "events": _events(db, company_id, splits),
+        # Пусто, если сплитов не было; иначе — подпись под графиком.
+        "split_note": split_note(splits),
         "summary": {
             "from": points[0]["date"],
             "till": points[-1]["date"],
