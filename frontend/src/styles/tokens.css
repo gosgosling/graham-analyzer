@@ -32,7 +32,7 @@
 
   /* ── Типографика ──────────────────────────────────────────── */
   --font-sans:
-    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen,
+    'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen,
     Ubuntu, Cantarell, 'Helvetica Neue', sans-serif;
   --font-mono: 'Source Code Pro', Menlo, Monaco, Consolas, 'Courier New', monospace;
   --font-ticker: 'Courier New', monospace;
@@ -222,6 +222,11 @@
   --color-chart-line-6:      #ec4899;
   --color-chart-ref-good:    #22c55e;
   --color-chart-ref-bad:     #ef4444;
+  /* Опорная стоимость на графике и в своде: оранжевая, а не красная —
+     красное читается как «опасно», а это уровень, от которого считается
+     запас. Пара с синей ценой различима и при дальтонизме. */
+  --color-chart-ref-line:    #ea580c;
+  --color-chart-zone-below:  rgba(16, 185, 129, 0.18);
   --color-chart-tooltip-bg:  #ffffff;
   --color-chart-tooltip-border: #e2e8f0;
   --color-chart-dot-stroke:  #ffffff;
@@ -412,6 +417,8 @@
   --color-chart-line-6:      #f472b6;
   --color-chart-ref-good:    #34d399;
   --color-chart-ref-bad:     #f87171;
+  --color-chart-ref-line:    #fb923c;
+  --color-chart-zone-below:  rgba(52, 211, 153, 0.22);
   --color-chart-tooltip-bg:  #222937;
   --color-chart-tooltip-border: rgba(255, 255, 255, 0.10);
   --color-chart-dot-stroke:  #222937;
@@ -579,6 +586,8 @@
     --color-chart-line-6:      #f472b6;
     --color-chart-ref-good:    #34d399;
     --color-chart-ref-bad:     #f87171;
+    --color-chart-ref-line:    #fb923c;
+    --color-chart-zone-below:  rgba(52, 211, 153, 0.22);
     --color-chart-tooltip-bg:  #222937;
     --color-chart-tooltip-border: rgba(255, 255, 255, 0.10);
     --color-chart-dot-stroke:  #222937;

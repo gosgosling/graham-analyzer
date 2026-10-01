@@ -319,6 +319,51 @@ def _find_matching_report(
     return q.first()
 
 
+class ComparativeView:
+    """Прошлый период глазами свежего отчёта.
+
+    Если у свежего промежуточного отчёта заполнена сравнительная колонка
+    (`comparative`), для LTM берутся её значения, а не строка прошлого периода:
+    строка хранит опубликованное тогда, а LTM по свежему отчёту должен вычитать
+    сопоставимое — тот же периметр, что и в текущей колонке. Поле, которого в
+    колонке нет, читается из строки прошлого периода, как прежде.
+
+    Представление, а не копия: формулы LTM читают отчёт через `getattr`, и им
+    всё равно, строка перед ними или колонка другого документа.
+    """
+
+    def __init__(self, current: FinancialReport, base: Optional[FinancialReport]):
+        self._values = dict(current.comparative or {})
+        self._base = base
+        self._current = current
+
+    def __getattr__(self, name: str):
+        if name in self._values:
+            return self._values[name]
+        if self._base is not None:
+            return getattr(self._base, name)
+        # Строки прошлого периода нет — всё, чего нет в колонке, пусто, а
+        # служебное берётся из свежего документа: валюта у колонок одна.
+        if name in ("currency", "exchange_rate", "report_type",
+                    "accounting_standard", "consolidated", "period_type",
+                    "fiscal_quarter"):
+            return getattr(self._current, name)
+        if name == "fiscal_year":
+            return self._current.fiscal_year - 1
+        if name == "report_date":
+            date_ = self._current.report_date
+            return date_.replace(year=date_.year - 1) if date_ else None
+        return None
+
+
+def comparative_prior(current: FinancialReport,
+                      prior: Optional[FinancialReport]) -> Optional[Any]:
+    """Прошлый период для LTM: колонка свежего отчёта, если она есть."""
+    if getattr(current, "comparative", None):
+        return ComparativeView(current, prior)
+    return prior
+
+
 def _interim_ltm_source_label(report: FinancialReport) -> str:
     if report.period_type == PeriodType.SEMI_ANNUAL:
         return "semi_annual_derived"
@@ -353,6 +398,7 @@ def _try_interim_ltm(
         fiscal_quarter=latest.fiscal_quarter,
         anchor=latest,
     )
+    prior_ytd = comparative_prior(latest, prior_ytd)
     if prior_fy is None or prior_ytd is None:
         return None
 

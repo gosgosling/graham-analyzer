@@ -40,6 +40,26 @@ def _daily_price_update() -> None:
         prices = update_all_company_prices(db)
         updated = sum(1 for v in prices.values() if v is not None)
         logger.info("Текущие цены обновлены: %d компаний", updated)
+
+        # Ключевая ставка текущего года — один запрос к ЦБ. Оценка на графике
+        # считается по ставке каждого дня, и без этого после очередного решения
+        # ЦБ новый отрезок не появился бы до ручной загрузки.
+        from app.services.market.key_rate_service import refresh_current_year
+
+        days = refresh_current_year(db)
+        logger.info("Ключевая ставка обновлена: %d дней текущего года", days)
+
+        # Доходность 10-летних ОФЗ за сегодня — безрисковая ставка для оценки
+        # на графике. Тоже один запрос.
+        from app.services.market.ofz_service import refresh_today
+
+        if refresh_today(db):
+            logger.info("Кривая ОФЗ обновлена")
+
+        # Дивидендные отсечки и сплиты — засечки на графике цены.
+        from app.services.market.corporate_events_service import refresh_all
+
+        logger.info("События по бумагам обновлены: %d строк", refresh_all(db))
     except Exception as e:
         logger.error("Ошибка в ежедневном обновлении цен: %s", e)
     finally:

@@ -171,7 +171,7 @@ function ppChange(current: number | null, previous: number | null): number | nul
   return current - previous;
 }
 
-function metricPct(
+export function metricPct(
   current: number | null,
   previous: number | null,
   direction: YoYDirection,
@@ -182,7 +182,7 @@ function metricPct(
   return formatPctDelta(delta, direction, label);
 }
 
-function metricPp(
+export function metricPp(
   current: number | null,
   previous: number | null,
   direction: YoYDirection,

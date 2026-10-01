@@ -1,4 +1,4 @@
-from sqlalchemy import ForeignKey, Integer, BigInteger, Numeric, DateTime, Date, String, Text, Boolean, Enum as SQLEnum, UniqueConstraint
+from sqlalchemy import ForeignKey, Integer, BigInteger, Numeric, DateTime, Date, String, Text, Boolean, Enum as SQLEnum, UniqueConstraint, JSON
 from datetime import datetime, date
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
@@ -92,6 +92,15 @@ class FinancialReport(Base):
     current_assets: Mapped[Optional[float]] = mapped_column(Numeric(15, 3), nullable=True)  # Итого оборотные активы, млн
     current_liabilities: Mapped[Optional[float]] = mapped_column(Numeric(15, 3), nullable=True)  # Итого краткосрочные обязательства, млн
     equity: Mapped[Optional[float]] = mapped_column(Numeric(15, 3), nullable=True)  # Итого собственный капитал, млн
+    # Неконтролирующая доля участия, млн. В `equity` её нет: там капитал,
+    # приходящийся на акционеров материнской компании, — именно он идёт в
+    # знаменатель ROE и P/B, потому что миноритарий дочерней структуры прав на
+    # эту прибыль не имеет. Поэтому «активы = обязательства + капитал» в модели
+    # и не сходится, а ровно на эту величину. Записанная доля позволяет
+    # проверить баланс точно; пустое поле означает «не разносили», а не ноль.
+    non_controlling_interest: Mapped[Optional[float]] = mapped_column(
+        Numeric(20, 3), nullable=True
+    )
     # Гудвил из баланса, млн. По Грэму вычитается из капитала: это не актив,
     # который можно продать, а разница между уплаченной ценой и чистыми
     # активами купленной компании. Пока сделка удачна — он просто стоит,
@@ -299,6 +308,22 @@ class FinancialReport(Base):
     auto_extracted: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, index=True)
     verified_by_analyst: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, index=True)
     extraction_notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # Сравнительная колонка промежуточного отчёта: прошлый год в том виде, в
+    # каком он показан в ЭТОМ документе, — {поле: значение} в единицах и валюте
+    # отчёта.
+    #
+    # У полугодового отчёта две колонки, и между ними бывает пересчёт. ЛУКОЙЛ
+    # в отчёте за 1П2026 показал 1П2025 уже без деконсолидированных зарубежных
+    # активов (прибыль продолжающейся деятельности 90 296), а в августе 2025-го
+    # опубликовал за то же полугодие 287 023. Строка 1П2025 хранит опубликованное
+    # тогда — это знал рынок; сопоставимое для LTM на август 2026-го живёт здесь.
+    # Одной строкой оба смысла не удержать: для одной ступени второй был бы
+    # заглядыванием вперёд, для другой — смешением периметров.
+    comparative: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    # День, когда отчёт стал известен рынку, — по таблице раскрытий
+    # e-disclosure. Пусто — действует правило «конец периода + лаг» (см.
+    # `app/utils/disclosure.py`).
+    disclosed_at: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     extraction_model: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     source_pdf_path: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
     verified_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)

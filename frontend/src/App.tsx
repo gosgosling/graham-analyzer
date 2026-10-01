@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { ConfigProvider, theme as antdTheme } from 'antd';
 import ruRU from 'antd/locale/ru_RU';
 import './App.css';
@@ -14,57 +14,10 @@ import ReportCalendar from './pages/ReportCalendar';
 import DisclosureCoverage from './pages/DisclosureCoverage';
 import MarketMultiple from './pages/MarketMultiple';
 import MarketScreen from './pages/MarketScreen';
-import ThemeToggle from './components/ThemeToggle';
-import DbBackupButton from './components/DbBackupButton';
+import SiteHeader from './components/SiteHeader';
+import SiteFooter from './components/SiteFooter';
+import AdminPage from './pages/AdminPage';
 import { useTheme } from './contexts/ThemeContext';
-
-type NavSection = 'securities' | 'companies' | 'bonds' | 'mass-parse' | 'disclosure' | 'calendar' | 'valuation' | 'screen';
-
-function Navigation() {
-  const location = useLocation();
-
-  const active: NavSection =
-    location.pathname === '/' ? 'securities'
-    : location.pathname.startsWith('/bond') ? 'bonds'
-    : location.pathname.startsWith('/mass-parse') ? 'mass-parse'
-    : location.pathname.startsWith('/disclosure') ? 'disclosure'
-    : location.pathname.startsWith('/calendar') ? 'calendar'
-    : location.pathname.startsWith('/valuation') ? 'valuation'
-    : location.pathname.startsWith('/screen') ? 'screen'
-    : 'companies';
-
-  const navBtn = (section: NavSection, to: string, label: string) => (
-    <Link to={to} className="app-nav-link">
-      <button
-        type="button"
-        className={`app-nav-btn${active === section ? ' is-active' : ''}`}
-      >
-        {label}
-      </button>
-    </Link>
-  );
-
-  return (
-    <nav className="app-nav">
-      <div className="app-nav-inner">
-        <div className="app-nav-tabs">
-          {navBtn('securities', '/', '📈 Ценные бумаги (MOEX)')}
-          {navBtn('companies', '/companies', '🏢 Компании (T-Invest)')}
-          {navBtn('bonds', '/bonds', '📄 Облигации')}
-          {navBtn('mass-parse', '/mass-parse', '🤖 Массовый парсинг')}
-          {navBtn('disclosure', '/disclosure', '📋 Отчётность')}
-          {navBtn('calendar', '/calendar', '🗓 Календарь')}
-          {navBtn('screen', '/screen', '🔎 Экран Грэма')}
-          {navBtn('valuation', '/valuation', '📐 Множитель рынка')}
-        </div>
-        <div className="app-nav-actions">
-          <DbBackupButton />
-          <ThemeToggle />
-        </div>
-      </div>
-    </nav>
-  );
-}
 
 /**
  * Прокси Ant Design под текущую тему: переключаем алгоритм
@@ -115,7 +68,7 @@ function App() {
     <ThemedAntDConfig>
       <Router>
         <div className="App">
-          <Navigation />
+          <SiteHeader />
           <Routes>
             <Route path="/" element={<SecuritiesList />} />
             <Route path="/companies" element={<CompaniesList />} />
@@ -128,7 +81,9 @@ function App() {
             <Route path="/calendar" element={<ReportCalendar />} />
             <Route path="/valuation" element={<MarketMultiple />} />
             <Route path="/screen" element={<MarketScreen />} />
+            <Route path="/admin" element={<AdminPage />} />
           </Routes>
+          <SiteFooter />
         </div>
       </Router>
     </ThemedAntDConfig>

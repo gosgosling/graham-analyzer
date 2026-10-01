@@ -1,10 +1,12 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
-  Area, CartesianGrid, ComposedChart, Line, ReferenceLine,
+  Area, CartesianGrid, ComposedChart, Line, ReferenceArea, ReferenceDot, ReferenceLine,
   ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts';
-import { fetchPriceHistory, type PriceHistoryOut, type PricePoint } from '../services/prices.api';
+import {
+  fetchPriceHistory, type PriceEvent, type PriceHistoryOut, type PricePoint,
+} from '../services/prices.api';
 import {
   fetchValuationHistory,
   fetchValuationSummary,
@@ -12,6 +14,9 @@ import {
   type ValuationSummaryOut,
 } from '../services/valuation.api';
 import { useChartColors } from '../contexts/ThemeContext';
+import { formatPerShare } from '../utils/perShare';
+import { SpanBand, SpanSummary } from './PriceSpanLayer';
+import { createSpanStore } from './priceSpanStore';
 import './PriceChart.css';
 
 /**
@@ -32,28 +37,44 @@ import './PriceChart.css';
 type Overlay = 'pe' | 'pb';
 
 const OVERLAYS: { key: Overlay; label: string; hint: string }[] = [
-  { key: 'pe', label: 'P/E', hint: 'Цена к прибыли на акцию последнего опубликованного отчёта' },
+  { key: 'pe', label: 'P/E', hint: 'Цена к прибыли на акцию последнего опубликованного отчёта — без разовых статей, если аналитик их выделил' },
   { key: 'pb', label: 'P/B', hint: 'Цена к балансовой стоимости на акцию' },
 ];
 
 /**
- * Стоимость поверх цены — рядом по годам, а не горизонталью.
+ * Стоимость поверх цены — такой, какой её посчитали бы тогда.
  *
  * Горизонталь по сегодняшнему расчёту сказать может только одно: где акция
  * стоит **сейчас** относительно оценки. Про прошлое она врёт, потому что
- * знает прибыль последнего отчёта и сегодняшнюю ставку. У ЛУКОЙЛа за 2022 год
- * полоса шла 4 691–5 885 при цене 4 072 — акция была дешевле своей тогдашней
- * оценки, и по сегодняшней черте этого не увидеть вовсе.
+ * знает прибыль последнего отчёта и сегодняшнюю ставку.
  *
- * Ряд берётся из обратного теста: за каждый год оценка считается по данным,
- * обрезанным этим годом, и по ключевой ставке того года. Ступенька меняется в
- * день раскрытия отчёта, а не 31 декабря, — до него считать было не по чему.
+ * Ряд берётся из обратного теста: оценка считается по данным, обрезанным
+ * годом отчёта, ступень начинается в день его раскрытия, а внутри неё оценка
+ * пересчитывается раз в месяц по средней ключевой ставке за двенадцать
+ * месяцев до этого дня.
+ *
+ * **Опорная — главная линия, справедливая — вспомогательная.** Так решили
+ * данные, а не вкус: на всей базе покупка в день раскрытия ниже опорной дала
+ * за два года +13% против −7% выше неё, а по справедливой разрыв втрое уже.
+ * Поэтому опорная включена сразу и нарисована сплошной, справедливая —
+ * по кнопке и пунктиром.
  */
-const VALUES: { key: 'fair' | 'reference'; label: string; hint: string }[] = [
-  { key: 'fair', label: 'Справедливая',
-    hint: 'Оценка по лестнице прибыли при рыночной премии — верх расчёта того года' },
+type ValueKey = 'fair' | 'reference' | 'graham';
+
+const VALUES: { key: ValueKey; label: string; hint: string }[] = [
   { key: 'reference', label: 'Опорная',
-    hint: 'Та же лестница с надбавкой за риск — от неё считается запас' },
+    hint: 'Оценка по прибыли с надбавкой за риск — от неё считается запас прочности' },
+  { key: 'fair', label: 'Справедливая',
+    hint: 'Та же лестница при рыночной премии, без надбавки — верх расчёта' },
+  // Число Грэма — мерка другой природы: цена, выше которой защитный инвестор
+  // из гл. 14 не платит (P/E₃ × P/B ≤ 22,5). В ней нет ни ставки, ни выплаты,
+  // ни роста, поэтому она не спотыкается там, где спотыкается формула
+  // капитализации, — но и ставку не учитывает: 22,5 откалибровано при
+  // доходности облигаций 4–5%, и при 16% это щедрый потолок, а не оценка.
+  // Выключена по умолчанию: у ЛУКОЙЛа она втрое выше цены и растянула бы
+  // шкалу так, что цена сплющилась бы в полоску.
+  { key: 'graham', label: 'Число Грэма',
+    hint: 'Потолок цены защитного инвестора: √(22,5 × EPS за 3 года × балансовая на акцию). Ставку не учитывает' },
 ];
 
 /** Окна показа. «Вся» — от первого торгового дня, какой есть. */
@@ -93,8 +114,83 @@ const MAX_POINTS = 1500;
  */
 const MEDIAN_HEADROOM = 3;
 
+/**
+ * P/B, ниже которого период на графике затеняется как признак ловушки.
+ *
+ * Тот же порог, что `TRAP_PRICE_TO_BOOK` на бэкенде: рынок платит меньше
+ * половины балансового капитала. На истории это единственный найденный
+ * признак, отделяющий «дёшево, которое сработало» от «дёшево, которое
+ * простояло»: ниже опорной при P/B < 0,5 покупка давала за два года +13%, при
+ * P/B ≥ 0,5 — +48%. Башнефть пять лет подряд была «дёшево» — и вся под этой
+ * тенью.
+ */
+const TRAP_PRICE_TO_BOOK = 0.5;
+
+/**
+ * Запас, с которого период закрашивается как окно входа.
+ *
+ * Закрашивать любую цену ниже опорной — значит выдавать за сигнал шум. На
+ * всей базе (покупка в день раскрытия, цена через два года):
+ *
+ *     ниже опорной на 0–15%     37 случаев, медиана +10%, в плюсе 57%
+ *     ниже на 15–33%            30 случаев, медиана +40%, в плюсе 80%
+ *     ниже на 33% и больше      74 случая,  медиана +19%, в плюсе 62%
+ *     выше опорной             297 случаев, медиана  +4%, в плюсе 54%
+ *
+ * Мелкий запас от «выше опорной» почти не отличается. Именно он закрасил
+ * Северсталь на весь 2025 год: цена стояла на 12–14% ниже опорной, пока
+ * прибыль рушилась, и продолжала падать. Порог подобран на той же истории,
+ * на которой проверен, — это направление, а не закон.
+ */
+const ZONE_MARGIN = 0.15;
+
+/** Отрезки подряд идущих точек, где P/B ниже порога. → [[с, по], ...]. */
+function trapRuns(points: PricePoint[]): [string, string][] {
+  const runs: [string, string][] = [];
+  let start: string | null = null;
+  let last: string | null = null;
+  for (const point of points) {
+    const trapped = point.pb !== null && point.pb !== undefined && point.pb > 0
+      && point.pb < TRAP_PRICE_TO_BOOK;
+    if (trapped) {
+      if (start === null) start = point.date;
+      last = point.date;
+    } else if (start !== null && last !== null) {
+      runs.push([start, last]);
+      start = null;
+    }
+  }
+  if (start !== null && last !== null) runs.push([start, last]);
+  return runs;
+}
+
 const ru = (value: number, digits = 0) =>
   value.toLocaleString('ru-RU', { minimumFractionDigits: digits, maximumFractionDigits: digits });
+
+/** Цена в рублях: число знаков по масштабу, а не фиксированные ноль.
+ *
+ * `ru` округляет до целых, и у копеечной бумаги от цены ничего не оставалось:
+ * ТГК-2 при 0,417 ₽ показывала «0 ₽ сейчас», «коридор 0 — 1 ₽» и подсказку
+ * «Цена : 1 ₽», хотя в карточке над графиком стояло правильное 0,417 ₽.
+ * Ту же беду однажды лечили в таблицах — тем же `formatPerShare`. */
+const rub = (value: number) => formatPerShare(value);
+
+/** Подпись у края поля: у дорогой бумаги копейки — шум. */
+const edgeLabel = (value: number) => (Math.abs(value) >= 100 ? ru(value) : rub(value));
+
+/** Дата точки, над которой курсор. `null`, пока recharts её не определил. */
+const pointAt = (e: unknown): string | null => {
+  const at = (e as { activeLabel?: string | number } | null)?.activeLabel;
+  return at === undefined || at === null ? null : String(at);
+};
+
+/** Пиксель курсора от левого края поля. Берётся из самого события мыши, а не
+ *  из состояния recharts: `chartX` там есть не всегда, и подсветка молча
+ *  схлопывалась в нулевую ширину. */
+const clientXOf = (e: unknown): number | null => {
+  const x = (e as { clientX?: number } | null)?.clientX;
+  return typeof x === 'number' ? x : null;
+};
 
 /** Подпись даты на оси: год для длинных окон, месяц-год для коротких. */
 const axisDate = (iso: string, longRange: boolean) => {
@@ -123,6 +219,12 @@ function periodTicks(points: PricePoint[], longRange: boolean): string[] {
     seen.add(key);
     ticks.push(point.date);
   }
+  // Неполный первый год — окно «5 лет» начинается в сентябре — давал подпись
+  // «2021» вплотную к «2022», и на телефоне они сливались. Год, от которого
+  // в окне меньше половины, не подписывается.
+  if (longRange && ticks.length > 1 && Number(ticks[0].slice(5, 7)) > 6) {
+    ticks.shift();
+  }
   // На коротком окне месяцев двенадцать и подписи сливаются — берём каждый
   // второй. Года на длинном окне помещаются все.
   return longRange || ticks.length <= 8
@@ -144,11 +246,111 @@ function multipleBounds(values: number[]): [number, number] | null {
   return [Math.max(0, Math.floor(low)), Math.ceil(high / step) * step];
 }
 
+/** События одного дня графика: отчёт и дивиденд могут прийтись на один день. */
+interface EventMarkData {
+  date: string;
+  kinds: PriceEvent['kind'][];
+  title: string;
+}
+
+/**
+ * Привязывает события к точкам ряда. Ось категориальная, и засечка встаёт
+ * только на дату, которая в ряду есть: событие в выходной или между
+ * прореженными точками переносится на ближайший следующий торговый день.
+ * События вне окна не рисуются.
+ */
+function eventMarks(events: PriceEvent[], points: PricePoint[]): EventMarkData[] {
+  if (!points.length || !events.length) return [];
+  const dates = points.map((p) => p.date);
+  const first = dates[0];
+  const last = dates[dates.length - 1];
+  const byDate = new Map<string, { kinds: Set<PriceEvent['kind']>; lines: string[] }>();
+  let cursor = 0;
+  for (const event of [...events].sort((a, b) => a.date.localeCompare(b.date))) {
+    if (event.date < first || event.date > last) continue;
+    while (cursor < dates.length && dates[cursor] < event.date) cursor += 1;
+    if (cursor >= dates.length) break;
+    const at = dates[cursor];
+    const slot = byDate.get(at) ?? { kinds: new Set(), lines: [] };
+    slot.kinds.add(event.kind);
+    const day = event.date.split('-').reverse().join('.');
+    slot.lines.push(`${day} · ${event.label}${event.detail ? ` — ${event.detail}` : ''}`);
+    byDate.set(at, slot);
+  }
+  return Array.from(byDate, ([date, slot]) => ({
+    date,
+    kinds: (['report', 'dividend', 'split'] as const).filter((k) => slot.kinds.has(k)),
+    title: slot.lines.join('\n'),
+  }));
+}
+
+/** Метка события у нижнего края поля; подробности — в системной подсказке. */
+function EventMark(props: { mark: EventMarkData; colors: ReturnType<typeof useChartColors>; viewBox?: { x: number; y: number; height: number } }) {
+  const { mark, colors, viewBox } = props;
+  if (!viewBox) return null;
+  const x = viewBox.x;
+  const bottom = viewBox.y + viewBox.height;
+  return (
+    <g className="pc-event">
+      <title>{mark.title}</title>
+      {mark.kinds.map((kind, i) => {
+        const y = bottom - 7 - i * 11;
+        if (kind === 'dividend') {
+          return <circle key={kind} cx={x} cy={y} r={3.6} fill={colors.line3} stroke={colors.dotStroke} strokeWidth={1} />;
+        }
+        if (kind === 'split') {
+          return (
+            <path key={kind} d={`M${x} ${y - 4.5} L${x + 4.5} ${y} L${x} ${y + 4.5} L${x - 4.5} ${y} Z`}
+              fill={colors.line2} stroke={colors.dotStroke} strokeWidth={1} />
+          );
+        }
+        return (
+          <rect key={kind} x={x - 3.5} y={y - 3.5} width={7} height={7} rx={1.5}
+            fill={colors.axis} stroke={colors.dotStroke} strokeWidth={1} />
+        );
+      })}
+      {/* Невидимая широкая мишень: в четырёхпиксельную метку трудно попасть. */}
+      <rect x={x - 6} y={bottom - 12 - (mark.kinds.length - 1) * 11} width={12}
+        height={12 + (mark.kinds.length - 1) * 11} fill="transparent" />
+    </g>
+  );
+}
+
 export default function PriceChart({ companyId }: { companyId: number }) {
   const colors = useChartColors();
   const [range, setRange] = useState('5y');
   const [overlay, setOverlay] = useState<Overlay | null>(null);
-  const [shown, setShown] = useState<Set<'fair' | 'reference'>>(new Set());
+  const [shown, setShown] = useState<Set<ValueKey>>(new Set<ValueKey>(['reference']));
+  const [showEvents, setShowEvents] = useState(true);
+  // Протяжка держится в хранилище, а не в состоянии компонента: обновление
+  // сверху заставляет recharts пересчитать все серии, и на пяти линиях по
+  // тысяче точек это около 400 мс на движение мыши. Подписаны на хранилище
+  // только подсветка и строка свода — они и перерисовываются.
+  const spanStore = useRef(createSpanStore()).current;
+  const drag = useRef<{ pressed: boolean; fromX: number; fromDate: string } | null>(null);
+  // Вертикальные границы поля — чтобы подсветка не залезала на подписи оси.
+  const [band, setBand] = useState({ top: 8, bottom: 24 });
+
+  // Высота поля берётся из отрисованной сетки, а не из констант отступов:
+  // recharts считает место под подписи оси сам, и угадывать его значило бы
+  // промахиваться каждый раз, когда подпись станет длиннее.
+  const canvas = useRef<HTMLDivElement | null>(null);
+  const canvasLeft = useRef(0);
+  const measureBand = useCallback(() => {
+    const box = canvas.current;
+    const grid = box?.querySelector('.recharts-cartesian-grid');
+    if (!box || !grid) return;
+    const outer = box.getBoundingClientRect();
+    const inner = (grid as SVGGElement).getBoundingClientRect();
+    canvasLeft.current = outer.left;
+    const next = {
+      top: Math.max(0, Math.round(inner.top - outer.top)),
+      bottom: Math.max(0, Math.round(outer.bottom - inner.bottom)),
+    };
+    // Сравнение обязательно: без него каждое нажатие клало новый объект в
+    // состояние и перерисовывало весь график — ровно то, от чего уходим.
+    setBand((prev) => (prev.top === next.top && prev.bottom === next.bottom ? prev : next));
+  }, []);
 
   // Оценка тянется отдельным запросом и графику не обязательна: без неё он
   // рисуется как прежде, только без линий уровня.
@@ -177,23 +379,34 @@ export default function PriceChart({ companyId }: { companyId: number }) {
     const raw = data?.points ?? [];
     if (!raw.length) return null;
 
-    // Оценка приклеивается к дням цены. Ступень держится до выхода следующего
-    // отчёта, поэтому курсор просто едет вперёд вместе с датами — ровно так же,
-    // как множители считаются на бэкенде.
-    const marks = (history?.years ?? [])
-      .filter((y) => !y.refused)
-      .sort((a, b) => a.known_from.localeCompare(b.known_from));
+    // Оценка приклеивается к дням цены. Отрезки идут подряд и не
+    // перекрываются, поэтому курсор просто едет вперёд вместе с датами — ровно
+    // так же, как множители считаются на бэкенде. День вне отрезков (раньше
+    // первого раскрытия или при отказе в оценке) остаётся без линии.
+    const marks = (history?.segments ?? [])
+      .filter((x) => !x.refused)
+      .sort((a, b) => a.from.localeCompare(b.from));
     let cursor = -1;
     const all = marks.length === 0 ? raw : raw.map((point) => {
-      while (cursor + 1 < marks.length && marks[cursor + 1].known_from <= point.date) {
+      while (cursor + 1 < marks.length && marks[cursor + 1].from <= point.date) {
         cursor += 1;
       }
-      const mark = cursor >= 0 ? marks[cursor] : null;
+      const mark = cursor >= 0 && point.date < marks[cursor].till ? marks[cursor] : null;
+      const reference = mark?.reference ?? null;
       return {
         ...point,
         fair: mark?.fair ?? null,
-        reference: mark?.conservative ?? null,
-        basis_valuation: mark?.year ?? null,
+        reference,
+        // Зона «цена ниже опорной» — пара [низ, верх] для заливки между
+        // линиями. Только при запасе от ZONE_MARGIN: мелкий запас окном
+        // входа не был, см. константу.
+        below: reference !== null && point.price <= reference * (1 - ZONE_MARGIN)
+          ? [point.price, reference] as [number, number]
+          : null,
+        graham: mark?.graham ?? null,
+        basis_label: mark?.basis ?? null,
+        basis_rate: mark?.risk_free ?? null,
+        basis_rate_source: mark?.risk_free_source ?? null,
       };
     });
 
@@ -241,17 +454,36 @@ export default function PriceChart({ companyId }: { companyId: number }) {
       })
       : thin;
 
+    // Причины пропусков множителя в видимом окне. Пропуск без причины читается
+    // как сбой данных; причин же ровно три, и все — про компанию: убыток,
+    // нераскрытый отчёт, первый отчёт ещё не вышел.
+    const gaps = overlay
+      ? Array.from(new Set(
+        slice
+          .filter((p) => p[overlay] === null)
+          .map((p) => (overlay === 'pe' ? p.pe_gap : p.pb_gap))
+          .filter((reason): reason is string => !!reason),
+      ))
+      : [];
+
     return {
       points,
+      gaps,
       average,
       min: Math.min(...prices),
       max: Math.max(...prices),
+      // Подпись на оси у копеечной бумаги длиннее обычной: «0,004365» против
+      // «1 271». В прежнюю ширину она не помещается и обрезается.
+      pennyScale: Math.max(...prices.map(Math.abs)) < 1,
       first: slice[0],
       last: slice[slice.length - 1],
       change: slice[0].price > 0
         ? (slice[slice.length - 1].price - slice[0].price) / slice[0].price
         : null,
       ticks: periodTicks(points, (years ?? 99) >= 3),
+      // Затенение считается по прореженным точкам: границы отрезков должны
+      // совпадать с категориями оси, иначе recharts их не нарисует.
+      traps: trapRuns(points),
       overlayBounds: bounds,
       offScale: overlay && bounds
         ? overlayValues.filter((v) => v > bounds[1]).length
@@ -261,12 +493,23 @@ export default function PriceChart({ companyId }: { companyId: number }) {
     };
   }, [data, history, range, overlay]);
 
+  // Замер делается заранее, а не при первом нажатии: он меняет состояние, а
+  // значит перерисовывает график — 173 мс, и приходились они ровно на начало
+  // первой протяжки. Кадр ожидания нужен потому, что ResponsiveContainer
+  // измеряет себя сам и сетки в момент монтирования ещё нет.
+  useEffect(() => {
+    const frame = requestAnimationFrame(measureBand);
+    return () => cancelAnimationFrame(frame);
+  }, [measureBand, view]);
+
+
   if (isLoading) return <div className="pc-state">Загружаем историю цены…</div>;
   if (error) return <div className="pc-state pc-state--error">Не удалось загрузить историю цены</div>;
   if (!view) {
     return (
       <div className="pc-state">
-        Истории цены нет. Загрузить: <code>python -m scripts.backfill_price_history {data?.company?.ticker ?? ''}</code>
+        Истории цены нет. Она докачивается из Мосбиржи сама — при старте сервера
+        и ежедневно в 19:00 МСК, от даты первого отчёта компании.
       </div>
     );
   }
@@ -274,101 +517,139 @@ export default function PriceChart({ companyId }: { companyId: number }) {
   const overlaySpec = OVERLAYS.find((o) => o.key === overlay);
   // Уровни, которые есть чем нарисовать. Сегодняшняя величина берётся из
   // свода — её видно в подсказке кнопки, — а линия рисуется рядом по годам.
-  const levels = (history?.years ?? []).some((y) => !y.refused)
+  const levels = (history?.segments ?? []).some((x) => !x.refused)
     ? VALUES.map((spec) => ({
       ...spec,
       value: spec.key === 'fair'
         ? valuation?.windows?.find((w) => w.window === valuation.window)?.value ?? null
-        : valuation?.safety?.reference ?? null,
+        : spec.key === 'graham'
+          ? history?.segments?.[history.segments.length - 1]?.graham ?? null
+          : valuation?.safety?.reference ?? null,
     }))
     : [];
+
+
+  const hasLevels = levels.length > 0;
+  const marks = showEvents ? eventMarks(data?.events ?? [], view.points) : [];
+  // Опорная рисуется всегда, когда есть чем: это главная линия графика, ради
+  // неё он и стоит на первом экране. Остальные уровни — по кнопкам под полем.
+  const extras = levels.filter((v) => v.key !== 'reference');
+  const lastReference = (view.last as { reference?: number | null }).reference ?? null;
+  // Подписи последних значений расходятся в разные стороны, чтобы не лечь
+  // друг на друга: выше та, что выше на графике.
+  const priceOnTop = lastReference === null || view.last.price >= lastReference;
+  const toggleValue = (key: ValueKey) => setShown((prev) => {
+    const next = new Set(prev);
+    if (next.has(key)) next.delete(key); else next.add(key);
+    return next;
+  });
 
   return (
     <section className="pc">
       <header className="pc-head">
         <div className="pc-title">
-          <h3>Цена акции</h3>
-          <span className="pc-sub">
-            {view.first.date} — {view.last.date}
-            {view.thinned && ' · прорежено для отрисовки'}
-          </span>
+          <h3>{hasLevels ? 'Цена и опорная стоимость' : 'Цена акции'}</h3>
+          <div className="pc-keys">
+            <span className="pc-key"><i className="pc-key-line" style={{ background: colors.line1 }} />Цена</span>
+            {hasLevels && (
+              <>
+                <span className="pc-key"><i className="pc-key-line" style={{ background: colors.refLine }} />Опорная</span>
+                <span className="pc-key" title="Запас прочности от 15%: мелкий запас на истории окном входа не был">
+                  <i className="pc-key-zone" style={{ background: colors.zoneBelow }} />Цена ниже опорной на 15%+
+                </span>
+              </>
+            )}
+            {shown.has('fair') && hasLevels && (
+              <span className="pc-key"><i className="pc-key-line pc-key-line--dash" style={{ borderColor: colors.line3 }} />Справедливая</span>
+            )}
+            {shown.has('graham') && hasLevels && (
+              <span className="pc-key"><i className="pc-key-line pc-key-line--dot" style={{ borderColor: colors.line6 }} />Число Грэма</span>
+            )}
+            {overlay && (
+              <span className="pc-key"><i className="pc-key-line" style={{ background: colors.line4 }} />{overlaySpec?.label} — правая шкала</span>
+            )}
+            {showEvents && marks.length > 0 && (
+              <span className="pc-key pc-key--events" title="Наведите на метку у нижнего края графика">
+                <i className="pc-key-mark" style={{ background: colors.axis }} />отчёт
+                <i className="pc-key-mark pc-key-mark--round" style={{ background: colors.line3 }} />дивиденд
+                {marks.some((m) => m.kinds.includes('split')) && (
+                  <><i className="pc-key-mark pc-key-mark--diamond" style={{ background: colors.line2 }} />сплит</>
+                )}
+              </span>
+            )}
+          </div>
         </div>
 
-        <div className="pc-controls">
-          {levels.length > 0 && (
-            <div className="pc-values" role="group" aria-label="Показать оценку">
-              {levels.map((v) => (
-                <button
-                  key={v.key}
-                  type="button"
-                  className={`pc-btn pc-btn--value${shown.has(v.key) ? ' is-on' : ''}`}
-                  onClick={() => setShown((prev) => {
-                    const next = new Set(prev);
-                    if (next.has(v.key)) next.delete(v.key); else next.add(v.key);
-                    return next;
-                  })}
-                  title={v.value !== null
-                    ? `${v.hint}. Сегодня — ${ru(v.value)} ₽`
-                    : v.hint}
-                  aria-pressed={shown.has(v.key)}
-                >
-                  {v.label}
-                </button>
-              ))}
-            </div>
-          )}
-          <div className="pc-overlays" role="group" aria-label="Наложить множитель">
-            {OVERLAYS.map((o) => (
-              <button
-                key={o.key}
-                type="button"
-                className={`pc-btn${overlay === o.key ? ' is-on' : ''}`}
-                onClick={() => setOverlay(overlay === o.key ? null : o.key)}
-                title={o.hint}
-                aria-pressed={overlay === o.key}
-              >
-                {o.label}
-              </button>
-            ))}
-          </div>
-          <div className="pc-ranges" role="group" aria-label="Период">
-            {RANGES.map((r) => (
-              <button
-                key={r.key}
-                type="button"
-                className={`pc-btn${range === r.key ? ' is-on' : ''}`}
-                onClick={() => setRange(r.key)}
-                aria-pressed={range === r.key}
-              >
-                {r.label}
-              </button>
-            ))}
-          </div>
+        <div className="pc-ranges" role="group" aria-label="Период">
+          {RANGES.map((r) => (
+            <button
+              key={r.key}
+              type="button"
+              className={`pc-btn${range === r.key ? ' is-on' : ''}`}
+              // Выделение снимается вместе с окном: отрезок, сделанный на
+              // пяти годах, при переходе на год обрезался бы по краю и
+              // молча показывал не тот период, который выбирали.
+              onClick={() => { setRange(r.key); spanStore.set(null); }}
+              aria-pressed={range === r.key}
+              title={r.key === range ? `${view.first.date} — ${view.last.date}` : undefined}
+            >
+              {r.label}
+            </button>
+          ))}
         </div>
       </header>
 
-      <div className="pc-stats">
-        <span><b>{ru(view.last.price)} ₽</b> сейчас</span>
-        <span className={view.change !== null && view.change >= 0 ? 'pc-up' : 'pc-down'}>
-          {view.change === null ? '—'
-            : `${view.change >= 0 ? '+' : ''}${ru(view.change * 100, 1)}% за период`}
-        </span>
-        <span>средняя <b>{ru(view.average)} ₽</b></span>
-        <span>коридор {ru(view.min)} — {ru(view.max)} ₽</span>
-        {view.last.pe !== null && <span>P/E {ru(view.last.pe, 1)}</span>}
-        {view.last.pb !== null && <span>P/B {ru(view.last.pb, 2)}</span>}
-      </div>
 
-      <div className="pc-canvas">
+      <div className="pc-canvas" ref={canvas}>
+        <SpanBand store={spanStore} top={band.top} bottom={band.bottom} />
         <ResponsiveContainer width="100%" height={320}>
-          <ComposedChart data={view.points} margin={{ top: 8, right: overlay ? 52 : 12, bottom: 4, left: 4 }}>
-            <defs>
-              <linearGradient id={`pc-fill-${companyId}`} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={colors.line1} stopOpacity={0.24} />
-                <stop offset="100%" stopColor={colors.line1} stopOpacity={0} />
-              </linearGradient>
-            </defs>
-
+          <ComposedChart
+            data={view.points}
+            margin={{ top: 16, right: overlay ? 56 : 44, bottom: 4, left: 4 }}
+            // Выделение одной левой кнопкой: нажали, провели, отпустили.
+            // Нажатие само по себе снимает прежнее — щелчок по пустому месту
+            // очищает график, и отдельная кнопка «сбросить» не нужна.
+            //
+            // Дата начала берётся не только из нажатия: пока по графику не
+            // поводили мышью, recharts не знает, над какой точкой курсор, и
+            // первое же нажатие давало пустую дату. Поэтому начало
+            // подхватывается и с первого движения при зажатой кнопке.
+            onMouseDown={(state, event) => {
+              spanStore.set(null);
+              measureBand();
+              // Пиксель известен всегда, дата — не всегда: пока по графику не
+              // поводили мышью, recharts не знает, над какой точкой курсор.
+              // Поэтому край подсветки берём сразу, а дату дотягиваем с
+              // первого же движения — иначе левая граница прыгала туда, где
+              // курсор оказался, а не туда, где нажали.
+              const x = clientXOf(event);
+              drag.current = {
+                pressed: true,
+                fromX: x === null ? 0 : x - canvasLeft.current,
+                fromDate: pointAt(state) ?? '',
+              };
+            }}
+            onMouseMove={(state, event) => {
+              const held = drag.current;
+              if (!held?.pressed) return;
+              const at = pointAt(state);
+              const x = clientXOf(event);
+              if (at === null || x === null) return;
+              if (!held.fromDate) {
+                held.fromDate = at;   // край уже записан при нажатии
+                return;
+              }
+              spanStore.set({
+                fromX: held.fromX, toX: x - canvasLeft.current,
+                fromDate: held.fromDate, toDate: at,
+              });
+            }}
+            onMouseUp={() => { if (drag.current) drag.current.pressed = false; }}
+            // Курсор ушёл с поля при зажатой кнопке — отпускания мы не увидим,
+            // и без этого протяжка «залипала» бы до следующего нажатия.
+            onMouseLeave={() => { if (drag.current) drag.current.pressed = false; }}
+            style={{ userSelect: 'none' }}
+          >
             <CartesianGrid stroke={colors.grid} vertical={false} />
             <XAxis
               dataKey="date"
@@ -382,9 +663,9 @@ export default function PriceChart({ companyId }: { companyId: number }) {
             <YAxis
               yAxisId="price"
               tick={{ fill: colors.axis, fontSize: 11 }}
-              tickFormatter={(v: number) => ru(v)}
+              tickFormatter={(v: number) => rub(v)}
               domain={['auto', 'auto']}
-              width={58}
+              width={view.pennyScale ? 74 : 58}
               stroke={colors.grid}
             />
             {overlay && (
@@ -400,27 +681,61 @@ export default function PriceChart({ companyId }: { companyId: number }) {
               />
             )}
 
-            {/* Средняя за период — та величина, относительно которой «дорого»
-                и «дёшево» вообще имеют смысл на этом отрезке. */}
-            <ReferenceLine
-              yAxisId="price"
-              y={view.average}
-              stroke={colors.axis}
-              strokeDasharray="4 4"
-              label={{ value: 'средняя', position: 'insideTopLeft', fill: colors.axis, fontSize: 10 }}
-            />
+            {view.traps.map(([from, till]) => (
+              <ReferenceArea
+                key={from}
+                yAxisId="price"
+                x1={from}
+                x2={till}
+                fill={colors.axis}
+                fillOpacity={0.14}
+                stroke="none"
+                ifOverflow="hidden"
+              />
+            ))}
 
-            {shown.has('reference') && (
+            {/* Заливка между ценой и опорной там, где цена ниже. Под линиями,
+                чтобы не мутить их цвет; в подсказку не идёт — это не величина,
+                а подсветка того, что уже видно по двум линиям. */}
+            {hasLevels && (
+              <Area
+                yAxisId="price"
+                type="linear"
+                dataKey="below"
+                stroke="none"
+                fill={colors.zoneBelow}
+                fillOpacity={1}
+                connectNulls={false}
+                activeDot={false}
+                tooltipType="none"
+                isAnimationActive={false}
+              />
+            )}
+
+            {hasLevels && (
               <Line
                 yAxisId="price"
                 type="stepAfter"
                 dataKey="reference"
-                stroke={colors.refBad}
-                strokeWidth={1.5}
-                strokeDasharray="2 3"
+                stroke={colors.refLine}
+                strokeWidth={2.25}
                 dot={false}
                 connectNulls={false}
                 name="Опорная"
+                isAnimationActive={false}
+              />
+            )}
+            {shown.has('graham') && (
+              <Line
+                yAxisId="price"
+                type="stepAfter"
+                dataKey="graham"
+                stroke={colors.line6}
+                strokeWidth={1.3}
+                strokeDasharray="1 3"
+                dot={false}
+                connectNulls={false}
+                name="Число Грэма"
                 isAnimationActive={false}
               />
             )}
@@ -430,8 +745,9 @@ export default function PriceChart({ companyId }: { companyId: number }) {
                 type="stepAfter"
                 dataKey="fair"
                 stroke={colors.line3}
-                strokeWidth={1.5}
-                strokeDasharray="6 3"
+                strokeWidth={1.2}
+                strokeDasharray="5 4"
+                strokeOpacity={0.8}
                 dot={false}
                 connectNulls={false}
                 name="Справедливая"
@@ -439,18 +755,39 @@ export default function PriceChart({ companyId }: { companyId: number }) {
               />
             )}
 
-            <Area
+            <Line
               yAxisId="price"
               type="monotone"
               dataKey="price"
               stroke={colors.line1}
-              strokeWidth={1.6}
-              fill={`url(#pc-fill-${companyId})`}
+              strokeWidth={1.75}
               dot={false}
               activeDot={{ r: 3, stroke: colors.dotStroke, strokeWidth: 1 }}
               name="Цена"
               isAnimationActive={false}
             />
+
+            {/* Последние значения подписаны у правого края: глаз ищет «где
+                сейчас», а искать его по сетке — лишняя работа. */}
+            <ReferenceDot
+              yAxisId="price"
+              x={view.last.date}
+              y={view.last.price}
+              r={4}
+              fill={colors.line1}
+              stroke={colors.dotStroke}
+              strokeWidth={2}
+              label={{ value: edgeLabel(view.last.price), position: priceOnTop ? 'top' : 'bottom', fill: colors.textPrimary, fontSize: 11, fontWeight: 600 }}
+            />
+            {hasLevels && lastReference !== null && (
+              <ReferenceDot
+                yAxisId="price"
+                x={view.last.date}
+                y={lastReference}
+                r={0}
+                label={{ value: edgeLabel(lastReference), position: priceOnTop ? 'bottom' : 'top', fill: colors.refLine, fontSize: 11, fontWeight: 600 }}
+              />
+            )}
 
             {overlay && (
               <Line
@@ -471,6 +808,20 @@ export default function PriceChart({ companyId }: { companyId: number }) {
               />
             )}
 
+            {/* Засечки событий — у нижнего края поля, без вертикальных
+                линий: на десяти годах их полсотни, и линии превратили бы
+                график в частокол. Подробности — в подсказке у метки. */}
+            {marks.map((m) => (
+              <ReferenceLine
+                key={`${m.date}-${m.kinds.join('')}`}
+                yAxisId="price"
+                x={m.date}
+                stroke="none"
+                ifOverflow="visible"
+                label={<EventMark mark={m} colors={colors} />}
+              />
+            ))}
+
             <Tooltip
               contentStyle={{
                 background: colors.tooltipBg,
@@ -483,11 +834,19 @@ export default function PriceChart({ companyId }: { companyId: number }) {
                 const label = String(name ?? '');
                 const num = typeof value === 'number' ? value : null;
                 if (num === null) return ['—', label];
-                if (label === 'Цена') return [`${ru(num)} ₽`, label];
-                if (label === 'Справедливая' || label === 'Опорная') {
-                  const basis = (item?.payload as { basis_valuation?: number } | undefined)
-                    ?.basis_valuation;
-                  return [`${ru(num)} ₽${basis ? ` (расчёт по ${basis} году)` : ''}`, label];
+                if (label === 'Цена') return [`${rub(num)} ₽`, label];
+                if (label === 'Справедливая' || label === 'Опорная' || label === 'Число Грэма') {
+                  const payload = item?.payload as
+                    { basis_label?: string; basis_rate?: number; basis_rate_source?: string } | undefined;
+                  // Основа и ставка в подсказке обязательны: внутри одной
+                  // ступени оценка меняется из месяца в месяц, а ступень LTM
+                  // сменяет годовую посреди года, и без подписи движение
+                  // линии выглядело бы беспричинным. У числа Грэма ставки нет.
+                  const rate = label !== 'Число Грэма' && payload?.basis_rate
+                    ? `безрисковая ${ru(payload.basis_rate, 2)}% (${payload.basis_rate_source})`
+                    : null;
+                  const why = [payload?.basis_label, rate].filter(Boolean).join(', ');
+                  return [`${rub(num)} ₽${why ? ` (${why})` : ''}`, label];
                 }
                 // Год отчёта едет вместе с множителем: без него ступенька на
                 // кривой читается как сбой данных, а не как выход отчётности.
@@ -501,13 +860,81 @@ export default function PriceChart({ companyId }: { companyId: number }) {
               labelFormatter={(value, payload) => {
                 const point = payload?.[0]?.payload as (PricePoint & { off_scale?: number }) | undefined;
                 const off = point?.off_scale;
-                return off
-                  ? `${String(value)} · за шкалой: ${ru(off, 1)}`
-                  : String(value);
+                if (off) return `${String(value)} · за шкалой: ${ru(off, 1)}`;
+                const gap = overlay && point
+                  ? (overlay === 'pe' ? point.pe_gap : point.pb_gap)
+                  : null;
+                return gap ? `${String(value)} · ${overlaySpec?.label}: ${gap}` : String(value);
               }}
             />
           </ComposedChart>
         </ResponsiveContainer>
+      </div>
+
+      {/* Свод по отрезку. Не заменяет статистику периода: смысл выделения в
+          том и есть, чтобы сравнить кусок с целым — «за год +12%, но от
+          мартовского пика до июньского дна −31%».
+
+          Стоит под графиком, а не над ним: появляясь сверху, полоса сдвигала
+          поле вниз прямо во время протяжки, и график уезжал из-под курсора. */}
+      <SpanSummary store={spanStore} points={view.points} />
+
+      {view.traps.length > 0 && (
+        <p
+          className="pc-legend"
+          title="На истории «ниже опорной» в такие периоды давало за два года +13%, в остальные — +48%"
+        >
+          <span className="pc-legend-swatch" aria-hidden />
+          Серым — P/B ниже {TRAP_PRICE_TO_BOOK.toLocaleString('ru-RU')}: в такие периоды
+          дешевизна чаще оказывалась ловушкой, чем скидкой.
+        </p>
+      )}
+
+      <div className="pc-foot">
+        {hasLevels ? (
+          <p
+            className="pc-disclaimer"
+            title="Параметры модели подобраны на этой же истории, а в выборке лишь компании, которые торгуются сегодня, — поэтому прошлое на графике выглядит надёжнее, чем выглядело бы в моменте."
+          >
+            Опорная на каждую дату посчитана только по отчётам, опубликованным к этой дате.
+          </p>
+        ) : <span />}
+        <div className="pc-more" role="group" aria-label="Ещё на графике">
+          <span className="pc-more-label">Ещё на графике:</span>
+          {extras.map((v) => (
+            <button
+              key={v.key}
+              type="button"
+              className={`pc-btn pc-btn--small${shown.has(v.key) ? ' is-on' : ''}`}
+              onClick={() => toggleValue(v.key)}
+              title={v.value !== null ? `${v.hint}. Сегодня — ${rub(v.value)} ₽` : v.hint}
+              aria-pressed={shown.has(v.key)}
+            >
+              {v.label}
+            </button>
+          ))}
+          <button
+            type="button"
+            className={`pc-btn pc-btn--small${showEvents ? ' is-on' : ''}`}
+            onClick={() => setShowEvents((v) => !v)}
+            aria-pressed={showEvents}
+            title="Выход отчётов, дивидендные отсечки, сплиты"
+          >
+            События
+          </button>
+          {OVERLAYS.map((o) => (
+            <button
+              key={o.key}
+              type="button"
+              className={`pc-btn pc-btn--small${overlay === o.key ? ' is-on' : ''}`}
+              onClick={() => setOverlay(overlay === o.key ? null : o.key)}
+              title={o.hint}
+              aria-pressed={overlay === o.key}
+            >
+              {o.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {overlay && (
@@ -515,6 +942,9 @@ export default function PriceChart({ companyId }: { companyId: number }) {
           {overlaySpec?.hint}. Шкала ограничена тройной медианой: провал прибыли
           поднимает множитель до сотен, и без ограничения весь остальной ряд сжался бы
           в полоску у нуля.
+          {view.gaps.length > 0 && (
+            <> Пропуски: {view.gaps.join('; ')}.</>
+          )}
           {view.offScale > 0 && (
             <> За шкалу ушло {view.offScale} {view.offScale % 10 === 1 && view.offScale % 100 !== 11
               ? 'значение' : 'значений'}: эти дни не нарисованы, и линия проходит

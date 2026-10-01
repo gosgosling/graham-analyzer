@@ -71,12 +71,27 @@ def test_без_ряда_разделения_нет():
 # ── Правило роста по лестницам ─────────────────────────────────────────────
 
 
-def test_щедрая_выплата_обнуляет_рост_прибыли():
-    """При выплате 96% удерживать нечего — ноль прямо, а не 0,46%."""
+def test_щедрая_выплата_даёт_номинальный_рост_на_уровне_инфляции():
+    """При выплате 96% удерживать нечего — но ставка K номинальная.
+
+    Прежде здесь стоял ноль, и оценка ЛУКОЙЛа выходила 4 434 ₽ при цене
+    5 370: формула утверждала, что прибыль нефтяной компании вечно стоит на
+    месте в рублях. При номинальной ставке честный рост без удержания —
+    инфляция, и с ней оценка сходится с ценой.
+    """
+    from app.services.analysis.company_valuation import NOMINAL_GROWTH_FLOOR
+
     growth, source, note = ladder_growth(LADDER_EARNINGS, roe=15.0, payout=96.3)
-    assert growth == 0.0
-    assert source == "выплата"
+    assert growth == NOMINAL_GROWTH_FLOOR == 4.0
+    assert source == "инфляция"
     assert "удерживать нечего" in note
+
+
+def test_удерживающая_компания_до_инфляции_не_поднимается():
+    """Низкий рост из удержания — признак слабого дела, а не артефакт."""
+    growth, source, _ = ladder_growth(LADDER_EARNINGS, roe=6.0, payout=50.0)
+    assert growth == pytest.approx(3.0)
+    assert source == "удержание"
 
 
 def test_умеренная_выплата_даёт_рост_из_удержания():
@@ -489,3 +504,45 @@ def test_операционный_убыток_при_долге_это_опас
     )
     assert safety.signal == DANGEROUS
     assert "операционном убытке" in safety.reason
+
+
+def test_прирост_выручки_меряется_за_три_года():
+    """ЛУКОЙЛ-2021: выручка +67% на ценах нефти, а не на стройке.
+
+    За один год прирост съедал три четверти капекса; за три года скачок
+    сглаживается против провального 2020-го и сильного 2019-го.
+    """
+    rows = [
+        (2018, 8036.0, 452.0), (2019, 7841.0, 450.0),
+        (2020, 5639.0, 495.0), (2021, 9435.0, 433.0),
+    ]
+    maintenance, growth = maintenance_split(rows)[2021]
+    # Старое правило — прирост за один год, 2021 против провального 2020-го.
+    intensity = sorted(c / r for _, r, c in rows)[1:3]
+    one_year = min(433.0, sum(intensity) / 2 * (9435.0 - 5639.0))
+    assert growth < one_year
+    assert maintenance + growth == pytest.approx(433.0)
+
+
+def test_поддерживающий_капекс_не_меньше_амортизации():
+    from app.services.analysis.earning_power import maintenance_floor
+
+    # Разделение оставило на поддержание 100 при износе 425 — поднимаем.
+    assert maintenance_floor(100.0, 333.0, 433.0, 425.0) == (425.0, 8.0)
+    # Капекс ниже износа: поддержание — износ, ростового нет.
+    assert maintenance_floor(300.0, 0.0, 300.0, 425.0) == (425.0, 0.0)
+    # Разделение и так выше износа — не трогаем.
+    assert maintenance_floor(500.0, 50.0, 550.0, 425.0) == (500.0, 50.0)
+    # Без амортизации сравнивать не с чем.
+    assert maintenance_floor(100.0, 5.0, 105.0, None) == (100.0, 5.0)
+
+
+def test_прибыль_владельца_от_нормализованной_прибыли():
+    """Списание — неденежный расход: у Баффета оно возвращается в прибыль."""
+    from types import SimpleNamespace
+    from app.services.analysis.earning_power import owner_profit_base
+
+    report = SimpleNamespace(net_income=352_969.0, currency="RUB", exchange_rate=None)
+    assert owner_profit_base(report, 92_528.0) == pytest.approx(352_969.0)
+    plain = SimpleNamespace(net_income=None, currency="RUB", exchange_rate=None)
+    assert owner_profit_base(plain, 92_528.0) == pytest.approx(92_528.0)

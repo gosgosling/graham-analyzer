@@ -64,3 +64,15 @@
     padding: 6px 8px;
   }
 }
+
+.theme-toggle-compact {
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--color-text-tertiary);
+  font-size: 15px;
+  cursor: pointer;
+}
+.theme-toggle-compact:hover { color: var(--color-text-primary); background: var(--color-bg-subtle); }

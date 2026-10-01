@@ -1,0 +1,87 @@
+/* Боковая колонка карточки: оценка, предупреждения, оглавление. */
+
+.ca { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+
+.ca-card {
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-xl);
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ca-kicker { font-size: 0.76rem; color: var(--color-text-tertiary); }
+
+.ca-big {
+  font-size: 1.6rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-chart-ref-line);
+}
+
+.ca-text {
+  margin: 0;
+  font-size: 0.88rem;
+  line-height: 1.55;
+  color: var(--color-text-secondary);
+}
+
+.ca-link { font-size: 0.84rem; color: var(--color-text-link); text-decoration: none; }
+.ca-link:hover { text-decoration: underline; }
+
+.ca-notes { list-style: none; margin: 2px 0 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+
+.ca-note {
+  position: relative;
+  padding-left: 14px;
+  font-size: 0.88rem;
+  line-height: 1.5;
+  color: var(--color-text-secondary);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ca-note::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.55em;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-text-tertiary);
+}
+.ca-note--warn::before { background: var(--color-warning); }
+.ca-note--bad::before { background: var(--color-error); }
+.ca-note strong { color: var(--color-text-primary); font-weight: 600; }
+.ca-note small { font-size: 0.8rem; color: var(--color-text-tertiary); }
+
+.ca-foot { font-size: 0.76rem; color: var(--color-text-tertiary); margin-top: 4px; }
+
+.ca-toc { gap: 0; padding-bottom: 8px; }
+.ca-toc .ca-kicker { padding-bottom: 6px; }
+.ca-toc-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-top: 1px solid var(--color-border-subtle);
+  font-size: 0.9rem;
+  color: var(--color-text-secondary);
+  text-decoration: none;
+}
+.ca-toc-item:hover { color: var(--color-text-primary); }
+.ca-toc-note { color: var(--color-text-tertiary); font-variant-numeric: tabular-nums; }
+
+/* Под графиком: пункты в две колонки. */
+.ca-card--wide .ca-notes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 32px;
+}
+@media (max-width: 900px) {
+  .ca-card--wide .ca-notes { grid-template-columns: minmax(0, 1fr); }
+}

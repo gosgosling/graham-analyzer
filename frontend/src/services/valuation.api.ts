@@ -151,6 +151,9 @@ export interface ValueBandOut {
   /** Он же до потолка: расхождение и есть сообщение о малом знаменателе. */
   growth_uncapped: number | null;
   growth_capped: boolean;
+  /** Отдача на капитал, от которой выведен рост, и откуда она. */
+  growth_roe?: number | null;
+  growth_roe_source?: string | null;
   refused: boolean;
   reason: string | null;
   warnings: string[];
@@ -164,7 +167,7 @@ export interface ValueBandOut {
 /** Сигнал о цене: «благоприятная» или нет — и почему именно. */
 export type SafetySignal =
   | 'favourable' | 'acceptable' | 'fair'
-  | 'expensive' | 'bond_better' | 'no_signal';
+  | 'expensive' | 'bond_better' | 'dangerous' | 'no_signal';
 
 export interface SafetyOut {
   signal: SafetySignal;
@@ -188,6 +191,10 @@ export interface SafetyOut {
     value_per_share: number;
     book_value_per_share: number;
   } | null;
+  /** Признаки ловушки стоимости: почему дешевизна может быть не скидкой. */
+  traps?: { kind: string; value: number; reason: string }[];
+  /** Тест гл. 15: чистая стоимость оборотных активов против цены. */
+  ncav?: { per_share: number; threshold: number; passes: boolean; note: string } | null;
   notes: string[];
 }
 
@@ -243,6 +250,8 @@ export interface CompanyValuationOut {
     reason: string | null;
   };
   /** Обратный ход: какой рост сидит в цене и по силам ли он компании. */
+  trap_signs?: TrapSign[];
+  trap_level?: 'likely' | 'possible' | null;
   priced_in?: {
     multiple_paid: number;
     growth_priced_in: number;
@@ -257,6 +266,10 @@ export interface CompanyValuationOut {
   /** Линия тенденции: уровень, наклон и не упёрлась ли она в пик. */
   trends?: Record<string, {
     value: number;
+    /** Наклон линии, ₽ на акцию в год: из него восстанавливается её начало. */
+    slope?: number;
+    first_year?: number;
+    last_year?: number;
     annual_growth: number | null;
     peak: number;
     capped: boolean;
@@ -282,6 +295,8 @@ export async function getCompanyValuation(
 
 export interface SeriesYear {
   year: number;
+  /** Последний год, заменённый последними двенадцатью месяцами: «LTM 1П2026». */
+  ltm_label?: string | null;
   eps: number | null;
   fcf_per_share: number | null;
   owner_earnings_per_share: number | null;
@@ -340,12 +355,20 @@ export interface SummaryWindow {
 /** Одна строка сетки ставок. */
 export interface SummaryRate {
   risk_free_rate: number;
+  /** Прибыль, от которой считана опорная строки: опорная ÷ она = множитель. */
+  normal_earnings?: number | null;
   required_return: number;
   multiple: number | null;
   value: number | null;
   reference: number | null;
   margin: number | null;
   refused: boolean;
+}
+
+export interface TrapSign {
+  kind: 'deep_discount' | 'persistent_discount' | 'assets_idle' | 'low_payout' | 'retention_leak';
+  title: string;
+  detail: string | null;
 }
 
 export interface ValuationSummaryOut {
@@ -356,6 +379,17 @@ export interface ValuationSummaryOut {
   assumption?: { risk_free_rate: number; risk_premium: number };
   windows?: SummaryWindow[];
   rates?: SummaryRate[];
+  /** Признаки ловушки стоимости и насколько громко о них предупреждать. */
+  trap_signs?: TrapSign[];
+  trap_level?: 'likely' | 'possible' | null;
+  /** Оценка выбранного окна: прибыль × множитель = опорная. */
+  headline?: {
+    normal_earnings: number | null;
+    value: number | null;
+    ladder: string | null;
+    reference: number | null;
+    margin: number | null;
+  };
   safety?: SafetyOut | null;
   band?: {
     low: number | null;
@@ -369,9 +403,11 @@ export interface ValuationSummaryOut {
 
 export async function fetchValuationSummary(
   companyId: number,
+  window?: number,
 ): Promise<ValuationSummaryOut> {
   const { data } = await api.get<ValuationSummaryOut>(
     `/valuation/company/${companyId}/summary`,
+    window ? { params: { window } } : undefined,
   );
   return data;
 }
@@ -395,9 +431,38 @@ export interface ValuationYear {
   inside: boolean | null;
 }
 
+/**
+ * Отрезок истории оценки: отчёт один, ставка своя.
+ *
+ * Внутри ступени по отчёту оценка пересчитывается раз в месяц по средней
+ * ключевой ставке за двенадцать месяцев до этого дня. Отрезок, содержащий
+ * сегодняшний день, считается по ставке из допущений — как карточка.
+ */
+export interface ValuationSegment {
+  from: string;
+  till: string;
+  year: number;
+  key_rate: number;
+  current: boolean;
+  fair: number | null;
+  reference: number | null;
+  low: number | null;
+  high: number | null;
+  method: 'cottle' | 'epv' | null;
+  refused: string | null;
+  /** Безрисковая этого отрезка и откуда она: ОФЗ 10 лет, допущения или заменитель. */
+  risk_free: number;
+  risk_free_source: string;
+  /** Число Грэма: √(22,5 × EPS за 3 года × BVPS). От ставки не зависит. */
+  graham: number | null;
+  /** На чём держится ступень: «отчёт 2024» или «LTM 1П2026». */
+  basis: string;
+}
+
 export interface ValuationHistoryOut {
   ticker: string;
   years: ValuationYear[];
+  segments: ValuationSegment[];
   hits: number;
   counted: number;
   verdict: string;

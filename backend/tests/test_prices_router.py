@@ -52,3 +52,20 @@ def test_без_даты_берётся_срок_раскрытия():
 def test_срок_раскрытия_укладывается_в_норматив():
     """120 дней — предел, установленный правилами раскрытия, а не вкус."""
     assert PUBLICATION_LAG == timedelta(days=120)
+
+
+def test_фактическая_дата_раскрытия_главнее_правила():
+    """Северсталь, отчёт за 2025 год: раскрыт 3 февраля, а не 30 апреля."""
+    report = FakeReport(2025, date(2025, 12, 31))
+    report.disclosed_at = date(2026, 2, 3)
+    assert _published_on(report) == date(2026, 2, 3)
+
+
+def test_полугодие_по_правилу_через_60_дней():
+    from app.utils.disclosure import disclosed_on
+
+    report = FakeReport(2025, date(2025, 6, 30))
+    report.period_type = "SEMI_ANNUAL"
+    assert disclosed_on(report) == date(2025, 8, 29)
+    report.disclosed_at = date(2025, 7, 21)
+    assert disclosed_on(report) == date(2025, 7, 21)

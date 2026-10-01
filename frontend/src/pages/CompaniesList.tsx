@@ -12,7 +12,6 @@ import {
   verifyReport,
 } from '../services';
 import { Company, FinancialReportCreate, FinancialReport } from '../types';
-import TInvestSyncBar from '../components/TInvestSyncBar';
 import VerificationBadge from '../components/VerificationBadge';
 import ReportDetailModal from '../components/ReportDetailModal';
 import { formatPerShare } from '../utils/perShare';
@@ -211,7 +210,6 @@ const CompaniesList: React.FC = () => {
   return (
     <div className="securities-container">
       <h1 className="securities-title">Российские компании и компании Мосбиржи (T Invest API)</h1>
-      <TInvestSyncBar />
       <div className="companies-toolbar">
         <input
           type="search"
