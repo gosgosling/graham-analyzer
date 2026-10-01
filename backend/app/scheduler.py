@@ -55,6 +55,18 @@ def _daily_price_update() -> None:
 
         if refresh_today(db):
             logger.info("Кривая ОФЗ обновлена")
+        # Средняя за месяц в карточке требует всех торговых дней месяца —
+        # докачиваем пропуски (обычно ноль запросов).
+        from app.services.market.ofz_service import load_recent
+
+        filled = load_recent(db)
+        if filled:
+            logger.info("Кривая ОФЗ: докачано %d дней за месяц", filled)
+
+        # Индексы для раздела «Рынок»: IMOEX, MCFTR, RGBI — по запросу на индекс.
+        from app.services.market.index_service import refresh_all as refresh_indices
+
+        logger.info("Индексы обновлены: %d строк", refresh_indices(db))
 
         # Дивидендные отсечки и сплиты — засечки на графике цены.
         from app.services.market.corporate_events_service import refresh_all
@@ -125,6 +137,14 @@ def start_scheduler() -> None:
         replace_existing=True,
     )
 
+    # Истёкшие сессии и ссылки — раз в час: сведения о входе не храним дольше сессии.
+    _scheduler.add_job(
+        _purge_auth,
+        CronTrigger(minute=17, timezone="Europe/Moscow"),
+        id="purge_auth",
+        replace_existing=True,
+    )
+
     _scheduler.start()
     logger.info(
         "Планировщик запущен. Следующее обновление цен: %s",
@@ -145,6 +165,20 @@ def _weekly_disclosure_sync() -> None:
         logger.info("Планировщик: запущен disclosure sync #%s", run.id)
     except Exception as e:
         logger.error("Планировщик: не удалось стартовать disclosure sync: %s", e)
+    finally:
+        db.close()
+
+
+def _purge_auth() -> None:
+    from app.services.auth import purge_expired
+
+    db = SessionLocal()
+    try:
+        sessions, tokens = purge_expired(db)
+        if sessions or tokens:
+            logger.info("Планировщик: удалено истёкших сессий %s, ссылок %s", sessions, tokens)
+    except Exception as e:
+        logger.error("Планировщик: чистка сессий не удалась: %s", e)
     finally:
         db.close()
 

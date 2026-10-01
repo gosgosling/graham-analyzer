@@ -166,3 +166,51 @@ __all__: Sequence[str] = (
     "shares_at_date",
     "shares_factor",
 )
+
+
+def company_splits(db: Any, company: Any) -> list[dict[str, Any]]:
+    """
+    Все известные дробления компании: из карточки и из событий Мосбиржи.
+
+    В карточке (`companies.share_splits`) лежит то, что внесли вручную или
+    скриптом: Мосбиржа дробление Белуги 8:1 в своём списке не держит. В
+    событиях (`corporate_events`, вид `split`) — то, что Мосбиржа отдаёт по
+    `splits.json`: Норникель, Полюс, Транснефть, ВТБ. Одна и та же дата из
+    обоих источников считается один раз; при расхождении верим карточке —
+    её правят руками.
+    """
+    from app.models.corporate_event import CorporateEvent
+
+    merged: dict[str, dict[str, Any]] = {}
+    events = (
+        db.query(CorporateEvent)
+        .filter(CorporateEvent.company_id == company.id, CorporateEvent.kind == "split")
+        .all()
+    )
+    for event in events:
+        if event.value is not None and float(event.value) > 0:
+            merged[event.date.isoformat()] = {"date": event.date.isoformat(), "ratio": float(event.value)}
+    for entry in normalize_splits(getattr(company, "share_splits", None)):
+        merged[entry["date"]] = entry
+    return normalize_splits(list(merged.values()))
+
+
+def split_note(splits: Any) -> Optional[str]:
+    """Подпись к графику: какие цены приведены и к чему."""
+    entries = normalize_splits(splits)
+    if not entries:
+        return None
+    parts = []
+    for entry in entries:
+        ratio = entry["ratio"]
+        day = date.fromisoformat(entry["date"]).strftime("%d.%m.%Y")
+        if ratio >= 1:
+            shown = int(ratio) if float(ratio).is_integer() else ratio
+            parts.append(f"дробление {shown}:1 от {day}")
+        else:
+            shown = int(round(1 / ratio))
+            parts.append(f"консолидация 1:{shown} от {day}")
+    return (
+        "Цены до " + ("сплитов" if len(entries) > 1 else "сплита")
+        + " приведены к нынешнему числу акций (" + ", ".join(parts) + ")."
+    )

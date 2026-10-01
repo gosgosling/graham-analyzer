@@ -447,6 +447,20 @@ def test_growth_is_silent_when_the_decade_is_too_short():
     assert axis.metric("earnings_growth").value is None
 
 
+def test_short_cash_history_does_not_fake_the_decade():
+    """Семь лет потока: десятилетнего теста нет, а не пятилетний под его именем.
+
+    Прежде строка «за 10 лет» пересчитывалась по шести точкам, подписывалась
+    «за 6 лет» и повторяла цифру пятилетнего теста строкой ниже.
+    """
+    axis = screen_axes.growth(points(count=7, first=2019), is_lender=False)
+    assert axis.metric("cash_growth") is None
+    short = axis.metric("cash_growth_short")
+    assert short.value is not None
+    assert short.label == "Прирост FCF за 5 лет"
+    assert "Десяти лет потока" in short.note
+
+
 def test_growth_drops_cash_for_a_lender():
     assert screen_axes.growth(points(), is_lender=True).metric("cash_growth") is None
 

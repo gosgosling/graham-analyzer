@@ -163,6 +163,11 @@ def market_screen(
     assumption = (
         db.query(MarketAssumption).order_by(MarketAssumption.year.desc()).first()
     )
+    # Та же живая ставка, что в карточке: иначе экран и карточка расходились бы.
+    if assumption is not None:
+        from app.services.market.ofz_service import live_assumption
+
+        assumption = live_assumption(db, assumption)
 
     rows = []
     for result, company in pairs:

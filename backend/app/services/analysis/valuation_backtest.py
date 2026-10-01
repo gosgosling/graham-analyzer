@@ -364,6 +364,7 @@ def valuation_segments(
     growth_cap: Optional[float] = None,
     window: int = DEFAULT_WINDOW,
     ofz=None,
+    current_source: str = "допущения",
 ) -> list:
     """Оценка на каждый месяц истории — для графика.
 
@@ -498,7 +499,7 @@ def valuation_segments(
                 "key_rate": round(used, 2),
                 "risk_free": round(risk_free if risk_free is not None
                                    else used + OFZ_OVER_KEY_RATE, 2),
-                "risk_free_source": ("допущения" if current else
+                "risk_free_source": (current_source if current else
                                      "ОФЗ 10 лет" if risk_free is not None
                                      else "ключевая + 1 п.п."),
                 # Число Грэма от ставки не зависит и меняется только с отчётом.
