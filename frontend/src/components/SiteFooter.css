@@ -1,0 +1,88 @@
+/* Подвал: тихий, в два яруса. Цвет и шрифт — те же токены, что у страницы,
+   чтобы он не спорил с содержимым. */
+
+.site-footer {
+  border-top: 1px solid var(--color-border-subtle);
+  background: var(--color-bg-canvas);
+  color: var(--color-text-secondary);
+  font-size: 0.86rem;
+}
+
+.site-footer-inner {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: var(--space-8) 20px var(--space-6);
+}
+
+.site-footer-top {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-6) var(--space-10);
+}
+
+.site-footer-about {
+  max-width: 360px;
+}
+
+.site-footer-name {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.site-footer-about p {
+  margin: 6px 0 0;
+  line-height: 1.5;
+  color: var(--color-text-tertiary);
+}
+
+.site-footer-links {
+  display: flex;
+  gap: var(--space-10);
+}
+
+.site-footer-links > div {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.site-footer-heading {
+  font-size: 0.76rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-quaternary);
+}
+
+.site-footer a {
+  color: var(--color-text-secondary);
+  text-decoration: none;
+}
+
+.site-footer a:hover {
+  color: var(--color-text-primary);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.site-footer-bottom {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 6px var(--space-6);
+  margin-top: var(--space-8);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border-subtle);
+  font-size: 0.78rem;
+  color: var(--color-text-quaternary);
+}
+
+@media (max-width: 640px) {
+  .site-footer-inner { padding: var(--space-6) 16px var(--space-5); }
+
+  .site-footer-links { gap: var(--space-8); }
+
+  .site-footer-bottom { flex-direction: column; }
+}

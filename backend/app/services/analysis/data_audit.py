@@ -31,9 +31,11 @@ from app.models.financial_report import FinancialReport
 
 DEFECT, GAP, SUSPECT = "defect", "gap", "suspect"
 
-# Разрыв баланса до этой доли активов объясняется неконтролирующей долей:
-# у Роснефти и Газпром нефти она как раз 4-5%, и отдельного поля под неё в
-# модели нет. Всё, что выше, неконтролирующей долей уже не объяснить.
+# Разрыв баланса до этой доли активов списывается на неконтролирующую долю,
+# когда её не разнесли по полю: у Роснефти и Газпром нефти она как раз 4-5%.
+# Догадка эта грубая и нужна только там, где поле пустое, — у холдинга доля
+# миноритариев бывает и в треть баланса. Где `non_controlling_interest`
+# заполнено, баланс проверяется точно и порог не участвует.
 NCI_TOLERANCE = 0.10
 # Округление отчёта.
 BALANCE_TOLERANCE = 0.01
@@ -105,12 +107,29 @@ def _decade(a: float, b: float) -> Optional[int]:
 
 
 def _check_balance(rep, out: list[Finding]) -> None:
+    """Сходится ли баланс: активы против обязательств и капитала.
+
+    `equity` — капитал акционеров материнской компании, поэтому у группы с
+    миноритариями равенство не выполняется без их доли. Где она записана, она
+    и участвует в сумме; где нет — остаётся догадка по величине разрыва, и
+    отличить долю миноритариев от опечатки нечем.
+    """
     assets, liab, eq = (_f(rep, n) for n in ("total_assets", "total_liabilities", "equity"))
     if assets is None or liab is None or eq is None or not assets:
         return
-    total = liab + eq
+    nci = _f(rep, "non_controlling_interest")
+    total = liab + eq + (nci or 0.0)
     share = abs(assets - total) / abs(assets)
     if share <= BALANCE_TOLERANCE:
+        return
+
+    if nci is not None:
+        # Доля разнесена, а баланс всё равно не сошёлся — гадать больше не о
+        # чем: одно из четырёх чисел неверно.
+        out.append(Finding(DEFECT, rep.fiscal_year,
+                           f"баланс не сходится на {share * 100:.1f}%: активы {_num(assets)}, "
+                           f"обязательства+капитал+НКО {_num(total)}",
+                           promotable=True))
         return
 
     if liab == assets:
@@ -128,7 +147,7 @@ def _check_balance(rep, out: list[Finding]) -> None:
         return
 
     level = GAP if share <= NCI_TOLERANCE else DEFECT
-    note = " (похоже на неконтролирующую долю — поля под неё в модели нет)" if level == GAP else ""
+    note = " (похоже на неконтролирующую долю — она не разнесена по полю)" if level == GAP else ""
     out.append(Finding(level, rep.fiscal_year,
                        f"баланс не сходится на {share * 100:.1f}%: активы {_num(assets)}, "
                        f"обязательства+капитал {_num(total)}{note}"))
