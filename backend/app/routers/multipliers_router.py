@@ -20,7 +20,7 @@ from typing import Any, List, Optional
 
 from app.database import get_db
 from app.models.company import Company
-from app.services.share_splits import company_splits, shares_factor
+from app.services.share_splits import company_splits, current_share_count, report_split_factor
 from app.models.financial_report import FinancialReport
 from app.models.multiplier import Multiplier
 from app.schemas import (
@@ -41,6 +41,7 @@ def _multiplier_to_response(
     m: Multiplier,
     report_override: Optional[FinancialReport] = None,
     splits: Any = None,
+    current_shares: Optional[float] = None,
 ) -> MultiplierResponse:
     """ORM → API: добавляет дату публикации, цену на эту дату и масштаб выпуска."""
     base = MultiplierResponse.model_validate(m)
@@ -66,7 +67,8 @@ def _multiplier_to_response(
         # отличить дробление от допэмиссии: число акций хранится «как было
         # тогда», и без этого коэффициента сплит 10:1 читается как размытие
         # доли в десять раз.
-        "shares_split_factor": shares_factor(splits, m.date),
+        "shares_split_factor": report_split_factor(
+            splits, m.date, float(m.shares_used) if m.shares_used else None, current_shares),
     })
 
 
@@ -212,7 +214,10 @@ def get_multipliers_history(
                 limit=limit,
             )
     splits = company_splits(db, company)
-    return [_multiplier_to_response(m, splits=splits) for m in history]
+    # Нынешнее число акций — по самому свежему отчёту: по нему видно, какие
+    # отчёты эмитент уже пересчитал на дробление.
+    current = current_share_count(db, company_id, splits)
+    return [_multiplier_to_response(m, splits=splits, current_shares=current) for m in history]
 
 
 # ---------------------------------------------------------------------------

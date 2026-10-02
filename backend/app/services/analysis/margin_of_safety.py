@@ -318,11 +318,9 @@ def value_traps(
                 "kind": "retention_leak",
                 "value": round(share, 2),
                 "reason": (
-                    f"из {retention['retained_per_share']:.0f} ₽ удержанной "
-                    f"прибыли на акцию в капитал осело "
-                    f"{retention['book_growth_per_share']:.0f} ₽ — "
-                    f"{share:.0%}. Нерозданное до капитала владельца не "
-                    f"дошло — осталось выяснить, куда"
+                    f"Из {retention['retained_per_share']:.0f} ₽ нераспределённой "
+                    f"прибыли на акцию капитал вырос лишь на "
+                    f"{retention['book_growth_per_share']:.0f} ₽ ({share:.0%})"
                 ),
             })
 

@@ -255,6 +255,10 @@ def backfill_company_prices(
     if added:
         db.commit()
         logger.info("Бэкфилл %s: добавлено %d записей", ticker, added)
+        # Мосбиржа может отдать историю уже пересчитанной на дробление —
+        # возвращаем её к ценам «как торговались» (см. split_scale).
+        from app.services.market.split_scale import repair_company_prices
+        repair_company_prices(db, company)
 
     return added
 

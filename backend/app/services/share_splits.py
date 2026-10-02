@@ -6,11 +6,12 @@
 сегодняшней шкале не годится: после следующего сплита пришлось бы
 пересчитывать всю историю заново, а отчёты эмитента при этом не меняются.
 
-Из этого следует, где именно проходит опасное место. Мосбиржа исторические
-цены задним числом не пересчитывает — то есть цены она отдаёт ровно так, как
-нам нужно. А вот `ISSUESIZE` в её реестре всегда **сегодняшний**, и подставить
-его в отчёт за прошлый год после сплита значит завысить количество акций в
-`ratio` раз, а вместе с ним и капитализацию.
+Опасных места два. `ISSUESIZE` в реестре Мосбиржи всегда **сегодняшний**, и
+подставить его в отчёт за прошлый год после дробления значит завысить
+количество акций в `ratio` раз, а вместе с ним и капитализацию. А историю
+цен и дивидендов Мосбиржа на дробления из своего списка пересчитывает задним
+числом (проверено на Т, Норникеле, Полюсе, Транснефти, ВТБ, Русагро) — эти
+цены надо вернуть к торговавшимся, см. `market/split_scale.py`.
 
 Пример. Т-Технологии раздробили акции 10:1 17 апреля 2026 года: 16.04 бумага
 стоила 3 196,8 ₽, 17.04 — 325,7 ₽. Для отчёта за 2025 год правильны цена
@@ -102,6 +103,39 @@ def shares_factor(splits: Any, target_date: Optional[date]) -> float:
     return factor
 
 
+def report_split_factor(
+    splits: Any,
+    report_date: Optional[date],
+    report_shares: Optional[float],
+    current_shares: Optional[float],
+) -> float:
+    """
+    Как `shares_factor`, но с поправкой на отчёты, уже пересчитанные эмитентом.
+
+    По МСФО (IAS 33) дробление, случившееся после отчётной даты, но до
+    выпуска отчёта, пересчитывается в нём задним числом. Отчёт Транснефти за
+    2023 год датирован 31 декабря, дробление 100:1 — 21 февраля 2024-го, а
+    акций в отчёте уже 725 млн, новых. Делить его по дате ещё на сто значит
+    получить прибыль на акцию в сто раз меньше настоящей.
+
+    Шкалу отчёта поэтому выдаёт его собственное число акций: если оно ближе
+    к нынешнему, чем умноженное на коэффициент, — отчёт уже в новой шкале.
+
+    >>> report_split_factor([{"date": "2024-02-21", "ratio": 100}], date(2023, 12, 31), 724_934_300, 724_934_300)
+    1.0
+    >>> report_split_factor([{"date": "2024-02-21", "ratio": 100}], date(2023, 12, 31), 7_249_343, 724_934_300)
+    100.0
+    """
+    import math
+
+    factor = shares_factor(splits, report_date)
+    if factor == 1.0 or not report_shares or not current_shares:
+        return factor
+    as_is = abs(math.log(float(report_shares) / float(current_shares)))
+    scaled = abs(math.log(float(report_shares) * factor / float(current_shares)))
+    return 1.0 if as_is < scaled else factor
+
+
 def shares_at_date(
     current_issuesize: Optional[int],
     splits: Any,
@@ -146,7 +180,7 @@ def price_scale_hint(splits: Any, target_date: Optional[date]) -> Optional[str]:
             shown = int(round(1 / ratio))
             parts.append(f"консолидация 1:{shown} от {entry['date']}")
     return (
-        "После этой даты был сплит (" + ", ".join(parts) + "). "
+        "После этой даты менялось число акций (" + ", ".join(parts) + "). "
         "Цена и количество акций хранятся так, как было тогда, — "
         "с сегодняшними они не сравниваются напрямую."
     )
@@ -162,6 +196,7 @@ __all__: Sequence[str] = (
     "KNOWN_SPLITS",
     "normalize_splits",
     "price_scale_hint",
+    "report_split_factor",
     "seed_splits",
     "shares_at_date",
     "shares_factor",
@@ -195,6 +230,95 @@ def company_splits(db: Any, company: Any) -> list[dict[str, Any]]:
     return normalize_splits(list(merged.values()))
 
 
+def align_report_scale(
+    price: Optional[float],
+    shares: Optional[float],
+    factor: float,
+    traded_price: Optional[float],
+    current_shares: Optional[float],
+) -> tuple[Optional[float], Optional[float]]:
+    """
+    Цену и акции отчёта — в одну шкалу: «как торговалось на дату отчёта».
+
+    `factor` — во сколько раз выросло число акций после отчётной даты. Если
+    дроблений после неё не было, приводить нечего. Иначе каждая из двух
+    величин могла попасть в отчёт в любой шкале, и смесь даёт капитализацию
+    в `factor` раз мимо:
+
+    * Русолово, 2012–2022: размещённых акций 30 млрд — нынешний выпуск из
+      реестра, а цена тогдашняя. P/B 59 вместо 5,9.
+    * Полюс, 2024: отчёт вышел после дробления, акции эмитент пересчитал
+      (IAS 33), цена осталась тогдашней. P/E 43 вместо 4,3.
+    * Транснефть, 2023: и цена, и акции уже новые — сходятся между собой,
+      но для общей шкалы их тоже переводим обратно.
+
+    Шкала акций — по нынешнему числу: что ближе, само число или умноженное на
+    коэффициент. Шкала цены — по цене как торговалась в тот день (история
+    цен хранится так): ближе она сама или делённая на коэффициент.
+
+    >>> align_report_scale(7.802, 30_001_000_000, 10, 7.8, 30_001_000_000)
+    (7.802, 3000100000.0)
+    >>> align_report_scale(1450.0, 724_934_300, 100, 145_000.0, 724_934_300)
+    (145000.0, 7249343.0)
+    >>> align_report_scale(3277.6, 257_393_950, 10, 3277.6, 2_549_948_000)
+    (3277.6, 257393950)
+    """
+    import math
+
+    if factor == 1.0:
+        return price, shares
+
+    if shares and current_shares:
+        if abs(math.log(float(shares) / float(current_shares))) < abs(math.log(float(shares) * factor / float(current_shares))):
+            shares = float(shares) / factor
+    if price and traded_price:
+        if abs(math.log(float(price) * factor / float(traded_price))) < abs(math.log(float(price) / float(traded_price))):
+            price = float(price) * factor
+    return price, shares
+
+
+def current_share_count(db: Any, company_id: int, splits: Any) -> Optional[float]:
+    """Нынешнее число акций — по самому свежему отчёту любого периода,
+    приведённому к сегодняшней шкале.
+
+    Брать последний **годовой** нельзя: у Т годовой за 2025-й вышел до
+    дробления (257 млн акций), и рядом с ним все прошлые отчёты выглядели
+    «уже пересчитанными» — P/B на графике падал вдесятеро. Полугодие 2026-го
+    уже после дробления: 2,55 млрд.
+    """
+    from app.models.financial_report import FinancialReport
+
+    latest = (
+        db.query(FinancialReport)
+        .filter(FinancialReport.company_id == company_id,
+                (FinancialReport.shares_outstanding.isnot(None)) | (FinancialReport.shares_issued.isnot(None)))
+        .order_by(FinancialReport.report_date.desc())
+        .first()
+    )
+    if latest is None:
+        return None
+    shares = latest.shares_outstanding or latest.shares_issued
+    return float(shares) * shares_factor(splits, latest.report_date)
+
+
+def moex_known_splits(db: Any, company_id: int) -> set[str]:
+    """Даты дроблений, которые Мосбиржа ведёт сама (её splits.json).
+
+    На них она пересчитывает задним числом и историю цен, и суммы дивидендов:
+    у Норникеля, Полюса, Транснефти, ВТБ, Т это проверено по данным. Дробление,
+    которого в её списке нет (Белуга 8:1), в её данных не учтено.
+    """
+    from app.models.corporate_event import CorporateEvent
+
+    rows = (
+        db.query(CorporateEvent.date)
+        .filter(CorporateEvent.company_id == company_id, CorporateEvent.kind == "split",
+                CorporateEvent.source == "moex")
+        .all()
+    )
+    return {row[0].isoformat() for row in rows}
+
+
 def split_note(splits: Any) -> Optional[str]:
     """Подпись к графику: какие цены приведены и к чему."""
     entries = normalize_splits(splits)
@@ -211,6 +335,7 @@ def split_note(splits: Any) -> Optional[str]:
             shown = int(round(1 / ratio))
             parts.append(f"консолидация 1:{shown} от {day}")
     return (
-        "Цены до " + ("сплитов" if len(entries) > 1 else "сплита")
+        "Цены до " + ("этих событий" if len(entries) > 1 else
+                      "консолидации" if entries[0]["ratio"] < 1 else "дробления")
         + " приведены к нынешнему числу акций (" + ", ".join(parts) + ")."
     )

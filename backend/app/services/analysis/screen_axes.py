@@ -624,7 +624,7 @@ def profitability(points, mults: dict, reports: dict, is_lender: bool,
     return Axis(
         key="profitability", label="Рентабельность",
         metrics=tuple(metrics), lead="roe",
-        note="Наше расширение: порога по рентабельности у Грэма нет",
+        note="У Грэма порога по рентабельности нет — он задан отраслью",
     )
 
 
@@ -735,7 +735,7 @@ def stability(points, is_lender: bool, reports: Optional[dict] = None,
             value=None if cash_free is None else float(cash_free),
             of=cash_of, flagged=cash_losses,
             tone=_tone_full(cash_free, cash_of),
-            note="Наше добавление; к кредитным организациям не применяется",
+            note="В книге нет; к кредитным организациям не применяется",
         ))
 
     if is_lender and reports:
@@ -945,17 +945,21 @@ def growth(points, is_lender: bool, live=None) -> Axis:
         # Разворот, не попавший в годовые точки, касается обеих строк потока
         # одинаково: конец окна у них общий.
         ltm_note = _ltm_cash_note(points, live)
-        # Десяти лет потока нет — значит, нет и десятилетнего теста. Прежде он
-        # тихо пересчитывался по пяти годам (шести точкам — отсюда «за 6 лет»)
-        # и вставал рядом с пятилетним, повторяя его цифру. Теперь строки нет:
-        # критерий не считается, а не проходит чужим основанием.
-        if cash_run is not None:
-            metrics.append(Metric(
-                key="cash_growth", label=f"Прирост FCF за {GROWTH_SPAN} лет", unit="%",
-                value=cash_run, series=_series(points, "fcf_per_share"),
-                tone=_tone(cash_run), suspect=_implausible(cash_run),
-                note=_join_notes(_reversal_note(cash_run, short_cash, "поток"), ltm_note),
-            ))
+        # Десяти лет потока нет — значит, десятилетний тест не подтверждён.
+        # Прежде он тихо пересчитывался по пяти годам (шести точкам — отсюда
+        # «за 6 лет»). Но и убирать строку нельзя: отсутствующую величину свод
+        # читает как «к компании не применяется» (так у банка нет потока) и
+        # засчитывает. Короткая история — не неприменимость, а непроверенное:
+        # строка остаётся с пустым значением, и критерий выходит «нет данных».
+        years = _years_with(points, "fcf_per_share", GROWTH_SPAN)
+        metrics.append(Metric(
+            key="cash_growth", label=f"Прирост FCF за {GROWTH_SPAN} лет", unit="%",
+            value=cash_run, series=_series(points, "fcf_per_share") if cash_run is not None else (),
+            tone=_tone(cash_run), suspect=_implausible(cash_run),
+            note=(_join_notes(_reversal_note(cash_run, short_cash, "поток"), ltm_note)
+                  if cash_run is not None
+                  else f"Потока в базе {years} лет из {GROWTH_SPAN} — десятилетний рост не подтверждён"),
+        ))
         # Пятилетний рост потока — на тот же отрезок, что и короткий тест по
         # прибыли, чтобы их можно было сравнивать между собой. Когда прибыль
         # обваливается на переписанной строке отчёта, а деньги нет, разницу

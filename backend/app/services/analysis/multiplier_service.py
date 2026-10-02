@@ -21,17 +21,20 @@
 свежего отчёта (latest), без LTM-агрегации.
 """
 import logging
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Any, Optional, List, Dict, Tuple
 
 from sqlalchemy.orm import Session, joinedload
 
 from app.models.financial_report import FinancialReport
 from app.models.multiplier import Multiplier
+from app.models.stock_price import StockPrice
 from app.models.company import Company
 from app.models.enums import PeriodType
 from app.services.analysis.calc_multipliers import calculate_multipliers
-from app.services.share_splits import shares_factor
+from app.services.share_splits import (
+    align_report_scale, company_splits, current_share_count, report_split_factor, shares_factor,
+)
 from app.models.enums import CompanyType
 from app.services.analysis.fcf import compute_banking_flow, compute_core_fcf, compute_fcf
 from app.services.analysis.sector_profiles import (
@@ -252,8 +255,58 @@ def _to_today_scale(
     """
     if value is None:
         return None
-    factor = shares_factor(splits, report.report_date)
+    factor = report_split_factor(splits, report.report_date, _report_shares(report),
+                                 getattr(splits, "current_shares", None))
     return value if factor == 1.0 else value / factor
+
+
+class _Splits(list):
+    """Дробления компании плюс нынешнее число акций — по нему видно, какие
+    отчёты эмитент уже пересчитал в новую шкалу (см. report_split_factor)."""
+
+    current_shares: Optional[float] = None
+
+
+def _aligned_price_and_shares(
+    db: Session, company: Optional[Company], report: FinancialReport,
+) -> Tuple[Optional[float], Optional[int]]:
+    """Цена (в рублях) и акции отчёта в одной шкале — или (None, None), если
+    приводить нечего и расчёт берёт их из отчёта как есть.
+
+    Отчёт при этом не меняется: если в нём смесь шкал (цена тогдашняя, акции
+    нынешние — так бывает после дробления), выравнивается только расчёт.
+    См. share_splits.align_report_scale.
+    """
+    if company is None or report.report_date is None:
+        return None, None
+    splits = company_splits(db, company)
+    factor = shares_factor(splits, report.report_date)
+    if factor == 1.0:
+        return None, None
+    price = _convert(report.price_per_share, report.currency, _to_float(report.exchange_rate)) \
+        if report.price_per_share is not None else None
+    shares = resolve_shares_for_multipliers(report)
+    traded = (
+        db.query(StockPrice.price)
+        .filter(StockPrice.company_id == company.id, StockPrice.date <= report.report_date,
+                StockPrice.date >= report.report_date - timedelta(days=14))
+        .order_by(StockPrice.date.desc())
+        .first()
+    )
+    aligned_price, aligned_shares = align_report_scale(
+        price, shares, factor, float(traded[0]) if traded else None,
+        current_share_count(db, company.id, splits),
+    )
+    if aligned_price == price and aligned_shares == shares:
+        return None, None
+    logger.info("%s %s: цена и акции отчёта приведены к одной шкале (%s → %s, %s → %s)",
+                company.ticker, report.report_date, price, aligned_price, shares, aligned_shares)
+    return aligned_price, int(round(aligned_shares)) if aligned_shares else None
+
+
+def _report_shares(report: FinancialReport) -> Optional[float]:
+    shares = report.shares_outstanding or report.shares_issued
+    return float(shares) if shares else None
 
 
 def _ltm_formula_field(
@@ -473,7 +526,9 @@ def get_ltm_data(db: Session, company_id: int) -> Optional[Dict]:
     # LTM складывает отчёты, часть которых может быть до дробления, а цена
     # в текущем мультипликаторе — уже после.
     company = db.query(Company).filter(Company.id == company_id).first()
-    splits = getattr(company, "share_splits", None) if company else None
+    splits = _Splits(company_splits(db, company)) if company else None
+    if splits is not None:
+        splits.current_shares = current_share_count(db, company_id, splits)
 
     is_bank = getattr(latest, "report_type", "general") == "bank"
     source: str
@@ -1196,8 +1251,11 @@ def save_report_based_multiplier(
         _hybrid_banking_flow(db, company, report) if company else (None, None)
     )
 
+    price_rub, shares = _aligned_price_and_shares(db, company, report)
     mults = calculate_multipliers(
         report,
+        override_price=price_rub,
+        override_shares=shares,
         banking_flow=banking_flow,
         key_rate=_key_rate_for_year(db, report.fiscal_year),
     )

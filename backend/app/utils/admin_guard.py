@@ -94,7 +94,7 @@ class AdminGuardMiddleware(BaseHTTPMiddleware):
                 request.headers.get("origin"), request.headers.get("referer"),
             ):
                 logger.warning("CSRF: отклонён %s %s с %s", method, path, client_ip(request))
-                return _deny(403, "Запрос отклонён: не с нашей страницы")
+                return _deny(403, "Запрос отклонён: он отправлен не со страницы сайта")
 
         if needs_admin(method, path):
             db = SessionLocal()

@@ -27,7 +27,7 @@ from app.models.financial_report import FinancialReport
 from app.models.multiplier import Multiplier
 from app.models.stock_price import StockPrice
 from app.utils.disclosure import ANNUAL_LAG, PUBLICATION_MIN_LAG  # noqa: F401 — реэкспорт для тестов
-from app.services.share_splits import company_splits, shares_factor, split_note
+from app.services.share_splits import company_splits, current_share_count, moex_known_splits, report_split_factor, shares_factor, split_note
 from app.utils.per_share import per_share
 
 router = APIRouter(prefix="/companies", tags=["prices"])
@@ -110,11 +110,16 @@ def _events(db: Session, company_id: int, splits: Optional[list] = None) -> list
                        else "дата публикации из самого отчёта"),
         })
 
+    # Дивиденды из списка Мосбиржи она сама уже пересчитала на дробления,
+    # которые ведёт (Норникель 2023: 9,15 ₽ вместо объявленных 915,33 ₽).
+    # Делить их можно только на те, которых она не знает, — как у Белуги.
+    known_to_moex = moex_known_splits(db, company_id)
     for event in db.query(CorporateEvent).filter(CorporateEvent.company_id == company_id):
         if event.kind == "dividend":
             day = (event.last_buy_date + timedelta(days=1)) if event.last_buy_date else event.date
             # Сумма — на нынешнюю акцию, как и цена на графике.
-            scale = shares_factor(splits or [], event.date)
+            own = [s for s in (splits or []) if not (event.source == "moex" and s["date"] in known_to_moex)]
+            scale = shares_factor(own, event.date)
             value = float(event.value) / scale if event.value is not None else None
             out.append({
                 "date": day.isoformat(),
@@ -127,14 +132,17 @@ def _events(db: Session, company_id: int, splits: Optional[list] = None) -> list
                            + f"; реестр {event.date:%d.%m.%Y}"),
                 "value": value,
             })
-        elif event.kind == "split":
-            ratio = float(event.value) if event.value is not None else None
-            out.append({
-                "date": event.date.isoformat(),
-                "kind": "split",
-                "label": "Сплит" if ratio is None or ratio >= 1 else "Консолидация акций",
-                "detail": (f"коэффициент {ratio:g}" if ratio else None),
-            })
+    # Метки дроблений — из общего списка (события Мосбиржи плюс карточка):
+    # дробления Белуги в списке Мосбиржи нет, а на графике оно должно быть.
+    for entry in splits or []:
+        ratio = float(entry["ratio"])
+        if ratio >= 1:
+            shown = f"{ratio:g}:1"
+            label, detail = f"Дробление акций {shown}", f"каждая акция стала {ratio:g} акциями"
+        else:
+            shown = f"1:{round(1 / ratio):g}"
+            label, detail = f"Консолидация акций {shown}", f"{round(1 / ratio):g} акций объединены в одну"
+        out.append({"date": entry["date"], "kind": "split", "label": label, "detail": detail})
     out.sort(key=lambda item: item["date"])
     return out
 
@@ -196,9 +204,12 @@ def price_history(
     splits = company_splits(db, company)
 
     marks = []
+    latest_shares = current_share_count(db, company_id, splits)
     for mult, report in sorted(rows, key=lambda pair: _published_on(pair[1])):
         shares = float(mult.shares_used) if mult.shares_used else None
-        scale = shares_factor(splits, mult.date)
+        # Отчёт, выпущенный после дробления, эмитент уже пересчитал (МСФО,
+        # IAS 33) — его делить не надо, см. report_split_factor.
+        scale = report_split_factor(splits, mult.date, shares, latest_shares)
         eps = float(mult.eps) / scale if mult.eps is not None else None
         equity = float(mult.equity) if mult.equity is not None else None
         marks.append({
