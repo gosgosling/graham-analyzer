@@ -448,13 +448,18 @@ def test_growth_is_silent_when_the_decade_is_too_short():
 
 
 def test_short_cash_history_does_not_fake_the_decade():
-    """Семь лет потока: десятилетнего теста нет, а не пятилетний под его именем.
+    """Семь лет потока: десятилетний тест не подтверждён — а не пятилетний под
+    его именем и не «не применяется».
 
-    Прежде строка «за 10 лет» пересчитывалась по шести точкам, подписывалась
-    «за 6 лет» и повторяла цифру пятилетнего теста строкой ниже.
+    Прежде строка «за 10 лет» пересчитывалась по шести точкам и подписывалась
+    «за 6 лет». Потом её убрали совсем — и свод прочитал пропуск как «к
+    компании не применяется» и засчитал: Мосбиржа с падающим потоком прошла
+    свод активного инвестора. Строка должна быть, но пустой.
     """
     axis = screen_axes.growth(points(count=7, first=2019), is_lender=False)
-    assert axis.metric("cash_growth") is None
+    decade = axis.metric("cash_growth")
+    assert decade is not None and decade.value is None
+    assert "не подтверждён" in decade.note
     short = axis.metric("cash_growth_short")
     assert short.value is not None
     assert short.label == "Прирост FCF за 5 лет"

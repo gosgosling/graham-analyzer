@@ -160,6 +160,38 @@ def test_missing_data_is_not_a_failure():
     assert result.clears is False          # но и прохождением это не считается
 
 
+def test_short_cash_history_is_unknown_not_inapplicable():
+    """Пустая строка роста потока — «нет данных», и свод не проходит.
+    «Не применяется» остаётся только тому, у кого строки нет вовсе (банк)."""
+    axes = healthy() + [axis("stability", "Стабильность", cash_positive_years=(7.0, 7))]
+    for a in axes:
+        if a.key == "growth":
+            growth = a
+    axes[axes.index(growth)] = axis("growth", "Рост", earnings_growth=(74.0,), earnings_growth_short=(20.0,),
+                                     cash_growth=(None,), cash_growth_short=(-53.0,))
+    result = screened(axes, standard="defensive")
+    assert verdict(result, "cash_growth").status == UNKNOWN
+    assert result.clears is False
+
+
+def test_enterprising_judges_cash_on_its_own_five_years():
+    """Активный свод смотрит на пять лет — и поток тоже. Десяти лет потока у
+    молодой компании нет по определению; решает пятилетний тест."""
+    def company(short):
+        axes = healthy() + [axis("stability", "Стабильность", cash_positive_years=(5.0, 5))]
+        growth = next(a for a in axes if a.key == "growth")
+        axes[axes.index(growth)] = axis("growth", "Рост", earnings_growth=(74.0,), earnings_growth_short=(20.0,),
+                                         cash_growth=(None,), cash_growth_short=(short,))
+        return screened(axes, standard="enterprising")
+
+    falling = company(-53.0)        # Мосбиржа: поток за пять лет сжался
+    assert verdict(falling, "cash_growth_short").status == FAIL
+    assert falling.clears is False
+    growing = company(88.0)         # Белуга: вырос
+    assert verdict(growing, "cash_growth_short").status == PASS
+    assert all(v.metric != "cash_growth" for v in growing.verdicts)
+
+
 def test_an_incomplete_screen_never_clears():
     """Непроверенная ось — не прохождение: Грэм требует всех сразу."""
     axes = healthy()

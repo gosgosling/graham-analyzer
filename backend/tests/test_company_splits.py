@@ -58,3 +58,14 @@ def test_подпись_называет_сплит():
     assert "дробление 8:1 от 22.08.2024" in note
     assert split_note([]) is None
     assert "консолидация 1:5000" in split_note([{"date": "2024-07-15", "ratio": 0.0002}])
+
+
+def test_шкала_отчёта_по_его_числу_акций():
+    from app.services.share_splits import report_split_factor
+    t = [{"date": "2026-04-17", "ratio": 10}]
+    # Т: годовой за 2025-й вышел до дробления — делить на 10.
+    assert report_split_factor(t, date(2025, 12, 31), 257_393_950, 2_549_948_000) == 10
+    # Транснефть: отчёт за 2023-й эмитент уже пересчитал (IAS 33) — не делить.
+    trnfp = [{"date": "2024-02-21", "ratio": 100}]
+    assert report_split_factor(trnfp, date(2023, 12, 31), 724_934_300, 724_934_300) == 1
+    assert report_split_factor(trnfp, date(2022, 12, 31), 7_249_343, 724_934_300) == 100

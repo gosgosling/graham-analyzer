@@ -18,6 +18,8 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.models.company import Company
+from app.services.market.split_scale import traded_close_on_or_before
+from app.services.share_splits import company_splits
 from app.services.share_splits import shares_at_date, shares_factor
 from app.services.ticker_history import resolve_ticker
 from app.models.enums import company_type_to_report_type
@@ -262,6 +264,7 @@ def _fetch_moex_price_for_report(
     ticker: Optional[str],
     target: Optional[date],
     former_tickers: Any = None,
+    splits: Any = None,
 ) -> Optional[float]:
     """Тихо запросить у MOEX цену закрытия на дату (или ближайший торговый день).
 
@@ -274,7 +277,10 @@ def _fetch_moex_price_for_report(
     # надо спрашивать у YNDX, под YDEX история начинается только с 2024-го.
     ticker = resolve_ticker(ticker, former_tickers, target)
     try:
-        info = get_closing_price_on_or_before(ticker, target)
+        # Цена — как торговалась в тот день: Мосбиржа бывает пересчитывает
+        # историю на дробление задним числом (Т-Технологии, 2026), а количество
+        # акций в отчёте — тогдашнее.
+        info = traded_close_on_or_before(ticker, target, splits)
     except Exception as exc:  # noqa: BLE001 — внешний HTTP, падать не имеем права
         logger.warning(
             "MOEX price lookup failed for %s @ %s: %s", ticker, target, exc,
@@ -296,6 +302,7 @@ def _enrich_with_moex_prices(
     exchange_rate: Optional[float] = None,
     period_type: Optional[str] = None,
     fiscal_year: Optional[int] = None,
+    splits: Any = None,
 ) -> tuple[Optional[float], Optional[float]]:
     """Вернуть (price_per_share, price_at_filing) из MOEX для данного отчёта.
 
@@ -320,8 +327,8 @@ def _enrich_with_moex_prices(
     report_d = _parse_iso_date(report_iso)
     filing_d = _parse_iso_date(extracted.filing_date)
 
-    price_on_report_rub = _fetch_moex_price_for_report(ticker, report_d, former_tickers)
-    price_on_filing_rub = _fetch_moex_price_for_report(ticker, filing_d, former_tickers)
+    price_on_report_rub = _fetch_moex_price_for_report(ticker, report_d, former_tickers, splits)
+    price_on_filing_rub = _fetch_moex_price_for_report(ticker, filing_d, former_tickers, splits)
 
     # Для RUB-отчёта возвращаем цены как есть.
     currency = (extracted.currency or "RUB").upper()
@@ -1138,6 +1145,7 @@ def parse_pdf_to_report(
         exchange_rate=auto_exchange_rate,
         period_type=period_type,
         fiscal_year=fiscal_year,
+        splits=company_splits(db, company),
     )
     if moex_price_on_report is not None or moex_price_on_filing is not None:
         logger.info(
@@ -1161,7 +1169,7 @@ def parse_pdf_to_report(
         logger.info(
             "[%s %s] MOEX ISSUESIZE → shares_issued=%s%s.",
             company.ticker, fiscal_year, f"{moex_shares_issued:,}",
-            " (пересчитано на отчётную дату: после неё был сплит)"
+            " (пересчитано на отчётную дату: после неё было дробление акций)"
             if shares_factor(company.share_splits, report_date_for_shares) != 1.0 else "",
         )
 
