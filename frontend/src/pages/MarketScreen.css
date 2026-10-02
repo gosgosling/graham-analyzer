@@ -1,106 +1,21 @@
-/* Экран Грэма по всему рынку: строка на компанию, столбец на критерий. */
+/* Скринер: сито требований и полная таблица (строка на компанию, столбец на критерий). */
 
 .ms {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
   padding: var(--space-5);
-  max-width: 1400px;
+  max-width: 1440px;
   margin: 0 auto;
-}
-
-.ms-head h1 {
-  margin: 0 0 var(--space-2);
-  font-size: 1.5rem;
-  font-weight: 600;
-  color: var(--color-text-primary);
-}
-
-.ms-lede {
-  margin: 0 0 var(--space-4);
-  max-width: 74ch;
-  font-size: 0.9rem;
-  line-height: 1.6;
-  color: var(--color-text-tertiary);
-}
-
-/* ── Переключатели ────────────────────────────────────────────────────── */
-
-.ms-controls {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  margin-bottom: var(--space-4);
-}
-
-.ms-standards {
-  display: flex;
-  gap: var(--space-2);
-}
-
-.ms-std {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
-  padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-md);
-  background: var(--color-bg-surface);
-  color: var(--color-text-secondary);
-  font-size: 0.82rem;
-  cursor: pointer;
-  transition: background 0.12s, border-color 0.12s;
-}
-
-.ms-std:hover { background: var(--color-bg-hover); }
-
-.ms-std.is-on {
-  border-color: var(--color-border-accent);
-  background: var(--color-primary-soft);
-  color: var(--color-text-primary);
-  font-weight: 600;
-}
-
-.ms-std em {
-  font-style: normal;
-  font-size: 0.7rem;
-  font-weight: 400;
-  color: var(--color-text-quaternary);
 }
 
 .ms-all {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 0.78rem;
+  font-size: 0.9rem;
   color: var(--color-text-tertiary);
   cursor: pointer;
-}
-
-/* ── Сводка ───────────────────────────────────────────────────────────── */
-
-.ms-summary {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--space-3);
-  margin-bottom: var(--space-3);
-  font-size: 0.92rem;
-  color: var(--color-text-secondary);
-}
-
-.ms-cleared b {
-  font-size: 1rem;
-  color: var(--color-text-primary);
-}
-
-.ms-note {
-  font-size: 0.78rem;
-  color: var(--color-warning-text);
-  background: var(--color-warning-soft);
-  border: 1px solid var(--color-warning-border);
-  border-radius: var(--radius-pill);
-  padding: 2px 10px;
 }
 
 .ms-state {
@@ -120,19 +35,30 @@
   background: var(--color-bg-surface);
 }
 
+/* Раскладка фиксированная: ширины из colgroup, а не из содержимого.
+   Меньше 1080px колонки стали бы уже числа в них — тогда таблица
+   прокручивается вбок, а колонка компании стоит на месте. */
 .ms-table {
   border-collapse: separate;
   border-spacing: 0;
   width: 100%;
+  min-width: 1080px;
+  table-layout: fixed;
   font-size: 0.88rem;
 }
 
+.ms-col-company { width: 172px; }
+.ms-col-safety  { width: 100px; }
+.ms-col-total   { width: 74px; }
+
 .ms-table th,
 .ms-table td {
-  padding: 8px 9px;
+  padding: 8px 6px;
   border-bottom: 1px solid var(--color-border-subtle);
   text-align: center;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .ms-table thead th {
@@ -145,19 +71,25 @@
   cursor: help;
 }
 
+/* Заголовок переносится по словам в ширину колонки; порог — строкой ниже. */
+.ms-table thead th { white-space: normal; }
+
 .ms-col {
   display: block;
-  font-size: 0.78rem;
+  font-size: 0.76rem;
   font-weight: 600;
   color: var(--color-text-secondary);
-  max-width: 100px;
-  white-space: normal;
   line-height: 1.25;
+  /* Переносы по слогам (нужен lang="ru" у страницы), а не посреди слова. */
+  hyphens: auto;
+  -webkit-hyphens: auto;
+  overflow-wrap: break-word;
 }
 
 .ms-col-thr {
   display: block;
   margin-top: 3px;
+  line-height: 1.25;
   font-size: 0.74rem;
   font-weight: 400;
   color: var(--color-text-quaternary);
@@ -222,7 +154,6 @@
   font-size: 0.74rem;
   font-weight: 400;
   color: var(--color-text-quaternary);
-  max-width: 150px;
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -326,70 +257,8 @@
 
 .ms-clear-mark { color: var(--color-success-text); }
 
-/* ── Что валит чаще всего ─────────────────────────────────────────────── */
-
-.ms-fails {
-  margin-top: var(--space-5);
-}
-
-.ms-fails h2 {
-  margin: 0 0 var(--space-2);
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--color-text-primary);
-}
-
-.ms-fails p {
-  margin: 0 0 var(--space-3);
-  max-width: 72ch;
-  font-size: 0.88rem;
-  line-height: 1.55;
-  color: var(--color-text-tertiary);
-}
-
-.ms-fails ul {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  max-width: 620px;
-}
-
-.ms-fails li {
-  display: grid;
-  grid-template-columns: 200px 1fr 90px;
-  align-items: center;
-  gap: var(--space-2);
-  font-size: 0.86rem;
-}
-
-.ms-fail-label { color: var(--color-text-secondary); }
-
-.ms-fail-bar {
-  height: 8px;
-  border-radius: var(--radius-pill);
-  background: var(--color-neutral-soft);
-  overflow: hidden;
-}
-
-.ms-fail-bar i {
-  display: block;
-  height: 100%;
-  background: var(--color-error);
-  opacity: 0.65;
-}
-
-.ms-fail-count {
-  text-align: right;
-  color: var(--color-text-quaternary);
-  font-variant-numeric: tabular-nums;
-}
-
 @media (max-width: 720px) {
   .ms { padding: var(--space-3); }
-  .ms-fails li { grid-template-columns: 130px 1fr 70px; }
 }
 
 /* Клетка, занятая чужим показателем: верхняя треть отдана его имени.
@@ -418,8 +287,8 @@
      обрывалась бы внутри и читалась как приписка, а не как шапка. */
   background: var(--color-bg-elevated);
   border-bottom: 1px solid var(--color-border-default);
-  margin: -8px -9px 3px;
-  padding: 3px 9px;
+  margin: -8px -6px 3px;
+  padding: 3px 6px;
 }
 
 /* ── Сигнал о цене ────────────────────────────────────────────────────────
@@ -469,9 +338,144 @@
 }
 
 .ms-footnote {
-  margin: var(--space-2) 0 0;
+  margin: var(--space-4) 0 0;
   max-width: 90ch;
-  font-size: 0.78rem;
+  font-size: 0.86rem;
   line-height: 1.5;
   color: var(--color-text-quaternary);
+}
+
+/* ── Шапка скринера ─────────────────────────────────────────────────────── */
+
+.sc-head { margin-bottom: 24px; }
+.sc-head h1 {
+  margin: 0;
+  font-family: 'IBM Plex Serif', Georgia, serif;
+  font-weight: 500;
+  font-size: 34px;
+  line-height: 1.2;
+  color: var(--color-text-primary);
+}
+.sc-lede {
+  margin: 4px 0 0;
+  font-size: 17px;
+  font-family: 'IBM Plex Serif', Georgia, serif;
+  font-style: italic;
+  color: var(--color-text-secondary);
+}
+.sc-switch {
+  display: flex;
+  gap: 22px;
+  margin: 18px 0 10px;
+  border-bottom: 1px solid var(--color-border-default);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.sc-switch button {
+  border: 0;
+  background: none;
+  padding: 0 0 9px;
+  margin-bottom: -1px;
+  font: inherit;
+  font-size: 15.5px;
+  color: var(--color-text-tertiary);
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.sc-switch button:hover { color: var(--color-text-primary); }
+.sc-switch button.is-on { color: var(--color-text-primary); border-bottom-color: var(--sc-accent, #c58a12); }
+:root[data-theme="dark"] .sc-switch button.is-on { border-bottom-color: #e7b84a; }
+.sc-switch-gap { flex: 1; }
+
+/* ── Сито ───────────────────────────────────────────────────────────────── */
+
+.sc { display: grid; grid-template-columns: 360px minmax(0, 1fr); gap: 56px; align-items: start; }
+
+.sc-sieve { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--color-border-strong); }
+.sc-step {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: baseline;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--color-border-default);
+}
+.sc-n { font-family: var(--font-mono); font-size: 13px; color: var(--color-text-tertiary); }
+.sc-req b { font-weight: 500; font-size: 16px; color: var(--color-text-primary); }
+.sc-req small { display: block; color: var(--color-text-tertiary); font-size: 13.5px; }
+.sc-req small i { font-style: normal; color: var(--color-warning-text); }
+.sc-left { font-family: var(--font-mono); font-size: 17px; text-align: right; color: var(--color-text-primary); }
+.sc-left s { display: block; text-decoration: none; color: var(--color-error); font-size: 13px; }
+.sc-step--total .sc-req b { font-weight: 600; }
+.sc-step--end .sc-req b, .sc-step--end .sc-left { color: var(--color-warning-strong); font-weight: 600; }
+:root[data-theme="dark"] .sc-step--end .sc-req b, :root[data-theme="dark"] .sc-step--end .sc-left { color: #e7b84a; }
+.sc-step--end .sc-left { font-size: 22px; }
+.sc-mid {
+  padding: 12px 0 10px 34px;
+  font-size: 14px;
+  color: var(--color-text-tertiary);
+  border-bottom: 1px solid var(--color-border-default);
+  font-style: italic;
+}
+.sc-mid b { color: var(--color-text-primary); font-style: normal; font-family: var(--font-mono); font-weight: 500; }
+
+/* ── Кто прошёл и чего не хватило ───────────────────────────────────────── */
+
+.sc-sec { margin-bottom: 34px; }
+.sc-row .ms-ident a { color: var(--color-text-link); text-decoration: none; font-weight: 600; font-size: 16px; }
+.sc-row .ms-name { font-size: 13.5px; }
+.sc-row .ms-logo { width: 26px; height: 26px; }
+.sc-row .ms-ident a:hover { text-decoration: underline; }
+.sc-sec h2 {
+  margin: 0 0 4px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--color-border-strong);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-tertiary);
+}
+.sc-sec h2 span { letter-spacing: 0; text-transform: none; }
+.sc-list { list-style: none; margin: 0; padding: 0; }
+.sc-row {
+  display: grid;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 0;
+  border-bottom: 1px solid var(--color-border-default);
+  font-size: 16px;
+}
+.sc-row--pass, .sc-row--head { grid-template-columns: minmax(190px, 1.4fr) repeat(3, minmax(0, 1fr)) 130px; }
+.sc-row--miss { grid-template-columns: minmax(190px, 1.4fr) minmax(0, 3fr) 130px; }
+.sc-row--head { padding: 8px 0; font-size: 13px; color: var(--color-text-tertiary); }
+.sc-row--head span:last-child { text-align: right; }
+.sc-num { font-family: var(--font-mono); font-size: 16px; color: var(--color-text-primary); }
+
+.sc-why { color: var(--color-text-secondary); line-height: 1.45; }
+.sc-miss b { font-family: var(--font-mono); font-weight: 500; color: var(--color-error); }
+.sc-miss b.sc-near { color: var(--color-warning-strong); }
+:root[data-theme="dark"] .sc-miss b.sc-near { color: #e7b84a; }
+.sc-miss-unknown { font-style: normal; color: var(--color-text-tertiary); }
+.sc-thr { color: var(--color-text-tertiary); }
+
+.sc-margin { text-align: right; line-height: 1.2; }
+.sc-margin b { display: block; font-family: var(--font-mono); font-weight: 500; font-size: 16px; }
+.sc-margin i { display: block; font-style: normal; font-size: 13px; opacity: 0.85; }
+/* Запас прочности — цвет текстом, без заливки: здесь не таблица, а строка. */
+.sc-margin.ms-safety--favourable, .sc-margin.ms-safety--bond_better, .sc-margin.ms-safety--dangerous { background: none; }
+.sc-margin--none { color: var(--color-text-tertiary); }
+
+.sc-empty { margin: 12px 0 0; color: var(--color-text-tertiary); font-size: 16px; }
+.sc-empty a { color: var(--color-text-link); }
+
+@media (max-width: 1000px) {
+  .sc { grid-template-columns: 1fr; gap: 28px; }
+}
+@media (max-width: 640px) {
+  .sc-row--pass, .sc-row--head { grid-template-columns: minmax(0, 1fr) repeat(3, 56px) 80px; gap: 8px; font-size: 13px; }
+  .sc-row--miss { grid-template-columns: minmax(0, 1fr) 80px; }
+  .sc-row--miss .sc-why { grid-column: 1 / -1; grid-row: 2; font-size: 13px; }
+  .sc-head h1 { font-size: 26px; }
 }

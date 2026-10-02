@@ -2,25 +2,18 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, ReferenceLine, ReferenceDot,
-} from 'recharts';
-import {
   getCompanyCurrentMultipliers,
   getCompanyMultipliersHistory,
-  getHoldingNav,
   getLtmBankMetrics,
   getSectorProfiles,
   refreshCompanyMultipliers,
   updateCompanySectorProfile,
   updateCompanyType,
 } from '../services';
-import { MultiplierRecord, CurrentMultipliers, Company, SectorProfile, BankMetrics, FinancialReport, CompanyType, HoldingNav } from '../types';
-import { useChartColors, ChartColors } from '../contexts/ThemeContext';
+import { MultiplierRecord, CurrentMultipliers, Company, SectorProfile, BankMetrics, FinancialReport, CompanyType } from '../types';
 import SharesCapHover from './SharesCapHover';
 import { formatPerShare } from '../utils/perShare';
 import { formatApiErrorMessage } from '../utils/apiErrors';
-import { formatMln } from '../utils/format';
 import {
   computeBankYoY,
   computeHistRowYoY,
@@ -53,40 +46,21 @@ import {
   type RoeDriver,
   type RoeSourceVerdict,
 } from '../utils/roeBreakdown';
-import CompanyPassport from './CompanyPassport';
 import {
   fetchValuationHistory,
   fetchValuationSummary,
+  getCompanySeries,
+  type CompanySeriesOut,
   type ValuationHistoryOut,
   type ValuationSummaryOut,
 } from '../services/valuation.api';
+import { useAdmin } from '../hooks/useAdmin';
 import './MultipliersPanel.css';
 
-// ─── Цветовая кодировка ──────────────────────────────────────────────────────
-//
-// Половина оборота панели, мс. Содержимое подменяется в середине, когда грань
-// повёрнута ребром к зрителю и всё равно не видна.
-const FLIP_HALF_MS = 170;
 
-/**
- * Грани панели. Порядок — тот, в котором их читают: сначала разбор компании
- * по критериям, потом её оценка, и только потом мультипликаторы как справка.
- * Сейчас первыми показываются мультипликаторы, потому что к ним привыкли;
- * порядок кнопок уже отражает будущий, а не нынешний.
- */
-type PanelFace = 'multipliers' | 'passport';
 
-const FACE_TITLES: Record<PanelFace, string> = {
-  multipliers: 'Мультипликаторы',
-  passport: 'Консервативные критерии',
-};
 
-const FACE_HINTS: Record<PanelFace, string> = {
-  multipliers: 'Показатели за каждый год как есть',
-  passport: 'Семь осей главы 13 с порогами защитного и активного инвестора',
-};
 
-const FACE_ORDER: PanelFace[] = ['multipliers', 'passport'];
 
 /**
  * Сколько лет истории показывать в свёрнутом виде.
@@ -724,98 +698,9 @@ function hasNoDividend(dps: number | null | undefined): boolean {
   return dps === null || dps === undefined || dps === 0;
 }
 
-/**
- * Откуда взялся дивиденд за скользящий год.
- *
- * У годового плательщика в окно LTM попадает выплата, объявленная по итогам
- * прошлого года. Без пояснения непонятно, почему при пустых полугодиях
- * доходность всё-таки есть.
- */
-function dividendBasisTip(data: {
-  ltm_dividends_per_share?: number | null;
-  dividend_years_paid?: number | null;
-  dividend_years_total?: number | null;
-  dividend_last_year?: number | null;
-}): string | undefined {
-  const dps = data.ltm_dividends_per_share;
-  if (!dps) return undefined;
-  const paid = data.dividend_years_paid ?? 0;
-  const total = data.dividend_years_total ?? 0;
-  const year = data.dividend_last_year;
-  return (
-    `Дивиденд за скользящий год — ${formatPerShare(dps)} ₽` +
-    (year ? `, объявлен по итогам ${year} года.` : '.') +
-    (total > 0 ? ` Платила ${paid} ${paid === 1 ? 'год' : 'лет'} из ${total}.` : '')
-  );
-}
 
 /** Сколько лет молчания означают, что компания перестала платить. */
-const DIVIDEND_STOPPED_YEARS = 3;
 
-function dividendAbsence(data: {
-  dividend_is_regular?: boolean | null;
-  dividend_years_paid?: number | null;
-  dividend_years_total?: number | null;
-  dividend_years_since_last?: number | null;
-  dividend_last_per_share?: number | null;
-  dividend_last_year?: number | null;
-}): DividendAbsence {
-  const paid = data.dividend_years_paid ?? 0;
-  const total = data.dividend_years_total ?? 0;
-  const since = data.dividend_years_since_last;
-  const last =
-    data.dividend_last_per_share != null && data.dividend_last_year != null
-      ? ` Последний — ${formatPerShare(data.dividend_last_per_share)} ₽ за ${data.dividend_last_year} год.`
-      : '';
-  const history = total > 0 ? `Платила ${paid} ${paid === 1 ? 'год' : 'лет'} из ${total}.` : '';
-
-  // Никогда не платила.
-  if (paid === 0) {
-    return {
-      mark: '×',
-      label: 'не платит',
-      level: 'bad',
-      threshold: 'Дивиденды не выплачивались',
-      tip: 'За всю доступную историю дивидендов по обыкновенным акциям не было.',
-    };
-  }
-
-  // Свежесть важнее доли. У Газпрома три года из семи с выплатами, но
-  // последняя была за 2022-й — это не «нерегулярно платит», а «перестала».
-  // Прошлые заслуги на текущее решение не влияют.
-  if (since != null && since >= DIVIDEND_STOPPED_YEARS) {
-    return {
-      mark: '×',
-      label: 'не платит',
-      level: 'bad',
-      threshold: 'Дивиденды не выплачивались',
-      tip: `Выплат нет ${since} ${since < 5 ? 'года' : 'лет'} подряд. ${history}${last}`,
-    };
-  }
-
-  if (data.dividend_is_regular) {
-    return {
-      mark: '',
-      label: 'не объявлен',
-      level: 'warn',
-      threshold: 'Дивиденд за период не объявлен',
-      tip:
-        'Регулярный плательщик, но за скользящий год выплаты нет: либо ещё не ' +
-        `объявлена, либо не попала в окно. ${history}${last}`,
-    };
-  }
-
-  // Платила когда-то, но не регулярно — для решения это то же самое, что не
-  // платит. Отдельное «нерегулярно» вводило в заблуждение: у Делимобиля одна
-  // выплата в рубль за четыре года выглядела как повод чего-то ждать.
-  return {
-    mark: '×',
-    label: 'не платит',
-    level: 'bad',
-    threshold: 'Дивиденды не выплачивались',
-    tip: `Регулярных выплат нет. ${history}${last}`,
-  };
-}
 
 function NoDividendYieldMark({
   className = '',
@@ -975,13 +860,6 @@ function ColHeaderWithUnit({
   );
 }
 
-/**
- * Форматирует значение в миллионах ₽.
- * Если >= 1000 млн — показывает в млрд, иначе в млн.
- */
-function fmtMln(n: number | null): string {
-  return formatMln(n);
-}
 
 /**
  * Портфель крупного банка в млрд — пятизначное число, которое глазом не
@@ -1101,10 +979,6 @@ function shareColumnScale(values: number[]): { factor: number; unit: string } | 
 }
 
 /** Число с фиксированной точностью; пусто — прочерк. */
-function fmtNum(n: number | null, digits: number): string {
-  if (n === null || n === undefined) return '—';
-  return n.toFixed(digits);
-}
 
 /** Год из даты YYYY-MM-DD — подпись периода в таблице и на графике.
  *  Имя `fmtDate` вводило в заблуждение: в BondDetail так называется настоящее
@@ -1136,479 +1010,14 @@ function fmtDateFull(iso: string): string {
 
 // ─── Карточки текущих мультипликаторов ────────────────────────────────────────
 
-interface CurrentCardsProps {
-  data: CurrentMultipliers;
-  profile: SectorProfile;
-  /** Предыдущий отчётный год — нужен, чтобы объяснить изменение ROE */
-  previous?: HistRowSnapshot | null;
-  /** Тикер компании — привилегированные акции (TRNFP, BANEP, SBERP …) */
-  isPreferredShare?: boolean;
-  /**
-   * Банковские показатели того отчёта, с которого взят баланс.
-   * Из них в карточки идут три, которых нет среди классических: отдача
-   * активов, стоимость риска и запас основного капитала.
-   */
-  bankMetrics?: BankMetrics | null;
-  /** Оценка холдинга. Есть — классические мультипликаторы уступают ей место. */
-  holdingNav?: HoldingNav | null;
-}
 
-interface DashboardCard {
-  label: string;
-  value: number | null;
-  level: Level;
-  hint: string;
-  threshold: string;
-  suffix?: string;
-  nullHint?: string;
-  textLabel?: string;
-  tip?: string;
-  toggleable?: boolean;
-  /** Значок в углу: показатель, осмысленный только в сравнении. */
-  badge?: { text: string; level: Level; tip: string };
-}
 
-/**
- * Четыре карточки холдинга вместо классических мультипликаторов.
- *
- * Порядок — как читается разбор: сколько стоят доли, сколько должен центр,
- * что остаётся акционеру и во сколько рынок это оценивает. Уровень ставится
- * там, где у величины есть содержательная граница: у плеча СЧА — двойка,
- * после которой холдинг перестаёт быть корзиной и становится корзиной с
- * маржинальным плечом.
- */
-const HOLDING_LEVERAGE_HIGH = 2.0;
 
-function holdingCards(nav: HoldingNav): DashboardCard[] {
-  const stakes = nav.stakes_value;
-  const debt = nav.corporate_center_net_debt;
-  const incomplete = nav.total_stakes > 0 && nav.valued_stakes < nav.total_stakes;
-  const pending = incomplete
-    ? ` Оценено ${nav.valued_stakes} из ${nav.total_stakes} долей — сумма неполная.`
-    : '';
 
-  const leverage = stakes !== null && nav.nav !== null && nav.nav > 0
-    ? stakes / nav.nav : null;
-  const ltv = stakes !== null && stakes > 0 && debt !== null ? (debt / stakes) * 100 : null;
 
-  return [
-    {
-      label: 'Стоимость долей',
-      value: stakes === null ? null : stakes / 1000,
-      level: 'neutral',
-      hint: 'Сумма долей в дочках по рыночной цене и оценкам',
-      threshold: incomplete ? `оценено ${nav.valued_stakes} из ${nav.total_stakes}` : '',
-      suffix: ' млрд ₽',
-      nullHint: 'Доли не заведены или не оценены',
-      tip: 'Публичные дочки берутся с рынка, непубличные — по оценке аналитика.'
-        + pending,
-    },
-    {
-      label: 'Долг центра',
-      value: debt === null ? null : debt / 1000,
-      level: ltv === null ? 'neutral' : ltv > 60 ? 'bad' : ltv > 40 ? 'warn' : 'good',
-      hint: 'Чистый долг корпоративного центра',
-      threshold: ltv === null ? '' : `LTV ${ltv.toFixed(0)}% к стоимости долей`,
-      suffix: ' млрд ₽',
-      nullHint: 'Не заполнен — задаётся в панели холдинга',
-      tip: 'Только сам центр, без дочек: их долг уже сидит в цене их акций. '
-        + 'Вычесть консолидированный — значит посчитать долги дочек дважды.',
-    },
-    {
-      label: 'СЧА',
-      value: nav.nav === null ? null : nav.nav / 1000,
-      level: leverage === null ? 'neutral'
-        : leverage > HOLDING_LEVERAGE_HIGH ? 'warn' : 'good',
-      hint: 'Стоимость долей минус долг центра',
-      threshold: leverage === null ? '' : `плечо ${leverage.toFixed(2)}×`,
-      suffix: ' млрд ₽',
-      nullHint: 'Нужны оценённые доли',
-      tip: 'СЧА — заёмный остаток, а не сумма: доли двигаются на процент, '
-        + 'СЧА на столько процентов, каково плечо. Выше двух — уже не корзина, '
-        + 'а корзина с маржинальным плечом.' + pending,
-    },
-    {
-      label: 'Дисконт к СЧА',
-      value: nav.discount_pct,
-      level: 'neutral',
-      hint: 'Насколько рынок дешевле суммы частей',
-      threshold: '',
-      suffix: '%',
-      nullHint: 'СЧА отрицателен или не посчитан',
-      tip: 'Скидка нормальна: распоряжается активами не акционер. Она не сигнал '
-        + 'к покупке — сужается только от действий центра: погашения долга, '
-        + 'продажи актива дороже оценки, вывода дочки на биржу.' + pending,
-    },
-  ];
-}
-
-const PfcfCardToggleIcon: React.FC = () => (
-  <svg className="current-card-toggle-icon" width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
-    <path
-      d="M2 4.5h8M9 2.5l1.5 2-1.5 2"
-      stroke="currentColor"
-      strokeWidth="1.2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-    <path
-      d="M12 9.5H4M5 11.5L3.5 9.5 5 7.5"
-      stroke="currentColor"
-      strokeWidth="1.2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </svg>
-);
-
-const CurrentCards: React.FC<CurrentCardsProps> = ({
-  data,
-  profile,
-  previous,
-  isPreferredShare = false,
-  bankMetrics,
-  holdingNav,
-}) => {
-  const [pfcfCardMode, setPfcfCardMode] = React.useState<PfcfColMode>('pfcf');
-  const income = data.ltm_net_income;
-  const isLoss = income !== null && income < 0;
-  const roeUi = roeBadge(profile, data.roe, data.equity ?? null);
-  const roeInfo = roeExplanation(snapshotFromCurrent(data), previous, profile);
-  // Откуда взялся ROE: прибыльность, оборот или заёмные деньги. Считается
-  // внутри roeExplanation, чтобы карточка и таблица объясняли одинаково.
-  const roeSource = roeInfo.source;
-  const roeSpread = data.roe_spread ?? null;
-  const roeKeyRate = data.key_rate ?? null;
-  const roeLevelAdjusted: Level =
-    roeInfo.driver.misleading && roeUi.level === 'good' ? 'warn' : roeUi.level;
-  // Тип определяет бэкенд: профиль приходит в ответе /multipliers/current.
-  // Прежняя догадка «нет D/E и CR → банк» ошибалась на компаниях, у которых
-  // эти поля просто не заполнены.
-  const isBank = profile?.key === 'bank' || data.cost_to_income !== null;
-  const crBand = getBand(profile, 'cr');
-  // Два состояния «дивиденда нет»: не объявлен / не платит.
-  const divAbsence = dividendAbsence(data);
-  const specialPerShare = data.ltm_special_dividends_per_share ?? 0;
-  const hasSpecialDividend = specialPerShare > 0 && data.dividend_yield !== null;
-  const regularYield = data.dividend_yield_regular ?? data.dividend_yield;
-  const ltmFcf = (data as any).ltm_fcf as number | null | undefined;
-  const pfcf = (data as any).price_to_fcf as number | null | undefined;
-  const fcfNi = (data as any).fcf_to_net_income as number | null | undefined;
-  const fcfNiUi = fcfNiBadge(fcfNi ?? null, income ?? null);
-
-  // При наличии гудвила на виду материальная балансовая стоимость, отчётная —
-  // в подписи. Светофор считается по тому числу, которое видит человек.
-  const pbShown: number | null =
-    data.goodwill_to_assets != null ? data.pb_tangible ?? null : data.pb_ratio;
-
-  const baseCards = [
-    {
-      label: 'P/E',
-      value: data.pe_ratio,
-      level: peLevelContext(profile, data.pe_ratio, income),
-      // Мультипликаторы считаются от нормализованной прибыли (`net_income`),
-      // оценка — от отчётной. У ЛУКОЙЛа за LTM это 1 072 ₽ против 738 ₽ на
-      // акцию, P/E 5,0 против 7,3: без подписи на одной странице стояли два
-      // P/E и выглядели ошибкой.
-      hint: 'Цена / прибыль без разовых статей',
-      threshold: isLoss ? 'Убыток — P/E не применим' : hintFor(profile, 'pe'),
-      tip: [getBand(profile, 'pe').note, PE_BASIS_TIP].filter(Boolean).join('\n\n'),
-    },
-    {
-      label: 'P/B',
-      // При наличии гудвила показываем материальную балансовую стоимость:
-      // отчётная уходит в подпись. Светофор — по тому же числу, что на виду.
-      value: pbShown,
-      level: pbLevelContext(profile, pbShown, data.equity ?? null),
-      hint:
-        data.goodwill_to_assets != null
-          ? `Цена / Балансовая стоимость без гудвила. С гудвилом — ${data.pb_ratio != null ? fmt2(data.pb_ratio) : '—'}`
-          : 'Цена / Балансовая стоимость',
-      threshold: hintFor(profile, 'pb'),
-      tip: getBand(profile, 'pb').note ?? undefined,
-    },
-    {
-      label: 'ROE',
-      value: roeUi.textLabel ? null : roeUi.value,
-      level: roeLevelAdjusted,
-      hint: roeSource
-        ? `Рентабельность капитала · ${roeSource.label}`
-        : 'Рентабельность капитала',
-      threshold:
-        roeUi.textLabel === 'Н/Д'
-          ? 'Капитал ≤ 0'
-          : roeUi.textLabel === 'Искажено'
-            ? 'ROE > 100%'
-            : roeInfo.driver.misleading
-              ? 'Рост за счёт сокращения капитала'
-              : roeUi.value !== null && roeUi.value < 0
-                ? 'Отрицательный ROE'
-                : hintFor(profile, 'roe'),
-      suffix: '%',
-      nullHint: roeUi.nullHint,
-      textLabel: roeUi.textLabel,
-      tip: roeInfo.tip,
-      // В углу — сколько отдача даёт СВЕРХ безрисковой ставки. «ROE 15%» не
-      // значит ничего, пока неизвестно, сколько платит ОФЗ: при ключевой
-      // 14,98% это ноль, при 7,5% — вдвое больше безрисковой.
-      badge: roeSpreadBadge(roeSpread, data.roe ?? null, roeKeyRate, roeSource),
-    },
-    ...(isBank ? [] : [{
-      label: 'Долг/Капитал',
-      value: data.debt_to_equity,
-      level: deLevel(profile, data.debt_to_equity),
-      hint: 'Обязательства / капитал',
-      threshold:
-        data.equity !== null &&
-        data.equity !== undefined &&
-        data.equity < 0 &&
-        data.debt_to_equity !== null &&
-        data.debt_to_equity < 0
-          ? 'Отрицательный капитал — банкрот'
-          : data.debt_to_equity !== null && data.debt_to_equity < 0
-            ? 'Отрицательный капитал'
-            : hintFor(profile, 'de'),
-      tip:
-        data.debt_to_equity !== null &&
-        data.debt_to_equity < 0 &&
-        data.equity != null &&
-        data.equity < 0
-          ? DE_BANKRUPTCY_TIP
-          : (getBand(profile, 'de').note ?? undefined),
-    }]),
-    ...(isBank ? [{
-      // У банка вместо долговой нагрузки и ликвидности — операционная
-      // эффективность: расходы к операционным доходам.
-      label: 'Cost/Income',
-      value: data.cost_to_income,
-      level: levelFor(profile, 'cir', data.cost_to_income),
-      hint: 'Операционные расходы / доходы',
-      threshold: hintFor(profile, 'cir'),
-      suffix: '%',
-      nullHint: 'Нет операционных расходов или доходов в отчёте',
-      tip: getBand(profile, 'cir').note ?? undefined,
-    }] : [{
-      label: 'Ликвидность',
-      value: data.current_ratio,
-      level: levelFor(profile, 'cr', data.current_ratio),
-      hint: crBand.applicable ? 'Текущая ликвидность' : 'CR не применим для данного типа компании',
-      threshold: crBand.hint,
-      tip: crBand.tooltip_lines.join('\n') || undefined,
-    }]),
-    {
-      label: 'Див. доходность',
-      // При наличии разовой выплаты показываем и оцениваем регулярную часть:
-      // спецдивиденд в следующем году не повторится.
-      value: hasSpecialDividend ? regularYield : data.dividend_yield,
-      level:
-        data.dividend_yield !== null
-          ? levelFor(profile, 'dy', hasSpecialDividend ? regularYield : data.dividend_yield)
-          : hasNoDividend(data.ltm_dividends_per_share)
-            ? isPreferredShare
-              ? 'neutral'
-              : divAbsence.level
-            : 'neutral',
-      hint: hasSpecialDividend
-        ? 'Дивидендная доходность (без разовых)'
-        : isPreferredShare
-          ? 'Дивидендная доходность (привилегированные)'
-          : 'Дивидендная доходность',
-      threshold:
-        data.dividend_yield !== null
-          ? hasSpecialDividend
-            ? `Всего ${data.dividend_yield.toFixed(2)}% с разовой выплатой`
-            : hintFor(profile, 'dy')
-          : hasNoDividend(data.ltm_dividends_per_share)
-            ? isPreferredShare
-              ? 'Дивиденды по префам в отчётах не указаны'
-              : divAbsence.threshold
-            : 'Нет цены / данных для расчёта',
-      suffix: '%',
-      tip: hasSpecialDividend
-        ? specialDividendTip(data.dividend_yield, regularYield, specialPerShare)
-        : dividendBasisTip(data),
-    },
-  ];
-
-  // FCF-карточки только для non-bank и только если есть данные ОДДС
-  const hasFcfData = ltmFcf !== undefined && ltmFcf !== null;
-  const pfcfYield = pfcfToFcfYield(pfcf ?? null);
-  const pfcfCard: DashboardCard = pfcfCardMode === 'yield'
-    ? {
-        label: 'FCF-доходность',
-        value: pfcfYield,
-        level: fcfYieldLevel(pfcfYield, ltmFcf ?? null),
-        hint: 'Доходность FCF = 100 / P/FCF',
-        threshold: (ltmFcf ?? 0) < 0 ? 'FCF отрицателен' : '≥ 6,7% — хорошо',
-        suffix: '%',
-        toggleable: true,
-      }
-    : {
-        label: 'P/FCF',
-        value: pfcf ?? null,
-        level: pfcfLevel(pfcf ?? null, ltmFcf ?? null),
-        hint: 'Цена / Свободный денежный поток',
-        threshold: (ltmFcf ?? 0) < 0 ? 'FCF отрицателен' : '≤ 15 — хорошо',
-        toggleable: true,
-      };
-
-  const fcfCards = (!isBank && hasFcfData) ? [
-    pfcfCard,
-    {
-      label: 'FCF/NI',
-      value: fcfNiUi.value,
-      level: fcfNiUi.level,
-      hint: 'Свободный поток к прибыли',
-      threshold:
-        income !== null && income <= 0
-          ? 'Прибыль ≤ 0 — показатель не применим'
-          : fcfNiUi.value === null
-            ? 'Недостаточно данных'
-            : fcfNiUi.value < 0
-              ? '⚠ Красный флаг: FCF < 0'
-              : fcfNiUi.value >= 1
-                ? 'FCF ≥ прибыли — отлично'
-                : fcfNiUi.value >= 0.7
-                  ? '0.7–1.0 — норма'
-                  : '< 0.7 — сомнительно',
-      nullHint: fcfNiUi.nullHint,
-    },
-  ] : [];
-
-  /**
-   * Банковская карточка: ROA — единственное, чего нет в классическом наборе.
-   *
-   * Отдачу активов, в отличие от ROE, нельзя поднять плечом, и именно она
-   * отличает хороший банк от просто закредитованного. ROE и Cost/Income уже
-   * есть выше, а стоимость риска и Н1.1 живут в банковской панели и в
-   * истории — в динамике они говорят больше, чем точкой.
-   */
-  const bankCards: DashboardCard[] = isBank && bankMetrics
-    ? ([
-        { key: 'roa', label: 'ROA', hint: 'Прибыль / активы' },
-      ] as const).map(({ key, label, hint }) => {
-        const value = (bankMetrics[key] ?? null) as number | null;
-        const status = bankMetrics.statuses?.[key] ?? 'n/a';
-        return {
-          label,
-          value,
-          level: (status === 'good' ? 'good' : status === 'normal' ? 'warn' : status === 'bad' ? 'bad' : 'neutral') as Level,
-          hint,
-          threshold: bankMetrics.hints?.[key] ?? '',
-          suffix: '%',
-          nullHint: 'Поле не заполнено в отчёте',
-        };
-      })
-    : [];
-
-  // У холдинга своя четвёрка вместо классической. P/E, P/B и отдача на
-  // капитал здесь описывают сумму чужих бизнесов: консолидация ставит на
-  // баланс сто процентов выручки и долга каждой дочки, хотя акционеру
-  // принадлежат доли. Показывать их рядом с настоящими величинами значит
-  // приглашать их сравнивать.
-  //
-  // Заменяются на то, из чего холдинг действительно состоит: стоимость долей,
-  // долг корпоративного центра, разница между ними (СЧА) и скидка рынка к ней.
-  const cards: DashboardCard[] = holdingNav
-    ? [...holdingCards(holdingNav), ...bankCards]
-    : [...baseCards, ...fcfCards, ...bankCards];
-
-  return (
-    <div className="current-cards-grid">
-      {cards.map(({ label, value, level, hint, threshold, suffix = '', nullHint, textLabel, tip, toggleable, badge }) => (
-        <div
-          key={toggleable ? 'pfcf-toggle' : label}
-          className={`current-card level-${level}${toggleable ? ' current-card--toggleable' : ''}`}
-        >
-          {toggleable && (
-            <button
-              type="button"
-              className="current-card-toggle"
-              onClick={() => setPfcfCardMode((m) => (m === 'pfcf' ? 'yield' : 'pfcf'))}
-              aria-label={pfcfCardMode === 'pfcf' ? 'Показать FCF yield' : 'Показать P/FCF'}
-              title="Переключить P/FCF ↔ FCF yield"
-            >
-              <PfcfCardToggleIcon />
-            </button>
-          )}
-          {badge && (
-            <span className={`current-card-badge level-${badge.level}`} title={badge.tip}>
-              {badge.text}
-            </span>
-          )}
-          <div className="current-card-label">{label}</div>
-          <div className="current-card-value" title={tip ?? nullHint}>
-            {label === 'Div. Yield' && value === null && hasNoDividend(data.ltm_dividends_per_share) ? (
-              isPreferredShare ? (
-                '—'
-              ) : (
-                <NoDividendYieldMark className="mult-div-none--card" absence={divAbsence} />
-              )
-            ) : textLabel === 'убыток' || level === 'loss' ? (
-              <span className="card-loss-badge">убыток</span>
-            ) : textLabel ? (
-              <span className="card-text-label">{textLabel}</span>
-            ) : value !== null ? (
-              `${fmt(value)}${suffix}`
-            ) : (
-              '—'
-            )}
-          </div>
-          <div className="current-card-hint">{hint}</div>
-          <div className={`current-card-threshold level-${level}`}>{threshold}</div>
-        </div>
-      ))}
-    </div>
-  );
-};
 
 // ─── Информационная строка с LTM-метаданными ─────────────────────────────────
 
-const LtmMeta: React.FC<{ data: CurrentMultipliers }> = ({ data }) => {
-  const sourceLabel: Record<string, string> = {
-    annual: 'Годовой отчёт',
-    ytd_full_year: 'YTD за 4 квартала (= год)',
-    semi_annual_derived: 'год + 1-е полугодие − то же год назад',
-    quarterly_3_derived: 'год + 9 месяцев − то же год назад',
-    interim_derived: 'год + начало года − то же год назад',
-    insufficient: 'Только промежуточные отчёты — LTM не считается',
-  };
-  const src = data.ltm_source
-    ? sourceLabel[data.ltm_source]
-      ?? (data.ltm_source.endsWith('_derived')
-        ? 'год + начало года − то же год назад'
-        : data.ltm_source)
-    : '—';
-
-  return (
-    <div className="ltm-meta-bar">
-      <span className="ltm-meta-item">
-        <span className="ltm-meta-label">Цена</span>
-        <span className="ltm-meta-value">
-          {data.current_price !== null ? `${formatPerShare(data.current_price)} ₽` : 'не задана'}
-        </span>
-      </span>
-      <span className="ltm-meta-item">
-        <span className="ltm-meta-label">Капитализация</span>
-        <span className="ltm-meta-value">
-          <SharesCapHover explanation={data.shares_cap_explanation}>
-            {fmtMln(data.market_cap)}
-          </SharesCapHover>
-        </span>
-      </span>
-      <span className="ltm-meta-item" title="Как собраны последние двенадцать месяцев (LTM)">
-        <span className="ltm-meta-label">12 месяцев</span>
-        <span className="ltm-meta-value">{src}</span>
-      </span>
-      <span className="ltm-meta-item">
-        <span className="ltm-meta-label">Баланс на</span>
-        <span className="ltm-meta-value">
-          {data.balance_report_date ? data.balance_report_date.split('-').reverse().join('.') : '—'}
-        </span>
-      </span>
-    </div>
-  );
-};
 
 // ─── Историческая таблица ─────────────────────────────────────────────────────
 
@@ -1791,20 +1200,24 @@ const HistPfcfHeader: React.FC<{
 const HistRoeHeader: React.FC<{
   mode: RoeColMode;
   onToggle: () => void;
-}> = ({ mode, onToggle }) => (
+  /** У банка свободного потока нет — и переключаться не на что. */
+  swappable?: boolean;
+}> = ({ mode, onToggle, swappable = true }) => (
   <th className="col-mult col-header-unit-col">
     <span className="col-header-stacked">
       <span className="col-header-title">{mode === 'fcf' ? 'FCF/E' : 'ROE'}</span>
       <span className="col-header-unit-row">
-        <button
-          type="button"
-          className="col-toggle-btn"
-          onClick={onToggle}
-          aria-label={mode === 'fcf' ? 'Показать ROE по прибыли' : 'Показать поток к капиталу'}
-          title="Переключить ROE ↔ свободный поток к капиталу"
-        >
-          ⇄
-        </button>
+        {swappable && (
+          <button
+            type="button"
+            className="col-toggle-btn"
+            onClick={onToggle}
+            aria-label={mode === 'fcf' ? 'Показать ROE по прибыли' : 'Показать поток к капиталу'}
+            title="Переключить ROE ↔ свободный поток к капиталу"
+          >
+            ⇄
+          </button>
+        )}
         <span className="col-header-unit">%</span>
       </span>
     </span>
@@ -1814,7 +1227,8 @@ const HistRoeHeader: React.FC<{
 const HistPerShareHeader: React.FC<{
   mode: PerShareColMode;
   onToggle: () => void;
-}> = ({ mode, onToggle }) => (
+  swappable?: boolean;
+}> = ({ mode, onToggle, swappable = true }) => (
   <th
     className="col-mult col-compact col-header-unit-col"
     title={mode === 'fcf'
@@ -1824,15 +1238,17 @@ const HistPerShareHeader: React.FC<{
     <span className="col-header-stacked">
       <span className="col-header-title">{mode === 'fcf' ? 'FCF/акц' : 'EPS'}</span>
       <span className="col-header-unit-row">
-        <button
-          type="button"
-          className="col-toggle-btn"
-          onClick={onToggle}
-          aria-label={mode === 'fcf' ? 'Показать прибыль на акцию' : 'Показать поток на акцию'}
-          title="Переключить прибыль на акцию ↔ свободный поток на акцию"
-        >
-          ⇄
-        </button>
+        {swappable && (
+          <button
+            type="button"
+            className="col-toggle-btn"
+            onClick={onToggle}
+            aria-label={mode === 'fcf' ? 'Показать прибыль на акцию' : 'Показать поток на акцию'}
+            title="Переключить прибыль на акцию ↔ свободный поток на акцию"
+          >
+            ⇄
+          </button>
+        )}
         <span className="col-header-unit">₽</span>
       </span>
     </span>
@@ -1916,7 +1332,7 @@ const HistChangeCell: React.FC<{ change: YoYDisplay }> = ({ change }) => (
 
 type HistColKey =
   | 'price' | 'ref' | 'margin' | 'cap'
-  | 'pe' | 'pb' | 'pfcf' | 'div' | 'cir'
+  | 'pe' | 'peRep' | 'pb' | 'pfcf' | 'div' | 'cir'
   | 'roe' | 'spread' | 'fcfNi'
   | 'de' | 'cr' | 'ndFcf' | 'netDebt'
   | 'roa' | 'cor' | 'npl' | 'coverage' | 'ldr' | 'n11' | 'portfolio'
@@ -1943,9 +1359,16 @@ interface HistFlags {
   showFcf: boolean;
   showRatios: boolean;
   hasValuation: boolean;
+  /** Есть отчётная прибыль — можно показать P/E по отчёту рядом с очищенным. */
+  hasReported: boolean;
 }
 
-function histFlags(profile: SectorProfile, isHolding: boolean, hasValuation: boolean): HistFlags {
+function histFlags(
+  profile: SectorProfile,
+  isHolding: boolean,
+  hasValuation: boolean,
+  hasReported: boolean,
+): HistFlags {
   // У банка плечо — это бизнес-модель, а не риск, ликвидность считается
   // нормативами ЦБ, а FCF неприменим концептуально. Биржа: обязательства —
   // чужие деньги и зеркальные позиции клиринга, поэтому плечо, ликвидность и
@@ -1960,6 +1383,7 @@ function histFlags(profile: SectorProfile, isHolding: boolean, hasValuation: boo
     showFcf: !isBank && !isHolding,
     showRatios: !isHolding,
     hasValuation,
+    hasReported: hasReported && !isHolding,
   };
 }
 
@@ -2025,6 +1449,9 @@ interface HistRowCellsInput {
   /** Опорная стоимость по отчёту этого периода и прошлого. */
   reference?: number | null;
   previousReference?: number | null;
+  /** P/E от прибыли как в отчёте — этого периода и прошлого. */
+  peReported?: number | null;
+  previousPeReported?: number | null;
   flags: HistFlags;
 }
 
@@ -2056,6 +1483,8 @@ function histRowCells({
   previousCostToIncome,
   reference = null,
   previousReference = null,
+  peReported = null,
+  previousPeReported = null,
   flags,
 }: HistRowCellsInput): HistCells {
   const out: HistCells = {};
@@ -2203,6 +1632,21 @@ function histRowCells({
         nullHint={pbHint}
       />
     ));
+  }
+  if (flags.hasReported) {
+    // Без цвета: прибыль с разовыми статьями — не мерка для порогов отрасли,
+    // строка нужна, чтобы видеть, от чего считается оценка.
+    put(
+      'peRep',
+      metricPct(peReported, previousPeReported, 'lower_better', 'P/E по отчёту'),
+      peReported === null
+        ? <span className="mult-cell neutral mult-cell-tip" title="Отчётной прибыли нет или убыток">—</span>
+        : (
+          <span className="hist-pe-rep" title="Цена / прибыль как в отчёте, с разовыми статьями">
+            {peReported > 50 ? '> 50' : dec(peReported, 1)}
+          </span>
+        ),
+    );
   }
   if (flags.showFcf) {
     put('pfcf', yoy?.pfcf, <HistPfcfCell mode={pfcfColMode} pfcf={snapshot.price_to_fcf} fcf={snapshot.ltm_fcf} />);
@@ -2480,6 +1924,17 @@ function histColumns({
       th: <th key="pe" className="col-mult" title={PE_BASIS_TIP}>P/E</th>,
       label: 'P/E',
     });
+    if (flags.hasReported) {
+      add({
+        key: 'peRep',
+        group: 'Мультипликаторы',
+        name: 'P/E по отчёту',
+        tip: 'Цена / прибыль как в отчёте, с разовыми статьями. От неё считается оценка стоимости; '
+          + 'P/E строкой выше — от прибыли без разовых, если аналитик их выделил.',
+        th: <th key="peRep" className="col-mult" title="Цена / прибыль как в отчёте, с разовыми статьями">P/E отч.</th>,
+        label: 'P/E по отчёту',
+      });
+    }
     add({
       key: 'pb',
       group: 'Мультипликаторы',
@@ -2539,7 +1994,7 @@ function histColumns({
       tip: roeColMode === 'fcf'
         ? 'Свободный поток к капиталу, %. Порог отрасли не применяется: он откалиброван под прибыль.'
         : bandTip(profile, 'roe', 'Прибыль к капиталу, %. Наведите на значение — из чего она сложилась.'),
-      th: <HistRoeHeader key="roe" mode={roeColMode} onToggle={toggleRoe} />,
+      th: <HistRoeHeader key="roe" mode={roeColMode} onToggle={toggleRoe} swappable={flags.showFcf} />,
       label: (
         <>
           {roeColMode === 'fcf' ? 'FCF / капитал, %' : 'ROE, %'}
@@ -2558,6 +2013,23 @@ function histColumns({
         </th>
       ),
       label: 'ROE сверх ключевой ставки, п.п.',
+    });
+  }
+  // У банка свободного потока нет, а отдачу активов нельзя поднять плечом —
+  // она и встаёт в «Отдачу» рядом с ROE вместо FCF / прибыли.
+  if (flags.isBank) {
+    const roaTip = 'Отдача активов: прибыль / активы. В отличие от ROE её нельзя поднять плечом';
+    add({
+      key: 'roa',
+      group: 'Отдача',
+      name: 'Отдача активов',
+      tip: roaTip,
+      th: (
+        <th key="roa" className="col-mult col-compact col-bank col-header-unit-col" title={roaTip}>
+          <ColHeaderWithUnit title="ROA" unit="%" align="right" />
+        </th>
+      ),
+      label: 'Отдача активов (ROA), %',
     });
   }
   if (flags.showFcf) {
@@ -2624,7 +2096,6 @@ function histColumns({
       ),
       label: `${name}, ${unit}`,
     });
-    bankCol('roa', 'ROA', 'Отдача активов', 'Отдача активов: прибыль / активы. В отличие от ROE её нельзя поднять плечом');
     bankCol('cor', 'CoR', 'Стоимость риска', 'Стоимость риска: резерв за период / кредитный портфель');
     bankCol('npl', 'NPL', 'Доля проблемных', 'Доля обесцененных кредитов (Stage 3 / 90+) в портфеле');
     bankCol('coverage', 'Покрытие', 'Покрытие резервами', 'Накопленный резерв к обесцененным кредитам (Стадия 3 + POCI)');
@@ -2669,7 +2140,7 @@ function histColumns({
     tip: perShareColMode === 'fcf'
       ? 'Свободный поток на акцию — та же шкала, что у EPS'
       : 'Прибыль на акцию от тех же акций, что и капитализация: цена / EPS в точности равна P/E этого периода',
-    th: <HistPerShareHeader key="eps" mode={perShareColMode} onToggle={togglePerShare} />,
+    th: <HistPerShareHeader key="eps" mode={perShareColMode} onToggle={togglePerShare} swappable={flags.showFcf} />,
     label: (
       <>
         {perShareColMode === 'fcf' ? 'Поток на акцию, ₽' : 'Прибыль на акцию, ₽'}
@@ -2720,6 +2191,9 @@ interface HistTableProps {
   /** Опорная стоимость по годам отчёта и на сегодня. Без них столбцов оценки нет. */
   referenceByYear?: Map<number, number | null>;
   ltmReference?: number | null;
+  /** Прибыль как в отчёте по годам (млн) и прибыль на акцию за 12 месяцев. */
+  reportedProfitByYear?: Map<number, number | null>;
+  ltmReportedEps?: number | null;
   /** Годы колонками: сколько ранних лет скрыто и как их раскрыть. */
   earlierHidden?: number;
   onToggleEarlier?: () => void;
@@ -2733,7 +2207,7 @@ interface HistTableProps {
  * запас прочности читается по соседним «Цена» и «Опорная», спред ROE — в
  * подсказке у ROE. Освободившееся место нужно EPS и числу акций.
  */
-const ROWS_ONLY_HIDDEN: ReadonlySet<HistColKey> = new Set<HistColKey>(['margin', 'spread']);
+const ROWS_ONLY_HIDDEN: ReadonlySet<HistColKey> = new Set<HistColKey>(['margin', 'spread', 'peRep']);
 
 const yearOf = (r: MultiplierRecord) => r.fiscal_year ?? Number(String(r.date).slice(0, 4));
 
@@ -2750,6 +2224,8 @@ const HistTable: React.FC<HistTableProps> = ({
   hidden,
   referenceByYear,
   ltmReference = null,
+  reportedProfitByYear,
+  ltmReportedEps = null,
   earlierHidden = 0,
   onToggleEarlier,
   earlierShown = false,
@@ -2761,7 +2237,16 @@ const HistTable: React.FC<HistTableProps> = ({
   const [perShareColMode, setPerShareColMode] = React.useState<PerShareColMode>('eps');
 
   const hasValuation = Boolean(referenceByYear && referenceByYear.size > 0);
-  const flags = histFlags(profile, isHolding, hasValuation);
+  const hasReported = Boolean(reportedProfitByYear && reportedProfitByYear.size > 0);
+  const flags = histFlags(profile, isHolding, hasValuation, hasReported);
+  const peReportedOf = (r: MultiplierRecord | undefined): number | null => {
+    if (!r) return null;
+    const profit = reportedProfitByYear?.get(yearOf(r)) ?? null;
+    return profit !== null && profit > 0 && r.market_cap != null ? r.market_cap / profit : null;
+  };
+  const ltmPeReported = currentRow?.price_used != null && ltmReportedEps !== null && ltmReportedEps > 0
+    ? currentRow.price_used / ltmReportedEps
+    : null;
 
   // Поток ядра приходит только у гибридов. Если он есть хоть в одной строке,
   // столбец показывает именно его — и заголовок обязан об этом сказать.
@@ -2848,8 +2333,13 @@ const HistTable: React.FC<HistTableProps> = ({
     sharesScale,
     flags,
   };
-  const refOf = (r: MultiplierRecord | undefined) =>
-    r ? referenceByYear?.get(yearOf(r)) ?? null : null;
+  // Опорная посчитана на нынешние акции, а строка хранит цену и прибыль как
+  // торговались тогда. Через сплит их надо привести к одному масштабу —
+  // к масштабу строки, иначе у Белуги до дробления 8:1 запас выходил «×17».
+  const refOf = (r: MultiplierRecord | undefined) => {
+    const ref = r ? referenceByYear?.get(yearOf(r)) ?? null : null;
+    return ref === null || !r ? ref : ref * (r.shares_split_factor ?? 1);
+  };
   const yoyOf = (cur: HistRowSnapshot, prev: HistRowSnapshot | null) =>
     pctMode && prev ? computeHistRowYoY(cur, prev, pfcfColMode, roeColMode, perShareColMode) : null;
 
@@ -2878,6 +2368,8 @@ const HistTable: React.FC<HistTableProps> = ({
         previousCostToIncome: rows.length > 0 ? rows[0].cost_to_income : null,
         reference: ltmReference,
         previousReference: refOf(rows[0]),
+        peReported: ltmPeReported,
+        previousPeReported: peReportedOf(rows[0]),
       }),
     });
   }
@@ -2902,6 +2394,8 @@ const HistTable: React.FC<HistTableProps> = ({
         previousCostToIncome: prevRecord ? prevRecord.cost_to_income : null,
         reference: refOf(r),
         previousReference: refOf(prevRecord),
+        peReported: peReportedOf(r),
+        previousPeReported: peReportedOf(prevRecord),
       }),
     });
   });
@@ -3079,353 +2573,6 @@ const HistoryDepth: React.FC<{ years: number }> = ({ years }) => {
   );
 };
 
-// ─── Графики мультипликаторов ─────────────────────────────────────────────────
-
-interface ChartPoint {
-  year: string;
-  isLtm: boolean;
-  pe_ratio: number | null;
-  pe_loss: boolean;
-  pb_ratio: number | null;
-  roe: number | null;
-  roe_na: boolean;
-  debt_to_equity: number | null;
-  current_ratio: number | null;
-  dividend_yield: number | null;
-  no_dividend: boolean;
-}
-
-type ChartRowInput = Pick<
-  MultiplierRecord,
-  | 'pe_ratio'
-  | 'pb_ratio'
-  | 'roe'
-  | 'debt_to_equity'
-  | 'current_ratio'
-  | 'dividend_yield'
-  | 'ltm_net_income'
-  | 'equity'
-  | 'ltm_dividends_per_share'
->;
-
-function toChartPoint(r: ChartRowInput, year: string, isLtm: boolean): ChartPoint {
-  const ni = r.ltm_net_income ?? null;
-  const isLoss = ni !== null && ni < 0;
-  const roeUi = roeDisplayState(r.roe, r.equity ?? null);
-
-  const peOk = r.pe_ratio != null && r.pe_ratio > 0 && !isLoss;
-  const roeOk = !roeUi.textLabel && roeUi.value != null;
-  const hasDividend = r.ltm_dividends_per_share != null && r.ltm_dividends_per_share > 0;
-
-  return {
-    year,
-    isLtm,
-    pe_ratio: peOk ? r.pe_ratio : null,
-    pe_loss: !peOk && isLoss,
-    pb_ratio: r.pb_ratio,
-    roe: roeOk ? roeUi.value : null,
-    roe_na: roeUi.textLabel === 'Н/Д',
-    debt_to_equity: r.debt_to_equity,
-    current_ratio: r.current_ratio,
-    dividend_yield: hasDividend && r.dividend_yield != null ? r.dividend_yield : null,
-    no_dividend: !hasDividend,
-  };
-}
-
-function buildMultiplierChartData(
-  rows: MultiplierRecord[],
-  currentRow?: CurrentMultipliers,
-): ChartPoint[] {
-  const historical = [...rows].reverse();
-  return [
-    ...historical.map((r) => toChartPoint(r, periodLabel(r), false)),
-    ...(currentRow ? [toChartPoint(currentRow, 'LTM', true)] : []),
-  ];
-}
-
-function chartMarkerLabel(chartKey: keyof ChartPoint): string | null {
-  if (chartKey === 'pe_ratio') return 'убыток';
-  if (chartKey === 'roe') return 'Н/Д';
-  if (chartKey === 'dividend_yield') return '×';
-  return null;
-}
-
-function chartMarkerFlag(chartKey: keyof ChartPoint, point: ChartPoint): boolean {
-  if (chartKey === 'pe_ratio') return point.pe_loss;
-  if (chartKey === 'roe') return point.roe_na;
-  if (chartKey === 'dividend_yield') return point.no_dividend;
-  return false;
-}
-
-function chartTooltipValue(
-  chartKey: keyof ChartPoint,
-  point: ChartPoint,
-  value: unknown,
-  suffix: string | undefined,
-  label: string,
-): [string, string] {
-  if (chartKey === 'pe_ratio' && point.pe_loss) return ['убыток', label];
-  if (chartKey === 'roe' && point.roe_na) return ['Н/Д', label];
-  if (chartKey === 'dividend_yield' && point.no_dividend) return ['нет выплат', label];
-  if (value == null || typeof value !== 'number') return ['—', label];
-  return [`${fmt(value)}${suffix ?? ''}`, label];
-}
-
-interface ChartConfig {
-  key: 'pe_ratio' | 'pb_ratio' | 'roe' | 'debt_to_equity' | 'current_ratio' | 'dividend_yield';
-  label: string;
-  color: string;
-  referenceLines?: { value: number; label: string; color: string }[];
-  suffix?: string;
-  domain?: [number | 'auto', number | 'auto'];
-}
-
-/**
- * Конфиги графиков строим из текущей темы — цвета берутся из CSS-токенов
- * (см. tokens.css → --color-chart-*), что обеспечивает консистентный
- * вид светлой и тёмной палитры.
- */
-function buildCharts(c: ChartColors, profile: SectorProfile): ChartConfig[] {
-  /** Линии «хорошо» и «внимание» рисуем по порогам отраслевого профиля. */
-  const refs = (
-    metric: 'pe' | 'pb' | 'roe' | 'de' | 'cr' | 'dy',
-    format: (v: number) => string,
-  ): ChartConfig['referenceLines'] => {
-    const b = getBand(profile, metric);
-    if (!b.applicable || b.good === null || b.warn === null) return [];
-    const lines = [{ value: b.good, label: format(b.good), color: c.refGood }];
-    if (b.warn !== b.good) {
-      lines.push({ value: b.warn, label: format(b.warn), color: c.refBad });
-    }
-    return lines;
-  };
-
-  return [
-    {
-      key: 'pe_ratio',
-      label: 'P/E',
-      color: c.line1,
-      referenceLines: refs('pe', (v) => v.toFixed(0)),
-    },
-    {
-      key: 'pb_ratio',
-      label: 'P/B',
-      color: c.line2,
-      referenceLines: refs('pb', (v) => `${v.toFixed(1)}×`),
-    },
-    {
-      key: 'roe',
-      label: 'ROE, %',
-      color: c.line3,
-      suffix: '%',
-      referenceLines: refs('roe', (v) => `${v.toFixed(0)}%`),
-    },
-    {
-      key: 'debt_to_equity',
-      label: 'Долг/Капитал',
-      color: c.line4,
-      referenceLines: refs('de', (v) => v.toFixed(1)),
-    },
-    {
-      key: 'current_ratio',
-      label: 'Current Ratio',
-      color: c.line5,
-      referenceLines: refs('cr', (v) => v.toFixed(1)),
-    },
-    {
-      key: 'dividend_yield',
-      label: 'Дивиденд. доходность, %',
-      color: c.line6,
-      suffix: '%',
-      referenceLines: refs('dy', (v) => `${v.toFixed(0)}%`),
-    },
-  ];
-}
-
-interface MultipliersChartsProps {
-  rows: MultiplierRecord[];
-  currentRow?: CurrentMultipliers;
-  profile?: SectorProfile;
-}
-
-interface MetricLineChartProps {
-  data: ChartPoint[];
-  config: ChartConfig;
-  chartColors: ChartColors;
-}
-
-const MetricLineChart: React.FC<MetricLineChartProps> = ({ data, config, chartColors }) => {
-  const { key, label, color, referenceLines, suffix } = config;
-  const dataKey = String(key);
-  const markerLabel = chartMarkerLabel(key);
-  const markerPoints = markerLabel ? data.filter((p) => chartMarkerFlag(key, p)) : [];
-  const showBottomMarkers = markerPoints.length > 0;
-
-  return (
-    <div className="chart-card">
-      <div className="chart-card-title">{label}</div>
-      <ResponsiveContainer width="100%" height={200}>
-        <LineChart data={data} margin={{ top: 8, right: 16, left: 0, bottom: 16 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke={chartColors.grid} />
-          <XAxis dataKey="year" tick={{ fontSize: 11, fill: chartColors.axis }} />
-          <YAxis
-            tick={{ fontSize: 11, fill: chartColors.axis }}
-            tickFormatter={(v) => `${v}${suffix ?? ''}`}
-            width={45}
-            domain={
-              showBottomMarkers
-                ? ([dataMin, dataMax]: readonly [number, number]) => [
-                    Math.min(dataMin, 0),
-                    dataMax === dataMin ? dataMax + 1 : dataMax,
-                  ]
-                : undefined
-            }
-          />
-          <Tooltip
-            formatter={(value: unknown, _name, item) => {
-              const point = (item as { payload?: ChartPoint }).payload;
-              if (!point) return ['—', label];
-              return chartTooltipValue(key, point, value, suffix, label);
-            }}
-            labelStyle={{ color: chartColors.textPrimary, fontWeight: 600 }}
-            contentStyle={{
-              backgroundColor: chartColors.tooltipBg,
-              border: `1px solid ${chartColors.tooltipBorder}`,
-              borderRadius: 8,
-              color: chartColors.textPrimary,
-            }}
-          />
-          {referenceLines?.map((rl) => (
-            <ReferenceLine
-              key={rl.value}
-              y={rl.value}
-              stroke={rl.color}
-              strokeDasharray="6 3"
-              label={{ value: rl.label, position: 'insideTopRight', fontSize: 10, fill: rl.color }}
-            />
-          ))}
-          {markerLabel
-            ? markerPoints.map((p) => (
-                  <ReferenceDot
-                    key={`${dataKey}-mark-${p.year}`}
-                    x={p.year}
-                    y={0}
-                    r={0}
-                    ifOverflow="discard"
-                    label={{
-                      value: markerLabel,
-                      position: 'insideBottomLeft',
-                      fontSize: key === 'dividend_yield' ? 12 : 9,
-                      fill: key === 'dividend_yield' ? chartColors.refBad : 'var(--color-loss-text)',
-                      offset: 8,
-                    }}
-                  />
-                ))
-            : null}
-          <Line
-            type="monotone"
-            dataKey={dataKey}
-            stroke={color}
-            strokeWidth={2}
-            connectNulls
-            dot={(props: { cx?: number; cy?: number; payload?: ChartPoint; value?: number | null }) => {
-              const { cx, cy, payload, value } = props;
-              if (cx == null || cy == null || payload == null || value == null) return null;
-              if (payload.isLtm) {
-                return (
-                  <circle
-                    key={`${dataKey}-ltm`}
-                    cx={cx}
-                    cy={cy}
-                    r={5}
-                    fill={color}
-                    stroke={chartColors.dotStroke}
-                    strokeWidth={2}
-                  />
-                );
-              }
-              return <circle key={`${dataKey}-${payload.year}`} cx={cx} cy={cy} r={3} fill={color} />;
-            }}
-          />
-        </LineChart>
-      </ResponsiveContainer>
-    </div>
-  );
-};
-
-// Компонент графиков (пока не подключён к панели)
-// eslint-disable-next-line @typescript-eslint/no-unused-vars -- зарезервировано для встраивания графиков
-const MultipliersCharts: React.FC<MultipliersChartsProps> = ({ rows, currentRow, profile }) => {
-  const chartColors = useChartColors();
-  const charts = buildCharts(chartColors, profile ?? GRAHAM_FALLBACK);
-  const chartData = buildMultiplierChartData(rows, currentRow);
-
-  if (chartData.length === 0) {
-    return (
-      <div className="charts-empty">
-        Недостаточно данных для построения графиков
-      </div>
-    );
-  }
-
-  return (
-    <div className="charts-grid">
-      {charts.map((cfg) => (
-        <MetricLineChart key={String(cfg.key)} data={chartData} config={cfg} chartColors={chartColors} />
-      ))}
-    </div>
-  );
-};
-
-// ─── Пара графиков с пагинацией ───────────────────────────────────────────────
-
-interface ChartsPairProps {
-  rows: MultiplierRecord[];
-  currentRow?: CurrentMultipliers;
-  profile: SectorProfile;
-}
-
-const CHART_PAGE_SIZE = 2;
-
-const ChartsPager: React.FC<ChartsPairProps> = ({ rows, currentRow, profile }) => {
-  const [page, setPage] = useState(0);
-  const chartColors = useChartColors();
-  const charts = buildCharts(chartColors, profile);
-  const totalPages = Math.ceil(charts.length / CHART_PAGE_SIZE);
-  const visibleCharts = charts.slice(page * CHART_PAGE_SIZE, (page + 1) * CHART_PAGE_SIZE);
-  const chartData = buildMultiplierChartData(rows, currentRow);
-
-  if (chartData.length === 0) {
-    return <div className="charts-empty">Недостаточно данных для построения графиков</div>;
-  }
-
-  return (
-    <div className="charts-pager">
-      <div className="charts-pager-nav">
-        <span className="charts-pager-label">
-          {page * CHART_PAGE_SIZE + 1}–{Math.min((page + 1) * CHART_PAGE_SIZE, charts.length)} из {charts.length}
-        </span>
-        <button
-          className="charts-nav-btn"
-          onClick={() => setPage((p) => Math.max(0, p - 1))}
-          disabled={page === 0}
-        >‹</button>
-        <button
-          className="charts-nav-btn"
-          onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
-          disabled={page === totalPages - 1}
-        >›</button>
-      </div>
-
-      {visibleCharts.map((cfg) => (
-        <MetricLineChart key={String(cfg.key)} data={chartData} config={cfg} chartColors={chartColors} />
-      ))}
-    </div>
-  );
-};
-
-// ─── Главный компонент панели ─────────────────────────────────────────────────
-
 /**
  * Метод анализа компании. Порядок — от самого частого к редкому; подсказки
  * объясняют, чем тип отличается, потому что цена ошибки высокая: не тот тип
@@ -3448,26 +2595,14 @@ interface MultipliersPanelProps {
    * в кэше мультипликаторов. Панель работает и без них: у небанков колонок нет.
    */
   reports?: FinancialReport[];
-  /**
-   * Какую сторону показывать. Когда задано — панель управляется снаружи, и
-   * собственных кнопок переключения не рисует.
-   *
-   * Переключатель переехал на уровень страницы: сторон было три, и они
-   * соперничали со вкладками карточки, предлагая читателю два разных способа
-   * попасть в одно и то же место. Внутри панели он остался только для тех
-   * мест, где панель стоит сама по себе.
-   */
-  face?: PanelFace;
-  /**
-   * «Лист» — только ряд по годам с переключателями, для карточки компании:
-   * текущие показатели там в шапке, графики — над листом. «Панель» — прежний
-   * вид со всем сразу.
-   */
-  layout?: 'panel' | 'sheet';
 }
 
-/** Сколько лет видно в листе, когда годы идут колонками. */
+/** Сколько лет видно в листе, когда годы идут колонками, — пока ширина
+ *  экрана не измерена. Дальше лет показывается столько, сколько влезает:
+ *  растягивать десять колонок на широкий экран значит раздувать клетки
+ *  пустотой, а место лучше отдать истории. */
 const SHEET_COLS_YEARS = 10;
+const SHEET_COLS_MIN = 5;
 const SHEET_ORIENTATION_KEY = 'ga.sheet.orientation';
 const SHEET_HIDDEN_KEY = 'ga.sheet.hidden';
 
@@ -3593,7 +2728,8 @@ const TouchTip: React.FC<{ tip: { head: string; body: string } | null; onClose: 
   );
 };
 
-const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company, reports, face: faceProp, layout = 'panel' }) => {
+const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company, reports }) => {
+  const { isAdmin, checking: adminChecking } = useAdmin();
   const [refreshMsg, setRefreshMsg] = useState<string | null>(null);
   const [autoRefreshing, setAutoRefreshing] = useState(false);
   const [histPctMode, setHistPctMode] = useState(false);
@@ -3699,7 +2835,13 @@ const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company, reports, f
   }, [companyId]);
 
   useEffect(() => {
-    if (!companyId) return;
+    if (!companyId || adminChecking) return;
+    // Гость цену не обновляет: это запись в базу, она закрыта. Цены и так
+    // обновляет ежедневная задача на сервере.
+    if (!isAdmin) {
+      setInitialPriceSynced(true);
+      return;
+    }
 
     let disposed = false;
     const controller = new AbortController();
@@ -3744,7 +2886,7 @@ const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company, reports, f
       window.clearTimeout(timeoutId);
       controller.abort();
     };
-  }, [companyId, queryClient]);
+  }, [companyId, queryClient, isAdmin, adminChecking]);
 
   const rows = histData ?? [];
   const [histExpanded, setHistExpanded] = React.useState(false);
@@ -3769,18 +2911,10 @@ const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company, reports, f
     ? rows
     : rows.filter((r) => Number(String(r.date).slice(0, 4)) >= histCut);
 
-  // Холдингу классические мультипликаторы не подходят: они описывают сумму
-  // чужих бизнесов. Для него тянем оценку по СЧА и подменяем карточки.
+  // Холдинг: P/E, P/B и ROE по консолидации в листе не выводятся.
   const isHolding = company.company_type === 'holding';
-  const { data: holdingNav } = useQuery({
-    queryKey: ['holding-nav', companyId],
-    queryFn: () => getHoldingNav(companyId),
-    enabled: isHolding && Number.isFinite(companyId) && companyId > 0,
-    staleTime: 5 * 60 * 1000,
-  });
 
   // ── Лист по годам ──
-  const isSheet = layout === 'sheet';
   const [orientation, setOrientationState] = React.useState<SheetOrientation>(
     () => readStored<SheetOrientation>(SHEET_ORIENTATION_KEY, 'cols'),
   );
@@ -3797,6 +2931,8 @@ const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company, reports, f
   };
   const [sheetColumns, setSheetColumns] = React.useState<HistColumn[]>([]);
   const [earlierShown, setEarlierShown] = React.useState(false);
+  const sheetRef = React.useRef<HTMLDivElement | null>(null);
+  const [colsFit, setColsFit] = React.useState(SHEET_COLS_YEARS);
   const [touchTip, setTouchTip] = React.useState<{ head: string; body: string } | null>(null);
 
   // Опорная по годам — тот же ряд, что ступенька на графике цены: ключ
@@ -3805,26 +2941,58 @@ const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company, reports, f
     queryKey: ['valuation-history', companyId],
     queryFn: () => fetchValuationHistory(companyId),
     staleTime: 10 * 60 * 1000,
-    enabled: isSheet,
   });
   const { data: valuationSummary } = useQuery<ValuationSummaryOut>({
     queryKey: ['valuation-summary', companyId],
     queryFn: () => fetchValuationSummary(companyId),
     staleTime: 10 * 60 * 1000,
-    enabled: isSheet,
   });
   const referenceByYear = React.useMemo(() => {
     const map = new Map<number, number | null>();
     (valuationHistory?.years ?? []).forEach((y) => map.set(y.year, y.refused ? null : y.conservative));
     return map;
   }, [valuationHistory]);
+  // P/E по отчёту: прибыль годовых отчётов как в раскрытии, за 12 месяцев —
+  // из ряда оценки (там LTM собран из отчётной прибыли).
+  const reportedProfitByYear = React.useMemo(() => {
+    const map = new Map<number, number | null>();
+    (reports ?? [])
+      .filter((r) => r.period_type.toLowerCase() === 'annual')
+      .forEach((r) => map.set(r.fiscal_year, r.net_income_reported ?? r.net_income ?? null));
+    return map;
+  }, [reports]);
+  const { data: valuationSeries } = useQuery<CompanySeriesOut>({
+    queryKey: ['company-series', companyId, 7],
+    queryFn: () => getCompanySeries(companyId, 7),
+    staleTime: 10 * 60 * 1000,
+  });
+  const ltmReportedEps = valuationSeries?.years?.find((y) => y.ltm_label)?.eps ?? null;
   const ltmReference = valuationSummary?.available && !valuationSummary.band?.refused
     ? valuationSummary.safety?.reference ?? valuationSummary.headline?.reference ?? null
     : null;
 
-  // Годы колонками: видно последние десять лет, остальные — по кнопке слева.
-  const colsCut = histYears[SHEET_COLS_YEARS - 1];
-  const colsHidden = Math.max(0, histYears.length - SHEET_COLS_YEARS);
+  // Годы колонками: видно столько последних лет, сколько влезает по ширине,
+  // остальные — по кнопке слева. Ширины колонок берутся из CSS таблицы.
+  React.useEffect(() => {
+    const el = sheetRef.current;
+    if (!el || orientation !== 'cols' || typeof ResizeObserver === 'undefined') return undefined;
+    const measure = () => {
+      const table = el.querySelector('.hist-table--cols');
+      if (!table) return;
+      const css = getComputedStyle(table);
+      const label = parseFloat(css.getPropertyValue('--label-w')) || 226;
+      const period = parseFloat(css.getPropertyValue('--period-w')) || 78;
+      // Одна колонка уходит под «12 мес.».
+      const fit = Math.floor((el.clientWidth - label) / period) - 1;
+      setColsFit(Math.max(SHEET_COLS_MIN, fit));
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [orientation, histLoading]);
+  const colsCut = histYears[Math.min(colsFit, histYears.length) - 1];
+  const colsHidden = Math.max(0, histYears.length - colsFit);
   const sheetRows = orientation === 'cols'
     ? (earlierShown || colsHidden === 0 ? rows : rows.filter((r) => Number(String(r.date).slice(0, 4)) >= colsCut))
     : histRows;
@@ -3855,482 +3023,162 @@ const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company, reports, f
     setTouchTip({ head: head || 'Пояснение', body });
   };
 
-  const [ownFace, setFace] = React.useState<PanelFace>('multipliers');
-  const [flipping, setFlipping] = React.useState(false);
-  const controlled = faceProp !== undefined;
-  const face = faceProp ?? ownFace;
-
-  // Переворот панели. Половина оборота, подмена содержимого, вторая половина —
-  // так лицевая и оборотная стороны не обязаны быть одной высоты. Полноценный
-  // трёхмерный флип с двумя гранями в потоке растянул бы панель по большей из
-  // них и оставил пустоту под меньшей.
-  const flipTo = (next: PanelFace) => {
-    if (flipping || next === face) return;
-    setFlipping(true);
-    globalThis.setTimeout(() => setFace(next), FLIP_HALF_MS);
-    globalThis.setTimeout(() => setFlipping(false), FLIP_HALF_MS * 2);
-  };
-
-  if (isSheet) {
-    const typeLabel = company.company_type === 'holding'
-      ? 'Холдинг'
-      : company.company_type === 'exchange'
-        ? 'Биржа'
-        : company.company_type === 'hybrid' ? 'Гибрид' : null;
-    return (
-      <div className="ys">
-        <div className="ys-controls">
-          <div className="ys-controls-main">
-            <Segmented<SheetOrientation>
-              label="Как расположить годы"
-              value={orientation}
-              onChange={setOrientation}
-              options={[
-                { key: 'cols', label: 'Годы в колонках' },
-                { key: 'rows', label: 'Годы в строках' },
-              ]}
-            />
-            <Segmented<'values' | 'pct'>
-              label="Значения или изменение"
-              value={histPctMode ? 'pct' : 'values'}
-              onChange={(v) => setHistPctMode(v === 'pct')}
-              options={[
-                { key: 'values', label: 'Значения' },
-                { key: 'pct', label: 'Изменение, %', title: 'Изменение к прошлому году' },
-              ]}
-            />
-            {sheetColumns.length > 0 && (
-              <RowsChooser
-                columns={orientation === 'rows' ? sheetColumns.filter((c) => !ROWS_ONLY_HIDDEN.has(c.key)) : sheetColumns}
-                hidden={hiddenCols}
-                onChange={setHiddenCols}
-                noun={orientation === 'cols' ? 'Строки' : 'Столбцы'}
-              />
-            )}
-          </div>
-          <div className="ys-legend" title={profile.summary}>
-            <span>Пороги: {profile.label.toLowerCase()}</span>
-            <span className="ys-dot good">хорошо</span>
-            <span className="ys-dot warn">терпимо</span>
-            <span className="ys-dot bad">плохо</span>
-            <span className="ys-dot loss">убыток</span>
-          </div>
-        </div>
-
-        {typeLabel && (
-          <div className="mult-type-warning">
-            <b>{typeLabel}.</b>{' '}
-            {company.company_type === 'holding'
-              ? 'Мультипликаторы по консолидированной отчётности складывают выручку и долг дочерних компаний. Для холдинга корректна оценка по сумме частей, а не P/E консолидации.'
-              : company.company_type === 'exchange'
-                ? 'Обязательства — средства участников торгов и позиции клиринга, поэтому плечо, ликвидность и чистый долг не считаются. Свободный поток очищен от прироста клиентских остатков.'
-                : 'Внутри компании есть финансовый бизнес: клиентские средства раздувают баланс, а их приток попадает в операционный поток. Ликвидность, чистый долг и FCF здесь искажены.'}
-          </div>
-        )}
-
-        {currentData && rows.length < GRAHAM_YEARS && <HistoryDepth years={rows.length} />}
-
-        {(autoRefreshing || !initialPriceSynced || currentLoading || histLoading) ? (
-          <div className="mult-loading">
-            {autoRefreshing || !initialPriceSynced ? 'Обновляем цену и загружаем показатели…' : 'Загрузка показателей…'}
-          </div>
-        ) : (
-          <div
-            className={`mult-history-body${orientation === 'rows' && histHidden > 0 && !histExpanded ? ' is-collapsed' : ''}`}
-            onClick={onSheetClick}
-          >
-            <HistTable
-              isHolding={isHolding}
-              rows={sheetRows}
-              currentRow={currentData ?? undefined}
-              profile={profile}
-              isPreferredShare={!!company.is_preferred_share}
-              pctMode={histPctMode}
-              bankMetricsByReport={bankMetricsByReport}
-              ltmBankMetrics={ltmBankMetrics}
-              orientation={orientation}
-              hidden={hiddenCols}
-              referenceByYear={referenceByYear}
-              ltmReference={ltmReference}
-              earlierHidden={colsHidden}
-              earlierShown={earlierShown}
-              onToggleEarlier={() => setEarlierShown((v) => !v)}
-              onColumns={setSheetColumns}
-            />
-            {orientation === 'rows' && histHidden > 0 && (
-              <button
-                type="button"
-                className="hist-expand"
-                onClick={() => setHistExpanded((v) => !v)}
-                aria-expanded={histExpanded}
-              >
-                <span className="hist-expand-label">
-                  {histExpanded ? 'Свернуть' : `Ещё ${histHidden} ${plural(histHidden, 'год', 'года', 'лет')}`}
-                </span>
-                <span className="hist-expand-chevron" aria-hidden>
-                  <svg viewBox="0 0 16 16" width="16" height="16">
-                    <path d={histExpanded ? 'M3 10l5-5 5 5' : 'M3 6l5 5 5-5'} fill="none" stroke="currentColor"
-                      strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                </span>
-              </button>
-            )}
-          </div>
-        )}
-        {currentError && (
-          <div className="mult-error">Нет данных: убедитесь, что добавлены финансовые отчёты и задана текущая цена.</div>
-        )}
-
-        <div className="ys-foot">
-          <p className="ys-note">
-            Цвет — пороги отрасли. Пунктир — есть подсказка: наведите, а на телефоне нажмите.
-            ⇄ меняет показатель на парный. «LTM» и «12 мес.» — последние двенадцать месяцев
-            {currentData?.balance_report_date ? `, баланс на ${currentData.balance_report_date.split('-').reverse().join('.')}` : ''}.
-            Опорная — расчёт по отчётности и допущениям, а не прогноз цены.
-          </p>
-          <div className="ys-admin">
-            {autoRefreshing && !refreshMutation.isPending && (
-              <span className="refresh-auto-indicator"><span className="refresh-auto-spinner" aria-hidden />обновляем цену…</span>
-            )}
-            {refreshMsg && <span className="refresh-msg">{refreshMsg}</span>}
-            <label className="legend-profile" title="Метод анализа: какие показатели применимы">
-              <span className="legend-profile-label">Тип:</span>
-              <select
-                className="legend-profile-select"
-                value={company.company_type ?? 'industrial'}
-                onChange={(e) => typeMutation.mutate(e.target.value as CompanyType)}
-                disabled={typeMutation.isPending}
-              >
-                {COMPANY_TYPE_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value} title={opt.hint}>{opt.label}</option>
-                ))}
-              </select>
-            </label>
-            <label className="legend-profile" title={profile.summary}>
-              <span className="legend-profile-label">Пороги:</span>
-              <select
-                className="legend-profile-select"
-                value={company.sector_profile_key ?? ''}
-                onChange={(e) => profileMutation.mutate(e.target.value || null)}
-                disabled={profileMutation.isPending || !profileOptions}
-              >
-                <option value="">По отрасли автоматически</option>
-                {(profileOptions ?? []).map((opt) => (
-                  <option key={opt.key} value={opt.key} title={opt.summary}>{opt.label}</option>
-                ))}
-              </select>
-            </label>
-            <button className="btn-refresh" onClick={() => refreshMutation.mutate()} disabled={refreshMutation.isPending}>
-              {refreshMutation.isPending ? 'Обновляем…' : '↺ Обновить цену'}
-            </button>
-          </div>
-        </div>
-        <TouchTip tip={touchTip} onClose={() => setTouchTip(null)} />
-      </div>
-    );
-  }
-
+  const typeLabel = company.company_type === 'holding'
+    ? 'Холдинг'
+    : company.company_type === 'exchange'
+      ? 'Биржа'
+      : company.company_type === 'hybrid' ? 'Гибрид' : null;
   return (
-    <div className={`mult-panel${flipping ? ' is-flipping' : ''}`}>
-      {/* Заголовок */}
-      <div className="mult-panel-header">
-        <h2 className="mult-panel-title">{FACE_TITLES[face]}</h2>
-        <div className="mult-panel-controls">
-          <div className="mult-faces" role="tablist" aria-label="Что показывать в панели">
-            {(controlled ? [] : FACE_ORDER.filter((f) => f !== face)).map((f) => (
-              <button
-                key={f}
-                type="button"
-                role="tab"
-                className="btn-flip"
-                onClick={() => flipTo(f)}
-                title={FACE_HINTS[f]}
-              >
-                {FACE_TITLES[f]} ›
-              </button>
-            ))}
-          </div>
-          {autoRefreshing && !refreshMutation.isPending && (
-            <span className="refresh-auto-indicator" title="Подтягиваем актуальную цену из T-Invest API">
-              <span className="refresh-auto-spinner" aria-hidden />
-              обновляем цену…
-            </span>
+    <div className="ys">
+      <div className="ys-controls">
+        <div className="ys-controls-main">
+          <Segmented<SheetOrientation>
+            label="Как расположить годы"
+            value={orientation}
+            onChange={setOrientation}
+            options={[
+              { key: 'cols', label: 'Годы в колонках' },
+              { key: 'rows', label: 'Годы в строках' },
+            ]}
+          />
+          <Segmented<'values' | 'pct'>
+            label="Значения или изменение"
+            value={histPctMode ? 'pct' : 'values'}
+            onChange={(v) => setHistPctMode(v === 'pct')}
+            options={[
+              { key: 'values', label: 'Значения' },
+              { key: 'pct', label: 'Изменение, %', title: 'Изменение к прошлому году' },
+            ]}
+          />
+          {sheetColumns.length > 0 && (
+            <RowsChooser
+              columns={orientation === 'rows' ? sheetColumns.filter((c) => !ROWS_ONLY_HIDDEN.has(c.key)) : sheetColumns}
+              hidden={hiddenCols}
+              onChange={setHiddenCols}
+              noun={orientation === 'cols' ? 'Строки' : 'Столбцы'}
+            />
           )}
-          {refreshMsg && <span className="refresh-msg">{refreshMsg}</span>}
-          <button
-            className="btn-refresh"
-            onClick={() => refreshMutation.mutate()}
-            disabled={refreshMutation.isPending}
-          >
-            {refreshMutation.isPending ? 'Обновляем...' : '↺ Обновить цену'}
-          </button>
+        </div>
+        <div className="ys-legend" title={profile.summary}>
+          <span>Пороги: {profile.label.toLowerCase()}</span>
+          <span className="ys-dot good">хорошо</span>
+          <span className="ys-dot warn">терпимо</span>
+          <span className="ys-dot bad">плохо</span>
+          <span className="ys-dot loss">убыток</span>
         </div>
       </div>
 
-      {face === 'passport' ? (
-        <CompanyPassport companyId={companyId} />
-      ) : (
-        <>
-      {/* Холдинг и гибрид: честное предупреждение вместо правдоподобных цифр.
-          У АФК Системы консолидация складывает выручку МТС, Segezha и прочих
-          с долгом корпоративного центра — P/E по такой сумме не значит ничего.
-          У гибрида (Яндекс) встроенный финбизнес раздувает баланс, у биржи —
-          средства участников торгов и позиции клиринга. */}
-      {(company.company_type === 'holding' || company.company_type === 'hybrid' || company.company_type === 'exchange') && (
+      {typeLabel && (
         <div className="mult-type-warning">
-          {company.company_type === 'holding' ? (
-            <>
-              <b>Холдинг.</b> Мультипликаторы посчитаны по консолидированной отчётности:
-              выручка и долг дочерних компаний сложены вместе. Для холдинга корректна
-              оценка по сумме частей (NAV и дисконт к нему), а не P/E консолидации.
-            </>
-          ) : company.company_type === 'exchange' ? (
-            <>
-              <b>Биржа.</b> Обязательства — это средства участников торгов и депонентов
-              плюс зеркальные позиции центрального контрагента, где актив и обязательство
-              совпадают до рубля. Поэтому плечо, текущая ликвидность и чистый долг не
-              считаются: они описывали бы чужие деньги, а не биржу. Свободный поток
-              очищается от прироста клиентских остатков — по нему и оценивается.
-            </>
-          ) : (
-            <>
-              <b>Гибрид.</b> Внутри компании есть финансовый бизнес: клиентские средства
-              раздувают баланс, а их приток попадает в операционный поток. Current Ratio,
-              чистый долг и FCF здесь искажены — финсегмент оценивается отдельно.
-            </>
-          )}
+          <b>{typeLabel}.</b>{' '}
+          {company.company_type === 'holding'
+            ? 'Мультипликаторы по консолидированной отчётности складывают выручку и долг дочерних компаний. Для холдинга корректна оценка по сумме частей, а не P/E консолидации.'
+            : company.company_type === 'exchange'
+              ? 'Обязательства — средства участников торгов и позиции клиринга, поэтому плечо, ликвидность и чистый долг не считаются. Свободный поток очищен от прироста клиентских остатков.'
+              : 'Внутри компании есть финансовый бизнес: клиентские средства раздувают баланс, а их приток попадает в операционный поток. Ликвидность, чистый долг и FCF здесь искажены.'}
         </div>
       )}
 
-      {/* Легенда и применённый отраслевой профиль */}
-      <div className="legend-bar">
-        <span className="legend-item good">● Норма профиля</span>
-        <span className="legend-item warn">● Внимание</span>
-        <span className="legend-item bad">● Превышение</span>
-        <span className="legend-item loss">● Убыток</span>
-        <span className="legend-item neutral">● Нет данных</span>
-        <label
-          className="legend-profile"
-          title="Метод анализа: какие метрики применимы. Отрасль задаётся отдельно — в секторе «financial» есть и банки, и холдинги."
+      {currentData && rows.length < GRAHAM_YEARS && <HistoryDepth years={rows.length} />}
+
+      {(autoRefreshing || !initialPriceSynced || currentLoading || histLoading) ? (
+        <div className="mult-loading">
+          {autoRefreshing || !initialPriceSynced ? 'Обновляем цену и загружаем показатели…' : 'Загрузка показателей…'}
+        </div>
+      ) : (
+        <div
+          ref={sheetRef}
+          className={`mult-history-body${orientation === 'rows' && histHidden > 0 && !histExpanded ? ' is-collapsed' : ''}`}
+          onClick={onSheetClick}
         >
-          <span className="legend-profile-label">Тип:</span>
-          <select
-            className="legend-profile-select"
-            value={company.company_type ?? 'industrial'}
-            onChange={(e) => typeMutation.mutate(e.target.value as CompanyType)}
-            disabled={typeMutation.isPending}
-          >
-            {COMPANY_TYPE_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value} title={opt.hint}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="legend-profile" title={profile.summary}>
-          <span className="legend-profile-label">Пороги:</span>
-          <select
-            className="legend-profile-select"
-            value={company.sector_profile_key ?? ''}
-            onChange={(e) => profileMutation.mutate(e.target.value || null)}
-            disabled={profileMutation.isPending || !profileOptions}
-          >
-            <option value="">
-              По отрасли автоматически
-            </option>
-            {(profileOptions ?? []).map((opt) => (
-              <option key={opt.key} value={opt.key} title={opt.summary}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
-
-      {/* Контент */}
-      <div className="mult-tab-content">
-        {(autoRefreshing || !initialPriceSynced || currentLoading || histLoading) && (
-          <div className="mult-loading">
-            {autoRefreshing || !initialPriceSynced
-              ? 'Обновляем цену и загружаем мультипликаторы…'
-              : 'Загрузка мультипликаторов...'}
-          </div>
-        )}
-
-        {initialPriceSynced && !currentLoading && !histLoading && (
-          <>
-            {/* ── Верхняя строка: текущие (лево) + графики (право) ── */}
-            <div className="mult-top-row">
-              {/* Левая часть — текущие показатели */}
-              <div className="mult-current-col">
-                {currentError && (
-                  <div className="mult-error">
-                    Нет данных: убедитесь, что добавлены финансовые отчёты и задана текущая цена.
-                  </div>
-                )}
-                {currentData && (
-                  <>
-                    <LtmMeta data={currentData} />
-                    {/* Глубина истории — только как предупреждение: «18 лет
-                        данных» отдельной плашкой ничего не сообщало, а «4 года
-                        из 10 по Грэму» меняет доверие ко всем карточкам ниже. */}
-                    {rows.length < GRAHAM_YEARS && <HistoryDepth years={rows.length} />}
-                    <CurrentCards
-                      data={currentData}
-                      profile={profile}
-                      previous={rows.length > 0 ? snapshotFromRecord(rows[0]) : null}
-                      isPreferredShare={!!company.is_preferred_share}
-                      holdingNav={holdingNav ?? null}
-                      // Карточки описывают LTM — значит и ROA здесь должен быть
-                      // от прибыли за скользящий год, как P/E и ROE рядом.
-                      // Показатели отчёта остаются запасным источником.
-                      bankMetrics={
-                        ltmBankMetrics ??
-                        (currentData.balance_report_id != null
-                          ? bankMetricsByReport?.get(currentData.balance_report_id)
-                          : null)
-                      }
-                    />
-                    <div className="ltm-financials">
-                      <h3 className="ltm-fin-title">Финансовые показатели LTM</h3>
-                      <div className="ltm-fin-grid">
-                        <div className="ltm-fin-item">
-                          <span className="ltm-fin-label">Выручка</span>
-                          <span className="ltm-fin-value">{fmtMln(currentData.ltm_revenue)}</span>
-                        </div>
-                        <div className={`ltm-fin-item${currentData.ltm_net_income !== null && currentData.ltm_net_income < 0 ? ' ltm-fin-item--loss' : ''}`}>
-                          <span className="ltm-fin-label">
-                            {currentData.ltm_net_income !== null && currentData.ltm_net_income < 0
-                              ? 'Чистый убыток'
-                              : 'Чистая прибыль'}
-                          </span>
-                          <span className={`ltm-fin-value${currentData.ltm_net_income !== null && currentData.ltm_net_income < 0 ? ' value-loss' : ''}`}>
-                            {fmtMln(currentData.ltm_net_income)}
-                          </span>
-                        </div>
-                        <div className="ltm-fin-item">
-                          <span className="ltm-fin-label">Дивиденды на акцию</span>
-                          <span className="ltm-fin-value">
-                            {currentData.ltm_dividends_per_share !== null
-                              ? `${formatPerShare(currentData.ltm_dividends_per_share)} ₽`
-                              : '—'}
-                          </span>
-                        </div>
-                        <div className="ltm-fin-item">
-                          <span className="ltm-fin-label">Акций выпущено</span>
-                          <span className="ltm-fin-value">
-                            {currentData.shares_issued !== null
-                              ? currentData.shares_issued.toLocaleString('ru-RU')
-                              : '—'}
-                          </span>
-                        </div>
-                        <div className="ltm-fin-item">
-                          <span className="ltm-fin-label">Акции в обращении</span>
-                          <span className="ltm-fin-value">
-                            {currentData.shares_outstanding_circulation !== null
-                              ? currentData.shares_outstanding_circulation.toLocaleString('ru-RU')
-                              : '—'}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </>
-                )}
-              </div>
-
-              {/* Правая часть — 2 графика с пагинацией */}
-              <div className="mult-charts-col">
-                <ChartsPager rows={rows} currentRow={currentData ?? undefined} profile={profile} />
-              </div>
-            </div>
-
-          </>
-        )}
-      </div>
-        </>
-      )}
-
-      {/* ── История мультипликаторов ──
-          Ряд по годам — основание и паспорта, и оценки: первый говорит, что
-          компания прошла или не прошла критерий, вторая — сколько она стоит,
-          и читается это только вместе с числами, из которых посчитано.
-          Поэтому при перевороте панели на месте ряд и оставался.
-
-          Когда сторона задана снаружи, правило меняется на противоположное.
-          Панель тогда рисуется не по одной, а по нескольку сразу — на вкладке
-          «Мультипликаторы» под таблицей стоит паспорт, — и «под любой гранью»
-          означает уже не «всегда виден», а «продублирован». Основание при
-          этом никуда не девается: оно прямо над выводом, на той же вкладке. */}
-      {(!controlled || face === 'multipliers') && (rows.length > 0 || currentData) && (
-        <div className="mult-history-row">
-          <div className="mult-history-header">
-            <div className="mult-history-label">
-              История мультипликаторов
-              <span className="mult-history-mode-hint"> · годовые + LTM</span>
-              {histPctMode && (
-                <span className="mult-history-mode-hint"> · Δ к прошлому году</span>
-              )}
-            </div>
+          <HistTable
+            isHolding={isHolding}
+            rows={sheetRows}
+            currentRow={currentData ?? undefined}
+            profile={profile}
+            isPreferredShare={!!company.is_preferred_share}
+            pctMode={histPctMode}
+            bankMetricsByReport={bankMetricsByReport}
+            ltmBankMetrics={ltmBankMetrics}
+            orientation={orientation}
+            hidden={hiddenCols}
+            referenceByYear={referenceByYear}
+            ltmReference={ltmReference}
+            reportedProfitByYear={reportedProfitByYear}
+            ltmReportedEps={ltmReportedEps}
+            earlierHidden={colsHidden}
+            earlierShown={earlierShown}
+            onToggleEarlier={() => setEarlierShown((v) => !v)}
+            onColumns={setSheetColumns}
+          />
+          {orientation === 'rows' && histHidden > 0 && (
             <button
               type="button"
-              className={`hist-pct-toggle${histPctMode ? ' hist-pct-toggle--active' : ''}`}
-              onClick={() => setHistPctMode((v) => !v)}
-              aria-pressed={histPctMode}
-              aria-label={histPctMode ? 'Показать абсолютные значения' : 'Показать изменение к прошлому году'}
-              title={histPctMode ? 'Абсолютные значения' : 'Изменение к прошлому году (%)'}
+              className="hist-expand"
+              onClick={() => setHistExpanded((v) => !v)}
+              aria-expanded={histExpanded}
             >
-              %
+              <span className="hist-expand-label">
+                {histExpanded ? 'Свернуть' : `Ещё ${histHidden} ${plural(histHidden, 'год', 'года', 'лет')}`}
+              </span>
+              <span className="hist-expand-chevron" aria-hidden>
+                <svg viewBox="0 0 16 16" width="16" height="16">
+                  <path d={histExpanded ? 'M3 10l5-5 5 5' : 'M3 6l5 5 5-5'} fill="none" stroke="currentColor"
+                    strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </span>
             </button>
-          </div>
-          {/* Таблица и ручка развёртывания лежат в одном слое: ручка стоит
-              поверх нижних строк, а не под таблицей. Так видно, что ряд
-              продолжается, — обрыв по чистой границе читался бы как конец
-              данных, и кнопка под ним выглядела бы отдельным разделом. */}
-          <div className={`mult-history-body${histHidden > 0 && !histExpanded ? ' is-collapsed' : ''}`}>
-            <HistTable
-              isHolding={isHolding}
-              rows={histRows}
-              currentRow={currentData ?? undefined}
-              profile={profile}
-              isPreferredShare={!!company.is_preferred_share}
-              pctMode={histPctMode}
-              bankMetricsByReport={bankMetricsByReport}
-              ltmBankMetrics={ltmBankMetrics}
-            />
-            {histHidden > 0 && (
-              <button
-                type="button"
-                className="hist-expand"
-                onClick={() => setHistExpanded((v) => !v)}
-                aria-expanded={histExpanded}
-                title={histExpanded
-                  ? `Свернуть до ${HIST_COLLAPSED_YEARS} лет`
-                  : `Показать ещё ${histHidden} ${plural(histHidden, 'год', 'года', 'лет')}`}
-              >
-                <span className="hist-expand-label">
-                  {histExpanded
-                    ? 'Свернуть'
-                    : `Ещё ${histHidden} ${plural(histHidden, 'год', 'года', 'лет')}`}
-                </span>
-                {/* Две разные стрелки вместо поворота одной. Поворот здесь
-                    не работает: CSS-transform к этому элементу не применяется
-                    ни правилом, ни инлайном, хотя соседний span в той же
-                    кнопке крутится. Разбираться дальше ради галочки дороже,
-                    чем нарисовать вторую линию, а результат тот же. */}
-                <span className="hist-expand-chevron" aria-hidden>
-                  <svg viewBox="0 0 16 16" width="16" height="16">
-                    <path
-                      d={histExpanded ? 'M3 10l5-5 5 5' : 'M3 6l5 5 5-5'}
-                      fill="none" stroke="currentColor" strokeWidth="1.8"
-                      strokeLinecap="round" strokeLinejoin="round"
-                    />
-                  </svg>
-                </span>
-              </button>
-            )}
-          </div>
+          )}
         </div>
       )}
+      {currentError && (
+        <div className="mult-error">Нет данных: убедитесь, что добавлены финансовые отчёты и задана текущая цена.</div>
+      )}
+
+      <div className="ys-foot">
+        {currentData?.balance_report_date && (
+          <p className="ys-note">
+            12 мес. — баланс на {currentData.balance_report_date.split('-').reverse().join('.')}
+          </p>
+        )}
+        {isAdmin && <div className="ys-admin">
+          {autoRefreshing && !refreshMutation.isPending && (
+            <span className="refresh-auto-indicator"><span className="refresh-auto-spinner" aria-hidden />обновляем цену…</span>
+          )}
+          {refreshMsg && <span className="refresh-msg">{refreshMsg}</span>}
+          <label className="legend-profile" title="Метод анализа: какие показатели применимы">
+            <span className="legend-profile-label">Тип:</span>
+            <select
+              className="legend-profile-select"
+              value={company.company_type ?? 'industrial'}
+              onChange={(e) => typeMutation.mutate(e.target.value as CompanyType)}
+              disabled={typeMutation.isPending}
+            >
+              {COMPANY_TYPE_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value} title={opt.hint}>{opt.label}</option>
+              ))}
+            </select>
+          </label>
+          <label className="legend-profile" title={profile.summary}>
+            <span className="legend-profile-label">Пороги:</span>
+            <select
+              className="legend-profile-select"
+              value={company.sector_profile_key ?? ''}
+              onChange={(e) => profileMutation.mutate(e.target.value || null)}
+              disabled={profileMutation.isPending || !profileOptions}
+            >
+              <option value="">По отрасли автоматически</option>
+              {(profileOptions ?? []).map((opt) => (
+                <option key={opt.key} value={opt.key} title={opt.summary}>{opt.label}</option>
+              ))}
+            </select>
+          </label>
+          <button className="btn-refresh" onClick={() => refreshMutation.mutate()} disabled={refreshMutation.isPending}>
+            {refreshMutation.isPending ? 'Обновляем…' : '↺ Обновить цену'}
+          </button>
+        </div>}
+      </div>
+      <TouchTip tip={touchTip} onClose={() => setTouchTip(null)} />
     </div>
   );
 };

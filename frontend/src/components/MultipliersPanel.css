@@ -1602,13 +1602,20 @@
 .hist-ref { color: var(--color-chart-ref-line, #ea580c); }
 .hist-label-ref { color: var(--color-chart-ref-line, #ea580c); }
 
-/* Годы колонками */
+/* Годы колонками. Колонки фиксированной ширины и не растягиваются: лет
+   показывается столько, сколько влезает (см. colsFit в MultipliersPanel), —
+   иначе на широком экране десять клеток раздувались пустотой и мелкое число
+   терялось в середине. */
 .hist-table--cols {
-  --label-w: 250px;
-  --period-w: 82px;
+  --label-w: 226px;
+  --period-w: 78px;
   table-layout: fixed;
   width: calc(var(--label-w) + var(--periods, 11) * var(--period-w));
-  min-width: 100%;
+}
+.hist-table--cols td {
+  font-size: 0.92rem;
+  padding: 7px 6px;
+  font-variant-numeric: tabular-nums;
 }
 .hist-table--cols th.col-label,
 .hist-table--cols td.col-label {
@@ -1621,7 +1628,8 @@
   font-weight: 400;
   text-transform: none;
   letter-spacing: 0;
-  font-size: 0.86rem;
+  font-size: 0.9rem;
+  padding: 7px 10px 7px 4px;
   color: var(--color-text-primary);
   white-space: nowrap;
   overflow: hidden;
@@ -1632,18 +1640,21 @@
   width: var(--period-w);
   text-transform: none;
   letter-spacing: 0;
-  font-size: 0.84rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  font-variant-numeric: tabular-nums;
 }
 .hist-table--cols th.col-period--ltm { color: var(--color-text-primary); }
 .hist-table--cols td.cell-ltm { background: var(--color-accent-indigo-soft); font-weight: 600; }
 .hist-table--cols .hist-group-row th > span { position: sticky; left: 6px; }
 .hist-table--cols .hist-group-row th {
   text-align: left;
-  padding: 14px 6px 5px;
-  font-size: 0.74rem;
+  padding: 12px 4px 4px;
+  font-size: 0.7rem;
   font-weight: 600;
-  text-transform: none;
-  letter-spacing: 0.01em;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
   color: var(--color-text-tertiary);
   background: var(--color-bg-surface);
   border-bottom: 1px solid var(--color-border-strong);
@@ -1730,9 +1741,26 @@
 }
 
 @media (max-width: 760px) {
-  .hist-table--cols { --label-w: 136px; --period-w: 72px; }
+  .hist-table--cols { --label-w: 140px; --period-w: 70px; }
   .hist-table--cols th.col-label,
-  .hist-table--cols td.col-label { font-size: 0.8rem; }
+  .hist-table--cols td.col-label { font-size: 0.82rem; }
+  .hist-table--cols td { font-size: 0.86rem; }
   .hist-swap-label { display: none; }
   .ys-legend > span:first-child { display: none; }
 }
+.hist-pe-rep { color: var(--color-text-secondary); }
+
+/* Годы колонками: цветные значения того же размера, что и простые числа. */
+.hist-table--cols .mult-cell { font-size: inherit; }
+
+/* Длинная подпись переносится, а не обрезается многоточием: в обрезанной
+   части прятались переключатели ⇄ (EPS ↔ FCF на акцию) и конец названия
+   («ROE сверх ключевой ставки»). */
+.hist-table--cols th.col-label,
+.hist-table--cols td.col-label {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  line-height: 1.3;
+}
+.hist-table--cols .hist-swap { white-space: nowrap; }

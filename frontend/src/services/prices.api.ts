@@ -45,6 +45,8 @@ export interface PriceHistoryOut {
   points: PricePoint[];
   reports: PriceReportMark[];
   events?: PriceEvent[];
+  /** Подпись про сплиты: цены до них приведены к нынешнему числу акций. */
+  split_note?: string | null;
   summary: {
     from: string;
     till: string;

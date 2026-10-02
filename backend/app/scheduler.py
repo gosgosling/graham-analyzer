@@ -68,6 +68,11 @@ def _daily_price_update() -> None:
 
         logger.info("Индексы обновлены: %d строк", refresh_indices(db))
 
+        # Нефть Brent и курс доллара — для графика нефтяных компаний.
+        from app.services.market.oil_service import refresh as refresh_oil
+
+        logger.info("Нефть и курс обновлены: %d строк", refresh_oil(db))
+
         # Дивидендные отсечки и сплиты — засечки на графике цены.
         from app.services.market.corporate_events_service import refresh_all
 

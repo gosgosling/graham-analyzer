@@ -1,0 +1,23 @@
+/* Документы: ровная колонка текста, как в напечатанном договоре. */
+.legal-page { width: 100%; max-width: 760px; box-sizing: border-box; margin: 0 auto; padding: 40px 20px 56px; color: var(--color-text-primary); }
+.legal-doc { font-size: 15px; line-height: 1.6; }
+.legal-doc h1 { font-family: 'IBM Plex Serif', Georgia, serif; font-weight: 500; font-size: 28px; line-height: 1.25; margin: 0; }
+.legal-meta { margin: 6px 0 28px; color: var(--color-text-tertiary); font-size: 13px; }
+.legal-doc h2 { font-size: 16px; font-weight: 600; margin: 28px 0 8px; }
+.legal-doc p, .legal-doc li { color: var(--color-text-secondary); }
+.legal-doc p { margin: 8px 0; }
+.legal-doc ul, .legal-doc ol { margin: 8px 0; padding-left: 22px; }
+.legal-doc li { margin: 6px 0; }
+.legal-doc b { color: var(--color-text-primary); font-weight: 600; }
+.legal-doc a { color: var(--color-text-link); }
+.legal-doc code { font-size: 0.9em; }
+.legal-note { margin-top: 24px !important; padding-top: 16px; border-top: 1px solid var(--color-border-default); font-size: 14px; }
+.legal-table { width: 100%; border-collapse: collapse; font-size: 14px; margin: 8px 0 12px; }
+.legal-table th { text-align: left; font-weight: 500; color: var(--color-text-tertiary); font-size: 12.5px; padding: 6px 12px 6px 0; border-bottom: 1px solid var(--color-border-strong); }
+.legal-table td { padding: 9px 12px 9px 0; border-bottom: 1px solid var(--color-border-default); vertical-align: top; color: var(--color-text-secondary); }
+.legal-table td:first-child { color: var(--color-text-primary); }
+.legal-consent ol { padding-left: 20px; }
+@media (max-width: 600px) {
+  .legal-page { padding: 24px 16px 40px; }
+  .legal-table th:nth-child(3), .legal-table td:nth-child(3) { display: none; }
+}

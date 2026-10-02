@@ -9,6 +9,19 @@ import {
 
 const api = axios.create({
     baseURL: 'http://localhost:8000',
+    // Сессия администратора — в cookie HttpOnly: скрипт страницы её не видит,
+    // браузер шлёт сам. Для этого запросы идут с учётными данными.
+    withCredentials: true,
+    // Защита от CSRF: сервер принимает запись только с этим заголовком.
+    // Форма с чужого сайта его поставить не может.
+    headers: { 'X-Requested-With': 'graham-analyzer' },
+});
+
+// Сессия кончилась посреди работы — сервер ответил 401. Сообщаем странице,
+// чтобы она перестала показывать инструменты администратора.
+api.interceptors.response.use(undefined, (error) => {
+    if (error?.response?.status === 401) window.dispatchEvent(new Event('ga-auth-expired'));
+    return Promise.reject(error);
 });
 
 export { api };

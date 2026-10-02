@@ -1,0 +1,163 @@
+/* Сравнение компаний — «лист», как карточка компании: без рамок, черты и
+   воздух, заголовки с засечками. */
+
+.cv {
+  --cv-rule: var(--color-text-primary);
+  --cv-best: #f6f1e3;
+  color: var(--color-text-primary);
+  font-variant-numeric: tabular-nums;
+}
+[data-theme='dark'] .cv { --cv-best: rgba(231, 184, 74, 0.1); }
+
+.cv-head h1 { margin: 0; font-family: 'IBM Plex Serif', Georgia, serif; font-weight: 500; font-size: 2.4rem; line-height: 1.1; }
+.cv-lede { margin: 6px 0 18px; font-family: 'IBM Plex Serif', Georgia, serif; font-style: italic; font-size: 1.06rem; color: var(--color-text-secondary); }
+
+.cv-pick {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 10px 18px;
+  padding: 12px 0;
+  border-top: 2px solid var(--cv-rule);
+  border-bottom: 1px solid var(--color-border-strong);
+  font-size: 0.95rem;
+}
+.cv-chip a { color: var(--color-text-primary); font-weight: 500; text-decoration: none; }
+.cv-chip a:hover { text-decoration: underline; }
+.cv-chip button { border: 0; background: none; color: var(--color-text-tertiary); font: inherit; cursor: pointer; padding: 0 0 0 4px; }
+.cv-chip button:hover { color: var(--color-error); }
+.cv-add, .cv-link { border: 0; background: none; padding: 0; font: inherit; color: var(--color-text-link); cursor: pointer; }
+.cv-add:hover, .cv-link:hover { text-decoration: underline; }
+.cv-muted { color: var(--color-text-tertiary); }
+.cv-reset { margin-left: auto; color: var(--color-text-tertiary); }
+
+.cv-add-box { position: relative; }
+.cv-add-input {
+  width: 220px;
+  padding: 3px 8px;
+  font: inherit;
+  color: var(--color-text-primary);
+  background: var(--color-bg-input);
+  border: 1px solid var(--color-border-strong);
+  border-radius: 4px;
+}
+.cv-add-list {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 20;
+  min-width: 300px;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  background: var(--color-bg-overlay);
+  border: 1px solid var(--color-border-default);
+  border-radius: 6px;
+  box-shadow: var(--shadow-3);
+}
+.cv-add-list button { width: 100%; text-align: left; border: 0; background: none; font: inherit; font-size: 0.9rem; padding: 6px 8px; color: var(--color-text-secondary); cursor: pointer; border-radius: 4px; }
+.cv-add-list button:hover { background: var(--color-bg-hover); color: var(--color-text-primary); }
+
+.cv-state { margin: 20px 0; color: var(--color-text-tertiary); }
+.cv-hint { margin: 18px 0 8px; color: var(--color-text-secondary); }
+
+.cv-groups ul { list-style: none; margin: 0; padding: 0; }
+.cv-groups button {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: baseline;
+  padding: 12px 0;
+  border: 0;
+  border-bottom: 1px solid var(--color-border-default);
+  background: none;
+  font: inherit;
+  text-align: left;
+  color: var(--color-text-primary);
+  cursor: pointer;
+}
+.cv-groups button:hover .cv-group-name { text-decoration: underline; }
+.cv-group-name { font-family: 'IBM Plex Serif', Georgia, serif; font-size: 1.1rem; }
+.cv-group-members { color: var(--color-text-tertiary); font-size: 0.9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cv-group-count { color: var(--color-text-tertiary); }
+
+.cv-grid { display: grid; grid-template-columns: minmax(0, 1fr) 340px; margin-top: 28px; }
+.cv-main { padding-right: 36px; min-width: 0; }
+.cv-side { border-left: 1px solid var(--color-border-default); padding-left: 28px; }
+/* Много компаний — таблице нужна вся ширина, комментарий уходит вниз. */
+.cv-grid--wide { grid-template-columns: minmax(0, 1fr); }
+.cv-grid--wide .cv-main { padding-right: 0; }
+.cv-grid--wide .cv-side { border-left: 0; padding-left: 0; margin-top: 36px; padding-top: 22px; border-top: 2px solid var(--cv-rule); }
+
+.cv-table-wrap { overflow-x: auto; }
+.cv-table { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
+.cv-table thead th {
+  text-align: right;
+  font-weight: 500;
+  padding: 0 0 10px 14px;
+  border-bottom: 2px solid var(--cv-rule);
+  vertical-align: bottom;
+  white-space: nowrap;
+}
+.cv-table thead th.cv-asof {
+  text-align: left;
+  padding-left: 0;
+  font-family: 'IBM Plex Serif', Georgia, serif;
+  font-style: italic;
+  font-weight: 400;
+  font-size: 0.82rem;
+  color: var(--color-text-tertiary);
+}
+.cv-tk { display: block; font-size: 0.76rem; color: var(--color-text-tertiary); }
+.cv-table tbody th {
+  text-align: left;
+  font-weight: 400;
+  padding: 7px 12px 7px 0;
+  border-bottom: 1px solid var(--color-border-default);
+  min-width: 230px;
+}
+.cv-table tbody td { text-align: right; padding: 7px 0 7px 14px; border-bottom: 1px solid var(--color-border-default); white-space: nowrap; }
+.cv-table td.cv-best { font-weight: 600; background: var(--cv-best); padding-right: 6px; }
+.cv-down { color: var(--color-error-strong); }
+.cv-up { color: var(--color-success-strong); }
+[data-theme='dark'] .cv-down { color: var(--color-error-text); }
+[data-theme='dark'] .cv-up { color: var(--color-success-text); }
+.cv-g td {
+  padding: 22px 0 6px !important;
+  text-align: left !important;
+  font-family: 'IBM Plex Serif', Georgia, serif;
+  font-size: 1.08rem;
+  font-weight: 500;
+  border-bottom: 1px solid var(--color-border-strong) !important;
+}
+.cv-note { font-size: 0.84rem; color: var(--color-text-tertiary); margin: 14px 0 0; line-height: 1.5; }
+
+.cv-side h2 { margin: 0 0 10px; font-family: 'IBM Plex Serif', Georgia, serif; font-weight: 500; font-size: 1.35rem; }
+.cv-h2-gap { margin-top: 28px !important; }
+.cv-comment p { margin: 0 0 12px; font-family: 'IBM Plex Serif', Georgia, serif; font-size: 1rem; line-height: 1.6; color: var(--color-text-secondary); }
+.cv-comment b { color: var(--color-text-primary); }
+
+.cv-crit { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+.cv-crit thead th { font-weight: 500; text-align: center; padding: 0 0 8px; border-bottom: 2px solid var(--cv-rule); }
+.cv-crit tbody th { text-align: left; font-weight: 400; padding: 7px 0; border-bottom: 1px solid var(--color-border-default); }
+.cv-crit td { text-align: center; border-bottom: 1px solid var(--color-border-default); }
+.cv-ok { color: var(--color-success-strong); }
+.cv-no { color: var(--color-error-strong); }
+.cv-na { color: var(--color-text-tertiary); }
+[data-theme='dark'] .cv-ok { color: var(--color-success-text); }
+[data-theme='dark'] .cv-no { color: var(--color-error-text); }
+
+.cv-page { max-width: 1440px; width: 100%; box-sizing: border-box; margin: 0 auto; padding: 22px 14px 40px; }
+
+@media (max-width: 1100px) {
+  .cv-grid { grid-template-columns: minmax(0, 1fr); }
+  .cv-main { padding-right: 0; }
+  .cv-side { border-left: 0; padding-left: 0; margin-top: 36px; padding-top: 22px; border-top: 2px solid var(--cv-rule); }
+}
+@media (max-width: 760px) {
+  .cv-head h1 { font-size: 1.8rem; }
+  .cv-table tbody th { min-width: 170px; }
+  .cv-groups button { grid-template-columns: minmax(0, 1fr) auto; }
+  .cv-group-members { grid-column: 1 / -1; grid-row: 2; }
+}

@@ -13,7 +13,7 @@ import './ConservativeCriteria.css';
  * местами наши: двадцати лет дивидендов у российского рынка нет, текущая
  * ликвидность нефтяника по книжной мерке проваливается, а книжные 100 млн $
  * 1971 года пересчитаны. Книжный порог стоит рядом — расхождение видно, а не
- * спрятано. Проверки, которых в книге нет вовсе, помечены «наше».
+ * спрятано. У проверок, которых в книге нет вовсе, в колонке «В книге» прочерк.
  *
  * Раздел проходит, только когда пройдены все его строки: баллов у Грэма нет.
  */
@@ -69,7 +69,8 @@ function threshold(text: string, v: Verdict): string {
 }
 
 /** Проверки, которых в книге нет: поток, короткие окна, рентабельность. */
-const isOurs = (v: Verdict) => /наше|у Грэма нет|у Грэма банков нет/i.test(v.source);
+/** Проверки, которых в книге нет: в колонке «В книге» у них прочерк. */
+const isOurs = (v: Verdict) => /в книге нет|у Грэма нет|у Грэма банков нет/i.test(v.source);
 
 function sectionStatus(verdicts: Verdict[]): ScreenStatus {
   if (verdicts.some((v) => v.status === 'fail')) return 'fail';
@@ -155,10 +156,7 @@ export default function ConservativeCriteria({ companyId }: { companyId: number 
   return (
     <>
       {head}
-      <p className="cc-lede">
-        По главам 14 и 15 «Разумного инвестора» Грэма. Где наш порог отличается от книжного, рядом сказано
-        почему; «наше» — проверки, которых в книге нет. Пороги: {data.profile.label.toLowerCase()}.
-      </p>
+      <p className="cc-lede">Пороги — {data.profile.label.toLowerCase()}.</p>
       <div className="cc-table-wrap">
         <table className="cc-table">
           <colgroup>
@@ -174,7 +172,7 @@ export default function ConservativeCriteria({ companyId }: { companyId: number 
               <th>Раздел</th>
               <th>Показатель</th>
               <th className="is-num">Значение</th>
-              <th className="is-num">Наш порог</th>
+              <th className="is-num">Порог</th>
               <th className="is-num">В книге</th>
               <th className="is-mark">Итог</th>
             </tr>
@@ -194,7 +192,6 @@ export default function ConservativeCriteria({ companyId }: { companyId: number 
                   )}
                   <td className="cc-metric">
                     <span>{v.metric_label}</span>
-                    {isOurs(v) && <span className="cc-ours" title={v.source}>наше</span>}
                     {(v.note || v.caveat) && <small>{comma(v.caveat ?? v.note ?? '')}</small>}
                   </td>
                   <td className="is-num cc-value">{value(v)}</td>

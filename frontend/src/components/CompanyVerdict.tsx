@@ -29,6 +29,9 @@ const ru = (value: number, digits = 0) =>
   value.toLocaleString('ru-RU', { minimumFractionDigits: digits, maximumFractionDigits: digits })
     .replace('-', '−');
 
+/** Ставка: круглая — без дробей, живая (16,44) — с сотыми. */
+const rate = (value: number) => ru(value, Number.isInteger(value) ? 0 : 2);
+
 /** Рубли на акцию: у дорогой бумаги копейки — шум, у копеечной — вся цена. */
 const rub = (value: number | null | undefined) =>
   value === null || value === undefined
@@ -218,7 +221,7 @@ export function useCompanyVerdict(companyId: number): VerdictData {
   } else if (pc === 'danger' || pc === 'bond') {
     lede = sentence(safety?.reason ?? '');
   } else if (pc === 'dear' && priceAxis?.state === 'pass' && margin !== null && riskFree !== null && required !== null) {
-    lede = `По книжным порогам Грэма акция дешёвая. Но при доходности ОФЗ ${ru(riskFree)}% `
+    lede = `По книжным порогам Грэма акция дешёвая. Но при доходности ОФЗ ${rate(riskFree)}% `
       + `инвестор вправе требовать от неё ${ru(required)}% годовых — и при такой цене денег `
       + `она ${dearer(margin)} дороже опорной оценки.`;
   } else if (margin !== null && price !== null && reference !== null) {
@@ -333,19 +336,25 @@ export function AsideValuation({ verdict }: { verdict: VerdictData }) {
   const { summary } = verdict;
   return (
     <section className="ca-card">
-      <span className="ca-kicker">Опорная стоимость</span>
+      <h2 className="ca-kicker">Опорная стоимость</h2>
       {verdict.available && verdict.reference !== null ? (
         <>
-          <div className="ca-big">{rub(verdict.reference)}</div>
-          <p className="ca-text">
+          {/* Расчёт столбиком, итог под двойной чертой — как в ведомости. */}
+          <div className="ca-ledger">
             {verdict.normal !== null && verdict.multiple !== null && (
-              <>Нормальная прибыль {rub(verdict.normal)} × множитель {ru(verdict.multiple, 2)}.<br /></>
+              <>
+                <div><span>Нормальная прибыль на акцию</span><span>{rub(verdict.normal)}</span></div>
+                <div><span>× множитель</span><span>{ru(verdict.multiple, 2)}</span></div>
+              </>
             )}
+            <div className="ca-ledger-total"><span>Опорная</span><span className="ca-ref">{rub(verdict.reference)}</span></div>
+          </div>
+          <p className="ca-text">
             {verdict.lower && verdict.riskFree !== null && verdict.lower.reference !== null && (
-              <>При ОФЗ {ru(verdict.lower.rate)}% вместо {ru(verdict.riskFree)}% — {rub(verdict.lower.reference)}.</>
+              <>При ОФЗ {rate(verdict.lower.rate)}% вместо {rate(verdict.riskFree)}% — {rub(verdict.lower.reference)}. </>
             )}
+            <a className="ca-link" href="#valuation">Как посчитано</a>
           </p>
-          <a className="ca-link" href="#valuation">Как посчитано ↓</a>
         </>
       ) : (
         <p className="ca-text">
@@ -366,7 +375,7 @@ export const AsideNotes = React.forwardRef<HTMLElement, { verdict: VerdictData; 
     if (notes.length === 0) return null;
     return (
       <section ref={ref} className={`ca-card${wide ? ' ca-card--wide' : ''}`}>
-        <span className="ca-kicker">Обратить внимание</span>
+        <h2 className="ca-kicker">Обратить внимание</h2>
         <ul className="ca-notes">{notes}</ul>
         <span className="ca-foot">Это предупреждения, на расчёт они не влияют.</span>
       </section>
@@ -379,7 +388,7 @@ AsideNotes.displayName = 'AsideNotes';
 export function AsideToc({ sections }: { sections: { id: string; label: string; note?: string }[] }) {
   return (
     <nav className="ca-card ca-toc" aria-label="Разделы страницы">
-      <span className="ca-kicker">На странице</span>
+      <h2 className="ca-kicker">На странице</h2>
       {sections.map((s) => (
         <a key={s.id} href={`#${s.id}`} className="ca-toc-item">
           <span>{s.label}</span>

@@ -30,11 +30,11 @@ import VerificationBadge from '../components/VerificationBadge';
 import ReportDetailModal from '../components/ReportDetailModal';
 import AiParsePdfModal from '../components/AiParsePdfModal';
 import { formatPerShare } from '../utils/perShare';
-import { isLightBrandHex, isNeutralBrandForHero } from '../utils/brandColor';
 import { resolveSharesForMultipliers, explainSharesCapBasis } from '../utils/shareCounts';
 import { fetchPriceHistory, type PriceHistoryOut } from '../services/prices.api';
 import { fetchPassport, type PassportOut } from '../services/screen.api';
 import { getCompanyCurrentMultipliers } from '../services';
+import { useAdmin } from '../hooks/useAdmin';
 import SharesCapHover from '../components/SharesCapHover';
 import { getCompanyLogoCandidates } from '../utils/companyLogo';
 import { isMisclassifiedAsPreferred } from '../utils/companyShareClass';
@@ -231,6 +231,8 @@ const CompanyDetail: React.FC = () => {
 
   // Всё, что карточка говорит о компании: фраза, запас, критерии.
   const verdict = useCompanyVerdict(Number(companyId));
+  // Правка отчётов, описания и типа компании — только администратору.
+  const { isAdmin } = useAdmin();
 
   // P/E, P/B и дивиденды в шапке — те же, что в листе по годам (строка LTM).
   const { data: currentMultipliers } = useQuery({
@@ -287,13 +289,13 @@ const CompanyDetail: React.FC = () => {
     misclassifiedFixRef.current = null;
   }, [companyId]);
   useEffect(() => {
-    if (!company?.id) return;
+    if (!company?.id || !isAdmin) return;
     if (!isMisclassifiedAsPreferred(company)) return;
     if (misclassifiedFixRef.current === company.id) return;
     misclassifiedFixRef.current = company.id;
     preferredShareMutation.mutate({ id: company.id, value: false });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- однократный сброс по company.id
-  }, [company?.id, company?.is_preferred_share, company?.ticker, company?.name]);
+  }, [company?.id, company?.is_preferred_share, company?.ticker, company?.name, isAdmin]);
 
   // Уникальные стандарты учёта для фильтра — хук должен быть до любых return
   const availableStandards = useMemo(() => {
@@ -440,13 +442,6 @@ const CompanyDetail: React.FC = () => {
     ? { year: latestAnnual.fiscal_year, reported: latestAnnual.net_income_reported, normalized: latestAnnual.net_income }
     : null;
 
-  // Фирменный цвет — плашкой под именем, как выделение маркером. Ч/б/серый
-  // бренд плашки не получает: на тёмной теме он сливается с фоном.
-  const brand = company.brand_color && !isNeutralBrandForHero(company.brand_color)
-    ? company.brand_color
-    : null;
-  const brandInk = brand && isLightBrandHex(brand) ? '#111827' : '#ffffff';
-
   const pe = currentMultipliers?.pe_ratio ?? null;
   const pb = currentMultipliers?.pb_ratio ?? null;
   const dy = currentMultipliers?.dividend_yield ?? null;
@@ -474,19 +469,15 @@ const CompanyDetail: React.FC = () => {
                   onError={() => setLogoAttempt((a) => a + 1)}
                 />
               )}
-              <h1 className="cd-name">
-                <span
-                  className={brand ? 'cd-name-mark' : undefined}
-                  style={brand ? { background: brand, color: brandInk } : undefined}
-                >
-                  {company.name}
-                </span>
-              </h1>
-              <span className="cd-chips">
-                <span className="cd-chip cd-chip--ticker">{company.ticker}</span>
-                {passport?.profile?.label && <span className="cd-chip">{passport.profile.label}</span>}
-                {coverageChip && <span className="cd-chip" title={coverage ?? undefined}>{coverageChip}</span>}
-              </span>
+              <div className="cd-name-block">
+                <h1 className="cd-name">{company.name}</h1>
+                {/* Тикер, отрасль, свежий отчёт — строкой текста, без плашек. */}
+                <div className="cd-meta">
+                  <span className="cd-meta-ticker">{company.ticker}</span>
+                  {passport?.profile?.label && <> · {passport.profile.label.toLowerCase()}</>}
+                  {coverageChip && <> · <span title={coverage ?? undefined}>{coverageChip}</span></>}
+                </div>
+              </div>
             </div>
             {!verdict.loading && (
               <p className="cd-verdict">
@@ -580,7 +571,8 @@ const CompanyDetail: React.FC = () => {
 
       <div className={`cd-overview ${tabbed('overview')}`}>
         <div className="cd-overview-main" ref={overviewMainRef}>
-          <PriceChart companyId={company.id!} />
+          {/* Нефть на графике — у энергетики: нефтяники, газовики, переработка. */}
+          <PriceChart companyId={company.id!} oil={company.sector === 'energy'} />
           {notesBelow && <AsideNotes verdict={verdict} oneOffs={oneOffs} wide />}
         </div>
         <aside className="ca" ref={asideRef}>
@@ -599,6 +591,8 @@ const CompanyDetail: React.FC = () => {
                     : undefined,
             }))}
           />
+          {/* Сравнение с крупнейшими компаниями той же отрасли — гл. 18. */}
+          <Link className="ca-compare" to={`/compare?with=${company.id}`}>Сравнить с отраслью →</Link>
         </aside>
       </div>
 
@@ -607,7 +601,7 @@ const CompanyDetail: React.FC = () => {
           <h2 className="cd-section-title">Показатели по годам</h2>
           <span className="cd-section-sub">МСФО · годовые отчёты и последние 12 месяцев</span>
         </div>
-        <MultipliersPanel company={company} reports={reports} layout="sheet" />
+        <MultipliersPanel company={company} reports={reports} />
       </section>
 
       {/* Холдинг: стоимость складывается из долей, а не из консолидированной
@@ -642,14 +636,15 @@ const CompanyDetail: React.FC = () => {
         <ConservativeCriteria companyId={company.id!} />
       </section>
 
-      {/* Отчёты — со всеми инструментами: добавление, AI-парсер, проверка,
-          удаление. Режим только для чтения спрячет их позже целиком. */}
+      {/* Отчёты: гостю — список и просмотр, администратору — ещё добавление,
+          AI-парсер, проверка и удаление. */}
       <section id="reports" className={`cd-card cd-card--flush ${tabbed('reports')}`}>
           {/* Финансовые отчеты */}
           <section className="info-card">
             {/* Заголовок: сворачивание по клику на название; справа — как в списке компаний + стрелка */}
             <div className="reports-card-header">
-              <Link
+              {isAdmin ? (
+                <Link
                 className="reports-card-header-title reports-card-header-title--nav-matrix"
                 to={`/company/${companyId}/reports-matrix`}
                 title="Открыть таблицу всех полей по периодам"
@@ -668,9 +663,27 @@ const CompanyDetail: React.FC = () => {
                     </span>
                   )}
                 </h2>
-              </Link>
+                </Link>
+              ) : (
+                <div className="reports-card-header-title">
+                <h2 className="card-title" style={{ margin: 0, paddingBottom: 0, borderBottom: 'none', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  Финансовые отчёты
+                  {reports && reports.length > 0 && (
+                    <span className="reports-count-badge">{reports.length}</span>
+                  )}
+                  {unverifiedCount > 0 && (
+                    <span
+                      className="reports-unverified-pill"
+                      title={`${unverifiedCount} отчётов требуют проверки аналитиком`}
+                    >
+                      {unverifiedCount} не проверено
+                    </span>
+                  )}
+                </h2>
+                </div>
+              )}
               <div className="reports-card-header-actions">
-                <AddReportMenu
+                {isAdmin && <AddReportMenu
                   disabled={createReportMutation.isPending}
                   onManualAdd={() => navigate(`/company/${companyId}/reports-matrix`)}
                   onAiCreate={() => {
@@ -685,7 +698,7 @@ const CompanyDetail: React.FC = () => {
                     setAiParseMode('compare');
                     setReportsExpanded(true);
                   }}
-                />
+                />}
                 <button
                   type="button"
                   className="reports-toggle-arrow-btn"
@@ -846,7 +859,7 @@ const CompanyDetail: React.FC = () => {
                     {company.business_description_source === 'manual' ? 'вручную' : 'из отчёта'}
                   </span>
                 )}
-                {!editingDescription ? (
+                {!isAdmin ? null : !editingDescription ? (
                   <button
                     type="button"
                     className="company-description-btn company-description-btn--secondary"
@@ -946,10 +959,10 @@ const CompanyDetail: React.FC = () => {
         <ReportDetailModal
           report={selectedReport}
           onClose={() => setSelectedReport(null)}
-          onEdit={() => navigate(`/company/${companyId}/reports-matrix`)}
-          onVerify={(reportId) => verifyReportMutation.mutate(reportId)}
+          onEdit={isAdmin ? () => navigate(`/company/${companyId}/reports-matrix`) : undefined}
+          onVerify={isAdmin ? (reportId) => verifyReportMutation.mutate(reportId) : undefined}
           verifyPending={verifyReportMutation.isPending}
-          onDelete={(reportId) => {
+          onDelete={!isAdmin ? undefined : (reportId) => {
             const r = selectedReport;
             const label = r ? `${r.fiscal_year} ${r.period_type}` : `#${reportId}`;
             const confirmMsg =
@@ -968,7 +981,7 @@ const CompanyDetail: React.FC = () => {
       )}
 
       {/* Модалка AI-парсинга PDF (create или compare) */}
-      {aiParseMode && company && (
+      {isAdmin && aiParseMode && company && (
         <AiParsePdfModal
           companyId={Number(companyId)}
           companyName={company.name}

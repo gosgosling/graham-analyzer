@@ -14,6 +14,7 @@ import {
   type ValuationSummaryOut,
 } from '../services/valuation.api';
 import { useChartColors } from '../contexts/ThemeContext';
+import { fetchOil, type OilOut } from '../services/market.api';
 import { formatPerShare } from '../utils/perShare';
 import { SpanBand, SpanSummary } from './PriceSpanLayer';
 import { createSpanStore } from './priceSpanStore';
@@ -34,9 +35,9 @@ import './PriceChart.css';
  * значит нарисовать, что рынок знал её за год вперёд.
  */
 
-type Overlay = 'pe' | 'pb';
+type Overlay = 'pe' | 'pb' | 'oil';
 
-const OVERLAYS: { key: Overlay; label: string; hint: string }[] = [
+const OVERLAYS: { key: 'pe' | 'pb'; label: string; hint: string }[] = [
   { key: 'pe', label: 'P/E', hint: 'Цена к прибыли на акцию последнего опубликованного отчёта — без разовых статей, если аналитик их выделил' },
   { key: 'pb', label: 'P/B', hint: 'Цена к балансовой стоимости на акцию' },
 ];
@@ -59,22 +60,13 @@ const OVERLAYS: { key: Overlay; label: string; hint: string }[] = [
  * Поэтому опорная включена сразу и нарисована сплошной, справедливая —
  * по кнопке и пунктиром.
  */
-type ValueKey = 'fair' | 'reference' | 'graham';
+type ValueKey = 'fair' | 'reference';
 
 const VALUES: { key: ValueKey; label: string; hint: string }[] = [
   { key: 'reference', label: 'Опорная',
     hint: 'Оценка по прибыли с надбавкой за риск — от неё считается запас прочности' },
   { key: 'fair', label: 'Справедливая',
     hint: 'Та же лестница при рыночной премии, без надбавки — верх расчёта' },
-  // Число Грэма — мерка другой природы: цена, выше которой защитный инвестор
-  // из гл. 14 не платит (P/E₃ × P/B ≤ 22,5). В ней нет ни ставки, ни выплаты,
-  // ни роста, поэтому она не спотыкается там, где спотыкается формула
-  // капитализации, — но и ставку не учитывает: 22,5 откалибровано при
-  // доходности облигаций 4–5%, и при 16% это щедрый потолок, а не оценка.
-  // Выключена по умолчанию: у ЛУКОЙЛа она втрое выше цены и растянула бы
-  // шкалу так, что цена сплющилась бы в полоску.
-  { key: 'graham', label: 'Число Грэма',
-    hint: 'Потолок цены защитного инвестора: √(22,5 × EPS за 3 года × балансовая на акцию). Ставку не учитывает' },
 ];
 
 /** Окна показа. «Вся» — от первого торгового дня, какой есть. */
@@ -316,10 +308,25 @@ function EventMark(props: { mark: EventMarkData; colors: ReturnType<typeof useCh
   );
 }
 
-export default function PriceChart({ companyId }: { companyId: number }) {
+/** Дисконт Urals к Brent, $/барр. — задаёт читатель, хранится в браузере. */
+const URALS_KEY = 'ga.chart.uralsDiscount';
+const readDiscount = (): number => {
+  try {
+    const v = Number(window.localStorage.getItem(URALS_KEY));
+    return Number.isFinite(v) && v > 0 ? v : 12;
+  } catch {
+    return 12;
+  }
+};
+
+export default function PriceChart({ companyId, oil = false }: { companyId: number; oil?: boolean }) {
   const colors = useChartColors();
   const [range, setRange] = useState('5y');
   const [overlay, setOverlay] = useState<Overlay | null>(null);
+  // Нефть: в долларах или рублях; Urals — Brent минус дисконт.
+  const [oilRub, setOilRub] = useState(false);
+  const [urals, setUrals] = useState(false);
+  const [discount, setDiscount] = useState<number>(readDiscount);
   const [shown, setShown] = useState<Set<ValueKey>>(new Set<ValueKey>(['reference']));
   const [showEvents, setShowEvents] = useState(true);
   // Протяжка держится в хранилище, а не в состоянии компонента: обновление
@@ -368,6 +375,13 @@ export default function PriceChart({ companyId }: { companyId: number }) {
     enabled: Number.isFinite(companyId) && companyId > 0,
   });
 
+  const { data: oilData } = useQuery<OilOut>({
+    queryKey: ['market-oil'],
+    queryFn: fetchOil,
+    staleTime: 60 * 60 * 1000,
+    enabled: oil && overlay === 'oil',
+  });
+
   const { data, isLoading, error } = useQuery<PriceHistoryOut>({
     queryKey: ['price-history', companyId],
     queryFn: () => fetchPriceHistory(companyId),
@@ -403,20 +417,34 @@ export default function PriceChart({ companyId }: { companyId: number }) {
         below: reference !== null && point.price <= reference * (1 - ZONE_MARGIN)
           ? [point.price, reference] as [number, number]
           : null,
-        graham: mark?.graham ?? null,
         basis_label: mark?.basis ?? null,
         basis_rate: mark?.risk_free ?? null,
         basis_rate_source: mark?.risk_free_source ?? null,
       };
     });
 
+    // Нефть приклеивается к дням цены так же — последним известным днём:
+    // Brent в праздники Мосбиржи торгуется, а в праздники Лондона — нет.
+    let base = all;
+    if (overlay === 'oil' && oilData?.points.length) {
+      const series = oilData.points;
+      let j = -1;
+      base = all.map((point) => {
+        while (j + 1 < series.length && series[j + 1][0] <= point.date) j += 1;
+        if (j < 0) return { ...point, oil: null };
+        const [, brent, rate] = series[j];
+        const usd = brent - (urals ? discount : 0);
+        return { ...point, oil: oilRub ? (rate ? usd * rate : null) : usd };
+      });
+    }
+
     const years = RANGES.find((r) => r.key === range)?.years ?? null;
-    let slice = all;
+    let slice = base;
     if (years !== null) {
-      const edge = new Date(all[all.length - 1].date);
+      const edge = new Date(base[base.length - 1].date);
       edge.setFullYear(edge.getFullYear() - years);
       const iso = edge.toISOString().slice(0, 10);
-      const cut = all.filter((p) => p.date >= iso);
+      const cut = base.filter((p) => p.date >= iso);
       // Окно шире имеющейся истории — показываем то, что есть, а не пустоту.
       if (cut.length > 1) slice = cut;
     }
@@ -432,16 +460,19 @@ export default function PriceChart({ companyId }: { companyId: number }) {
       : slice;
 
     const overlayValues = overlay
-      ? slice.map((p) => p[overlay]).filter((v): v is number => v !== null && v > 0)
+      ? slice.map((p) => (p as unknown as Record<string, number | null>)[overlay]).filter((v): v is number => v != null && v > 0)
       : [];
-    const bounds = multipleBounds(overlayValues);
+    // У нефти потолка нет: это цена, а не множитель с провалами прибыли.
+    const bounds: [number, number] | null = overlay === 'oil'
+      ? (overlayValues.length ? [Math.floor(Math.min(...overlayValues) * 0.9), Math.ceil(Math.max(...overlayValues) * 1.05)] : null)
+      : multipleBounds(overlayValues);
 
     // Значения выше потолка вырезаются из отрисовки. Прижимать их к краю
     // нельзя: recharts рисует к границе вертикальный отрезок, и провал
     // прибыли превращается в жёлтый столб во всю высоту поля — ровно то,
     // ради чего потолок и ставился. Обрыв линии честнее: он показывает, что
     // величина ушла за пределы шкалы, а число остаётся в подсказке.
-    const points = (overlay && bounds)
+    const points = (overlay && overlay !== 'oil' && bounds)
       ? thin.map((p) => {
         const value = p[overlay];
         if (value === null || value <= bounds[1]) return p;
@@ -457,7 +488,7 @@ export default function PriceChart({ companyId }: { companyId: number }) {
     // Причины пропусков множителя в видимом окне. Пропуск без причины читается
     // как сбой данных; причин же ровно три, и все — про компанию: убыток,
     // нераскрытый отчёт, первый отчёт ещё не вышел.
-    const gaps = overlay
+    const gaps = overlay && overlay !== 'oil'
       ? Array.from(new Set(
         slice
           .filter((p) => p[overlay] === null)
@@ -485,13 +516,13 @@ export default function PriceChart({ companyId }: { companyId: number }) {
       // совпадать с категориями оси, иначе recharts их не нарисует.
       traps: trapRuns(points),
       overlayBounds: bounds,
-      offScale: overlay && bounds
+      offScale: overlay && overlay !== 'oil' && bounds
         ? overlayValues.filter((v) => v > bounds[1]).length
         : 0,
       longRange: (years ?? 99) >= 3,
       thinned: step > 1,
     };
-  }, [data, history, range, overlay]);
+  }, [data, history, range, overlay, oilData, oilRub, urals, discount]);
 
   // Замер делается заранее, а не при первом нажатии: он меняет состояние, а
   // значит перерисовывает график — 173 мс, и приходились они ровно на начало
@@ -515,6 +546,9 @@ export default function PriceChart({ companyId }: { companyId: number }) {
   }
 
   const overlaySpec = OVERLAYS.find((o) => o.key === overlay);
+  const overlayLabel = overlay === 'oil'
+    ? `${urals ? `Urals ≈ Brent − ${ru(discount, 0)} $` : 'Brent'}, ${oilRub ? '₽' : '$'}/барр.`
+    : overlaySpec?.label;
   // Уровни, которые есть чем нарисовать. Сегодняшняя величина берётся из
   // свода — её видно в подсказке кнопки, — а линия рисуется рядом по годам.
   const levels = (history?.segments ?? []).some((x) => !x.refused)
@@ -522,15 +556,17 @@ export default function PriceChart({ companyId }: { companyId: number }) {
       ...spec,
       value: spec.key === 'fair'
         ? valuation?.windows?.find((w) => w.window === valuation.window)?.value ?? null
-        : spec.key === 'graham'
-          ? history?.segments?.[history.segments.length - 1]?.graham ?? null
-          : valuation?.safety?.reference ?? null,
+        : valuation?.safety?.reference ?? null,
     }))
     : [];
 
 
   const hasLevels = levels.length > 0;
   const marks = showEvents ? eventMarks(data?.events ?? [], view.points) : [];
+  // Дробление и консолидация — разные события, и в легенде их не путаем.
+  const splitKinds = new Set((data?.events ?? []).filter((e) => e.kind === 'split')
+    .map((e) => (e.label.startsWith('Консолидация') ? 'консолидация' : 'дробление')));
+  const splitWord = Array.from(splitKinds).sort((x, y) => (x === 'дробление' ? -1 : y === 'дробление' ? 1 : 0)).join(' / ') || 'дробление';
   // Опорная рисуется всегда, когда есть чем: это главная линия графика, ради
   // неё он и стоит на первом экране. Остальные уровни — по кнопкам под полем.
   const extras = levels.filter((v) => v.key !== 'reference');
@@ -562,18 +598,15 @@ export default function PriceChart({ companyId }: { companyId: number }) {
             {shown.has('fair') && hasLevels && (
               <span className="pc-key"><i className="pc-key-line pc-key-line--dash" style={{ borderColor: colors.line3 }} />Справедливая</span>
             )}
-            {shown.has('graham') && hasLevels && (
-              <span className="pc-key"><i className="pc-key-line pc-key-line--dot" style={{ borderColor: colors.line6 }} />Число Грэма</span>
-            )}
             {overlay && (
-              <span className="pc-key"><i className="pc-key-line" style={{ background: colors.line4 }} />{overlaySpec?.label} — правая шкала</span>
+              <span className="pc-key"><i className="pc-key-line" style={{ background: colors.line4 }} />{overlayLabel} — правая шкала</span>
             )}
             {showEvents && marks.length > 0 && (
               <span className="pc-key pc-key--events" title="Наведите на метку у нижнего края графика">
                 <i className="pc-key-mark" style={{ background: colors.axis }} />отчёт
                 <i className="pc-key-mark pc-key-mark--round" style={{ background: colors.line3 }} />дивиденд
                 {marks.some((m) => m.kinds.includes('split')) && (
-                  <><i className="pc-key-mark pc-key-mark--diamond" style={{ background: colors.line2 }} />сплит</>
+                  <><i className="pc-key-mark pc-key-mark--diamond" style={{ background: colors.line2 }} />{splitWord}</>
                 )}
               </span>
             )}
@@ -725,20 +758,6 @@ export default function PriceChart({ companyId }: { companyId: number }) {
                 isAnimationActive={false}
               />
             )}
-            {shown.has('graham') && (
-              <Line
-                yAxisId="price"
-                type="stepAfter"
-                dataKey="graham"
-                stroke={colors.line6}
-                strokeWidth={1.3}
-                strokeDasharray="1 3"
-                dot={false}
-                connectNulls={false}
-                name="Число Грэма"
-                isAnimationActive={false}
-              />
-            )}
             {shown.has('fair') && (
               <Line
                 yAxisId="price"
@@ -803,7 +822,7 @@ export default function PriceChart({ companyId }: { companyId: number }) {
                 strokeWidth={1.4}
                 dot={false}
                 connectNulls={false}
-                name={overlaySpec?.label}
+                name={overlayLabel}
                 isAnimationActive={false}
               />
             )}
@@ -835,18 +854,21 @@ export default function PriceChart({ companyId }: { companyId: number }) {
                 const num = typeof value === 'number' ? value : null;
                 if (num === null) return ['—', label];
                 if (label === 'Цена') return [`${rub(num)} ₽`, label];
-                if (label === 'Справедливая' || label === 'Опорная' || label === 'Число Грэма') {
+                if (label === 'Справедливая' || label === 'Опорная') {
                   const payload = item?.payload as
                     { basis_label?: string; basis_rate?: number; basis_rate_source?: string } | undefined;
                   // Основа и ставка в подсказке обязательны: внутри одной
                   // ступени оценка меняется из месяца в месяц, а ступень LTM
                   // сменяет годовую посреди года, и без подписи движение
-                  // линии выглядело бы беспричинным. У числа Грэма ставки нет.
-                  const rate = label !== 'Число Грэма' && payload?.basis_rate
+                  // линии выглядело бы беспричинным.
+                  const rate = payload?.basis_rate
                     ? `безрисковая ${ru(payload.basis_rate, 2)}% (${payload.basis_rate_source})`
                     : null;
                   const why = [payload?.basis_label, rate].filter(Boolean).join(', ');
                   return [`${rub(num)} ₽${why ? ` (${why})` : ''}`, label];
+                }
+                if (overlay === 'oil' && label === overlayLabel) {
+                  return [`${ru(num, oilRub ? 0 : 2)} ${oilRub ? '₽' : '$'}`, label];
                 }
                 // Год отчёта едет вместе с множителем: без него ступенька на
                 // кривой читается как сбой данных, а не как выход отчётности.
@@ -861,7 +883,7 @@ export default function PriceChart({ companyId }: { companyId: number }) {
                 const point = payload?.[0]?.payload as (PricePoint & { off_scale?: number }) | undefined;
                 const off = point?.off_scale;
                 if (off) return `${String(value)} · за шкалой: ${ru(off, 1)}`;
-                const gap = overlay && point
+                const gap = overlay && overlay !== 'oil' && point
                   ? (overlay === 'pe' ? point.pe_gap : point.pb_gap)
                   : null;
                 return gap ? `${String(value)} · ${overlaySpec?.label}: ${gap}` : String(value);
@@ -897,6 +919,7 @@ export default function PriceChart({ companyId }: { companyId: number }) {
             title="Параметры модели подобраны на этой же истории, а в выборке лишь компании, которые торгуются сегодня, — поэтому прошлое на графике выглядит надёжнее, чем выглядело бы в моменте."
           >
             Опорная на каждую дату посчитана только по отчётам, опубликованным к этой дате.
+            {data?.split_note && <> {data.split_note}</>}
           </p>
         ) : <span />}
         <div className="pc-more" role="group" aria-label="Ещё на графике">
@@ -918,7 +941,7 @@ export default function PriceChart({ companyId }: { companyId: number }) {
             className={`pc-btn pc-btn--small${showEvents ? ' is-on' : ''}`}
             onClick={() => setShowEvents((v) => !v)}
             aria-pressed={showEvents}
-            title="Выход отчётов, дивидендные отсечки, сплиты"
+            title="Выход отчётов, дивидендные отсечки, дробления акций"
           >
             События
           </button>
@@ -934,10 +957,56 @@ export default function PriceChart({ companyId }: { companyId: number }) {
               {o.label}
             </button>
           ))}
+          {oil && (
+            <button
+              type="button"
+              className={`pc-btn pc-btn--small${overlay === 'oil' ? ' is-on' : ''}`}
+              onClick={() => setOverlay(overlay === 'oil' ? null : 'oil')}
+              title="Цена нефти Brent на правой шкале — в долларах или рублях"
+              aria-pressed={overlay === 'oil'}
+            >
+              Нефть
+            </button>
+          )}
         </div>
       </div>
 
-      {overlay && (
+      {overlay === 'oil' && (
+        <div className="pc-oil" role="group" aria-label="Нефть на графике">
+          <span className="pc-oil-seg">
+            <button type="button" className={`pc-btn pc-btn--small${!oilRub ? ' is-on' : ''}`} onClick={() => setOilRub(false)}>в долларах</button>
+            <button type="button" className={`pc-btn pc-btn--small${oilRub ? ' is-on' : ''}`} onClick={() => setOilRub(true)}>в рублях</button>
+          </span>
+          <label className="pc-oil-urals">
+            <input type="checkbox" checked={urals} onChange={(e) => setUrals(e.target.checked)} />
+            Urals: дисконт к Brent
+            <input
+              type="number"
+              min={0}
+              max={60}
+              step={1}
+              value={discount}
+              disabled={!urals}
+              onChange={(e) => {
+                const v = Math.max(0, Math.min(60, Number(e.target.value) || 0));
+                setDiscount(v);
+                try { window.localStorage.setItem(URALS_KEY, String(v)); } catch { /* браузер без хранилища */ }
+              }}
+              aria-label="Дисконт Urals к Brent, долларов за баррель"
+            />
+            $
+          </label>
+        </div>
+      )}
+
+      {overlay === 'oil' && (
+        <p className="pc-note">
+          Brent — дневная цена (FRED), в рублях — по курсу ЦБ на тот же день. Urals — Brent минус
+          дисконт, который вы задали: официальной дневной цены Urals в открытом доступе нет, а дисконт
+          сильно менялся (в 2022–2023 годах доходил до 30 $).
+        </p>
+      )}
+      {overlay && overlay !== 'oil' && (
         <p className="pc-note">
           {overlaySpec?.hint}. Шкала ограничена тройной медианой: провал прибыли
           поднимает множитель до сотен, и без ограничения весь остальной ряд сжался бы

@@ -260,7 +260,15 @@ export interface CompanyValuationOut {
     demanding: boolean;
   } | null;
   direction?: { label: string; change: number | null } | null;
-  assumption?: { year: number; risk_free_rate: number; risk_premium: number };
+  assumption?: {
+    year: number;
+    risk_free_rate: number;
+    risk_premium: number;
+    /** Откуда ставка: «ОФЗ 10 лет, средняя за месяц» или «допущения». */
+    risk_free_source?: string;
+    risk_free_note?: string | null;
+    manual_risk_free_rate?: number | null;
+  };
   /** Простая средняя по каждой лестнице — для сравнения с тенденцией. */
   averages?: Record<string, number>;
   /** Линия тенденции: уровень, наклон и не упёрлась ли она в пик. */
@@ -376,7 +384,7 @@ export interface ValuationSummaryOut {
   reason?: string | null;
   price?: number | null;
   window?: number;
-  assumption?: { risk_free_rate: number; risk_premium: number };
+  assumption?: { risk_free_rate: number; risk_premium: number; risk_free_source?: string; risk_free_note?: string | null };
   windows?: SummaryWindow[];
   rates?: SummaryRate[];
   /** Признаки ловушки стоимости и насколько громко о них предупреждать. */
