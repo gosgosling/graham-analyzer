@@ -12,6 +12,8 @@ import {
 } from '../services';
 import { MultiplierRecord, CurrentMultipliers, Company, SectorProfile, BankMetrics, FinancialReport, CompanyType } from '../types';
 import SharesCapHover from './SharesCapHover';
+import DownloadLinks from './DownloadLinks';
+import { downloadSheet, parseCellText, type ExportFormat, type Sheet } from '../utils/tableExport';
 import { formatPerShare } from '../utils/perShare';
 import { formatApiErrorMessage } from '../utils/apiErrors';
 import {
@@ -2209,6 +2211,34 @@ interface HistTableProps {
  */
 const ROWS_ONLY_HIDDEN: ReadonlySet<HistColKey> = new Set<HistColKey>(['margin', 'spread', 'peRep']);
 
+/**
+ * Лист «годы в колонках» → таблица для выгрузки. Берётся то, что нарисовано:
+ * подписи с единицами и числа как на экране — так файл не разойдётся с
+ * карточкой. Кнопки-переключатели из подписей вырезаются.
+ */
+function sheetFromColsTable(table: HTMLTableElement, title: string): Sheet {
+  const textOf = (el: Element) => {
+    const copy = el.cloneNode(true) as HTMLElement;
+    copy.querySelectorAll('button').forEach((b) => b.remove());
+    return copy.textContent?.replace(/\s+/g, ' ').trim() ?? '';
+  };
+  const headRow = table.tHead?.rows[table.tHead.rows.length - 1];
+  const header = ['Показатель', ...Array.from(headRow?.cells ?? []).slice(1).map((c) => {
+    const t = textOf(c);
+    return t === '12 мес.' ? '12 мес. (LTM)' : t;
+  })];
+  const rows: Sheet['rows'] = [];
+  Array.from(table.tBodies[0]?.rows ?? []).forEach((tr) => {
+    if (tr.classList.contains('hist-group-row')) {
+      rows.push({ cells: [textOf(tr.cells[0])], group: true });
+      return;
+    }
+    const [label, ...cells] = Array.from(tr.cells);
+    rows.push({ cells: [textOf(label), ...cells.map((c) => parseCellText(textOf(c)))] });
+  });
+  return { title, header, rows };
+}
+
 const yearOf = (r: MultiplierRecord) => r.fiscal_year ?? Number(String(r.date).slice(0, 4));
 
 const HistTable: React.FC<HistTableProps> = ({
@@ -2934,6 +2964,19 @@ const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company, reports })
   const sheetRef = React.useRef<HTMLDivElement | null>(null);
   const [colsFit, setColsFit] = React.useState(SHEET_COLS_YEARS);
   const [touchTip, setTouchTip] = React.useState<{ head: string; body: string } | null>(null);
+  // Выгрузка: на время скачивания рисуется полный лист вне экрана — все годы
+  // и все показатели, независимо от того, что свёрнуто или скрыто у читателя.
+  const [exportFormat, setExportFormat] = React.useState<ExportFormat | null>(null);
+  const exportRef = React.useRef<HTMLDivElement | null>(null);
+  React.useEffect(() => {
+    if (!exportFormat) return;
+    const table = exportRef.current?.querySelector('table');
+    if (table) {
+      const sheet = sheetFromColsTable(table, `${company.name} (${company.ticker}) — мультипликаторы и показатели по годам`);
+      downloadSheet(sheet, exportFormat, `${company.ticker}_мультипликаторы`, 'Мультипликаторы');
+    }
+    setExportFormat(null);
+  }, [exportFormat, company.name, company.ticker]);
 
   // Опорная по годам — тот же ряд, что ступенька на графике цены: ключ
   // общий, запрос уходит один раз.
@@ -3058,6 +3101,7 @@ const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company, reports })
               noun={orientation === 'cols' ? 'Строки' : 'Столбцы'}
             />
           )}
+          {rows.length > 0 && <DownloadLinks what="мультипликаторы" onPick={setExportFormat} />}
         </div>
         <div className="ys-legend" title={profile.summary}>
           <span>Пороги: {profile.label.toLowerCase()}</span>
@@ -3129,6 +3173,25 @@ const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company, reports })
               </span>
             </button>
           )}
+        </div>
+      )}
+      {exportFormat && (
+        <div ref={exportRef} className="ys-export" aria-hidden>
+          <HistTable
+            isHolding={isHolding}
+            rows={rows}
+            currentRow={currentData ?? undefined}
+            profile={profile}
+            isPreferredShare={!!company.is_preferred_share}
+            pctMode={false}
+            bankMetricsByReport={bankMetricsByReport}
+            ltmBankMetrics={ltmBankMetrics}
+            orientation="cols"
+            referenceByYear={referenceByYear}
+            ltmReference={ltmReference}
+            reportedProfitByYear={reportedProfitByYear}
+            ltmReportedEps={ltmReportedEps}
+          />
         </div>
       )}
       {currentError && (

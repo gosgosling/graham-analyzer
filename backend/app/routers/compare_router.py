@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.company import Company
 from app.services.analysis import compare
+from app.services.data_cache import cached_route
 
 router = APIRouter(prefix="/compare", tags=["compare"])
 
@@ -20,6 +21,7 @@ def _summary(db: Session):
 
 
 @router.get("")
+@cached_route("compare", "ids", "with_id", "all_peers")
 def compare_companies(
     ids: Optional[str] = Query(None, description="id компаний через запятую, до пяти"),
     with_id: Optional[int] = Query(None, alias="with", description="компания + крупнейшие соседи по отрасли"),
@@ -52,6 +54,7 @@ def compare_companies(
 
 
 @router.get("/peers/{company_id}")
+@cached_route("compare.peers", "company_id")
 def company_peers(company_id: int, db: Session = Depends(get_db)) -> dict:
     """Проверенные компании той же отрасли, крупные первыми."""
     anchor = db.get(Company, company_id)
@@ -65,6 +68,7 @@ def company_peers(company_id: int, db: Session = Depends(get_db)) -> dict:
 
 
 @router.get("/groups")
+@cached_route("compare.groups")
 def compare_groups(db: Session = Depends(get_db)) -> list[dict]:
     """Отрасли проверенных компаний — с чего начать сравнение во вкладке
     скринера. Компании в отрасли — крупные первыми."""

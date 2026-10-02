@@ -22,6 +22,7 @@ from app.models.market_assumption import MarketAssumption
 from app.services.analysis import market_snapshot, screen, screen_axes
 from app.services.analysis.company_valuation import DEFAULT_WINDOW, assess
 from app.services.analysis.sector_profiles import profile_to_dict
+from app.services.data_cache import cached_route
 
 router = APIRouter(prefix="/screen", tags=["screen"])
 
@@ -73,6 +74,7 @@ def company_passport(
 
 
 @router.get("/market")
+@cached_route("screen.market", "standard", "all_companies")
 def market_screen(
     standard: str = Query("defensive", description="свод критериев"),
     all_companies: bool = Query(

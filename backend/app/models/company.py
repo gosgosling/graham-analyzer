@@ -1,4 +1,4 @@
-from sqlalchemy import Integer, String, Boolean, DateTime, Numeric, Text, JSON
+from sqlalchemy import BigInteger, Date, Integer, String, Boolean, DateTime, Numeric, Text, JSON
 from sqlalchemy.dialects.postgresql import JSONB
 
 # JSONB в проде, JSON в SQLite под тестами: у SQLite нет JSONB, и без варианта
@@ -7,7 +7,7 @@ JSONVariant = JSONB().with_variant(JSON(), "sqlite")
 from sqlalchemy.orm import Mapped, mapped_column, relationship 
 from sqlalchemy.sql import func
 from typing import Optional, List, TYPE_CHECKING
-from datetime import datetime
+from datetime import date, datetime
 from app.database import Base
 from app.models.enums import CompanyType
 
@@ -58,6 +58,12 @@ class Company(Base):
     # делить на коэффициенты дроблений, случившихся после отчётной даты.
     # Арифметика — в app/services/share_splits.py.
     share_splits: Mapped[Optional[list]] = mapped_column(JSONVariant, nullable=True)
+    # Выпуск по реестру Мосбиржи сегодня (ISSUESIZE) и дата, когда его взяли.
+    # Нужен текущим мультипликаторам: после отчёта бывают допэмиссии и
+    # конвертации (ВТБ, апрель 2026: префы → 6,3 млрд обыкновенных), и
+    # капитализация по числу акций из отчёта отстаёт вдвое.
+    issue_size: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+    issue_size_at: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
 
     # Год начала выплаты дивидендов (для анализа непрерывности по Грэму)
     dividend_start_year: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)

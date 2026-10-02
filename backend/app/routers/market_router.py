@@ -16,6 +16,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.services.data_cache import cached_route
 from app.models.company import Company
 from app.services.market.price_history_service import backfill_company_prices, backfill_all_companies
 from app.services.market.split_scale import moex_adjusted, to_traded
@@ -482,6 +483,7 @@ def manual_backfill_all(db: Session = Depends(get_db)):
     "/overview",
     summary="Сводка о рынке: индексы, ставки, оценка рынка по годам",
 )
+@cached_route("market.overview")
 def market_overview(db: Session = Depends(get_db)) -> dict:
     """Для раздела «Рынок»: IMOEX и MCFTR, RGBI с доходностью, ключевая
     ставка, ОФЗ 10 лет и P/E рынка по проверенным компаниям базы."""

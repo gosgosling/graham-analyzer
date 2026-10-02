@@ -1,0 +1,117 @@
+/* «Отчётность» — первоисточник: ровные колонки чисел, группы с засечками,
+   без подсветки и плашек. */
+
+.st { --st-accent: #c58a12; color: var(--color-text-primary); font-variant-numeric: tabular-nums; }
+[data-theme='dark'] .st { --st-accent: #e7b84a; }
+
+.st-controls { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 24px; margin-bottom: 12px; }
+.st-seg { display: inline-flex; gap: 18px; }
+.st-seg button {
+  border: 0;
+  background: none;
+  padding: 2px 0 3px;
+  font: inherit;
+  font-size: 0.9rem;
+  color: var(--color-text-tertiary);
+  cursor: pointer;
+}
+.st-seg button:hover { color: var(--color-text-primary); }
+.st-seg button.is-on { color: var(--color-text-primary); font-weight: 500; box-shadow: inset 0 -2px 0 var(--st-accent); }
+.st-note { font-size: 0.84rem; color: var(--color-text-tertiary); }
+.st-empty { color: var(--color-text-tertiary); }
+
+.st-wrap { overflow-x: auto; }
+.st-table {
+  --st-label: 250px;
+  --st-col: 84px;
+  border-collapse: collapse;
+  table-layout: fixed;
+  width: calc(var(--st-label) + var(--st-cols, 10) * var(--st-col));
+  min-width: 100%;
+  font-size: 0.92rem;
+}
+.st-table th, .st-table td { padding: 7px 6px; border-bottom: 1px solid var(--color-border-default); white-space: nowrap; }
+.st-table thead th {
+  text-align: right;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  border-bottom: 2px solid var(--color-text-primary);
+  width: var(--st-col);
+}
+.st-cur { font-weight: 400; color: var(--color-text-tertiary); }
+.st-table td { text-align: right; color: var(--color-text-primary); }
+.st-table .st-label {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  width: var(--st-label);
+  text-align: left;
+  font-weight: 400;
+  background: var(--color-bg-base);
+  padding-left: 0;
+  white-space: normal;
+}
+.st-table thead .st-label { border-bottom: 2px solid var(--color-text-primary); }
+.st-sub .st-label { padding-left: 16px; color: var(--color-text-secondary); }
+.st-sub td { color: var(--color-text-secondary); }
+.st-group .st-label {
+  padding-top: 20px;
+  font-family: 'IBM Plex Serif', Georgia, serif;
+  font-weight: 500;
+  font-size: 1.04rem;
+  border-bottom: 1px solid var(--color-border-strong);
+}
+.st-group .st-label span { font-family: var(--font-sans); font-size: 0.82rem; color: var(--color-text-tertiary); font-weight: 400; }
+.st-group td { border-bottom: 1px solid var(--color-border-strong); }
+.st-ltm { background: var(--color-bg-subtle); font-weight: 600; }
+.st-neg { color: var(--color-error-strong) !important; }
+[data-theme='dark'] .st-neg { color: var(--color-error-text) !important; }
+.st-tip { border-bottom: 1px dotted var(--color-border-strong); cursor: help; }
+.st-table tbody tr:not(.st-group):hover td { background: var(--color-bg-hover); }
+/* Закреплённая подпись — непрозрачной: в тёмной теме подсветка строки
+   полупрозрачная, и цифры при прокрутке просвечивали сквозь название. */
+.st-table tbody tr:not(.st-group):hover .st-label {
+  background: linear-gradient(var(--color-bg-hover), var(--color-bg-hover)), var(--color-bg-base);
+}
+.st-table td.st-ltm { background: linear-gradient(var(--color-bg-subtle), var(--color-bg-subtle)), var(--color-bg-base); }
+.st-table tbody tr:not(.st-group):hover td.st-ltm {
+  background: linear-gradient(var(--color-bg-hover), var(--color-bg-hover)), linear-gradient(var(--color-bg-subtle), var(--color-bg-subtle)), var(--color-bg-base);
+}
+
+.st-dl { margin-left: auto; }
+
+/* Свёрнутая таблица — первые строки и затухание, как у листа по годам. */
+.st-body { position: relative; }
+.st-expand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  margin-top: 4px;
+  padding: 8px 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--color-text-tertiary);
+  cursor: pointer;
+}
+.st-expand:hover { color: var(--color-text-primary); }
+.st-body.is-collapsed .st-expand {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 84px;
+  z-index: 3;
+  margin: 0;
+  align-items: flex-end;
+  padding: 0 0 8px;
+  background: linear-gradient(to bottom, transparent 0%, var(--color-bg-base) 62%, var(--color-bg-base) 100%);
+}
+
+@media (max-width: 760px) {
+  .st-table { --st-label: 150px; --st-col: 74px; font-size: 0.86rem; }
+}

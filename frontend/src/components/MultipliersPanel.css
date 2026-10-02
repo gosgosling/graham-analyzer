@@ -1764,3 +1764,25 @@
   line-height: 1.3;
 }
 .hist-table--cols .hist-swap { white-space: nowrap; }
+
+/* Годы в строках — крупнее: таблица широкая, но на 1440 место есть. */
+.hist-table:not(.hist-table--cols) td { font-size: 0.93rem; }
+.hist-table:not(.hist-table--cols) th { font-size: 0.85rem; }
+.hist-table:not(.hist-table--cols) .mult-cell { font-size: 0.9rem; }
+.hist-table:not(.hist-table--cols) .hist-group-th span { font-size: 0.8rem; }
+
+/* Закреплённая подпись строки — непрозрачной: в тёмной теме подсветка
+   полупрозрачная, и при прокрутке цифры просвечивали сквозь название. */
+.hist-table--cols tbody tr:hover th.col-label {
+  background: linear-gradient(var(--color-table-row-hover), var(--color-table-row-hover)), var(--color-bg-surface);
+}
+
+/* Полный лист для выгрузки — вне экрана, только на время скачивания. */
+.ys-export {
+  position: fixed;
+  left: -100000px;
+  top: 0;
+  width: 3000px;
+  visibility: hidden;
+  pointer-events: none;
+}

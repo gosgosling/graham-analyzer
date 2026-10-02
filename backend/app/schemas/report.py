@@ -318,6 +318,10 @@ class FinancialReport(ReportFigures):
 
     verified_at: Optional[Union[datetime, str]] = None
 
+    # Сравнительная колонка прошлого года из этого же отчёта (пересчитанная
+    # компанией). LTM берёт прошлый период из неё, а не из старого отчёта.
+    comparative: Optional[dict] = None
+
     # Метаданные
     created_at: Optional[Union[datetime, str]] = None
     updated_at: Optional[Union[datetime, str]] = None
