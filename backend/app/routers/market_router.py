@@ -18,7 +18,8 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.company import Company
 from app.services.market.price_history_service import backfill_company_prices, backfill_all_companies
-from app.services.share_splits import price_scale_hint, shares_at_date
+from app.services.market.split_scale import moex_adjusted, to_traded
+from app.services.share_splits import company_splits, price_scale_hint, shares_at_date
 from app.services.ticker_history import resolve_ticker
 from app.utils.moex_client import (
     get_closing_price_on_or_before,
@@ -68,7 +69,7 @@ def get_moex_shares(
         description=(
             "Отчётная дата YYYY-MM-DD. Реестр Мосбиржи отдаёт выпуск на "
             "сегодня; с этой датой ответ дополняется выпуском, действовавшим "
-            "тогда — после сплита это разные числа."
+            "тогда — после дробления это разные числа."
         ),
     ),
     db: Session = Depends(get_db),
@@ -315,6 +316,18 @@ def get_moex_price(
             detail=_price_not_found_detail(lookup, requested, target_date),
         )
 
+    # Цена — как торговалась: если Мосбиржа уже пересчитала историю на
+    # дробление после этой даты, умножаем обратно (см. split_scale).
+    if company is None:
+        company = db.query(Company).filter(Company.ticker == requested).first()
+    splits = company_splits(db, company) if company is not None else []
+    if splits:
+        day = date_type.fromisoformat(str(result["date"])[:10])
+        result = {**result, "price": to_traded(
+            float(result["price"]), day, splits,
+            lambda e: moex_adjusted(lookup, e["date"], float(e["ratio"])),
+        )}
+
     return MoexPriceResponse(
         ticker=result["ticker"],
         requested_date=date,
@@ -323,10 +336,7 @@ def get_moex_price(
         board=result["board"],
         is_adjusted=result["date"] != date,
         resolved_from=lookup if lookup != requested else None,
-        split_note=price_scale_hint(
-            company.share_splits if company_id is not None and company else None,
-            target_date,
-        ),
+        split_note=price_scale_hint(splits, target_date),
     )
 
 
