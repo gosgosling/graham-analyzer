@@ -14,12 +14,14 @@ import {
 import { Company, FinancialReportCreate, FinancialReport } from '../types';
 import VerificationBadge from '../components/VerificationBadge';
 import ReportDetailModal from '../components/ReportDetailModal';
+import { useAdmin } from '../hooks/useAdmin';
 import { formatPerShare } from '../utils/perShare';
 import { formatMln } from '../utils/format';
 import './SecuritiesList.css';
 import './CompaniesList.css';
 
 const CompaniesList: React.FC = () => {
+  const { isAdmin } = useAdmin();
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [expandedCompanies, setExpandedCompanies] = useState<number[]>([]);
@@ -385,11 +387,11 @@ const CompaniesList: React.FC = () => {
         <ReportDetailModal
           report={selectedReport}
           onClose={handleCloseReport}
-          onEdit={(report) => {
+          onEdit={isAdmin ? (report) => {
             // Правка отчётов живёт в матрице — там же, где ввод.
             navigate(`/company/${report.company_id}/reports-matrix`);
-          }}
-          onVerify={(reportId) => verifyReportMutation.mutate(reportId)}
+          } : undefined}
+          onVerify={isAdmin ? (reportId) => verifyReportMutation.mutate(reportId) : undefined}
           verifyPending={verifyReportMutation.isPending}
         />
       )}

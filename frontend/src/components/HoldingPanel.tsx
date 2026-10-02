@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useAdmin } from '../hooks/useAdmin';
 import { Link } from 'react-router-dom';
 import type { Company, FinancialReport, HoldingNav, StakeValuation } from '../types';
 import {
@@ -44,6 +45,7 @@ const HoldingPanel: React.FC<{ company: Company; reports?: FinancialReport[] }> 
   company,
   reports,
 }) => {
+  const { isAdmin } = useAdmin();
   const companyId = company.id!;
   const queryClient = useQueryClient();
   const [form, setForm] = useState<HoldingStakeInput>(EMPTY_FORM);
@@ -165,6 +167,7 @@ const HoldingPanel: React.FC<{ company: Company; reports?: FinancialReport[] }> 
             <StakeRow
               key={stake.stake_id}
               stake={stake}
+              editable={isAdmin}
               saving={updateMutation.isPending}
               onSave={(payload) => updateMutation.mutate({ stakeId: stake.stake_id, payload })}
               onDelete={() => {
@@ -184,6 +187,7 @@ const HoldingPanel: React.FC<{ company: Company; reports?: FinancialReport[] }> 
         </tbody>
       </table>
 
+      {isAdmin && (
       <div className="holding-actions">
         <button type="button" className="holding-btn" onClick={() => setShowForm((v) => !v)}>
           {showForm ? 'Отмена' : '+ Доля'}
@@ -207,8 +211,9 @@ const HoldingPanel: React.FC<{ company: Company; reports?: FinancialReport[] }> 
           </button>
         </label>
       </div>
+      )}
 
-      {showForm && (
+      {isAdmin && showForm && (
         <form
           className="holding-form"
           onSubmit={(e) => {
@@ -322,7 +327,9 @@ const StakeRow: React.FC<{
   onDelete: () => void;
   onSave: (payload: HoldingStakeInput) => void;
   saving: boolean;
-}> = ({ stake, onDelete, onSave, saving }) => {
+  /** Правка — только администратору; гостю строка только для чтения. */
+  editable: boolean;
+}> = ({ stake, onDelete, onSave, saving, editable }) => {
   const [editing, setEditing] = useState(false);
   const [pct, setPct] = useState(String(stake.share_pct));
   const [value, setValue] = useState(
@@ -401,7 +408,7 @@ const StakeRow: React.FC<{
       </td>
       <td>{stake.source === 'market' ? 'рынок' : stake.source === 'manual' ? 'оценка' : '—'}</td>
       <td className="holding-actions">
-        {editing ? (
+        {!editable ? null : editing ? (
           <>
             <button type="button" className="holding-btn small primary"
                     onClick={save} disabled={saving}>

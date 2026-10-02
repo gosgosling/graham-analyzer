@@ -1,5 +1,5 @@
-import React, { useMemo } from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import React, { useEffect, useMemo } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { ConfigProvider, theme as antdTheme } from 'antd';
 import ruRU from 'antd/locale/ru_RU';
 import './App.css';
@@ -17,6 +17,14 @@ import MarketScreen from './pages/MarketScreen';
 import SiteHeader from './components/SiteHeader';
 import SiteFooter from './components/SiteFooter';
 import AdminPage from './pages/AdminPage';
+import AdminOnly from './components/AdminOnly';
+import './pages/AdminPage.css';
+import MarketOverview from './pages/MarketOverview';
+import CompareView from './components/CompareView';
+import AccountPage from './pages/AccountPage';
+import { ForgotPage, LoginPage, RegisterPage, ResetPage, VerifyEmailChangePage, VerifyPage } from './pages/AuthPages';
+import { ConsentPage, PrivacyPage } from './pages/LegalPages';
+import { AUTH_PATHS } from './utils/passwordScore';
 import { useTheme } from './contexts/ThemeContext';
 
 /**
@@ -63,28 +71,64 @@ function ThemedAntDConfig({ children }: { children: React.ReactNode }) {
   );
 }
 
+/** Новая страница открывается сверху, как обычный сайт. Смена только
+ *  параметров (?tab=…) прокрутку не трогает. */
+function ScrollToTop() {
+  const { pathname } = useLocation();
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
+  return null;
+}
+
+/** Шапка и подвал — везде, кроме страниц входа: там экран пополам. */
+function Chrome({ children }: { children: React.ReactNode }) {
+  const { pathname } = useLocation();
+  const bare = AUTH_PATHS.includes(pathname);
+  return (
+    <div className="App">
+      {!bare && <SiteHeader />}
+      {children}
+      {!bare && <SiteFooter />}
+    </div>
+  );
+}
+
 function App() {
   return (
     <ThemedAntDConfig>
       <Router>
-        <div className="App">
-          <SiteHeader />
+        <ScrollToTop />
+        <Chrome>
           <Routes>
-            <Route path="/" element={<SecuritiesList />} />
+            {/* Главная для гостя — список компаний; справочник бумаг Мосбиржи —
+                служебный и переехал на /securities. */}
+            <Route path="/" element={<Navigate to="/companies" replace />} />
+            <Route path="/securities" element={<AdminOnly><SecuritiesList /></AdminOnly>} />
             <Route path="/companies" element={<CompaniesList />} />
             <Route path="/company/:companyId" element={<CompanyDetail />} />
-            <Route path="/company/:companyId/reports-matrix" element={<CompanyReportsMatrix />} />
-            <Route path="/bonds" element={<BondsList />} />
-            <Route path="/bond/:figi" element={<BondDetail />} />
-            <Route path="/mass-parse" element={<MassParse />} />
-            <Route path="/disclosure" element={<DisclosureCoverage />} />
+            <Route path="/company/:companyId/reports-matrix" element={<AdminOnly><CompanyReportsMatrix /></AdminOnly>} />
+            <Route path="/bonds" element={<AdminOnly><BondsList /></AdminOnly>} />
+            <Route path="/bond/:figi" element={<AdminOnly><BondDetail /></AdminOnly>} />
+            <Route path="/mass-parse" element={<AdminOnly><MassParse /></AdminOnly>} />
+            <Route path="/disclosure" element={<AdminOnly><DisclosureCoverage /></AdminOnly>} />
             <Route path="/calendar" element={<ReportCalendar />} />
             <Route path="/valuation" element={<MarketMultiple />} />
             <Route path="/screen" element={<MarketScreen />} />
             <Route path="/admin" element={<AdminPage />} />
+            <Route path="/market" element={<MarketOverview />} />
+            <Route path="/compare" element={<div className="cv-page"><CompareView /></div>} />
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/register" element={<RegisterPage />} />
+            <Route path="/forgot" element={<ForgotPage />} />
+            <Route path="/reset" element={<ResetPage />} />
+            <Route path="/verify" element={<VerifyPage />} />
+            <Route path="/account" element={<AccountPage />} />
+            <Route path="/verify-email" element={<VerifyEmailChangePage />} />
+            <Route path="/privacy" element={<PrivacyPage />} />
+            <Route path="/consent" element={<ConsentPage />} />
           </Routes>
-          <SiteFooter />
-        </div>
+        </Chrome>
       </Router>
     </ThemedAntDConfig>
   );

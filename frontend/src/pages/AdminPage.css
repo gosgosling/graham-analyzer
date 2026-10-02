@@ -38,3 +38,15 @@
 .admin-tool:hover { border-color: var(--color-border-strong); }
 .admin-tool-title { font-weight: 600; font-size: 0.94rem; color: var(--color-text-primary); }
 .admin-tool-text { font-size: 0.82rem; color: var(--color-text-tertiary); }
+
+.admin-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
+.admin-logout {
+  font: inherit;
+  font-size: 0.86rem;
+  padding: 7px 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border-default);
+  background: var(--color-bg-subtle);
+  color: var(--color-text-primary);
+  cursor: pointer;
+}

@@ -1,18 +1,37 @@
 /* Боковая колонка карточки: оценка, предупреждения, оглавление. */
 
-.ca { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.ca { display: flex; flex-direction: column; gap: 30px; min-width: 0; }
 
-.ca-card {
-  background: var(--color-bg-surface);
-  border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-xl);
-  padding: 16px 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+/* Без рамок: блоки колонки разделены воздухом, заголовок — с засечками. */
+.ca-card { display: flex; flex-direction: column; gap: 8px; }
+
+.ca-kicker {
+  margin: 0 0 4px;
+  font-family: 'IBM Plex Serif', Georgia, serif;
+  font-size: 1.2rem;
+  font-weight: 500;
+  color: var(--color-text-primary);
 }
 
-.ca-kicker { font-size: 0.76rem; color: var(--color-text-tertiary); }
+/* Расчёт опорной столбиком: итог между жирной и двойной чертой. */
+.ca-ledger { display: flex; flex-direction: column; }
+.ca-ledger div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--color-border-default);
+  font-size: 0.95rem;
+  color: var(--color-text-primary);
+}
+.ca-ledger span:last-child { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.ca-ledger .ca-ledger-total {
+  margin-top: 2px;
+  border-top: 2px solid var(--color-text-primary);
+  border-bottom: 3px double var(--color-text-primary);
+  font-weight: 600;
+}
+.ca-ref { color: var(--color-chart-ref-line); }
 
 .ca-big {
   font-size: 1.6rem;
@@ -23,7 +42,7 @@
 }
 
 .ca-text {
-  margin: 0;
+  margin: 2px 0 0;
   font-size: 0.88rem;
   line-height: 1.55;
   color: var(--color-text-secondary);
@@ -61,16 +80,15 @@
 
 .ca-foot { font-size: 0.76rem; color: var(--color-text-tertiary); margin-top: 4px; }
 
-.ca-toc { gap: 0; padding-bottom: 8px; }
-.ca-toc .ca-kicker { padding-bottom: 6px; }
+.ca-toc { gap: 0; }
 .ca-toc-item {
   display: flex;
   justify-content: space-between;
   gap: 12px;
-  padding: 8px 0;
-  border-top: 1px solid var(--color-border-subtle);
-  font-size: 0.9rem;
-  color: var(--color-text-secondary);
+  padding: 9px 0;
+  border-bottom: 1px solid var(--color-border-default);
+  font-size: 0.95rem;
+  color: var(--color-text-primary);
   text-decoration: none;
 }
 .ca-toc-item:hover { color: var(--color-text-primary); }
@@ -85,3 +103,6 @@
 @media (max-width: 900px) {
   .ca-card--wide .ca-notes { grid-template-columns: minmax(0, 1fr); }
 }
+
+.ca-compare { margin-top: -18px; font-size: 0.95rem; color: var(--color-text-link); text-decoration: none; }
+.ca-compare:hover { text-decoration: underline; }

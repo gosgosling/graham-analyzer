@@ -1,10 +1,12 @@
-/* Вкладка «Оценка»: формула сверху, её слагаемые ниже. */
+/* Вкладка «Оценка»: расчётный лист.
+   Строки с номерами и знаками операций на полях, итог под двойной чертой —
+   как бланк, который можно проверить карандашом. Без карточек внутри
+   карточки: разделы отделены тонкими линиями, а не рамками. */
 
 .vt {
   display: flex;
   flex-direction: column;
-  gap: var(--space-5);
-  margin-bottom: var(--space-6);
+  gap: 20px;
   color: var(--color-text-primary);
   font-variant-numeric: tabular-nums;
 }
@@ -12,209 +14,120 @@
 .vt-head {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-end;
   justify-content: space-between;
-  gap: var(--space-3) var(--space-6);
-}
-
-.vt-head h2 {
-  margin: 0 0 4px;
-  font-size: 1.35rem;
-  font-weight: 600;
-}
-
-.vt-head p {
-  margin: 0;
-  font-size: 0.9rem;
-  color: var(--color-text-secondary);
-}
-
-/* Окно — одно на всю вкладку: раньше их было два, и какой что меняет,
-   приходилось угадывать. */
-.vt-window {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 6px;
-}
-
-.vt-window-hint {
-  font-size: 0.76rem;
-  color: var(--color-text-quaternary);
-}
-
-.vt-segmented {
-  display: flex;
-  gap: 2px;
-  padding: 3px;
-  border: 1px solid var(--color-border-subtle);
-  border-radius: var(--radius-lg);
-  background: var(--color-bg-surface);
-}
-
-.vt-segmented button,
-.vt-pills button {
-  min-height: 32px;
-  padding: 0 14px;
-  border: 0;
-  border-radius: var(--radius-md);
-  background: transparent;
-  color: var(--color-text-secondary);
-  font: inherit;
-  font-size: 0.82rem;
-  cursor: pointer;
-}
-
-.vt-segmented button:hover,
-.vt-pills button:hover { color: var(--color-text-primary); }
-
-.vt-segmented button.is-on,
-.vt-pills button.is-on {
-  background: var(--color-bg-active);
-  color: var(--color-text-primary);
-  font-weight: 600;
-}
-
-.vt-pills { display: flex; flex-wrap: wrap; gap: 2px; }
-
-.vt-pills button {
-  min-height: 28px;
-  padding: 0 10px;
-  border-radius: var(--radius-pill);
-  font-size: 0.76rem;
-}
-
-.vt-card {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-  min-width: 0;
-  padding: var(--space-6) var(--space-6);
-  background: var(--color-bg-surface);
-  border: 1px solid var(--color-border-subtle);
-  border-radius: var(--radius-xl);
-}
-
-.vt-card-head {
-  display: flex;
-  flex-wrap: wrap;
   align-items: baseline;
-  justify-content: space-between;
-  gap: var(--space-2) var(--space-4);
+  gap: 8px 16px;
 }
 
-.vt-card-head--stack {
-  flex-direction: column;
-  gap: 4px;
+.vt-window { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 4px; font-size: 0.84rem; color: var(--color-text-tertiary); }
+.vt-window-label { margin-right: 4px; }
+.vt-window-sep { color: var(--color-text-quaternary); }
+.vt-window-btn {
+  border: 0;
+  background: none;
+  padding: 0 1px 1px;
+  font: inherit;
+  color: var(--color-text-link);
+  cursor: pointer;
+  border-bottom: 1px solid transparent;
 }
+.vt-window-btn:hover:not(:disabled) { border-bottom-color: currentColor; }
+.vt-window-btn.is-on { color: var(--color-text-primary); border-bottom-color: currentColor; cursor: default; }
+.vt-window-btn:disabled { color: var(--color-text-disabled); cursor: not-allowed; }
 
-.vt-card-head h3 {
-  margin: 0;
-  font-size: 1rem;
-  font-weight: 600;
-}
+.vt-state { padding: 16px 0; color: var(--color-text-tertiary); }
 
-.vt-card-head p,
-.vt-card-aside {
-  margin: 0;
-  font-size: 0.84rem;
-  color: var(--color-text-secondary);
-}
-
-.vt-card-aside b { color: var(--color-text-primary); font-weight: 600; }
-
-.vt-pair {
+.vt-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-5);
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+  gap: 40px;
+  align-items: start;
 }
 
-.vt-kicker {
+/* ── Лист ── */
+
+.vt-ws { width: 100%; border-collapse: collapse; }
+.vt-ws td { padding: 8px 0; vertical-align: top; border-bottom: 1px solid var(--color-border-subtle); }
+.vt-ws-group td {
+  padding: 16px 0 6px;
   font-size: 0.76rem;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--color-text-secondary);
-}
-
-.vt-state {
-  padding: var(--space-5);
   color: var(--color-text-tertiary);
-  font-size: 0.9rem;
+  border-bottom: 1px solid var(--color-border-strong);
 }
-
-.vt-text,
-.vt-note {
-  margin: 0;
-  font-size: 0.84rem;
-  line-height: 1.55;
-  color: var(--color-text-secondary);
+.vt-ws tbody tr.vt-ws-group:first-child td { padding-top: 4px; }
+.vt-ws-no { width: 28px; font-size: 0.74rem; color: var(--color-text-quaternary); padding-top: 10px !important; }
+.vt-ws-name { font-size: 0.9rem; color: var(--color-text-primary); }
+.vt-ws-name small {
+  display: block;
+  margin-top: 1px;
+  font-size: 0.76rem;
+  color: var(--color-text-tertiary);
 }
+.vt-ws-name small[title] { cursor: help; text-decoration: underline dotted var(--color-border-strong); text-underline-offset: 2px; }
+.vt-ws-op { width: 28px; text-align: center; color: var(--color-text-tertiary); font-size: 1rem; padding-top: 7px !important; }
+.vt-ws-value { width: 120px; text-align: right; font-size: 1rem; white-space: nowrap; padding-top: 7px !important; }
+.vt-ws-sub td { border-bottom-color: var(--color-border-strong); }
+.vt-ws-sub .vt-ws-name, .vt-ws-sub .vt-ws-value { font-weight: 600; }
+.vt-ws-total td { border-top: 3px double var(--color-text-secondary); padding-top: 12px; padding-bottom: 12px; }
+.vt-ws-total .vt-ws-name { font-weight: 600; }
+.vt-ws-total .vt-ws-value { font-size: 1.6rem; font-weight: 600; color: var(--color-chart-ref-line); padding-top: 8px !important; }
+.vt-ws-margin .vt-ws-value { font-weight: 600; }
 
-.vt-note { font-size: 0.78rem; color: var(--color-text-quaternary); }
+.vt-note { margin: 10px 0 0; font-size: 0.8rem; line-height: 1.6; color: var(--color-text-tertiary); }
+.vt-note b { color: var(--color-text-secondary); font-weight: 600; }
 
-.vt-good  { color: var(--color-success-accent); }
-.vt-warn  { color: var(--color-warning-accent); }
-.vt-dim   { color: var(--color-text-tertiary); }
-.vt-strong { font-weight: 600; }
+.vt-good { color: var(--color-success-strong); }
+.vt-warn { color: var(--color-warning-strong); }
+.vt-bad  { color: var(--color-error-strong); }
+[data-theme='dark'] .vt-good { color: var(--color-success-text); }
+[data-theme='dark'] .vt-warn { color: var(--color-warning-text); }
+[data-theme='dark'] .vt-bad  { color: var(--color-error-text); }
 
-/* ── Формула ───────────────────────────────────────────────────────────── */
+/* ── Правая колонка и нижний ряд ── */
 
-.vt-equation { gap: var(--space-4); padding: var(--space-6) var(--space-8); }
+.vt-side { display: flex; flex-direction: column; gap: 28px; min-width: 0; }
+.vt-block { min-width: 0; }
+.vt-block h3 { margin: 0 0 6px; font-size: 0.95rem; font-weight: 600; }
+.vt-block-head { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 4px; }
+.vt-block-head h3 { margin: 0; }
+.vt-side .vt-block + .vt-block { padding-top: 22px; border-top: 1px solid var(--color-border-default); }
 
-.vt-eq-row {
-  display: flex;
-  align-items: stretch;
-  gap: var(--space-4);
+.vt-text { margin: 0 0 12px; font-size: 0.86rem; line-height: 1.55; color: var(--color-text-secondary); }
+
+.vt-mini { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+.vt-mini th {
+  text-align: right;
+  font-weight: 500;
+  font-size: 0.74rem;
+  color: var(--color-text-tertiary);
+  padding: 4px 0;
+  border-bottom: 1px solid var(--color-border-strong);
 }
+.vt-mini th:first-child, .vt-mini td:first-child { text-align: left; }
+.vt-mini td { text-align: right; padding: 6px 0; border-bottom: 1px solid var(--color-border-subtle); color: var(--color-text-secondary); }
+.vt-mini tr.is-now td { color: var(--color-text-primary); font-weight: 600; }
+.vt-mini--measures td:nth-child(2) { color: var(--color-text-tertiary); }
 
-.vt-eq-term {
-  display: flex;
-  flex: 1 1 0;
-  flex-direction: column;
-  gap: 6px;
-  min-width: 0;
-  padding: var(--space-4) var(--space-5);
-  border: 1px solid var(--color-border-subtle);
-  border-radius: var(--radius-lg);
-  background: var(--color-bg-elevated);
+.vt-bottom {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+  border-top: 1px solid var(--color-border-strong);
 }
+.vt-bottom > .vt-block { padding: 18px 28px 0 0; }
+.vt-bottom > .vt-block + .vt-block { padding: 18px 0 0 28px; border-left: 1px solid var(--color-border-default); }
 
-.vt-eq-term--result {
-  border-color: var(--color-chart-ref-line);
-}
+.vt-checks { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; gap: 9px; }
+.vt-check { display: flex; gap: 10px; font-size: 0.86rem; line-height: 1.5; color: var(--color-text-secondary); }
+.vt-check small { display: block; font-size: 0.78rem; color: var(--color-text-tertiary); }
+.vt-check-mark { width: 12px; flex-shrink: 0; font-weight: 700; }
+.vt-check--pass .vt-check-mark { color: var(--color-success-strong); }
+.vt-check--warn .vt-check-mark { color: var(--color-warning-strong); }
+.vt-check--fail .vt-check-mark { color: var(--color-error-strong); }
+.vt-check--none .vt-check-mark { color: var(--color-text-quaternary); }
+[data-theme='dark'] .vt-check--pass .vt-check-mark { color: var(--color-success-text); }
+[data-theme='dark'] .vt-check--warn .vt-check-mark { color: var(--color-warning-text); }
+[data-theme='dark'] .vt-check--fail .vt-check-mark { color: var(--color-error-text); }
 
-.vt-eq-term--result .vt-kicker,
-.vt-eq-term--result .vt-eq-value { color: var(--color-chart-ref-line); }
-
-.vt-eq-value {
-  font-size: 2rem;
-  font-weight: 700;
-  line-height: 1.1;
-}
-
-.vt-eq-note {
-  font-size: 0.82rem;
-  color: var(--color-text-quaternary);
-}
-
-.vt-eq-op {
-  display: flex;
-  align-items: center;
-  font-size: 1.75rem;
-  color: var(--color-text-quaternary);
-}
-
-.vt-eq-foot {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  gap: var(--space-2) var(--space-6);
-  font-size: 0.88rem;
-  color: var(--color-text-secondary);
-}
-
-.vt-eq-foot b { color: var(--color-text-primary); font-weight: 600; }
 
 /* ── График прибыли ────────────────────────────────────────────────────── */
 
@@ -318,155 +231,6 @@
   border-top: 2px dashed var(--color-text-secondary);
 }
 
-/* ── Множитель ─────────────────────────────────────────────────────────── */
-
-.vt-formula {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: var(--space-4) var(--space-5);
-  border-radius: var(--radius-lg);
-  background: var(--color-bg-elevated);
-  border: 1px solid var(--color-border-subtle);
-}
-
-.vt-formula span {
-  font-size: 0.84rem;
-  color: var(--color-text-secondary);
-}
-
-.vt-formula b {
-  font-size: 1.35rem;
-  font-weight: 600;
-}
-
-.vt-rows { margin: 0; }
-
-.vt-rows > div {
-  display: grid;
-  /* Доли, а не «auto»: длинная расшифровка справа иначе забирала всю ширину,
-     и подпись слева сжималась до слова в строке (Роснефть, строка «Рост»). */
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
-  gap: var(--space-3);
-  padding: var(--space-3) 0;
-  border-bottom: 1px solid var(--color-border-subtle);
-}
-
-.vt-rows > div:last-child { border-bottom: 0; }
-
-.vt-rows dt,
-.vt-rows dd {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  margin: 0;
-}
-
-.vt-rows dt { font-size: 0.9rem; }
-
-.vt-rows dd {
-  align-items: flex-end;
-  font-size: 0.95rem;
-  font-weight: 600;
-  text-align: right;
-}
-
-.vt-row-note {
-  grid-column: 1 / -1;
-  margin: 0;
-  font-size: 0.76rem;
-  line-height: 1.5;
-  color: var(--color-text-quaternary);
-}
-
-.vt-rows small {
-  font-size: 0.76rem;
-  font-weight: 400;
-  color: var(--color-text-quaternary);
-}
-
-/* ── Таблицы ───────────────────────────────────────────────────────────── */
-
-.vt-table-scroll { overflow-x: auto; }
-
-.vt-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.9rem;
-}
-
-.vt-table th,
-.vt-table td {
-  padding: 10px 8px;
-  text-align: right;
-  white-space: nowrap;
-}
-
-.vt-table thead th {
-  padding-top: 0;
-  font-size: 0.76rem;
-  font-weight: 500;
-  color: var(--color-text-quaternary);
-}
-
-.vt-table th:first-child { text-align: left; }
-
-.vt-table tbody tr { border-top: 1px solid var(--color-border-subtle); }
-
-.vt-table tbody th { font-weight: 500; }
-
-.vt-table tr.is-now { background: var(--color-primary-soft); }
-.vt-table tr.is-now th { font-weight: 600; }
-
-.vt-now {
-  margin-left: 6px;
-  font-size: 0.72rem;
-  font-weight: 500;
-  color: var(--color-text-link);
-}
-
-.vt-basis {
-  margin-left: 8px;
-  font-size: 0.74rem;
-  font-weight: 500;
-  color: var(--color-chart-ref-line);
-}
-
-/* ── Проверки ──────────────────────────────────────────────────────────── */
-
-.vt-checks {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.vt-checks li {
-  display: flex;
-  gap: var(--space-3);
-  padding: var(--space-3) 0;
-  border-bottom: 1px solid var(--color-border-subtle);
-}
-
-.vt-checks li:last-child { border-bottom: 0; }
-
-.vt-checks li > div {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  font-size: 0.9rem;
-}
-
-.vt-checks small {
-  font-size: 0.78rem;
-  color: var(--color-text-quaternary);
-}
-
-.vt-check-icon { flex-shrink: 0; margin-top: 2px; }
-.vt-check-icon--pass { color: var(--color-success-accent); }
-.vt-check-icon--warn { color: var(--color-warning-accent); }
-.vt-check-icon--fail { color: var(--color-error-accent); }
-.vt-check-icon--none { color: var(--color-text-quaternary); }
-
 .vt-foot {
   font-size: 0.78rem;
   color: var(--color-text-quaternary);
@@ -489,28 +253,84 @@
 
 /* ── Узкий экран ───────────────────────────────────────────────────────── */
 
-@media (max-width: 960px) {
-  .vt-pair { grid-template-columns: minmax(0, 1fr); }
+
+@media (max-width: 1100px) {
+  .vt-grid { grid-template-columns: minmax(0, 1fr); }
 }
 
-@media (max-width: 720px) {
-  .vt-window { align-items: flex-start; }
+@media (max-width: 760px) {
+  .vt-bottom { grid-template-columns: minmax(0, 1fr); }
+  .vt-bottom > .vt-block + .vt-block { padding: 18px 0 0; border-left: 0; border-top: 1px solid var(--color-border-default); margin-top: 18px; }
+  .vt-bottom > .vt-block { padding-right: 0; }
+  .vt-ws-value { width: 90px; }
+}
 
-  .vt-equation { padding: var(--space-5) var(--space-4); }
+/* Переключатель меры прибыли над графиком. */
+.vt-pills { display: flex; flex-wrap: wrap; gap: 2px; padding: 2px; border-radius: var(--radius-md); background: var(--color-bg-subtle); }
+.vt-pills button {
+  border: 0;
+  background: transparent;
+  color: var(--color-text-tertiary);
+  font: inherit;
+  font-size: 0.78rem;
+  padding: 3px 9px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.vt-pills button:hover { color: var(--color-text-primary); }
+.vt-pills button.is-on { background: var(--color-bg-surface); color: var(--color-text-primary); font-weight: 500; }
+[data-theme='dark'] .vt-pills button.is-on { background: var(--color-bg-overlay); }
 
-  .vt-eq-row { flex-direction: column; gap: var(--space-2); }
+/* ── Песочница ── */
 
-  .vt-eq-op { justify-content: center; font-size: 1.25rem; }
+.vt-sandbox-bar {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+.vt-sheet.is-sandbox .vt-sandbox-bar {
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  background: var(--color-warning-soft);
+}
+.vt-sandbox-title { font-size: 0.84rem; color: var(--color-text-primary); }
+.vt-sandbox-actions { display: inline-flex; gap: 8px; }
+.vt-sandbox-btn {
+  border: 1px solid var(--color-border-default);
+  background: transparent;
+  color: var(--color-text-link);
+  font: inherit;
+  font-size: 0.82rem;
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.vt-sandbox-btn:hover { border-color: var(--color-border-strong); }
+.vt-sandbox-btn--main { color: var(--color-text-primary); background: var(--color-bg-surface); }
 
-  .vt-eq-value { font-size: 1.6rem; }
+.vt-sheet.is-sandbox .vt-ws-total .vt-ws-value { color: var(--color-warning-strong); }
+[data-theme='dark'] .vt-sheet.is-sandbox .vt-ws-total .vt-ws-value { color: var(--color-warning-text); }
 
-  .vt-card { padding: var(--space-5) var(--space-4); }
+.vt-ws-value--edit { width: 260px !important; }
+.vt-slider { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+.vt-slider-top { display: flex; align-items: center; gap: 10px; }
+.vt-slider input[type='range'] { width: 150px; accent-color: var(--color-chart-ref-line); }
+.vt-slider b { min-width: 64px; text-align: right; font-weight: 600; }
+.vt-slider small { font-size: 0.72rem; color: var(--color-text-quaternary); }
+.vt-slider small button {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: var(--color-text-link);
+  cursor: pointer;
+}
 
-  /* Слагаемое и его расшифровка — друг под другом: в две колонки
-     расшифровка отжимала подпись в столбик по слову. */
-  .vt-rows > div { grid-template-columns: minmax(0, 1fr); gap: 4px; }
-
-  .vt-rows dd { align-items: flex-start; text-align: left; }
-
-  .vt-formula b { font-size: 1.1rem; }
+@media (max-width: 760px) {
+  .vt-ws-value--edit { width: 170px !important; }
+  .vt-slider input[type='range'] { width: 90px; }
 }

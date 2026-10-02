@@ -1,19 +1,25 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
   fetchMarketScreen,
+  type MarketColumn,
   type MarketScreenOut,
   type RowSafety,
   type ScreenStatus,
   type Verdict,
 } from '../services/screen.api';
 import CompanyLogo from '../components/CompanyLogo';
+import { groupRows, sieve, type SieveStep } from '../utils/screenSieve';
+import CompareView from '../components/CompareView';
 import './MarketScreen.css';
 
 /**
- * Экран Грэма по всему рынку: один свод критериев, все компании, столбец на
- * критерий.
+ * Скринер: требования Грэма ко всему рынку.
+ *
+ * Главный вид — сито: требования по очереди и сколько компаний остаётся
+ * после каждого, а справа словами — кто прошёл и чего не хватило ближайшим.
+ * Полная таблица — компания на критерий — отдельным видом (?view=table).
  *
  * Смысл этого представления в том, чего не видно в паспорте одной компании.
  * Паспорт говорит «Лукойл не прошёл по ликвидности» — и это читается как
@@ -69,12 +75,25 @@ const SWAP_LABEL: Record<string, string> = {
   cost_to_income_average: 'CIR',
 };
 
-/** Банковские критерии своего столбца не имеют — им нужно полное имя. */
-const FAIL_LABEL: Record<string, string> = {
-  capital_core: 'Достаточность капитала Н1.1 (банки)',
-  cost_of_risk_average: 'Стоимость риска (банки)',
-  npl_ratio: 'Доля проблемных кредитов (банки)',
-  cost_to_income_average: 'Расходы к доходам (банки)',
+/**
+ * Короткие заголовки столбцов. Колонки равной ширины, и слово длиннее
+ * колонки рвалось посреди («ликвидност-ь»): переносов по слогам для
+ * русского нет во всех браузерах. Полное имя — в подсказке заголовка.
+ */
+const SHORT_HEAD: Record<string, string> = {
+  roe: 'Отдача на капитал',
+  current_ratio: 'Текущая ликвидн.',
+  profitable_years: 'Годы без убытка',
+  profitable_years_short: 'Без убытка, 5 лет',
+  earnings_growth: 'Рост EPS за 10 лет',
+  earnings_growth_short: 'Рост EPS за 5 лет',
+  streak: 'Дивиденды подряд',
+  pe_average: 'P/E за 3 года',
+  pb_tangible: 'P/B мат. капитала',
+  pe_pb: 'P/E × P/B',
+  cash_positive_years: 'Годы без оттока FCF',
+  cash_growth: 'Рост FCF за 10 лет',
+  cash_growth_short: 'Рост FCF за 5 лет',
 };
 
 const cls = (v: Verdict) => {
@@ -136,6 +155,19 @@ const cellTitle = (v: Verdict | null): string => {
   return parts.join('\n');
 };
 
+/** Запас к опорной оценке: «+12%», «−9%»; за −100% — во сколько раз дороже. */
+const marginText = (margin: number | null): string => {
+  if (margin === null) return '—';
+  if (margin < -1) return `×${(1 - margin).toLocaleString('ru-RU', { maximumFractionDigits: 1 })}`;
+  const pct = Math.round(margin * 100);
+  return `${pct > 0 ? '+' : pct < 0 ? '−' : ''}${Math.abs(pct)}%`;
+};
+
+/** Порог столбца так, как он написан в книге (выручка — в миллиардах). */
+const thresholdText = (c: MarketColumn): string => (c.metric === 'revenue' && c.book !== null
+  ? `≥ ${Math.round(c.book / 1000)} млрд`
+  : c.book_text.replace(/(\d)\.(\d)/g, '$1,$2'));
+
 /** Короткая подпись сигнала: в колонку шириной в два слова длинная не влезет. */
 const SIGNAL_SHORT: Record<RowSafety['signal'], string> = {
   favourable: 'дёшево',
@@ -171,20 +203,277 @@ function SafetyCell({ safety }: { safety: RowSafety | null }) {
       ].filter(Boolean).join('\n')}
     >
       <b>{SIGNAL_SHORT[safety.signal]}</b>
-      {margin !== null && (
-        // За минус сто процентов запас перестаёт читаться: «−368%» — это
-        // цена в 4,7 раза выше опорной, так и пишем.
-        <i>
-          {margin < -1
-            ? `×${(1 - margin).toLocaleString('ru-RU', { maximumFractionDigits: 1 })}`
-            : `${Math.round(margin * 100) > 0 ? '+' : Math.round(margin * 100) < 0 ? '−' : ''}${Math.abs(Math.round(margin * 100))}%`}
-        </i>
-      )}
+      {/* За минус сто процентов запас перестаёт читаться: «−368%» — это
+          цена в 4,7 раза выше опорной, так и пишем. */}
+      {margin !== null && <i>{marginText(margin)}</i>}
     </td>
   );
 }
 
+/** Компания в строке: логотип, тикер-ссылка, имя. */
+function Ident({ row }: { row: MarketScreenOut['rows'][number] }) {
+  return (
+    <span className="ms-ident">
+      <CompanyLogo url={row.logo_url} alt="" className="ms-logo" />
+      <span className="ms-ident-text">
+        <Link to={`/company/${row.id}`}>{row.ticker}</Link>
+        <span className="ms-name">{row.name}</span>
+      </span>
+    </span>
+  );
+}
+
+/** Запас прочности словами и числом — как в колонке таблицы. */
+function Margin({ safety }: { safety: RowSafety | null }) {
+  if (!safety) return <span className="sc-margin sc-margin--none" title="Оценка не посчитана">—</span>;
+  return (
+    <span className={`sc-margin ms-safety--${safety.signal}`} title={safety.reason ?? undefined}>
+      <b>{marginText(safety.value_margin)}</b>
+      <i>{SIGNAL_SHORT[safety.signal]}</i>
+    </span>
+  );
+}
+
+/** Сито: требования по очереди, сколько компаний остаётся после каждого. */
+function Sieve({ data, steps, afterGraham, cleared }: {
+  data: MarketScreenOut; steps: SieveStep[]; afterGraham: number; cleared: number;
+}) {
+  const graham = steps.filter((s) => !s.ours);
+  const ours = steps.filter((s) => s.ours);
+  const step = (s: SieveStep, n: number) => (
+    <li key={s.column.metric} className="sc-step" title={`${s.column.label}\n${s.column.source}`}>
+      <span className="sc-n">{String(n).padStart(2, '0')}</span>
+      <span className="sc-req">
+        <b>{s.column.label}</b>
+        <small>{thresholdText(s.column)}{s.column.ours && <i title="Порог отличается от книжного">*</i>}</small>
+      </span>
+      <span className="sc-left">
+        {s.remaining}
+        {s.dropped > 0 && <s>−{s.dropped}</s>}
+      </span>
+    </li>
+  );
+  return (
+    <ol className="sc-sieve">
+      <li className="sc-step sc-step--total">
+        <span className="sc-n" />
+        <span className="sc-req"><b>Компаний с проверенной отчётностью</b></span>
+        <span className="sc-left">{data.rows.length}</span>
+      </li>
+      {graham.map((s, i) => step(s, i + 1))}
+      {ours.length > 0 && (
+        <>
+          <li className="sc-mid">После требований Грэма — <b>{afterGraham}</b>. Дальше — проверки сверх книги:</li>
+          {ours.map((s, i) => step(s, graham.length + i + 1))}
+        </>
+      )}
+      <li className="sc-step sc-step--end">
+        <span className="sc-n" />
+        <span className="sc-req"><b>Прошли все требования</b></span>
+        <span className="sc-left">{cleared}</span>
+      </li>
+    </ol>
+  );
+}
+
+/** Первая буква — строчная, но аббревиатуры не трогаем: «P/B», «FCF». */
+const lowerFirst = (label: string) =>
+  (/^[А-ЯЁA-Z][а-яёa-z]/.test(label) ? label[0].toLowerCase() + label.slice(1) : label);
+
+/** Чего не хватило: «лет подряд с выплатой: 4/10 при пороге ≥ 10». */
+function Miss({ cell }: { cell: Verdict }) {
+  const near = cell.status === 'fail' && cell.shortfall != null && cell.shortfall <= NEAR_MISS
+    && !(cell.value != null && cell.value < 0);
+  return (
+    <span className="sc-miss" title={cellTitle(cell)}>
+      {lowerFirst(cell.metric_label)}:{' '}
+      {cell.status === 'unknown'
+        ? <em className="sc-miss-unknown">нет данных</em>
+        : <b className={near ? 'sc-near' : undefined}>{cellValue(cell)}</b>}
+      {cell.status !== 'unknown' && <span className="sc-thr"> при пороге {cell.text.replace(/(\d)\.(\d)/g, '$1,$2')}</span>}
+    </span>
+  );
+}
+
+function SieveView({ data, standard }: { data: MarketScreenOut; standard: string }) {
+  const { steps, afterGraham, cleared } = sieve(data);
+  const groups = groupRows(data);
+  const value = (row: MarketScreenOut['rows'][number], metric: string) => {
+    const i = data.columns.findIndex((c) => c.metric === metric);
+    return i >= 0 ? cellValue(row.cells[i]) || '—' : '—';
+  };
+  const pbMetric = data.columns.some((c) => c.metric === 'pb') ? 'pb' : 'pb_tangible';
+  const missRow = ({ row, misses }: (typeof groups.one)[number]) => (
+    <li key={row.ticker} className="sc-row sc-row--miss">
+      <Ident row={row} />
+      <span className="sc-why">
+        {misses.map((m, i) => <React.Fragment key={m.metric}>{i > 0 && '; '}<Miss cell={m} /></React.Fragment>)}
+      </span>
+      <Margin safety={row.safety} />
+    </li>
+  );
+  return (
+    <div className="sc">
+      <aside className="sc-side">
+        <Sieve data={data} steps={steps} afterGraham={afterGraham} cleared={cleared} />
+      </aside>
+      <div className="sc-main">
+        <section className="sc-sec">
+          <h2>{standard === 'defensive' ? 'Прошли все семь требований' : 'Прошли все требования'}
+            {' '}<span>— {groups.passed.length}</span></h2>
+          {groups.passed.length === 0 ? (
+            <p className="sc-empty">Ни одна компания не проходит всё — это результат, а не сбой.</p>
+          ) : (
+            <ul className="sc-list">
+              <li className="sc-row sc-row--head" aria-hidden>
+                <span />
+                <span>P/E за 3 года</span>
+                <span>P/B</span>
+                <span>Дивиденды подряд</span>
+                <span>Запас прочности</span>
+              </li>
+              {groups.passed.map(({ row }) => (
+                <li key={row.ticker} className="sc-row sc-row--pass">
+                  <Ident row={row} />
+                  <span className="sc-num">{value(row, 'pe_average')}</span>
+                  <span className="sc-num">{value(row, pbMetric)}</span>
+                  <span className="sc-num">{value(row, 'streak')}</span>
+                  <Margin safety={row.safety} />
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        {groups.one.length > 0 && (
+          <section className="sc-sec">
+            <h2>Не хватило одного <span>— {groups.one.length}</span></h2>
+            <ul className="sc-list">{groups.one.map(missRow)}</ul>
+          </section>
+        )}
+
+        {groups.two.length > 0 && (
+          <section className="sc-sec">
+            <h2>Не хватило двух <span>— {groups.two.length}</span></h2>
+            <ul className="sc-list">{groups.two.map(missRow)}</ul>
+          </section>
+        )}
+
+        <section className="sc-sec">
+          <h2>Не хватило трёх и больше <span>— {groups.rest.length}</span></h2>
+          <p className="sc-empty">
+            Все компании по всем требованиям — в <Link to="?view=table">полной таблице</Link>.
+          </p>
+        </section>
+      </div>
+    </div>
+  );
+}
+
+function FullTable({ data }: { data: MarketScreenOut }) {
+  return (
+    <>
+      <div className="ms-scroll">
+        <table className="ms-table">
+          {/* Ширины задаёт colgroup, а не содержимое: иначе колонку
+              раздувал самый длинный заголовок, и одинаковые по смыслу
+              столбцы выходили от 45 до 130 пикселей. Критерии делят
+              остаток поровну. */}
+          <colgroup>
+            <col className="ms-col-company" />
+            {data.columns.map((c) => <col key={c.metric} />)}
+            <col className="ms-col-safety" />
+            <col className="ms-col-total" />
+          </colgroup>
+          <thead>
+            <tr>
+              <th className="ms-sticky">Компания</th>
+              {data.columns.map((c) => (
+                <th key={c.metric} title={`${c.label}\n${c.axis_label} · ${c.source}\nкнижный порог ${c.book_text}`}>
+                  <span className="ms-col">{SHORT_HEAD[c.metric] ?? c.label}</span>
+                  <span className="ms-col-thr">
+                    {thresholdText(c)}
+                    {c.ours && <i title="Порог отличается от книжного">*</i>}
+                  </span>
+                </th>
+              ))}
+              <th
+                className="ms-safety"
+                title={'Запас прочности: опорная оценка против цены.\n'
+                  + 'Отдельный вопрос от свода — свод про компанию, сигнал про цену.'}
+              >
+                <span className="ms-col">Запас прочности</span>
+                <span className="ms-col-thr">≥ ⅓</span>
+              </th>
+              <th className="ms-total">Итог</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.rows.map((row) => (
+              <tr key={row.ticker} className={row.clears ? 'is-clear' : undefined}>
+                <th className="ms-sticky" title={row.profile_label}>
+                  {/* Логотип перед тикером: в таблице на три десятка
+                      строк знакомый кружок находится быстрее, чем
+                      читается код бумаги. Компании без логотипа просто
+                      остаются без него — заглушка была бы шумом. */}
+                  <span className="ms-ident">
+                    <CompanyLogo
+                      url={row.logo_url}
+                      alt=""
+                      className="ms-logo"
+                    />
+                    <span className="ms-ident-text">
+                      <Link to={`/company/${row.id}`}>{row.ticker}</Link>
+                      <span className="ms-name">{row.name}</span>
+                    </span>
+                  </span>
+                </th>
+                {row.cells.map((cell, i) => {
+                  // Клетка, которую компания оставляет пустой, может быть
+                  // занята её собственным показателем: у банка нет текущей
+                  // ликвидности, зато есть достаточность капитала. Имя
+                  // едет вместе с числом — без него цифра прочиталась бы
+                  // как величина из заголовка столбца.
+                  const swapped = cell != null && cell.metric !== data.columns[i].metric;
+                  return (
+                    <td
+                      key={data.columns[i].metric}
+                      className={`${cell ? cls(cell) : 'ms-cell'}${swapped ? ' ms-cell--swapped' : ''}`}
+                      title={cellTitle(cell)}
+                    >
+                      {swapped && <u>{SWAP_LABEL[cell!.metric] ?? cell!.metric_label}</u>}
+                      <b>{cell ? MARK[cell.status] : '—'}</b>
+                      <i>{cellValue(cell)}</i>
+                    </td>
+                  );
+                })}
+                <SafetyCell safety={row.safety} />
+                <td className="ms-total">
+                  {row.clears ? (
+                    <b className="ms-clear-mark">прошла</b>
+                  ) : (
+                    <span>
+                      {row.passed}/{row.checked}
+                    </span>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
+}
+
+const LEDE: Record<string, string> = {
+  defensive: 'семь требований защитного инвестора — гл. 14 «Разумного инвестора»',
+  enterprising: 'требования активного инвестора — гл. 15 «Разумного инвестора»',
+};
+
 export default function MarketScreen() {
+  const [params, setParams] = useSearchParams();
+  const view = params.get('view') === 'table' ? 'table' : params.get('view') === 'compare' ? 'compare' : 'sieve';
   const [standard, setStandard] = useState('defensive');
   const [allCompanies, setAllCompanies] = useState(false);
 
@@ -196,173 +485,40 @@ export default function MarketScreen() {
 
   return (
     <div className="ms">
-      <header className="ms-head">
-        <h1>Консервативные критерии</h1>
-        <p className="ms-lede">
-          Критерии глав 14 и 15 «Разумного инвестора» для всех компаний базы. Где у отрасли
-          свои пороги, они сдвинуты; книжное значение — в подсказке заголовка.
-        </p>
-      </header>
-
-      <div className="ms-controls">
-        <div className="ms-standards">
-          <button
-            type="button"
-            className={`ms-std${standard === 'defensive' ? ' is-on' : ''}`}
-            onClick={() => setStandard('defensive')}
-          >
-            Защитный инвестор
-            <em>строгий свод: качество по справедливой цене</em>
-          </button>
-          <button
-            type="button"
-            className={`ms-std${standard === 'enterprising' ? ' is-on' : ''}`}
-            onClick={() => setStandard('enterprising')}
-          >
-            Активный инвестор
-            <em>мягче по качеству, строже по цене</em>
-          </button>
+      <header className="sc-head">
+        <div>
+          <h1>Скринер</h1>
+          <p className="sc-lede">{LEDE[standard] ?? ''}</p>
         </div>
-
-        <label className="ms-all" title="Непроверенные данные выглядят в таблице так же, как настоящие">
-          <input
-            type="checkbox"
-            checked={allCompanies}
-            onChange={(e) => setAllCompanies(e.target.checked)}
-          />
+        <nav className="sc-switch" aria-label="Чьи требования">
+          {(['defensive', 'enterprising'] as const).map((key) => (
+            <button key={key} type="button" className={standard === key ? 'is-on' : ''}
+              aria-pressed={standard === key} onClick={() => setStandard(key)}>
+              {key === 'defensive' ? 'Защитный инвестор' : 'Активный инвестор'}
+            </button>
+          ))}
+          <span className="sc-switch-gap" />
+          <button type="button" className={view === 'sieve' ? 'is-on' : ''} onClick={() => setParams({})}>Отбор</button>
+          <button type="button" className={view === 'table' ? 'is-on' : ''} onClick={() => setParams({ view: 'table' })}>Полная таблица</button>
+          <button type="button" className={view === 'compare' ? 'is-on' : ''} onClick={() => setParams({ view: 'compare' })}>Сравнение</button>
+        </nav>
+        <label className="ms-all" title="Непроверенные данные выглядят так же, как настоящие">
+          <input type="checkbox" checked={allCompanies} onChange={(e) => setAllCompanies(e.target.checked)} />
           показать и непроверенные отчёты
         </label>
-      </div>
+      </header>
 
       {isLoading && <div className="ms-state">Считаем…</div>}
-      {error && <div className="ms-state ms-state--error">Не удалось посчитать экран</div>}
+      {error && <div className="ms-state ms-state--error">Не удалось посчитать скринер</div>}
 
-      {data && (
-        <>
-          <div className="ms-summary">
-            <span className="ms-cleared">
-              Прошли целиком: <b>{data.summary.cleared}</b> из {data.summary.total}
-            </span>
-            {data.summary.cleared === 0 && (
-              <span className="ms-note">
-                Ни одна компания не проходит свод полностью — это результат, а не сбой.
-              </span>
-            )}
-          </div>
+      {view === 'compare'
+        ? <CompareView showTitle={false} />
+        : data && (view === 'table' ? <FullTable data={data} /> : <SieveView data={data} standard={standard} />)}
 
-          <div className="ms-scroll">
-            <table className="ms-table">
-              <thead>
-                <tr>
-                  <th className="ms-sticky">Компания</th>
-                  {data.columns.map((c) => (
-                    <th key={c.metric} title={`${c.axis_label} · ${c.source}\nкнижный порог ${c.book_text}`}>
-                      <span className="ms-col">{c.label}</span>
-                      <span className="ms-col-thr">
-                        {c.metric === 'revenue' && c.book !== null
-                          ? `≥ ${Math.round(c.book / 1000)} млрд`
-                          : c.book_text.replace(/(\d)\.(\d)/g, '$1,$2')}
-                        {c.ours && <i title="Порог наш, а не книжный">*</i>}
-                      </span>
-                    </th>
-                  ))}
-                  <th
-                    className="ms-safety"
-                    title={'Запас прочности: опорная оценка против цены.\n'
-                      + 'Отдельный вопрос от свода — свод про компанию, сигнал про цену.'}
-                  >
-                    <span className="ms-col">Цена</span>
-                    <span className="ms-col-thr">запас ≥ ⅓</span>
-                  </th>
-                  <th className="ms-total">Итог</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.rows.map((row) => (
-                  <tr key={row.ticker} className={row.clears ? 'is-clear' : undefined}>
-                    <th className="ms-sticky" title={row.profile_label}>
-                      {/* Логотип перед тикером: в таблице на три десятка
-                          строк знакомый кружок находится быстрее, чем
-                          читается код бумаги. Компании без логотипа просто
-                          остаются без него — заглушка была бы шумом. */}
-                      <span className="ms-ident">
-                        <CompanyLogo
-                          url={row.logo_url}
-                          alt=""
-                          className="ms-logo"
-                        />
-                        <span className="ms-ident-text">
-                          <Link to={`/company/${row.id}`}>{row.ticker}</Link>
-                          <span className="ms-name">{row.name}</span>
-                        </span>
-                      </span>
-                    </th>
-                    {row.cells.map((cell, i) => {
-                      // Клетка, которую компания оставляет пустой, может быть
-                      // занята её собственным показателем: у банка нет текущей
-                      // ликвидности, зато есть достаточность капитала. Имя
-                      // едет вместе с числом — без него цифра прочиталась бы
-                      // как величина из заголовка столбца.
-                      const swapped = cell != null && cell.metric !== data.columns[i].metric;
-                      return (
-                        <td
-                          key={data.columns[i].metric}
-                          className={`${cell ? cls(cell) : 'ms-cell'}${swapped ? ' ms-cell--swapped' : ''}`}
-                          title={cellTitle(cell)}
-                        >
-                          {swapped && <u>{SWAP_LABEL[cell!.metric] ?? cell!.metric_label}</u>}
-                          <b>{cell ? MARK[cell.status] : '—'}</b>
-                          <i>{cellValue(cell)}</i>
-                        </td>
-                      );
-                    })}
-                    <SafetyCell safety={row.safety} />
-                    <td className="ms-total">
-                      {row.clears ? (
-                        <b className="ms-clear-mark">прошла</b>
-                      ) : (
-                        <span>
-                          {row.passed}/{row.checked}
-                        </span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <p className="ms-footnote">
-            * Порог наш: в книге его нет или он не подходит российскому рынку.
-            Оценки «дёшево» и «дорого» — расчёт по отчётности, а не прогноз и не
-            индивидуальная инвестиционная рекомендация.
-          </p>
-
-          <section className="ms-fails">
-            <h2>Что валит чаще всего</h2>
-            <p>
-              Если критерий не проходит большинство, дело либо в мерке, которая не
-              подходит рынку, либо в общей черте самого рынка.
-            </p>
-            <ul>
-              {Object.entries(data.summary.fails).map(([metric, count]) => {
-                const column = data.columns.find((c) => c.metric === metric);
-                const share = count / data.summary.total;
-                return (
-                  <li key={metric}>
-                    <span className="ms-fail-label">{column?.label ?? FAIL_LABEL[metric] ?? metric}</span>
-                    <span className="ms-fail-bar">
-                      <i style={{ width: `${Math.round(share * 100)}%` }} />
-                    </span>
-                    <span className="ms-fail-count">
-                      {count} из {data.summary.total}
-                    </span>
-                  </li>
-                );
-              })}
-            </ul>
-          </section>
-        </>
-      )}
+      <p className="ms-footnote">
+        * Порога в книге нет или он пересчитан для российского рынка. Не является
+        индивидуальной инвестиционной рекомендацией.
+      </p>
     </div>
   );
 }

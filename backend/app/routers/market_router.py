@@ -484,7 +484,22 @@ def manual_backfill_all(db: Session = Depends(get_db)):
 )
 def market_overview(db: Session = Depends(get_db)) -> dict:
     """Для раздела «Рынок»: IMOEX и MCFTR, RGBI с доходностью, ключевая
-    ставка, ОФЗ 10 лет и P/E рынка по нашим проверенным компаниям."""
+    ставка, ОФЗ 10 лет и P/E рынка по проверенным компаниям базы."""
     from app.services.analysis.market_overview import overview
 
     return overview(db)
+
+
+@router.get(
+    "/oil",
+    summary="Нефть Brent ($/барр.) и курс доллара по дням — для графика нефтяных компаний",
+)
+def oil(since: Optional[date_type] = Query(None, description="с какой даты"), db: Session = Depends(get_db)) -> dict:
+    """Brent из FRED, курс — ЦБ. Цена в рублях и Urals (Brent минус дисконт)
+    считаются на странице: дисконт задаёт читатель."""
+    from app.services.market.oil_service import oil_series
+
+    return {
+        "source": "Brent — FRED (DCOILBRENTEU), курс доллара — ЦБ РФ",
+        "points": [[d.isoformat(), round(p, 2), round(r, 4) if r else None] for d, p, r in oil_series(db, since)],
+    }

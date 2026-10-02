@@ -1,6 +1,22 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+// Шрифты — из сборки, а не с Google: браузер посетителя не отдаёт свой IP
+// зарубежному серверу (152-ФЗ, см. docs/PERSONAL_DATA.md). Только кириллица и латиница.
+import '@fontsource/ibm-plex-sans/cyrillic-400.css';
+import '@fontsource/ibm-plex-sans/latin-400.css';
+import '@fontsource/ibm-plex-sans/cyrillic-500.css';
+import '@fontsource/ibm-plex-sans/latin-500.css';
+import '@fontsource/ibm-plex-sans/cyrillic-600.css';
+import '@fontsource/ibm-plex-sans/latin-600.css';
+import '@fontsource/ibm-plex-sans/cyrillic-700.css';
+import '@fontsource/ibm-plex-sans/latin-700.css';
+import '@fontsource/ibm-plex-serif/cyrillic-400.css';
+import '@fontsource/ibm-plex-serif/latin-400.css';
+import '@fontsource/ibm-plex-serif/cyrillic-500.css';
+import '@fontsource/ibm-plex-serif/latin-500.css';
+import '@fontsource/ibm-plex-serif/cyrillic-400-italic.css';
+import '@fontsource/ibm-plex-serif/latin-400-italic.css';
 // Токены ДОЛЖНЫ подключаться до index.css/App.css/компонент-CSS,
 // чтобы CSS-переменные были доступны во всём приложении.
 import './styles/tokens.css';
