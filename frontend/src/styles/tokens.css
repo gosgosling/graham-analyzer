@@ -52,14 +52,16 @@
 
   /* Фоны. Нейтраль холодная (slate) — та же семья, что у тёмной темы, чтобы
      две темы читались как одна система, а не как две разные программы. */
-  --color-bg-base:        #eef1f6;
+  /* Страница — белая, как лист: серая подложка делала светлую тему тусклой.
+     Карточки отделяются тонкой рамкой, а не контрастом фона. */
+  --color-bg-base:        #ffffff;
   --color-bg-canvas:      #ffffff;
   --color-bg-surface:     #ffffff;
   --color-bg-elevated:    #fbfcfd;
   --color-bg-overlay:     #ffffff;
   --color-bg-overlay-strong: #ffffff;
-  --color-bg-subtle:      #e9edf4;
-  --color-bg-hover:       #e6ebf2;
+  --color-bg-subtle:      #f3f5f8;
+  --color-bg-hover:       #f0f2f6;
   --color-bg-active:      #e2e8f0;
   --color-bg-selected:    rgba(99, 102, 241, 0.10);
   --color-bg-modal-scrim: rgba(15, 23, 42, 0.45);
@@ -173,7 +175,7 @@
      подложек. Именно от такой пары и рябит: глаз видит подкрашенное серое
      там, где ждёт нейтральное. */
   --color-neutral:        #64748b;
-  --color-neutral-soft:   #e9edf4;
+  --color-neutral-soft:   #eef1f5;
   --color-neutral-text:   #475569;
 
   /* Обводки и разделители */

@@ -146,3 +146,65 @@ export const getFxRate = async (
     });
     return response.data;
 };
+
+// ── Раздел «Рынок» ───────────────────────────────────────────────────────
+
+/** [дата, значение] */
+export type SeriesPoint = [string, number];
+
+export interface IndexToday {
+  date: string;
+  value: number;
+  /** Изменение за день и за год, %. */
+  day: number | null;
+  year: number | null;
+  /** У RGBI: доходность, % годовых, и дюрация, дни. */
+  yield: number | null;
+  duration_days: number | null;
+}
+
+export interface MarketYear {
+  year: number | 'now';
+  companies: number;
+  /** Капитализация всех ÷ прибыль всех, включая убыточных. */
+  pe: number;
+  pe_median: number | null;
+  earnings_yield: number;
+  pb: number | null;
+  dividend_yield: number | null;
+  cap_trln: number;
+  ofz10: number | null;
+  key_rate: number | null;
+  /** Доходность прибыли рынка минус ОФЗ 10 лет, п.п. */
+  premium: number | null;
+}
+
+export interface MarketOverview {
+  today: Partial<Record<'IMOEX' | 'MCFTR' | 'RGBI', IndexToday>>;
+  ofz10: { month_average: number | null; note: string | null; last: number | null; last_date: string | null };
+  key_rate: { value: number | null; date: string | null };
+  series: {
+    IMOEX: SeriesPoint[];
+    MCFTR: SeriesPoint[];
+    RGBI: SeriesPoint[];
+    RGBI_yield: SeriesPoint[];
+    ofz10: SeriesPoint[];
+    key_rate: SeriesPoint[];
+  };
+  valuation: MarketYear[];
+  as_of: string;
+}
+
+export const fetchMarketOverview = async (): Promise<MarketOverview> => {
+  const { data } = await api.get<MarketOverview>('/market/overview');
+  return data;
+};
+
+/** Brent ($/барр.) и курс ₽/$ по дням: [дата, Brent, курс]. */
+export interface OilOut {
+  source: string;
+  points: [string, number, number | null][];
+}
+
+export const fetchOil = async (): Promise<OilOut> =>
+  (await api.get<OilOut>('/market/oil')).data;

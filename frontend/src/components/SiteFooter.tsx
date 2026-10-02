@@ -31,8 +31,9 @@ export default function SiteFooter() {
             <div>
               <span className="site-footer-heading">Проект</span>
               <Link to="/valuation">Как считается стоимость</Link>
-              <Link to="/screen">Консервативные критерии</Link>
+              <Link to="/screen">Скринер</Link>
               <a href={GITHUB} target="_blank" rel="noreferrer">Исходный код</a>
+              <Link to="/privacy">Какие данные храним</Link>
             </div>
             <div>
               <span className="site-footer-heading">Связь</span>

@@ -11,6 +11,7 @@ import {
   type ValuationSummaryOut,
 } from '../services/valuation.api';
 import { formatPerShare } from '../utils/perShare';
+import { sandboxMultiple, type Sandbox } from '../utils/sandboxValuation';
 import './ValuationTab.css';
 
 /**
@@ -47,6 +48,9 @@ const NORMAL_TITLE: Record<string, string> = {
 const ru = (value: number, digits = 0) =>
   value.toLocaleString('ru-RU', { minimumFractionDigits: digits, maximumFractionDigits: digits })
     .replace('-', '−');
+
+/** Ставка: круглая — без дробей, живая (16,44) — с сотыми. */
+const rate = (value: number) => ru(value, Number.isInteger(value) ? 0 : 2);
 
 /** Рубли на акцию: у дорогой бумаги копейки — шум, у копеечной — вся цена. */
 const rub = (value: number | null | undefined) =>
@@ -282,15 +286,40 @@ function buildChecks(data: CompanyValuationOut): Check[] {
   return checks;
 }
 
-function CheckIcon({ tone }: { tone: CheckTone }) {
-  const path = tone === 'pass' ? 'M5 12l5 5 9-10' : tone === 'fail' ? 'M6 6l12 12M18 6L6 18'
-    : tone === 'warn' ? 'M12 6v8M12 18h.01' : 'M6 12h12';
+// ─── Песочница ────────────────────────────────────────────────────────────
+
+/** Ползунок на месте значения: само значение и, мелко, исходное. */
+function SandboxSlider({ label, value, base, min, max, step, fmt, onChange }: {
+  label: string;
+  value: number;
+  base: number;
+  min: number;
+  max: number;
+  step: number;
+  fmt: (v: number) => string;
+  onChange: (v: number) => void;
+}) {
+  const changed = Math.abs(value - base) > step / 2;
   return (
-    <svg className={`vt-check-icon vt-check-icon--${tone}`} width="18" height="18" viewBox="0 0 24 24"
-      fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden
-    >
-      <path d={path} />
-    </svg>
+    <span className="vt-slider">
+      <span className="vt-slider-top">
+        <input
+          type="range"
+          min={Math.min(min, base)}
+          max={Math.max(max, base)}
+          step={step}
+          value={value}
+          aria-label={label}
+          onChange={(e) => onChange(Number(e.target.value))}
+        />
+        <b>{fmt(value)}</b>
+      </span>
+      <small className={changed ? 'is-changed' : undefined}>
+        {changed
+          ? <button type="button" onClick={() => onChange(base)} title="Вернуть исходное значение">было {fmt(base)} ↺</button>
+          : 'исходное'}
+      </small>
+    </span>
   );
 }
 
@@ -299,6 +328,7 @@ function CheckIcon({ tone }: { tone: CheckTone }) {
 export default function ValuationTab({ companyId }: { companyId: number }) {
   const [window, setWindow] = useState(7);
   const [measureKey, setMeasureKey] = useState<Measure['ladder'] | null>(null);
+  const [sandbox, setSandbox] = useState<Sandbox | null>(null);
   const enabled = Number.isFinite(companyId) && companyId > 0;
 
   const { data: detail, isLoading: detailLoading, error } = useQuery<CompanyValuationOut>({
@@ -323,27 +353,39 @@ export default function ValuationTab({ companyId }: { companyId: number }) {
     [detail],
   );
 
+  // Окно не может быть длиннее истории: у компании с пятью годами отчётов
+  // «средняя за десять лет» — та же пятилетняя, только с чужой подписью.
+  const historyYears = detail?.history_years ?? null;
+  const allowed = (w: number) => historyYears === null || w <= historyYears;
+  const longest = WINDOWS.filter(allowed).pop() ?? WINDOWS[0];
+  if (historyYears !== null && !allowed(window) && window !== longest) {
+    setWindow(longest);
+  }
+
   const windowSwitch = (
-    <div className="vt-window">
-      <div className="vt-segmented" role="group" aria-label="Окно усреднения прибыли">
-        {WINDOWS.map((w) => (
-          <button key={w} type="button" className={w === window ? 'is-on' : undefined}
-            aria-pressed={w === window} onClick={() => setWindow(w)}
+    <div className="vt-window" role="group" aria-label="Окно усреднения прибыли">
+      <span className="vt-window-label">окно усреднения:</span>
+      {WINDOWS.map((w, i) => (
+        <React.Fragment key={w}>
+          {i > 0 && <span className="vt-window-sep" aria-hidden>·</span>}
+          <button
+            type="button"
+            className={w === window ? 'vt-window-btn is-on' : 'vt-window-btn'}
+            aria-pressed={w === window}
+            disabled={!allowed(w)}
+            title={allowed(w) ? undefined : `История отчётов — ${years(historyYears ?? 0)}: окно длиннее не набирается`}
+            onClick={() => setWindow(w)}
           >
             {years(w)}
           </button>
-        ))}
-      </div>
-      <span className="vt-window-hint">за сколько лет усредняется прибыль</span>
+        </React.Fragment>
+      ))}
     </div>
   );
 
   const head = (
     <header className="vt-head">
-      <div>
-        <h2>Как получилась оценка</h2>
-        <p>Нормальная прибыль на акцию, умноженная на множитель. Ниже — откуда каждое из двух чисел.</p>
-      </div>
+      <h2 className="cd-section-title">Как получилась оценка</h2>
       {windowSwitch}
     </header>
   );
@@ -382,9 +424,10 @@ export default function ValuationTab({ companyId }: { companyId: number }) {
   const trendOf = (name: string) => detail.trends?.[name] ?? null;
   const ladderTrend = trendOf(ladderName);
   const basisText = band.basis === 'trend' && ladderTrend?.first_year && ladderTrend?.last_year
-    ? `по линии тенденции за ${ladderTrend.first_year}–${ladderTrend.last_year}`
+    ? `тенденция за ${ladderTrend.first_year}–${ladderTrend.last_year}${ladderTrend.capped ? ', срезана по лучшему году' : ''}`
     : `средняя за ${years(window)}`;
-  const others = (summary?.windows ?? []).filter((w) => w.window !== window && !w.refused && w.reference !== null);
+  const others = (summary?.windows ?? [])
+    .filter((w) => w.window !== window && allowed(w.window) && !w.refused && w.reference !== null);
 
   const measure = MEASURES.find((m) => m.ladder === measureKey)
     ?? (measures.includes(ladderMeasure) ? ladderMeasure : measures[0] ?? MEASURES[0]);
@@ -396,7 +439,8 @@ export default function ValuationTab({ companyId }: { companyId: number }) {
   // подрезал, равенство «выплата ÷ (K − g)» не выполнится — так и надо сказать.
   const payoutShare = detail.payout !== null && detail.payout !== undefined ? detail.payout / 100 : null;
   const growth = band.growth ?? 0;
-  const formulaMultiple = band.method === 'epv'
+  const isEpv = band.method === 'epv';
+  const formulaMultiple = isEpv
     ? (required ? 100 / required : null)
     : payoutShare !== null && required !== null && required - growth > 0
       ? payoutShare / ((required - growth) / 100)
@@ -406,242 +450,369 @@ export default function ValuationTab({ companyId }: { companyId: number }) {
   const checks = buildChecks(detail);
   const rates = summary?.rates ?? [];
   const nowRate = summary?.assumption?.risk_free_rate ?? riskFree;
+  const rateMultiples = rates.map((r) => (r.reference !== null && r.normal_earnings ? r.reference / r.normal_earnings : null));
+  const rateCapped = rateMultiples.length > 1
+    && rateMultiples[rateMultiples.length - 1] !== null
+    && rateMultiples[rateMultiples.length - 1] === rateMultiples[rateMultiples.length - 2];
+
+  // ── Расчётный лист: строки с номерами, операции на полях ──
+  //
+  // В песочнице те же строки становятся ползунками. Считается тем же путём,
+  // что и на сервере: множитель гл. 32 с потолком 8, надбавка за риск
+  // сохраняется в доходностях. Ничего не сохраняется — выход возвращает
+  // нашу оценку как есть.
+  const base: Sandbox = {
+    normal: normal ?? 0,
+    riskFree: riskFree ?? 0,
+    premium: premium ?? 0,
+    penalty,
+    growth,
+    payout: detail.payout ?? 0,
+  };
+  const vals = sandbox ?? base;
+  const sandboxed = sandbox !== null ? sandboxMultiple(vals, isEpv) : null;
+  const shownRequired = sandbox ? vals.riskFree + vals.premium + vals.penalty : required;
+  const shownMultiple = sandboxed ? sandboxed.reference : multiple;
+  const shownReference = sandboxed && sandboxed.reference !== null ? vals.normal * sandboxed.reference : reference;
+  const shownFair = sandboxed && sandboxed.fair !== null ? vals.normal * sandboxed.fair : fair;
+  const shownMargin = sandbox
+    ? (shownReference !== null && shownReference > 0 && price !== null ? (shownReference - price) / shownReference : null)
+    : margin;
+  const set = (key: keyof Sandbox) => (value: number) =>
+    setSandbox((s) => (s ? { ...s, [key]: value } : s));
+  const normalMax = Math.max(base.normal * 2, 1);
+
+  type Line = {
+    name: string;
+    note?: string;
+    noteTitle?: string;
+    value: string;
+    op?: string;
+    kind?: 'sub' | 'total' | 'margin';
+    edit?: { key: keyof Sandbox; min: number; max: number; step: number; fmt: (v: number) => string };
+  };
+  const groups: { title: string; lines: Line[] }[] = [];
+  const retention = detail.payout !== null && detail.payout !== undefined ? 100 - detail.payout : null;
+  const growthNote = band.growth_source === 'удержание' && band.growth_roe != null && retention !== null
+    ? `отдача ${pct(band.growth_roe)} × удержание ${pct(retention)}`
+      + (band.growth_capped ? ` = ${pct(band.growth_uncapped)}, срезан до ${pct(growth)}` : '')
+    : band.growth_capped ? `${band.growth_source ?? ''}, срезан с ${pct(band.growth_uncapped)}` : band.growth_source ?? '';
+  const growthTitle = band.growth_roe_source === 'нормальная прибыль к капиталу' && detail.stability
+    ? `Отдача — нормальная прибыль к нынешнему капиталу, а не медиана за годы (${pct(detail.stability.median)}): `
+      + 'медиана помнит лучшие годы, а растёт компания от того капитала, что есть сейчас.'
+    : undefined;
+  const pctFmt = (v: number) => pct(v);
+  const ppFmt = (v: number) => ru(v, 2).replace(/,?0+$/, '') || '0';
+
+  groups.push({
+    title: 'Прибыль',
+    lines: [{
+      name: NORMAL_TITLE[ladderName] ?? 'Нормальная прибыль на акцию',
+      note: basisText,
+      value: rub(vals.normal),
+      edit: { key: 'normal', min: 0, max: normalMax, step: niceStep(normalMax / 200), fmt: (v) => rub(v) },
+    }],
+  });
+  const showPenalty = penalty > 0 || sandbox !== null;
+  const mult: Line[] = [
+    {
+      name: 'Доходность ОФЗ',
+      note: detail.assumption?.risk_free_source === 'допущения'
+        ? 'по допущениям года: кривой ОФЗ за месяц нет'
+        : '10 лет, средняя за месяц по кривой Мосбиржи',
+      noteTitle: detail.assumption?.risk_free_note ?? undefined,
+      value: pct(vals.riskFree),
+      edit: { key: 'riskFree', min: 4, max: 25, step: 0.25, fmt: pctFmt },
+    },
+    {
+      name: 'Премия за риск акций',
+      value: ru(vals.premium, 1),
+      op: '+',
+      edit: { key: 'premium', min: 0, max: 12, step: 0.25, fmt: ppFmt },
+    },
+  ];
+  if (showPenalty) {
+    mult.push({
+      name: 'Надбавка за риск',
+      note: band.penalty?.notes?.length ? sentence(band.penalty.notes.join('; ')).replace(/\.$/, '') : 'за неровность заработка',
+      value: ru(vals.penalty, 1),
+      op: '+',
+      edit: { key: 'penalty', min: 0, max: 6, step: 0.25, fmt: ppFmt },
+    });
+  }
+  const requiredLine = 2 + (showPenalty ? 3 : 2);
+  mult.push({
+    name: 'Требуемая доходность',
+    note: `стр. ${Array.from({ length: requiredLine - 2 }, (_, i) => i + 2).join(' + ')}`,
+    value: pct(shownRequired),
+    op: '=',
+    kind: 'sub',
+  });
+  if (isEpv) {
+    mult.push({
+      name: 'Множитель',
+      note: `1 ÷ стр. ${requiredLine} — выплат для формулы роста нет`,
+      value: shownMultiple !== null ? ru(shownMultiple, 2) : '—',
+      op: '=',
+      kind: 'sub',
+    });
+  } else {
+    const growthLine = requiredLine + 1;
+    const payoutLine = requiredLine + 2;
+    mult.push({
+      name: 'Рост',
+      note: sandbox ? 'сколько компания растёт на то, что оставляет себе' : growthNote,
+      noteTitle: sandbox ? undefined : growthTitle,
+      value: pct(vals.growth),
+      op: '−',
+      edit: { key: 'growth', min: -5, max: 15, step: 0.25, fmt: pctFmt },
+    });
+    mult.push({
+      name: 'Доля прибыли акционерам',
+      note: sandbox
+        ? 'дивиденды и выкуп к прибыли'
+        : detail.payout_buyback !== null && detail.payout_buyback !== undefined
+          ? `за ${years(window)}: дивиденды ${pct(detail.payout_dividends)}, выкуп ${pct(detail.payout_buyback)}`
+          : `за ${years(window)}, дивиденды к прибыли`,
+      value: pct(vals.payout),
+      edit: { key: 'payout', min: 0, max: 100, step: 1, fmt: (v) => pct(v, 0) },
+    });
+    const multNote = sandbox
+      ? sandboxed?.problem ?? (sandboxed?.capped ? 'упёрся в потолок 8' : `стр. ${payoutLine} ÷ (стр. ${requiredLine} − стр. ${growthLine})`)
+      : `стр. ${payoutLine} ÷ (стр. ${requiredLine} − стр. ${growthLine})`
+        + (capped && formulaMultiple !== null ? ` = ${ru(formulaMultiple, 2)}, ограничен потолком` : '');
+    mult.push({
+      name: 'Множитель',
+      note: multNote,
+      value: shownMultiple !== null ? ru(shownMultiple, 2) : '—',
+      op: '=',
+      kind: 'sub',
+    });
+  }
+  groups.push({ title: 'Множитель', lines: mult });
+  const multipleLine = 1 + mult.length;
+  const referenceLine = multipleLine + 1;
+  groups.push({
+    title: sandbox ? 'Итог в песочнице' : 'Итог',
+    lines: [
+      {
+        name: 'Опорная стоимость',
+        note: sandbox && reference !== null ? `исходная — ${rub(reference)}` : `стр. 1 × стр. ${multipleLine}`,
+        value: rub(shownReference),
+        op: '=',
+        kind: 'total',
+      },
+      { name: 'Цена сегодня', value: rub(price) },
+      {
+        name: 'Запас прочности',
+        note: `(стр. ${referenceLine} − стр. ${referenceLine + 1}) ÷ стр. ${referenceLine}`,
+        value: shownMargin === null ? '—' : shownMargin < -1 ? `×${ru(1 - shownMargin, 1)}` : signed(shownMargin),
+        kind: 'margin',
+      },
+    ],
+  });
+  let lineNo = 0;
+  const marginTone = shownMargin === null ? '' : shownMargin >= 0.15 ? 'vt-good' : shownMargin < 0 ? 'vt-bad' : 'vt-warn';
 
   return (
     <section className="vt">
       {head}
 
-      {/* ── Формула ─────────────────────────────────────────────────────── */}
-      <div className="vt-card vt-equation">
-        <div className="vt-eq-row">
-          <div className="vt-eq-term">
-            <span className="vt-kicker">{NORMAL_TITLE[ladderName] ?? 'Нормальная прибыль на акцию'}</span>
-            <span className="vt-eq-value">{rub(normal)}</span>
-            <span className="vt-eq-note">{basisText}</span>
-          </div>
-          <span className="vt-eq-op" aria-hidden>×</span>
-          <div className="vt-eq-term">
-            <span className="vt-kicker">Множитель</span>
-            <span className="vt-eq-value">{multiple !== null ? ru(multiple, 2) : '—'}</span>
-            <span className="vt-eq-note">
-              {required !== null ? `при требуемой доходности ${pct(required, 0)}` : band.method_label}
-            </span>
-          </div>
-          <span className="vt-eq-op" aria-hidden>=</span>
-          <div className="vt-eq-term vt-eq-term--result">
-            <span className="vt-kicker">Опорная стоимость</span>
-            <span className="vt-eq-value">{rub(reference)}</span>
-            <span className="vt-eq-note">
-              {price !== null && margin !== null
-                ? Math.abs(margin) < 0.005
-                  ? `цена ${rub(price)} — почти вровень`
-                  : `цена ${rub(price)} — ${margin < 0 ? `на ${ru(Math.abs(margin) * 100)}% выше` : `на ${ru(margin * 100)}% ниже`}`
-                : price !== null ? `цена ${rub(price)}` : ''}
-            </span>
-          </div>
-        </div>
-        <div className="vt-eq-foot">
-          <span>
-            {penalty > 0 && fair !== null && fairMultiple !== null ? (
-              <>Без надбавки за риск: {rub(normal)} × {ru(fairMultiple, 2)} = <b>{rub(fair)}</b> — справедливая стоимость.</>
+      <div className="vt-grid">
+        {/* ── Расчётный лист ──────────────────────────────────────────── */}
+        <div className={`vt-sheet${sandbox ? ' is-sandbox' : ''}`}>
+          <div className="vt-sandbox-bar">
+            {sandbox ? (
+              <>
+                <span className="vt-sandbox-title">Песочница: двигайте допущения и сравнивайте. Ничего не сохраняется.</span>
+                <span className="vt-sandbox-actions">
+                  <button type="button" className="vt-sandbox-btn" onClick={() => setSandbox({ ...base })}>Вернуть исходные</button>
+                  <button type="button" className="vt-sandbox-btn vt-sandbox-btn--main" onClick={() => setSandbox(null)}>Выйти</button>
+                </span>
+              </>
             ) : (
-              <>Надбавки за риск нет — опорная совпадает со справедливой.</>
+              <button
+                type="button"
+                className="vt-sandbox-btn"
+                onClick={() => setSandbox({ ...base })}
+                title="Подставить свои допущения и посмотреть, как изменится оценка. Ничего не сохраняется."
+              >
+                Попробовать свои допущения
+              </button>
             )}
-          </span>
-          <span className="vt-eq-disclaimer">
-            Это расчёт по формуле и допущениям, а не прогноз цены.
-          </span>
-          {others.length > 0 && (
-            <span>
-              Другие окна:{' '}
-              {others.map((w, i) => (
-                <React.Fragment key={w.window}>
-                  {i > 0 && ' · '}
-                  {years(w.window)} — <b>{rub(w.reference)}</b>
+          </div>
+          <table className="vt-ws">
+            <tbody>
+              {groups.map((g) => (
+                <React.Fragment key={g.title}>
+                  <tr className="vt-ws-group"><td colSpan={4}>{g.title}</td></tr>
+                  {g.lines.map((l) => {
+                    lineNo += 1;
+                    return (
+                      <tr key={l.name} className={l.kind ? `vt-ws-${l.kind}` : undefined}>
+                        <td className="vt-ws-no">{lineNo}</td>
+                        <td className="vt-ws-name">
+                          {l.name}
+                          {l.note && <small title={l.noteTitle}>{l.note}</small>}
+                        </td>
+                        <td className="vt-ws-op">{l.op ?? ''}</td>
+                        <td className={`vt-ws-value${l.kind === 'margin' ? ` ${marginTone}` : ''}${sandbox && l.edit ? ' vt-ws-value--edit' : ''}`}>
+                          {sandbox && l.edit ? (
+                            <SandboxSlider
+                              label={l.name}
+                              value={sandbox[l.edit.key]}
+                              base={base[l.edit.key]}
+                              min={l.edit.min}
+                              max={l.edit.max}
+                              step={l.edit.step}
+                              fmt={l.edit.fmt}
+                              onChange={set(l.edit.key)}
+                            />
+                          ) : l.value}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </React.Fragment>
               ))}
-            </span>
-          )}
-        </div>
-      </div>
-
-      <div className="vt-pair">
-        {/* ── Откуда прибыль ────────────────────────────────────────────── */}
-        <div className="vt-card">
-          <div className="vt-card-head">
-            <h3>Откуда нормальная прибыль</h3>
-            {measures.length > 1 && (
-              <div className="vt-pills" role="group" aria-label="Мера прибыли">
-                {measures.map((m) => (
-                  <button key={m.ladder} type="button" className={m === measure ? 'is-on' : undefined}
-                    aria-pressed={m === measure} onClick={() => setMeasureKey(m.ladder)}
-                  >
-                    {m.label}
-                  </button>
-                ))}
-              </div>
+            </tbody>
+          </table>
+          <p className="vt-note">
+            {sandbox
+              ? <>Без надбавки за риск — <b>{rub(shownFair)}</b>. Расчёт не сохраняется; оценка на сайте — {rub(reference)}.</>
+              : penalty > 0 && fair !== null && fairMultiple !== null
+                ? <>Без надбавки за риск множитель {ru(fairMultiple, 2)} и стоимость <b>{rub(fair)}</b> — это справедливая; опорная осторожнее.</>
+                : <>Надбавки за риск нет — опорная совпадает со справедливой.</>}
+            {!sandbox && others.length > 0 && (
+              <>
+                {' '}Другие окна:{' '}
+                {others.map((w, i) => (
+                  <React.Fragment key={w.window}>
+                    {i > 0 && ' · '}
+                    {years(w.window)} — <b>{rub(w.reference)}</b>
+                  </React.Fragment>
+                ))}.
+              </>
             )}
-          </div>
-          {series?.years?.length ? (
-            <EarningsChart
-              points={series.years}
-              measure={measure}
-              from={windowSpan?.first_year ?? measureTrend?.first_year ?? null}
-              till={windowSpan?.last_year ?? measureTrend?.last_year ?? null}
-              trend={band.basis === 'trend' ? measureTrend : null}
-              average={measureAverage}
-            />
-          ) : (
-            <div className="vt-state">Ряда по годам нет.</div>
-          )}
-          <div className="vt-keys">
-            <span><i className="vt-key-bar" />годы в окне</span>
-            {band.basis === 'trend' && measureTrend && <span><i className="vt-key-trend" />тенденция {rub(measureTrend.value)}</span>}
-            {measureAverage !== null && <span><i className="vt-key-average" />средняя {rub(measureAverage)}</span>}
-          </div>
-          <p className="vt-text">
-            {band.basis === 'trend'
-              ? 'Берём тенденцию, а не среднюю: у растущей компании средняя занижает нормальный уровень (гл. 30).'
-              : 'Берём среднюю за окно: тенденции по этому ряду не набралось.'}
-            {measureTrend?.capped && ' Линия подрезана по историческому максимуму — выше уже достигнутого не берём.'}
-            {series?.years?.some((y) => y.ltm_label) && ` Последний столбик — ${series.years[series.years.length - 1].ltm_label}.`}
-            {measure.ladder === 'прибыль' && ' Прибыль — как в отчёте, с разовыми статьями: на окне в несколько лет они усредняются сами. Мультипликаторы считаются от прибыли без разовых, поэтому их P/E может отличаться.'}
           </p>
         </div>
 
-        {/* ── Откуда множитель ──────────────────────────────────────────── */}
-        <div className="vt-card">
-          <div className="vt-card-head"><h3>Откуда множитель</h3></div>
-          <div className="vt-formula">
-            {band.method === 'epv' ? (
-              <>
-                <span>Множитель = 1 ÷ требуемая доходность — выплат для формулы роста нет</span>
-                <b>{multiple !== null ? ru(multiple, 2) : '—'} = 1 ÷ {pct(required)}</b>
-              </>
-            ) : (
-              <>
-                <span>Множитель = выплата ÷ (требуемая доходность − рост)</span>
-                <b>
-                  {multiple !== null ? ru(multiple, 2) : '—'} = {pct(detail.payout)} ÷ ({pct(required)} − {pct(growth)})
-                </b>
-                {capped && formulaMultiple !== null && (
-                  <span>по формуле {ru(formulaMultiple, 2)}, ограничен потолком</span>
-                )}
-              </>
-            )}
-          </div>
-          <dl className="vt-rows">
-            <div>
-              <dt>Требуемая доходность<small>сколько инвестор вправе ждать от акции</small></dt>
-              <dd>
-                {pct(required)}
-                <small>
-                  ОФЗ {pct(riskFree, 0)} + премия {pct(premium, 0)}{penalty > 0 ? ` + надбавка ${ru(penalty, 0)} п.п.` : ''}
-                </small>
-              </dd>
+        <div className="vt-side">
+          {/* ── Откуда прибыль ─────────────────────────────────────────── */}
+          <div className="vt-block">
+            <div className="vt-block-head">
+              <h3>Откуда {rub(normal)}</h3>
+              {measures.length > 1 && (
+                <div className="vt-pills" role="group" aria-label="Мера прибыли">
+                  {measures.map((m) => (
+                    <button key={m.ladder} type="button" className={m === measure ? 'is-on' : undefined}
+                      aria-pressed={m === measure} onClick={() => setMeasureKey(m.ladder)}
+                    >
+                      {m.label}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
-            {penalty > 0 && (
-              <div>
-                <dt>
-                  Надбавка за риск
-                  <small>{band.penalty?.notes?.length ? sentence(band.penalty.notes.join('; ')) : 'за неровность заработка'}</small>
-                </dt>
-                <dd className="vt-warn">
-                  +{ru(penalty, 0)} п.п.
-                  {fair !== null && <small>без неё — справедливая {rub(fair)}</small>}
-                </dd>
-              </div>
+            <p className="vt-text">
+              {band.basis === 'trend'
+                ? `${measure.title} по отчётам. Берём тренд, а не среднюю${measureAverage !== null ? ` (${rub(measureAverage)})` : ''}: у растущей компании средняя занижена.`
+                : `${measure.title} по отчётам, средняя за окно — тренда не набралось.`}
+              {measureTrend?.capped && ' Тренд не выше лучшего года.'}
+              {series?.years?.some((y) => y.ltm_label) && ` Последний столбик — ${series.years[series.years.length - 1].ltm_label}.`}
+              {measure.ladder === 'прибыль' && ' Прибыль с разовыми статьями.'}
+            </p>
+            {series?.years?.length ? (
+              <EarningsChart
+                points={series.years}
+                measure={measure}
+                from={windowSpan?.first_year ?? measureTrend?.first_year ?? null}
+                till={windowSpan?.last_year ?? measureTrend?.last_year ?? null}
+                trend={band.basis === 'trend' ? measureTrend : null}
+                average={measureAverage}
+              />
+            ) : (
+              <div className="vt-state">Ряда по годам нет.</div>
             )}
-            {band.method !== 'epv' && (
-              <div>
-                <dt>Выплата владельцу<small>доля прибыли за {years(window)}, вернувшаяся акционерам</small></dt>
-                <dd>
-                  {pct(detail.payout)}
-                  <small>
-                    {detail.payout_buyback !== null && detail.payout_buyback !== undefined
-                      ? `дивиденды ${pct(detail.payout_dividends)} + выкуп ${pct(detail.payout_buyback)}`
-                      : 'дивиденды к прибыли'}
-                  </small>
-                </dd>
-              </div>
-            )}
-            {band.method !== 'epv' && (
-              <div>
-                <dt>Рост<small>сколько компания растёт на то, что оставляет себе</small></dt>
-                <dd>
-                  {pct(growth)}
-                  <small>
-                    {band.growth_capped
-                      ? `подрезан с ${pct(band.growth_uncapped)}`
-                      : band.growth_source === 'удержание' && band.growth_roe != null
-                        ? `отдача на капитал ${pct(band.growth_roe)} × (1 − ${pct(detail.payout)})`
-                        : band.growth_source ?? ''}
-                  </small>
-                </dd>
-                {band.growth_roe_source === 'нормальная прибыль к капиталу' && detail.stability && (
-                  <p className="vt-row-note">
-                    Отдача — нормальная прибыль к нынешнему капиталу, а не медиана за годы
-                    ({pct(detail.stability.median)}): медиана помнит лучшие годы, а растёт
-                    компания от того капитала, что есть сейчас.
-                  </p>
-                )}
-              </div>
-            )}
-          </dl>
-        </div>
-      </div>
-
-      <div className="vt-pair">
-        {/* ── Ставка ────────────────────────────────────────────────────── */}
-        <div className="vt-card">
-          <div className="vt-card-head vt-card-head--stack">
-            <h3>Если изменится доходность ОФЗ</h3>
-            <p>Ставка — самое сильное допущение в расчёте. Прибыль та же, меняется множитель.</p>
+            <div className="vt-keys">
+              <span><i className="vt-key-bar" />годы окна</span>
+              {band.basis === 'trend' && measureTrend && <span><i className="vt-key-trend" />тенденция → {rub(measureTrend.value)}</span>}
+              {measureAverage !== null && <span><i className="vt-key-average" />средняя {rub(measureAverage)}</span>}
+            </div>
           </div>
-          <div className="vt-table-scroll">
-            <table className="vt-table">
+
+          {/* ── Ставка — под графиком, на месте пустого поля ─────────────── */}
+          <div className="vt-block">
+            <h3>Если ставка ОФЗ будет другой</h3>
+            <table className="vt-mini">
               <thead>
-                <tr>
-                  <th scope="col">ОФЗ</th>
-                  <th scope="col">Множитель</th>
-                  <th scope="col">Опорная</th>
-                  <th scope="col">Запас к цене</th>
-                </tr>
+                <tr><th>ОФЗ</th><th>множ.</th><th>опорная</th><th>запас</th></tr>
               </thead>
               <tbody>
-                {rates.map((r) => {
+                {rates.map((r, i) => {
                   const now = nowRate !== null && Math.abs(r.risk_free_rate - nowRate) < 0.01;
-                  const rowMultiple = r.reference !== null && r.normal_earnings ? r.reference / r.normal_earnings : null;
-                  const tone = r.margin === null ? '' : r.margin >= 1 / 3 ? 'vt-good' : r.margin < 0 ? 'vt-warn' : '';
+                  const rowMultiple = rateMultiples[i];
+                  const tone = r.margin === null ? '' : r.margin >= 1 / 3 ? 'vt-good' : r.margin < 0 ? 'vt-bad' : '';
                   return (
                     <tr key={r.risk_free_rate} className={now ? 'is-now' : undefined}>
-                      <th scope="row">
-                        {ru(r.risk_free_rate)}%{now && <span className="vt-now">сейчас</span>}
-                      </th>
+                      <td>{rate(r.risk_free_rate)}%{now && ' · сейчас'}</td>
                       <td>{r.refused || rowMultiple === null ? '—' : ru(rowMultiple, 2)}</td>
-                      <td className="vt-strong">{r.refused ? '—' : rub(r.reference)}</td>
+                      <td>{r.refused ? '—' : rub(r.reference)}</td>
                       <td className={tone}>{r.margin === null ? '—' : signed(r.margin)}</td>
                     </tr>
                   );
                 })}
               </tbody>
             </table>
+            <p className="vt-note">
+              Прибыль та же, меняется множитель. Зелёным — запас от трети, как требует Грэм.
+              {rateCapped && ' Ниже множитель упирается в потолок — дальше стоимость не растёт.'}
+            </p>
           </div>
-          <p className="vt-note">Зелёным — запас от трети, как требует Грэм.</p>
+        </div>
+      </div>
+
+      <div className="vt-bottom">
+        {/* ── Три мерила ────────────────────────────────────────────────── */}
+        <div className="vt-block">
+          <h3>Три мерила заработка</h3>
+          <table className="vt-mini vt-mini--measures">
+            <tbody>
+              {band.ladders.map((l) => {
+                const m = MEASURES.find((x) => x.ladder === l.name);
+                return (
+                  <tr key={l.name} className={l.name === ladderName ? 'is-now' : undefined}>
+                    <td>{m?.label ?? l.name}</td>
+                    <td title={`средняя за ${years(window)} — ${rub(detail.averages?.[l.name] ?? null)}`}>
+                      {rub(l.normal_per_share)} × {ru(l.multiple, 2)}
+                    </td>
+                    <td title={l.asset_note ?? undefined}>{rub(l.adjusted ?? l.value)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          <p className="vt-note">
+            {band.low !== null && band.high !== null && <>Полоса оценки {rub(band.low)} – {rub(band.high)}. </>}
+            В опорную идёт {ladderMeasure.label.toLowerCase()}.
+            {band.asset_lift !== null && band.asset_lift !== 1 && ' К оценке по потоку добавлена треть избыточных активов (гл. 34).'}
+          </p>
         </div>
 
         {/* ── Проверки ──────────────────────────────────────────────────── */}
-        <div className="vt-card">
-          <div className="vt-card-head"><h3>Проверки оценки</h3></div>
+        <div className="vt-block">
+          <h3>Проверки</h3>
           {checks.length > 0 ? (
             <ul className="vt-checks">
               {checks.map((c) => (
-                <li key={c.title}>
-                  <CheckIcon tone={c.tone} />
-                  <div>
-                    <span>{c.title}</span>
+                <li key={c.title} className={`vt-check vt-check--${c.tone}`}>
+                  <span className="vt-check-mark" aria-hidden>
+                    {c.tone === 'pass' ? '✓' : c.tone === 'fail' ? '✗' : c.tone === 'warn' ? '!' : '–'}
+                  </span>
+                  <span>
+                    {c.title}
                     {c.detail && <small>{c.detail}</small>}
-                  </div>
+                  </span>
                 </li>
               ))}
             </ul>
@@ -651,66 +822,13 @@ export default function ValuationTab({ companyId }: { companyId: number }) {
         </div>
       </div>
 
-      {/* ── Три меры ────────────────────────────────────────────────────── */}
-      <div className="vt-card">
-        <div className="vt-card-head">
-          <h3>Три меры прибыли</h3>
-          {band.low !== null && band.high !== null && (
-            <span className="vt-card-aside">Полоса оценки: <b>{rub(band.low)} – {rub(band.high)}</b></span>
-          )}
-        </div>
-        <div className="vt-table-scroll">
-          <table className="vt-table">
-            <thead>
-              <tr>
-                <th scope="col">Мера</th>
-                <th scope="col">Средняя за {years(window)}</th>
-                <th scope="col">По тенденции</th>
-                <th scope="col">Множитель</th>
-                <th scope="col">Оценка</th>
-              </tr>
-            </thead>
-            <tbody>
-              {band.ladders.map((l) => {
-                const m = MEASURES.find((x) => x.ladder === l.name);
-                const t = trendOf(l.name);
-                return (
-                  <tr key={l.name}>
-                    <th scope="row">
-                      {m?.title ?? l.name}
-                      {l.name === ladderName && <span className="vt-basis">основа опорной</span>}
-                    </th>
-                    <td className="vt-dim">{rub(detail.averages?.[l.name] ?? null)}</td>
-                    <td>
-                      {t ? rub(t.value) : '—'}
-                      {t?.capped && <small className="vt-dim"> подрезана по максимуму</small>}
-                    </td>
-                    <td>{ru(l.multiple, 2)}</td>
-                    <td className="vt-strong" title={l.asset_note ?? undefined}>{rub(l.adjusted ?? l.value)}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-        {band.asset_lift !== null && band.asset_lift !== 1 && (
-          <p className="vt-note">
-            Поправка на активы подняла оценку в {ru(band.asset_lift, 2)} раза: по прибыли компания стоит{' '}
-            {rub(band.low_by_earnings)}–{rub(band.high_by_earnings)}, в счёт пошли две трети
-            балансовой стоимости (гл. 34).
-          </p>
-        )}
-      </div>
-
       <footer className="vt-foot">
-        Допущения на {detail.assumption?.year} год: ОФЗ {pct(riskFree, 0)}, премия за риск {pct(premium, 0)}.
+        Ставка: {detail.assumption?.risk_free_note ?? `ОФЗ ${pct(riskFree)}`}. Премия за риск {pct(premium, 0)} — допущение {detail.assumption?.year} года.
         {detail.history_years ? ` История отчётов — ${years(detail.history_years)}.` : ''}
         {' '}Метод — {band.method_label}. <Link to="/valuation">Подробно о методе</Link>
         <p className="vt-disclaimer">
-          Опорная и справедливая стоимость — результат расчёта по отчётности и допущениям о
-          ставке и премии за риск, а не прогноз будущей цены акции. Материал не является
-          индивидуальной инвестиционной рекомендацией и не призывает покупать или продавать
-          ценные бумаги. Решение и его последствия — на стороне инвестора.
+          Расчёт по отчётности, а не прогноз цены. Не является индивидуальной
+          инвестиционной рекомендацией.
         </p>
       </footer>
     </section>

@@ -4,6 +4,9 @@
 реинвестированными дивидендами (MCFTR) и индекс гособлигаций RGBI. У RGBI
 Мосбиржа вместе с ценой отдаёт доходность и дюрацию — по доходности видно,
 сколько платит госдолг, по цене — что с ним происходило.
+
+Там же лежат ряды для графика нефтяных компаний: BRENT ($/барр., FRED) и
+USDRUB (курс ЦБ) — см. services/market/oil_service.py.
 """
 from datetime import date, datetime
 from typing import Optional

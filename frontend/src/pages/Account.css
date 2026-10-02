@@ -1,0 +1,97 @@
+/* Аккаунт — ведомость: строки через тонкие линии, без карточек и плашек. */
+
+.acc {
+  --ax-accent: #e7b84a;
+  --ax-accent-ink: #15120a;
+  width: 100%;
+  max-width: 720px;
+  box-sizing: border-box;
+  margin: 0 auto;
+  padding: 40px 20px 72px;
+  color: var(--color-text-primary);
+}
+.acc a { color: var(--color-text-link); text-decoration: none; }
+.acc a:hover { text-decoration: underline; }
+
+.acc-name { font-family: 'IBM Plex Serif', Georgia, serif; font-weight: 500; font-size: 30px; line-height: 1.2; margin: 0; overflow-wrap: anywhere; }
+.acc-sub { margin: 4px 0 0; color: var(--color-text-tertiary); font-size: 14px; }
+.acc-welcome { margin-top: 18px; }
+
+.acc-h {
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-tertiary);
+  margin: 36px 0 0;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--color-border-default);
+}
+
+.acc-row {
+  display: grid;
+  grid-template-columns: 180px minmax(0, 1fr) auto;
+  gap: 8px 16px;
+  align-items: baseline;
+  padding: 15px 0;
+  border-bottom: 1px solid var(--color-border-default);
+  font-size: 14.5px;
+}
+.acc-k { color: var(--color-text-secondary); font-size: 13.5px; }
+.acc-v { min-width: 0; overflow-wrap: anywhere; }
+.acc-act, .acc-inline, .acc-delete {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-size: 13.5px;
+  color: var(--color-text-link);
+  cursor: pointer;
+}
+.acc-act:hover, .acc-inline:hover:not(:disabled), .acc-delete:hover { text-decoration: underline; }
+.acc-inline:disabled { color: var(--color-text-tertiary); cursor: default; }
+.acc-row.is-open .acc-act { color: var(--color-text-tertiary); }
+
+.acc-edit { grid-column: 2 / -1; padding-top: 8px; }
+.acc-form { display: flex; flex-direction: column; gap: 14px; max-width: 380px; }
+.acc-form--danger { margin-top: 14px; }
+.acc-buttons { display: flex; gap: 18px; align-items: center; }
+.acc-save {
+  align-self: flex-start;
+  height: 40px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 4px;
+  background: var(--ax-accent);
+  color: var(--ax-accent-ink);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.acc-save:disabled { opacity: 0.4; cursor: default; }
+.acc-save--danger { background: var(--color-error); color: #fff; }
+
+.acc-tag { margin-left: 10px; font-size: 12px; }
+.acc-tag--ok { color: var(--color-success); }
+.acc-tag--warn { color: var(--color-warning-strong); }
+:root[data-theme="dark"] .acc-tag--warn { color: var(--ax-accent); }
+.acc-v .acc-inline { margin-left: 10px; font-size: 12.5px; }
+
+.acc-devices { width: 100%; border-collapse: collapse; font-size: 14px; }
+.acc-devices td { padding: 13px 0; border-bottom: 1px solid var(--color-border-default); vertical-align: baseline; }
+.acc-when { text-align: right; white-space: nowrap; color: var(--color-text-tertiary); font-family: var(--font-mono); font-size: 12.5px; }
+.acc-ip { display: block; margin-top: 2px; font-size: 12px; color: var(--color-text-tertiary); font-family: var(--font-mono); }
+
+.acc-note { margin: 10px 0 0; font-size: 12.5px; color: var(--color-text-tertiary); line-height: 1.5; }
+.acc-form .acc-note { margin: 0; }
+.acc-text { margin: 14px 0 0; color: var(--color-text-secondary); line-height: 1.55; font-size: 14px; }
+.acc-after { margin-top: 10px; }
+.acc-delete { margin-top: 18px; color: var(--color-error); }
+
+@media (max-width: 600px) {
+  .acc { padding: 24px 16px 56px; }
+  .acc-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .acc-k { grid-column: 1 / -1; font-size: 12.5px; }
+  .acc-edit { grid-column: 1 / -1; }
+}

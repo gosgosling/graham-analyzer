@@ -1507,31 +1507,32 @@
   }
 }
 
-/* ── Карточка компании: одна страница из карточек ───────────────────────────
-   Фон страницы — подложка, разделы — карточки на ней. Так длинный лист
-   читается кусками, и не нужно рисовать линии между разделами. На телефоне
-   те же разделы становятся вкладками под шапкой. */
+/* ── Карточка компании: «лист» ──────────────────────────────────────────────
+   Без рамок и подложек. Разделы делят линейки и воздух, как полосу деловой
+   газеты: жирная черта над разделом, тонкая — внутри. Заголовки и крупные
+   числа — с засечками. На телефоне те же разделы становятся вкладками. */
 
 .cd-page {
+  --cd-rule: var(--color-text-primary);
   max-width: 1440px;
   width: 100%;
   min-width: 0;
   box-sizing: border-box;
+  margin: 0 auto;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 0;
 }
 
 .cd-card {
-  background: var(--color-bg-surface);
-  border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-xl);
-  padding: 20px 24px;
   min-width: 0;
-  scroll-margin-top: 16px;
+  scroll-margin-top: 110px;
+  margin-top: 48px;
+  padding-top: 22px;
+  border-top: 2px solid var(--cd-rule);
 }
 
-/* Внутри карточки старые панели не рисуют собственную рамку. */
+/* Внутри раздела старые панели тоже без собственной рамки. */
 .cd-card--flush > .info-card,
 .cd-card--flush .company-content-grid .info-card {
   border: 0;
@@ -1541,6 +1542,12 @@
 }
 .cd-card--flush .company-content-grid { margin: 0; gap: 32px; }
 .cd-card--flush .info-card:hover { transform: none; box-shadow: none; }
+.cd-card--flush .card-title {
+  font-family: 'IBM Plex Serif', Georgia, serif;
+  font-weight: 500;
+  font-size: 1.45rem;
+  color: var(--color-text-primary);
+}
 
 .cd-section-head {
   display: flex;
@@ -1548,48 +1555,50 @@
   align-items: baseline;
   flex-wrap: wrap;
   gap: 6px 16px;
-  margin-bottom: 14px;
+  margin-bottom: 16px;
 }
 .cd-section-title {
   margin: 0;
-  font-size: 1.12rem;
-  font-weight: 600;
-  letter-spacing: -0.01em;
+  font-family: 'IBM Plex Serif', Georgia, serif;
+  font-size: 1.45rem;
+  font-weight: 500;
+  letter-spacing: -0.005em;
   color: var(--color-text-primary);
 }
-.cd-section-sub { font-size: 0.84rem; color: var(--color-text-tertiary); }
+.cd-section-sub { font-size: 0.86rem; color: var(--color-text-tertiary); }
 
 /* ── Шапка ── */
 
-.cd-head { padding: 18px 24px 0; }
+/* Шапка — не раздел: черты над ней нет. */
+.cd-card.cd-head { margin-top: 0; padding-top: 22px; border-top: 0; }
 
 .cd-head-top {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
   gap: 16px 32px;
-  padding-bottom: 16px;
 }
 
-.cd-identity { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.cd-identity { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
 
 .cd-back {
   align-self: flex-start;
   padding: 0;
   border: 0;
   background: none;
-  color: var(--color-text-quaternary);
+  color: var(--color-text-tertiary);
   font: inherit;
-  font-size: 0.82rem;
+  font-size: 0.86rem;
   cursor: pointer;
 }
-.cd-back:hover { color: var(--color-text-secondary); }
+.cd-back:hover { color: var(--color-text-primary); }
 
-.cd-name-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; }
+.cd-name-row { display: flex; align-items: center; gap: 16px; }
+.cd-name-block { min-width: 0; }
 
 .cd-logo {
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   flex-shrink: 0;
   border-radius: 50%;
   object-fit: contain;
@@ -1598,33 +1607,23 @@
 
 .cd-name {
   margin: 0;
-  font-size: 1.6rem;
-  font-weight: 700;
-  line-height: 1.15;
-  letter-spacing: -0.02em;
+  font-family: 'IBM Plex Serif', Georgia, serif;
+  font-size: 2.4rem;
+  font-weight: 500;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
   color: var(--color-text-primary);
 }
 
-/* Фирменный цвет — плашкой по размеру слова, как выделение маркером. */
-.cd-name-mark { display: inline-block; padding: 1px 10px 3px; border-radius: var(--radius-md); }
-
-.cd-chips { display: inline-flex; flex-wrap: wrap; gap: 6px; }
-.cd-chip {
-  font-size: 0.76rem;
-  color: var(--color-text-tertiary);
-  background: var(--color-bg-subtle);
-  border: 1px solid var(--color-border-subtle);
-  border-radius: var(--radius-sm);
-  padding: 2px 8px;
-  white-space: nowrap;
-}
-.cd-chip--ticker { font-weight: 600; color: var(--color-text-secondary); }
+.cd-meta { margin-top: 4px; font-size: 0.9rem; color: var(--color-text-tertiary); }
+.cd-meta-ticker { color: var(--color-text-secondary); font-weight: 500; }
 
 .cd-verdict {
-  margin: 0;
-  max-width: 820px;
-  font-size: 0.92rem;
-  line-height: 1.5;
+  margin: 14px 0 0;
+  max-width: 900px;
+  font-family: 'IBM Plex Serif', Georgia, serif;
+  font-size: 1.16rem;
+  line-height: 1.55;
   color: var(--color-text-secondary);
 }
 .cd-verdict strong { color: var(--color-text-primary); font-weight: 600; }
@@ -1633,52 +1632,58 @@
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 3px;
+  gap: 4px;
   flex-shrink: 0;
   text-align: right;
+  /* Цена — на уровне названия, под ссылкой «Все компании». */
+  margin-top: 30px;
 }
 .cd-price {
-  font-size: 1.9rem;
-  font-weight: 600;
-  letter-spacing: -0.02em;
+  font-family: 'IBM Plex Serif', Georgia, serif;
+  font-size: 2.4rem;
+  font-weight: 500;
+  line-height: 1.1;
   font-variant-numeric: tabular-nums;
 }
-.cd-change { font-size: 0.84rem; font-variant-numeric: tabular-nums; }
+.cd-change { font-size: 0.88rem; font-variant-numeric: tabular-nums; }
 .cd-change.is-up   { color: var(--color-success-strong); }
 .cd-change.is-down { color: var(--color-error-strong); }
 [data-theme='dark'] .cd-change.is-up   { color: var(--color-success-text); }
 [data-theme='dark'] .cd-change.is-down { color: var(--color-error-text); }
-.cd-quote-meta { font-size: 0.78rem; color: var(--color-text-quaternary); }
+.cd-quote-meta { font-size: 0.86rem; color: var(--color-text-tertiary); }
 
+/* Ключевые цифры — строкой между жирной и тонкой чертой. */
 .cd-stats {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
-  margin: 0 -24px;
-  border-top: 1px solid var(--color-border-subtle);
+  margin-top: 24px;
+  border-top: 2px solid var(--cd-rule);
+  border-bottom: 1px solid var(--color-border-strong);
 }
 .cd-stat {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: 12px 24px 14px;
-  border-left: 1px solid var(--color-border-subtle);
+  padding: 12px 14px 14px;
+  border-left: 1px solid var(--color-border-default);
   text-decoration: none;
   color: inherit;
   white-space: nowrap;
   min-width: 0;
 }
-.cd-stat:first-child { border-left: 0; }
-.cd-stat:hover { background: var(--color-bg-hover); }
-.cd-stat-label { font-size: 0.76rem; color: var(--color-text-tertiary); }
+.cd-stat:first-child { border-left: 0; padding-left: 0; }
+.cd-stat:hover .cd-stat-value { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 4px; }
+.cd-stat-label { font-size: 0.82rem; color: var(--color-text-tertiary); }
 .cd-stat-value {
-  font-size: 1.28rem;
-  font-weight: 600;
-  letter-spacing: -0.01em;
+  font-family: 'IBM Plex Serif', Georgia, serif;
+  font-size: 1.7rem;
+  font-weight: 500;
+  line-height: 1.2;
   font-variant-numeric: tabular-nums;
   color: var(--color-text-primary);
 }
 .cd-stat-value--ref { color: var(--color-chart-ref-line); }
-.cd-stat-sub { font-size: 0.74rem; color: var(--color-text-quaternary); overflow: hidden; text-overflow: ellipsis; }
+.cd-stat-sub { font-size: 0.8rem; color: var(--color-text-tertiary); overflow: hidden; text-overflow: ellipsis; }
 .cd-tone--good { color: var(--color-success-strong); }
 .cd-tone--warn { color: var(--color-warning-strong); }
 .cd-tone--bad  { color: var(--color-error-strong); }
@@ -1686,16 +1691,23 @@
 [data-theme='dark'] .cd-tone--warn { color: var(--color-warning-text); }
 [data-theme='dark'] .cd-tone--bad  { color: var(--color-error-text); }
 
-/* ── График и боковая колонка ── */
+/* ── График и боковая колонка: через тонкую вертикальную черту ── */
 
 .cd-overview {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 300px;
-  gap: 16px;
+  gap: 0;
   align-items: start;
+  margin-top: 34px;
 }
-.cd-overview .pc { margin: 0; border-color: var(--color-border-default); }
-.cd-overview-main { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.cd-overview .pc { margin: 0; border: 0; background: transparent; padding: 0; border-radius: 0; }
+.cd-overview .pc-title h3 {
+  font-family: 'IBM Plex Serif', Georgia, serif;
+  font-weight: 500;
+  font-size: 1.45rem;
+}
+.cd-overview-main { display: flex; flex-direction: column; gap: 28px; min-width: 0; padding-right: 36px; }
+.cd-overview > .ca { border-left: 1px solid var(--color-border-default); padding-left: 28px; align-self: stretch; }
 
 /* ── Вкладки на телефоне ── */
 
@@ -1703,25 +1715,29 @@
 
 @media (max-width: 1100px) {
   .cd-overview { grid-template-columns: minmax(0, 1fr); }
+  .cd-overview-main { padding-right: 0; }
+  .cd-overview > .ca { border-left: 0; padding-left: 0; margin-top: 28px; padding-top: 22px; border-top: 2px solid var(--cd-rule); }
   .ca { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
   .cd-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .cd-stat:nth-child(4) { border-left: 0; }
-  .cd-stat:nth-child(n + 4) { border-top: 1px solid var(--color-border-subtle); }
+  .cd-stat:nth-child(4) { border-left: 0; padding-left: 0; }
+  .cd-stat:nth-child(n + 4) { border-top: 1px solid var(--color-border-default); }
 }
 
 @media (max-width: 760px) {
-  .company-detail-container.cd-page { padding: 12px 10px; gap: 10px; }
-  .cd-card { padding: 14px 14px; border-radius: var(--radius-lg); }
-  .cd-head { padding: 14px 14px 0; }
-  .cd-head-top { flex-direction: column; gap: 10px; padding-bottom: 12px; }
-  .cd-quote { align-items: flex-start; text-align: left; }
-  .cd-name { font-size: 1.3rem; }
-  .cd-price { font-size: 1.6rem; }
-  .cd-logo { width: 32px; height: 32px; }
-  .cd-verdict { font-size: 0.86rem; }
-  .cd-stats { margin: 0 -14px; }
-  .cd-stat { padding: 10px 14px 12px; }
-  .cd-stat-value { font-size: 1.08rem; }
+  .company-detail-container.cd-page { padding: 12px 16px; }
+  .cd-card { margin-top: 28px; padding-top: 16px; }
+  .cd-card.cd-head { padding-top: 10px; }
+  .cd-head-top { flex-direction: column; align-items: flex-start; gap: 10px; }
+  .cd-quote { align-items: flex-start; text-align: left; margin-top: 0; }
+  .cd-name { font-size: 1.7rem; }
+  .cd-price { font-size: 1.8rem; }
+  .cd-logo { width: 34px; height: 34px; }
+  .cd-verdict { font-size: 1rem; }
+  .cd-stat { padding: 10px 10px 12px; }
+  .cd-stat-value { font-size: 1.3rem; }
+  .cd-stat-sub { display: none; }
+  .cd-section-title { font-size: 1.25rem; }
+  .cd-mobile-tabs { margin-top: 18px; }
 
   .cd-mobile-tabs {
     display: flex;
@@ -1756,4 +1772,73 @@
 
 /* Вкладка оценки внутри карточки: её панели — уже второй уровень. */
 .cd-card .vt { margin-bottom: 0; }
-.cd-card .vt-card { background: var(--color-bg-elevated); }
+.cd-card .vt-card { background: transparent; }
+
+
+/* ── Переключатели — текстом с подчёркиванием, а не «пилюлями» ── */
+
+.cd-page { --cd-accent: #c58a12; }
+[data-theme='dark'] .cd-page { --cd-accent: #e7b84a; }
+
+.cd-page .pc-ranges { gap: 18px; }
+.cd-page .pc-btn,
+.cd-page .seg-btn,
+.cd-page .vt-pills button {
+  min-height: 0;
+  padding: 2px 0 3px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--color-text-tertiary);
+  font-size: 0.9rem;
+  font-weight: 400;
+  box-shadow: none;
+}
+.cd-page .pc-btn:hover,
+.cd-page .seg-btn:hover,
+.cd-page .vt-pills button:hover { background: transparent; color: var(--color-text-primary); }
+.cd-page .pc-btn.is-on,
+.cd-page .seg-btn.is-on,
+.cd-page .vt-pills button.is-on {
+  background: transparent;
+  color: var(--color-text-primary);
+  font-weight: 500;
+  box-shadow: inset 0 -2px 0 var(--cd-accent);
+}
+/* Дополнительные линии графика — ссылками. */
+.cd-page .pc-btn--small { color: var(--color-text-link); font-size: 0.86rem; }
+.cd-page .pc-btn--small.is-on { color: var(--color-text-primary); border: 0; }
+.cd-page .pc-more { gap: 16px; }
+.cd-page .seg,
+.cd-page .vt-pills { gap: 18px; padding: 0; border: 0; border-radius: 0; background: transparent; }
+
+/* Таблица по годам — та же, с подсветкой; без рамки вокруг. */
+.cd-page .hist-table-wrapper { border: 0; border-radius: 0; }
+
+/* Отчёты и «О компании» — тот же лист: без подчёркнутых заголовков,
+   пунктирных рамок и плашек. */
+.cd-card--flush .card-title { border-bottom: 0; padding-bottom: 0; margin-bottom: 16px; }
+.cd-page .placeholder-content { border: 0; background: none; padding: 0; text-align: left; }
+.cd-page .placeholder-content p { margin: 0; color: var(--color-text-tertiary); }
+.cd-page .reports-count-badge {
+  background: none;
+  border: 0;
+  padding: 0;
+  font-size: 1rem;
+  font-weight: 400;
+  color: var(--color-text-tertiary);
+}
+.cd-page .reports-toggle-arrow-btn { border: 0; background: none; box-shadow: none; }
+.cd-page .reports-unverified-pill {
+  background: none;
+  border: 0;
+  padding: 0;
+  font-size: 0.86rem;
+  font-weight: 400;
+  color: var(--color-warning-strong);
+}
+[data-theme='dark'] .cd-page .reports-unverified-pill { color: #e7b84a; }
+
+/* Боковые поля страницы — 14px: таблица по годам в строках занимает
+   ~1320px и должна влезать уже на экране 1366px. */
+.company-detail-container.cd-page { padding-left: 14px; padding-right: 14px; }
