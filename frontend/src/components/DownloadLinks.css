@@ -1,0 +1,12 @@
+.dl-links { display: inline-flex; align-items: baseline; gap: 6px; font-size: 0.88rem; color: var(--color-text-tertiary); white-space: nowrap; }
+.dl-label { margin-right: 2px; }
+.dl-links button {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: var(--color-text-link);
+  cursor: pointer;
+}
+.dl-links button:hover { text-decoration: underline; }
+.dl-sep { color: var(--color-text-quaternary, var(--color-text-tertiary)); }

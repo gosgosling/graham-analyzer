@@ -34,6 +34,7 @@ from app.models.enums import PeriodType
 from app.services.analysis.calc_multipliers import calculate_multipliers
 from app.services.share_splits import (
     align_report_scale, company_splits, current_share_count, report_split_factor, shares_factor,
+    today_share_count,
 )
 from app.models.enums import CompanyType
 from app.services.analysis.fcf import compute_banking_flow, compute_core_fcf, compute_fcf
@@ -665,8 +666,26 @@ def calculate_current_multipliers(
     banking_flow, banking_flow_basis = _hybrid_banking_flow(db, company, balance_report)
 
     # Кол-во акций для market cap — приоритет: в обращении → средневзв. → размещённые.
+    # Если после отчёта выпуск изменился (допэмиссия, конвертация префов),
+    # капитализация «сегодня» считается по сегодняшнему числу акций — см.
+    # share_splits.today_share_count. Привилегированные бумаги не трогаем:
+    # их ISSUESIZE — только префы, а капитализация считается по всем акциям.
+    today_shares = None
+    if not getattr(company, "is_preferred_share", False):
+        splits_all = company_splits(db, company)
+        seen = [
+            float(r.shares_issued or r.shares_outstanding) * shares_factor(splits_all, r.report_date)
+            for r in db.query(FinancialReport).filter(FinancialReport.company_id == company_id)
+            if (r.shares_issued or r.shares_outstanding) and r.id != balance_report.id
+        ]
+        today_shares = today_share_count(
+            balance_report, company.issue_size,
+            shares_factor(splits_all, balance_report.report_date),
+            max_seen=max(seen) if seen else None,
+        )
     mults = calculate_multipliers(
         report=balance_report,
+        override_shares=int(round(today_shares[0])) if today_shares else None,
         banking_flow=banking_flow,
         # Снимок «на сегодня» сравнивается со ставкой того же года, что и
         # баланс: ROE посчитан на его капитал.
@@ -713,6 +732,9 @@ def calculate_current_multipliers(
         return _convert(v, balance_report.currency, rate)
 
     cap_basis = resolve_shares_cap_basis(balance_report, mults.get("shares_used"))
+    if today_shares:
+        cap_basis = {**cap_basis, "shares_cap_explanation": (
+            f"Использовано {int(round(today_shares[0])):,} акций: {today_shares[1]}.".replace(",", "\u202f"))}
 
     return {
         **mults,
