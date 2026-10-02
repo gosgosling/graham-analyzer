@@ -214,7 +214,9 @@ def comment(cards: list[dict]) -> list[str]:
     if cheap_pb and cheap_pb.get("roe") is not None:
         line = f"Дешевле всех по балансу {_b(cheap_pb)} — {_ru(cheap_pb['pb'], 2)} капитала"
         if cheap_pb.get("roe_spread") is not None and cheap_pb["roe_spread"] < 0:
-            line += (f", но отдача на капитал лишь {_ru(cheap_pb['roe'])}% — меньше ключевой ставки. "
+            rate = cheap_pb.get("key_rate")
+            line += (f", но отдача на капитал лишь {_ru(cheap_pb['roe'])}% — меньше ключевой ставки"
+                     + (f" ({_ru(rate)}%)" if rate else "") + ". "
                      "Дешевизна по балансу здесь объясняется отдачей, а не скидкой.")
         else:
             line += f" при отдаче на капитал {_ru(cheap_pb['roe'])}%."
@@ -226,17 +228,17 @@ def comment(cards: list[dict]) -> list[str]:
     if best_roe:
         line = f"Больше всех зарабатывает на капитал {_b(best_roe)} — {_ru(best_roe['roe'])}%."
         if below:
-            line += f" Ниже ключевой ставки отдача у {_list(below)}."
+            line += f" Отдача ниже ключевой ставки: {_list(below)}."
         out.append(line)
 
     # Дивиденды.
     best_dy = _extreme(cards, "dividend_yield", False)
     longest = _extreme(cards, "streak", False)
     if best_dy and best_dy["dividend_yield"]:
-        line = f"Выше всех дивидендная доходность у {_b(best_dy)} — {_ru(best_dy['dividend_yield'])}%"
+        line = f"Выше всех дивидендная доходность — {_b(best_dy)}, {_ru(best_dy['dividend_yield'])}%"
         if longest and longest["streak"]:
             line += (f"; дольше всех платит без перерыва {_b(longest)} — {_ru(longest['streak'], 0)} лет подряд."
-                     if longest is not best_dy else f", и платит дольше всех — {_ru(longest['streak'], 0)} лет подряд.")
+                     if longest is not best_dy else f"; она же дольше всех платит без перерыва — {_ru(longest['streak'], 0)} лет подряд.")
         else:
             line += "."
         out.append(line)
@@ -247,11 +249,11 @@ def comment(cards: list[dict]) -> list[str]:
     tight = [c for c in cards if not c.get("is_bank") and c.get("current_ratio") is not None and c["current_ratio"] < 1]
     parts = []
     if net_cash:
-        parts.append(f"денег больше, чем долга, у {_list(net_cash)}")
+        parts.append(f"денег больше, чем долга: {_list(net_cash)}")
     if heavy:
-        parts.append(f"обязательств больше капитала у {_list(heavy)}")
+        parts.append(f"обязательств больше капитала: {_list(heavy)}")
     if tight:
-        parts.append(f"оборотных активов меньше краткосрочных обязательств у {_list(tight)}")
+        parts.append(f"оборотных активов меньше краткосрочных обязательств: {_list(tight)}")
     if parts:
         text = "; ".join(parts) + "."
         out.append(text[0].upper() + text[1:])
@@ -262,7 +264,7 @@ def comment(cards: list[dict]) -> list[str]:
     if fast and fast["growth_5"] > 0:
         line = f"Быстрее всех за пять лет растила прибыль на акцию {_b(fast)} — +{_ru(fast['growth_5'], 0)}%."
         if falling:
-            line += f" Снизилась прибыль у {_list(falling)}."
+            line += f" Прибыль снизилась: {_list(falling)}."
         out.append(line)
 
     # Консервативные критерии.
@@ -284,9 +286,12 @@ def comment(cards: list[dict]) -> list[str]:
     if priced and not below_ref:
         out.append("Все сейчас дороже опорной оценки." if len(priced) == len(cards)
                    else f"Дороже опорной оценки — {_list(priced)}.")
+    elif len(below_ref) == 1:
+        only = below_ref[0]
+        out.append(f"Ниже опорной оценки торгуется только {_b(only)} — запас {_ru(only['margin'] * 100, 0)}%.")
     elif below_ref:
         best = max(below_ref, key=lambda c: c["margin"])
-        out.append(f"Ниже опорной оценки торгуется {_list(below_ref)}; наибольший запас — у {_b(best)}, "
+        out.append(f"Ниже опорной оценки: {_list(below_ref)}; наибольший запас — {_b(best)}, "
                    f"{_ru(best['margin'] * 100, 0)}%.")
     return out
 

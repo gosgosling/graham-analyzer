@@ -16,6 +16,7 @@ import MultipliersPanel from '../components/MultipliersPanel';
 import PriceChart from '../components/PriceChart';
 import ValuationTab from '../components/ValuationTab';
 import ConservativeCriteria from '../components/ConservativeCriteria';
+import StatementsSheet from '../components/StatementsSheet';
 import {
   AsideNotes,
   AsideToc,
@@ -48,13 +49,14 @@ type ReportPeriodFilter = 'all' | 'annual' | 'quarterly' | 'semi_annual';
  * критериям, из каких отчётов. На телефоне длинную страницу листать неудобно,
  * и те же разделы становятся вкладками под шапкой.
  */
-type CardSection = 'overview' | 'years' | 'valuation' | 'criteria' | 'reports' | 'about';
+type CardSection = 'overview' | 'years' | 'valuation' | 'criteria' | 'statements' | 'reports' | 'about';
 
 const SECTIONS: { key: Exclude<CardSection, 'overview'>; label: string; tab: string }[] = [
   { key: 'years', label: 'Показатели по годам', tab: 'По годам' },
   { key: 'valuation', label: 'Как получилась оценка', tab: 'Оценка' },
   { key: 'criteria', label: 'Консервативные критерии', tab: 'Критерии' },
-  { key: 'reports', label: 'Отчёты и данные', tab: 'Отчёты' },
+  { key: 'statements', label: 'Отчётность', tab: 'Отчётность' },
+  { key: 'reports', label: 'Файлы отчётов', tab: 'Файлы' },
   { key: 'about', label: 'О компании', tab: 'О компании' },
 ];
 
@@ -634,6 +636,15 @@ const CompanyDetail: React.FC = () => {
 
       <section id="criteria" className={`cd-card ${tabbed('criteria')}`}>
         <ConservativeCriteria companyId={company.id!} />
+      </section>
+
+      {/* Отчётность как в отчётах — без поправок проекта, по периодам. */}
+      <section id="statements" className={`cd-card ${tabbed('statements')}`}>
+        <div className="cd-section-head">
+          <h2 className="cd-section-title">Отчётность</h2>
+          <span className="cd-section-sub">как в отчётах компании, без поправок</span>
+        </div>
+        {reports ? <StatementsSheet reports={reports} company={company} /> : null}
       </section>
 
       {/* Отчёты: гостю — список и просмотр, администратору — ещё добавление,

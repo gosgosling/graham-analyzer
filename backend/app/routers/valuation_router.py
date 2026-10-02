@@ -13,6 +13,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.services.data_cache import cached_route
 from app.models.market_assumption import MarketAssumption
 from app.models.company import Company
 from app.services.analysis import market_snapshot
@@ -85,6 +86,7 @@ def _implied(snapshot, assumption) -> dict:
 
 
 @router.get("/market-multiple")
+@cached_route("valuation.market_multiple", "year", "data_year")
 def market_multiple(
     year: Optional[int] = Query(None, description="год допущений; по умолчанию последний"),
     data_year: int = Query(market_snapshot.DEFAULT_YEAR, description="год данных о выплате"),
@@ -145,6 +147,7 @@ def market_multiple(
 
 
 @router.get("/company/{company_id}")
+@cached_route("valuation.company", "company_id", "window", "year")
 def company_valuation(
     company_id: int,
     window: int = Query(DEFAULT_WINDOW, ge=3, le=15, description="окно нормализации, лет"),
@@ -158,6 +161,7 @@ def company_valuation(
 
 
 @router.get("/company/{company_id}/series")
+@cached_route("valuation.series", "company_id", "window")
 def company_series(
     company_id: int,
     window: int = Query(DEFAULT_WINDOW, ge=3, le=15, description="окно нормализации, лет"),
@@ -233,6 +237,7 @@ def _headline(payload: dict) -> dict:
 
 
 @router.get("/company/{company_id}/summary")
+@cached_route("valuation.summary", "company_id", "window")
 def company_summary(
     company_id: int,
     window: int = Query(DEFAULT_WINDOW, ge=3, le=15, description="окно нормализации для сетки ставок, лет"),
@@ -352,6 +357,7 @@ def company_summary(
 
 
 @router.get("/company/{company_id}/history")
+@cached_route("valuation.history", "company_id")
 def company_valuation_history(
     company_id: int,
     db: Session = Depends(get_db),

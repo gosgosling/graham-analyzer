@@ -85,6 +85,14 @@ def trustworthy_tickers(db: Session) -> list:
     опечатки, аудит без пометки — пропускает компании, у которых просто
     нечего проверять: пустые поля дефектов не дают.
     """
+    from app.services.data_cache import cached
+
+    # Аудит обходит все отчёты всех компаний — четверть секунды. Список
+    # нужен скринеру, сравнению и обзору рынка, считать его каждому незачем.
+    return list(cached(("trustworthy_tickers",), lambda: _trustworthy_tickers(db)))
+
+
+def _trustworthy_tickers(db: Session) -> list:
     verified = {
         row[0]
         for row in db.execute(text(

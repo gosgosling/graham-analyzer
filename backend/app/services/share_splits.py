@@ -301,6 +301,73 @@ def current_share_count(db: Any, company_id: int, splits: Any) -> Optional[float
     return float(shares) * shares_factor(splits, latest.report_date)
 
 
+def today_share_count(report: Any, issue_size: Optional[int], factor: float = 1.0,
+                      max_seen: Optional[float] = None) -> Optional[tuple[float, str]]:
+    """
+    Акции в обращении сегодня — если выпуск после отчёта изменился.
+
+    `issue_size` — выпуск по реестру Мосбиржи сегодня, `factor` — дробления
+    после даты отчёта. Возвращает (акции, пояснение) или None, если отчётное
+    число годится и сегодня.
+
+    Два случая:
+
+    * **Выпуск вырос после отчёта** (допэмиссия, SPO): сегодня в реестре
+      больше акций, чем было во всех отчётах компании (`max_seen` — наибольшее
+      число из них в сегодняшней шкале). К акциям в обращении прибавляется
+      разница. Сравнивать только с последним отчётом нельзя: у Астры,
+      Глоракса, РуссНефти «размещённые» в отчёте записаны без казначейских, и
+      выкуп выглядел бы допэмиссией.
+    * **Размещённых в отчёте уже сегодняшнее число, а в обращении — вдвое
+      меньше, и казначейскими это не объяснить.** Так у ВТБ: отчёт за 2025
+      год — 6,54 млрд в обращении, а 12,93 млрд размещённых попали в отчёт из
+      сегодняшнего реестра, после конвертации префов в апреле 2026. Если
+      казначейские в отчёте указаны, разрыв сверх них — новый выпуск.
+
+    Если казначейские не указаны, разрыв между размещёнными и обращением
+    считается казначейским (Белуга, МТС) — так безопаснее, чем завысить.
+
+    >>> class R: shares_outstanding, shares_issued, treasury_shares = 6_540_634_652, 12_927_766_416, 79_783_631
+    >>> round(today_share_count(R, 12_927_766_416)[0])
+    12847982785
+    >>> class E: shares_outstanding, shares_issued, treasury_shares = 383_445_362, 383_445_362, None
+    >>> round(today_share_count(E, 783_179_820)[0])
+    783179820
+    >>> class B: shares_outstanding, shares_issued, treasury_shares = 87_460_000, 126_400_000, None
+    >>> today_share_count(B, 126_400_000) is None
+    True
+    >>> class A: shares_outstanding, shares_issued, treasury_shares = 201_358_879, 201_358_879, None
+    >>> today_share_count(A, 210_000_000, max_seen=210_000_000) is None   # выкуп, а не допэмиссия
+    True
+    """
+    if not issue_size:
+        return None
+    outstanding = getattr(report, "shares_outstanding", None)
+    issued = getattr(report, "shares_issued", None)
+    treasury = getattr(report, "treasury_shares", None)
+    base = float(outstanding or issued or 0) * factor
+    if base <= 0:
+        return None
+    issued_f = float(issued) * factor if issued else None
+    treasury_f = float(treasury) * factor if treasury else None
+    today = float(issue_size)
+
+    ceiling = max(issued_f or 0, max_seen or 0)
+    if issued_f is not None and today > ceiling * 1.02:
+        result = base + (today - issued_f)
+        why = (f"после отчёта выпуск вырос: по реестру Мосбиржи сейчас {int(today):,} акций "
+               f"против {int(issued_f):,} в отчёте").replace(",", "\u202f")
+        return result, why
+    if treasury_f is not None and outstanding and issued_f is not None:
+        gap = issued_f - treasury_f - float(outstanding) * factor
+        if gap > 0.05 * issued_f and abs(today - issued_f) <= 0.02 * issued_f:
+            result = today - treasury_f
+            why = (f"после отчёта выпуск изменился: по реестру Мосбиржи сейчас {int(today):,} акций, "
+                   f"за вычетом казначейских — {int(result):,}").replace(",", "\u202f")
+            return result, why
+    return None
+
+
 def moex_known_splits(db: Any, company_id: int) -> set[str]:
     """Даты дроблений, которые Мосбиржа ведёт сама (её splits.json).
 

@@ -406,6 +406,8 @@ export interface FinancialReportCreate {
     
     // Даты
     report_date: string; // YYYY-MM-DD (дата окончания периода)
+    /** Сравнительная колонка прошлого года из этого же отчёта (как её пересчитала компания). */
+    comparative?: Record<string, number | boolean | null> | null;
     filing_date?: string | null; // YYYY-MM-DD (дата публикации)
     
     // Рыночные данные

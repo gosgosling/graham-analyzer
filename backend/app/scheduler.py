@@ -5,6 +5,7 @@
   1. Ежедневно в 19:00 МСК (UTC+3) — обновить текущие цены из T-Invest
      и докачать пропущенные исторические цены из MOEX.
   2. При старте сервера — сразу проверить и закрыть пробелы в ценах.
+  3. Раз в минуту — прогреть кэш расчётов, если данные изменились.
 """
 
 import logging
@@ -67,6 +68,11 @@ def _daily_price_update() -> None:
         from app.services.market.index_service import refresh_all as refresh_indices
 
         logger.info("Индексы обновлены: %d строк", refresh_indices(db))
+
+        # Выпуск акций по реестру Мосбиржи — для текущей капитализации.
+        from app.services.market.issue_size_service import refresh_all as refresh_issue_sizes
+
+        logger.info("Выпуски акций обновлены: %d компаний", refresh_issue_sizes(db))
 
         # Нефть Brent и курс доллара — для графика нефтяных компаний.
         from app.services.market.oil_service import refresh as refresh_oil
@@ -150,6 +156,19 @@ def start_scheduler() -> None:
         replace_existing=True,
     )
 
+    # Прогрев кэша расчётов: раз в минуту сверяет версию данных и, если она
+    # сменилась, пересчитывает скринер, сравнение и оценки в фоне.
+    _scheduler.add_job(
+        _warm_cache,
+        "interval",
+        seconds=60,
+        next_run_time=datetime.now(timezone.utc) + timedelta(seconds=20),
+        id="warm_cache",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+    )
+
     _scheduler.start()
     logger.info(
         "Планировщик запущен. Следующее обновление цен: %s",
@@ -172,6 +191,12 @@ def _weekly_disclosure_sync() -> None:
         logger.error("Планировщик: не удалось стартовать disclosure sync: %s", e)
     finally:
         db.close()
+
+
+def _warm_cache() -> None:
+    from app.services.cache_warmup import warm
+
+    warm()
 
 
 def _purge_auth() -> None:

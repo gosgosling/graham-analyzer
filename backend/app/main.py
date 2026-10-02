@@ -35,7 +35,12 @@ app = FastAPI(
 # проверки доступа, иначе отказ 401/403 уйдёт без CORS-заголовков и браузер
 # покажет его как сетевую ошибку.
 from app.utils.admin_guard import AdminGuardMiddleware, SecurityHeadersMiddleware  # noqa: E402
+from app.utils.http_cache import ETagMiddleware  # noqa: E402
+from starlette.middleware.gzip import GZipMiddleware  # noqa: E402
 
+# ETag — самая внутренняя: хэш считается по несжатому телу и только для
+# запросов, прошедших проверку доступа.
+app.add_middleware(ETagMiddleware)
 app.add_middleware(AdminGuardMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
 
@@ -46,6 +51,11 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type", "X-Requested-With"],
 )
+
+# Сжатие — самая внешняя: цены компании 450 КБ → ~70 КБ, скринер 300 → ~40.
+# За nginx/Caddy её можно выключить и сжимать там, но и вдвоём они не мешают:
+# прокси уже сжатое повторно не жмёт.
+app.add_middleware(GZipMiddleware, minimum_size=1024, compresslevel=5)
 
 app.include_router(auth_router.router)
 app.include_router(securities_router.router)
