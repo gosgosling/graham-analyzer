@@ -1,0 +1,36 @@
+# SITE_ADDRESS — домен сайта (graham.example.ru): Caddy сам получит и
+# продлит сертификат Let's Encrypt. Для проверки на своей машине — «:80»,
+# тогда сайт работает по http без сертификата.
+{$SITE_ADDRESS} {
+	encode zstd gzip
+
+	# API: путь /api срезается, бэкенд видит свои обычные адреса.
+	handle_path /api/* {
+		reverse_proxy backend:8000
+	}
+
+	handle {
+		root * /srv
+		# Сборка с хэшами в именах — кэшировать надолго; index.html — никогда:
+		# в нём ссылки на свежую сборку.
+		@hashed path /static/*
+		header @hashed Cache-Control "public, max-age=31536000, immutable"
+		@page not path /static/*
+		header @page Cache-Control "no-cache"
+		# Адреса приложения (/company/171, /screen) отдаёт index.html.
+		try_files {path} /index.html
+		file_server
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		-Server
+	}
+
+	log {
+		output stdout
+		format console
+	}
+}

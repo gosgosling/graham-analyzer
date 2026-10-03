@@ -7,8 +7,13 @@ import {
     SectorProfileOption,
 } from '../types';
 
+// Адрес API задаётся при сборке. Локально — отдельный порт uvicorn; на
+// сервере — тот же домен, путь /api (его проксирует Caddy), поэтому cookie
+// входа и CORS там не нужны: страница и API — один сайт.
+export const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+
 const api = axios.create({
-    baseURL: 'http://localhost:8000',
+    baseURL: API_BASE_URL,
     // Сессия администратора — в cookie HttpOnly: скрипт страницы её не видит,
     // браузер шлёт сам. Для этого запросы идут с учётными данными.
     withCredentials: true,
