@@ -1,0 +1,23 @@
+# Контекст сборки — корень репозитория. Внутрь образов идут только backend/,
+# tools/edisclosure-scraper/ и frontend/ без зависимостей и сборки.
+.git
+.env
+.env.*
+**/.env
+backups/
+plans/
+docs/
+coverage.json
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+backend/venv/
+frontend/node_modules/
+frontend/build/
+tools/edisclosure-scraper/.edisclosure_storage_state.json
+tools/edisclosure-scraper/**/*.pdf
+tools/edisclosure-scraper/**/downloads/
+**/*.log
+.claude/
+.cursor/
+.vscode/

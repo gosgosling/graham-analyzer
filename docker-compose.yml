@@ -8,7 +8,8 @@ services:
       POSTGRES_PASSWORD: 12345678
       POSTGRES_DB: graham_analyzer
     ports:
-    - "5432:5432"
+    # Только с этой машины: наружу база не смотрит.
+    - "127.0.0.1:5432:5432"
     volumes:
     - postgres_data:/var/lib/postgresql
     healthcheck:

@@ -681,3 +681,27 @@ def test_a_thin_capital_buffer_fails_the_bank():
     result = screened(axes, profile=BANK)
     assert verdict(result, "capital_core").status == FAIL
     assert verdict(result, "npl_ratio").status == FAIL
+
+
+def test_a_loss_at_the_end_of_the_window_fails_the_growth_rule():
+    """Данные есть, и они говорят «нет»: «нет данных» здесь было бы неправдой."""
+    growth = Axis(key="growth", label="Рост", metrics=(
+        Metric(key="cash_growth_short", label="Прирост FCF за 5 лет", unit="%",
+               value=57.1, failed="В конце окна убыток: −255 → −110 ₽ на акцию"),
+    ))
+    rule = Rule("growth", "cash_growth_short", "min", 0.0, "наше", ours=True)
+    verdict = screen._judge(rule, {"growth": growth}, GRAHAM_DEFAULT)
+    assert verdict.status == FAIL
+    assert "убыток" in verdict.reason
+
+
+def test_a_failed_spare_does_not_rescue_the_main_metric():
+    """Запасная величина с убытком в конце окна вытянуть прибыль не может."""
+    growth = Axis(key="growth", label="Рост", metrics=(
+        Metric(key="earnings_growth_short", label="EPS", value=-30.0),
+        Metric(key="cash_growth_short", label="FCF", value=57.1,
+               failed="В конце окна убыток"),
+    ))
+    rule = Rule("growth", "earnings_growth_short", "min", 0.0, "гл. 15",
+                alt="cash_growth_short")
+    assert screen._judge(rule, {"growth": growth}, GRAHAM_DEFAULT).status == FAIL

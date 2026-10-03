@@ -562,7 +562,7 @@ def _alternate(rule: Rule, axis, applied: Optional[float]) -> Optional[str]:
     if rule.alt is None or axis is None:
         return None
     spare = axis.metric(rule.alt)
-    if spare is None or spare.value is None or spare.suspect:
+    if spare is None or spare.value is None or spare.suspect or spare.failed:
         return None
     holds = Rule(rule.axis, rule.alt, rule.mode, applied,
                  rule.source, rule.ours).holds(spare.value, spare.of)
@@ -588,6 +588,16 @@ def _judge(rule: Rule, axes: dict, profile: SectorProfile) -> Verdict:
         status, reason = NOT_APPLICABLE, "Эта величина для такой компании не считается"
     elif applied is None and rule.mode not in ("all", "most"):
         status, reason = NOT_APPLICABLE, rule.note
+    elif metric is not None and metric.failed:
+        # Провал виден по самим данным, даже если процент вышел плюсовым или
+        # не вышел вовсе: в конце окна убыток. «Нет данных» здесь было бы
+        # неправдой — данные есть, и они говорят «нет». Запасная величина
+        # вытянуть может: убыточная прибыль при растущих деньгах — частый
+        # случай переписанной строки отчёта.
+        status, reason = FAIL, metric.failed
+        rescue = _alternate(rule, axis, applied)
+        if rescue is not None:
+            status, reason = PASS, rescue
     elif metric is not None and metric.suspect:
         # Число получилось, но верить ему нельзя. Пропустить такую компанию по
         # критерию хуже, чем признать, что мы не знаем: у Белуги испорченная

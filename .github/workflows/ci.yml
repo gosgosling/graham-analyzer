@@ -1,0 +1,87 @@
+# Проверки на каждый push и pull request: тесты бэкенда и фронта, типы,
+# линтер, сборка фронта и боевых образов. Секреты не нужны — тесты расчётов
+# идут без базы.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: Бэкенд — pytest
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+      - name: Зависимости
+        run: pip install -r requirements.txt
+      - name: Тесты
+        run: python -m pytest -q -p no:warnings
+
+  frontend:
+    name: Фронт — типы, линтер, тесты, сборка
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Зависимости
+        run: npm ci --no-audit --no-fund
+      - name: Типы
+        run: npx tsc --noEmit -p .
+      # Старых предупреждений 18 (админка, список компаний). Новых не
+      # добавлять: число здесь только уменьшается.
+      - name: Линтер
+        run: npx eslint --ext .ts,.tsx src --max-warnings 18
+      - name: Тесты
+        run: npx react-scripts test --watchAll=false
+        env:
+          CI: "true"
+      # CI=false: иначе react-scripts считает предупреждения линтера
+      # ошибками сборки, а за ними уже следит шаг выше.
+      - name: Сборка
+        run: npm run build
+        env:
+          CI: "false"
+          REACT_APP_API_URL: /api
+
+  images:
+    name: Боевые образы собираются
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    needs: [backend, frontend]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Бэкенд
+        run: docker build -f backend/Dockerfile -t graham-backend:ci .
+      - name: Сайт
+        run: docker build -f deploy/web.Dockerfile -t graham-web:ci .
+      - name: Бэкенд стартует
+        # Приложение импортируется и отвечает без базы: проверка, что в
+        # образе есть всё нужное (зависимости, tools/, сертификаты).
+        run: docker run --rm graham-backend:ci python -c "import app.main; print('ok')"

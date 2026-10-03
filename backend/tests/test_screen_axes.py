@@ -788,3 +788,80 @@ def test_a_lender_has_no_cash_rows_to_warn_about():
         live=FakeLive(ltm_core_fcf=400.0, equity=1000.0),
     )
     assert axis.metric("cash_growth") is None
+
+
+# ── Рост от убыточной базы и короткое окно ────────────────────────────────
+#
+# Прежде процент от отрицательной базы не считался вовсе, и критерий выходил
+# «нет данных» — даже там, где данные однозначно говорили «нет»: у Эталона
+# поток на акцию ушёл с −18,6 до −204,9 ₽.
+
+def _growth_metric(key, **overrides):
+    axis = screen_axes.growth(points(**overrides), is_lender=False)
+    return axis.metric(key)
+
+
+def _short_years(values: dict) -> dict:
+    """Поток только за последние годы ряда — остальные пустые."""
+    return {year: values.get(year) for year in range(2015, 2025)}
+
+
+def test_a_deepening_loss_is_a_failure_not_a_blank():
+    m = _growth_metric("cash_growth_short", fcf=_short_years(
+        {2019: -20.0, 2020: -18.0, 2021: -30.0, 2022: -60.0, 2023: -150.0, 2024: -205.0}))
+    assert m.value is not None and m.value < 0
+    assert m.failed and "убыток" in m.failed
+    assert m.tone == "bad"
+
+
+def test_a_shrinking_loss_is_still_not_growth():
+    """Озон: −255 → −110 ₽. Процент плюсовой, но в конце окна убыток."""
+    m = _growth_metric("cash_growth_short", fcf=_short_years(
+        {2019: -260.0, 2020: -250.0, 2021: -200.0, 2022: -150.0, 2023: -120.0, 2024: -100.0}))
+    assert m.value > 0
+    assert m.failed is not None
+    assert m.tone == "bad"
+
+
+def test_from_loss_to_profit_is_growth():
+    """Циан: из убытка в прибыль. Знак — по направлению, процент — от модуля."""
+    m = _growth_metric("cash_growth_short", fcf=_short_years(
+        {2019: -20.0, 2020: -10.0, 2021: 5.0, 2022: 15.0, 2023: 40.0, 2024: 50.0}))
+    assert m.value > 0
+    assert m.failed is None
+    assert "Из убытка в прибыль" in (m.note or "")
+
+
+def test_a_tiny_loss_base_does_not_blow_up_the_scale():
+    """Белон: база −0,003 ₽ давала «−74 624%». Важен знак, не величина."""
+    m = _growth_metric("cash_growth_short", fcf=_short_years(
+        {2019: -0.003, 2020: -0.003, 2021: -0.5, 2022: -1.0, 2023: -2.0, 2024: -2.5}))
+    assert m.value == -screen_axes.LOSS_BASE_PERCENT_CAP
+
+
+def test_three_years_are_enough_for_the_five_year_window():
+    """Диасофт: в окне три года вместо четырёх — сравниваются крайние."""
+    m = _growth_metric("cash_growth_short", fcf=_short_years({2022: 100.0, 2023: 90.0, 2024: 120.0}))
+    assert m.value == pytest.approx(20.0)
+    assert "без сглаживания" in (m.note or "")
+
+
+def test_two_years_are_not_a_five_year_growth():
+    """Рост за один год, выданный за пятилетний, хуже честного «нет данных»."""
+    m = _growth_metric("cash_growth_short", fcf=_short_years({2023: 100.0, 2024: 150.0}))
+    assert m.value is None
+    assert m.failed is None
+
+
+def test_the_ten_year_window_keeps_demanding_ten_years():
+    """Короткая история — не повод выдавать пятилетку за десятилетие."""
+    m = _growth_metric("cash_growth", fcf=_short_years({2021: 10.0, 2022: 20.0, 2023: 30.0, 2024: 40.0}))
+    assert m.value is None
+
+
+def test_cash_jumps_are_not_called_corrupted():
+    """Башнефть: поток +4 614% за пять лет — маленькая база, не порча."""
+    m = _growth_metric("cash_growth_short", fcf=_short_years(
+        {2019: 1.0, 2020: 1.0, 2021: 5.0, 2022: 10.0, 2023: 40.0, 2024: 50.0}))
+    assert m.value > 1000
+    assert m.suspect is None
