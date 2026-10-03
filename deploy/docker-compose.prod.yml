@@ -1,0 +1,71 @@
+# Боевой стенд: Postgres, бэкенд, Caddy (сайт + HTTPS).
+#
+#   cd deploy && cp env.prod.example .env.prod   # заполнить
+#   docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+#
+# Наружу открыт только Caddy (80/443). Postgres и бэкенд — во внутренней
+# сети, с хоста к базе — через `docker compose exec db psql`.
+name: graham
+
+services:
+  db:
+    image: postgres:18
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - pg_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    # Небольшой сервер: базе в 70 МБ хватает скромных настроек.
+    command: >
+      postgres
+      -c shared_buffers=128MB
+      -c max_connections=40
+      -c log_min_duration_statement=500
+
+  backend:
+    build:
+      context: ..
+      dockerfile: backend/Dockerfile
+    restart: unless-stopped
+    env_file: .env.prod
+    environment:
+      POSTGRES_HOST: db
+      POSTGRES_PORT: "5432"
+      DATABASE_URL: ""
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      start_period: 40s
+      retries: 3
+
+  web:
+    build:
+      context: ..
+      dockerfile: deploy/web.Dockerfile
+    restart: unless-stopped
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS}
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - backend
+
+volumes:
+  pg_data:
+  caddy_data:
+  caddy_config:

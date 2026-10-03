@@ -221,6 +221,20 @@ export default function SiteHeader() {
   // После входа — обратно туда, где был; со страниц входа — никуда не возвращаем.
   const here = pathname + search;
   const next = AUTH_PATHS.includes(pathname) ? '' : `?next=${encodeURIComponent(here)}`;
+  // Высота липкой шапки — в CSS-переменную на корне документа. По ней таблицы
+  // во всю высоту окна (матрица отчётов) считают, сколько им места: шапка на
+  // узком экране переносится в несколько строк, и число в CSS устарело бы.
+  const headerRef = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    const el = headerRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return undefined;
+    const root = document.documentElement;
+    const publish = () => root.style.setProperty('--site-header-h', `${Math.round(el.getBoundingClientRect().height)}px`);
+    publish();
+    const observer = new ResizeObserver(publish);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
   const link = (key: Exclude<Section, null>, to: string, label: string) => (
     <Link to={to} className={`sh-link${active === key ? ' is-on' : ''}`} aria-current={active === key ? 'page' : undefined}>
       {label}
@@ -228,7 +242,7 @@ export default function SiteHeader() {
   );
 
   return (
-    <header className="sh">
+    <header className="sh" ref={headerRef}>
       <div className="sh-row">
         <Link to="/companies" className="sh-brand" aria-label="Graham Analyzer — на главную">
           <ScalesIcon />

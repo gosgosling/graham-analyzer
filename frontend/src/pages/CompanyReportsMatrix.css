@@ -150,8 +150,17 @@
   cursor: not-allowed;
 }
 
+/* Таблица прокручивается в своём окне высотой с экран. Раньше её
+   горизонтальный ползунок жил под последней строкой, и чтобы перейти к
+   ранним годам, приходилось сначала долистать всю страницу вниз. Теперь он
+   всегда виден у нижнего края окна, а строка с годами и столбец с названиями
+   полей закреплены — при прокрутке в обе стороны понятно, какая это ячейка.
+   Shift + колесо мыши прокручивает по горизонтали. */
 .crm-table-scroll {
-  overflow-x: auto;
+  overflow: auto;
+  max-height: calc(100vh - var(--site-header-h, 96px) - 24px);
+  max-height: calc(100dvh - var(--site-header-h, 96px) - 24px);
+  overscroll-behavior: contain;
   border-radius: var(--radius-md);
   border: 1px solid var(--color-border-default);
   background: var(--color-bg-surface);
@@ -168,7 +177,8 @@
 .crm-th-label {
   position: sticky;
   left: 0;
-  z-index: 3;
+  top: 0;
+  z-index: 4;
   background: var(--color-bg-elevated);
   border-right: 2px solid var(--color-border-strong);
   border-bottom: 1px solid var(--color-border-default);
@@ -186,6 +196,9 @@
 }
 
 .crm-th-col {
+  position: sticky;
+  top: 0;
+  z-index: 3;
   border-bottom: 1px solid var(--color-border-default);
   border-left: 1px solid var(--color-border-secondary);
   padding: 8px 10px;

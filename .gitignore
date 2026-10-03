@@ -1,5 +1,9 @@
 .env
 .env.bak.*
+# Боевые настройки сервера — пароли базы, почты, токены
+.env.prod
+deploy/.env*
+!deploy/env.prod.example
 # e-disclosure Playwright cookies (may contain session secrets)
 tools/edisclosure-scraper/.edisclosure_storage_state.json
 

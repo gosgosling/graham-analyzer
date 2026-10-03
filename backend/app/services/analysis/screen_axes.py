@@ -40,6 +40,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Optional
 
+from app.utils.per_share import decimals_for
 from app.services.analysis.earning_power import (
     graham_growth,
     load_points,
@@ -154,6 +155,10 @@ class Metric:
     # +1 122% за десятилетие она объявляла испорченными данными. Пометка
     # обязана срабатывать на невозможном, а не на выдающемся.
     suspect: Optional[str] = None
+    # Критерий не пройден, какой бы ни вышел процент, — и вот почему. Нужна
+    # там, где число не говорит само за себя: убыток в конце окна сократился,
+    # процент положительный, но роста нет.
+    failed: Optional[str] = None
 
     @property
     def known(self) -> bool:
@@ -166,6 +171,7 @@ class Metric:
             "value": None if self.value is None else round(self.value, 4),
             "unit": self.unit,
             "of": self.of,
+            "failed": self.failed,
             "average": None if self.average is None else round(self.average, 4),
             "series": [[y, round(v, 4)] for y, v in self.series],
             "flagged": list(self.flagged),
@@ -437,24 +443,148 @@ def _years_with(points, attr: str, span: int) -> int:
     return sum(1 for y in known if y > known[-1] - span)
 
 
+# Сколько лет нужно короткому окну, чтобы его вообще считать. Окно — шесть
+# календарных точек, сглаженные концы — по паре, то есть четыре года. Не
+# хватает одного — сравниваем крайние годы без сглаживания: ответ грубее, но
+# честнее, чем «?» при данных на руках. Двух лет мало: это был бы рост за
+# один год, выданный за пятилетний.
+SHORT_WINDOW_MIN_YEARS = 3
+# Годы, искажающие короткое окно: ковидный провал и год санкционного шока.
+ABNORMAL_YEARS = (2020, 2022)
+LOSS_BASE_PERCENT_CAP = 1000.0
+
+
+@dataclass(frozen=True)
+class WindowGrowth:
+    """Прирост между концами окна и то, как его читать.
+
+    Процент считается от модуля базы, а не от неё самой. От отрицательной базы
+    обычная формула переворачивает знак: убыток, выросший с 18,6 до 204,9 ₽ на
+    акцию, давал «+1 001%», и ровно поэтому прежде такие случаи объявлялись
+    «нет данных». С модулем знак всегда совпадает с направлением: хуже —
+    минус, лучше — плюс.
+    """
+
+    percent: Optional[float]
+    gap: Optional[float]           # годы между серединами концов
+    older: float
+    newer: float
+    years: int                     # сколько лет окна заполнено
+    smoothed: bool                 # сглажены ли концы
+
+    @property
+    def from_loss(self) -> bool:
+        return self.older <= 0
+
+    @property
+    def ends_in_loss(self) -> bool:
+        return self.newer <= 0
+
+
+def _window_growth(points, attr: str, span: int = GROWTH_SPAN, smooth: int = 3,
+                   allow_short: bool = False) -> Optional[WindowGrowth]:
+    direction = graham_growth(points, attr, span=span, smooth=smooth)
+    smoothed = True
+    years = _years_with(points, attr, span)
+    if direction is None and allow_short and smooth > 1 and years >= SHORT_WINDOW_MIN_YEARS:
+        direction = graham_growth(points, attr, span=span, smooth=1)
+        smoothed = False
+    if direction is None:
+        return None
+    base = abs(direction.older)
+    percent = None if base == 0 else (direction.newer - direction.older) / base * 100.0
+    if percent is not None and direction.older <= 0:
+        # От убыточной базы процент — отношение к её модулю, и у базы в доли
+        # копейки он уходит в десятки тысяч: Белон −0,004 → −2,46 ₽ давал
+        # «−74 624%». Важен знак, а не величина, поэтому шкала ограничена;
+        # настоящие рубли на акцию стоят в пояснении.
+        percent = max(-LOSS_BASE_PERCENT_CAP, min(LOSS_BASE_PERCENT_CAP, percent))
+    older = sum(direction.older_years) / len(direction.older_years)
+    newer = sum(direction.newer_years) / len(direction.newer_years)
+    return WindowGrowth(percent=percent, gap=newer - older, older=direction.older,
+                        newer=direction.newer, years=years, smoothed=smoothed)
+
+
 def _growth_percent(points, attr: str, span: int = GROWTH_SPAN,
-                    smooth: int = 3) -> Optional[float]:
-    percent, _ = _growth_with_gap(points, attr, span, smooth)
+                    smooth: int = 3, allow_short: bool = False) -> Optional[float]:
+    percent, _ = _growth_with_gap(points, attr, span, smooth, allow_short)
     return percent
 
 
-def _growth_with_gap(points, attr: str, span: int = GROWTH_SPAN, smooth: int = 3):
+def _growth_with_gap(points, attr: str, span: int = GROWTH_SPAN, smooth: int = 3,
+                     allow_short: bool = False):
     """Прирост и расстояние между серединами сглаженных концов, в годах.
 
     Расстояние нужно, чтобы судить о правдоподобии: «+1 122%» само по себе не
     говорит ничего, а «+43% в год семь лет подряд» — говорит.
     """
-    direction = graham_growth(points, attr, span=span, smooth=smooth)
-    if direction is None or direction.change is None:
+    found = _window_growth(points, attr, span, smooth, allow_short)
+    if found is None:
         return None, None
-    older = sum(direction.older_years) / len(direction.older_years)
-    newer = sum(direction.newer_years) / len(direction.newer_years)
-    return direction.change * 100.0, newer - older
+    return found.percent, found.gap
+
+
+def _per_share_text(value: float) -> str:
+    """Рубли на акцию с числом знаков по масштабу: −0,004, а не −0,00."""
+    digits = decimals_for(value)
+    text = f"{value:,.{digits}f}".replace(",", "\u00a0").replace(".", ",")
+    if digits > 2:
+        text = text.rstrip("0").rstrip(",")
+    return text
+
+
+def _loss_verdict(found: Optional[WindowGrowth]) -> Optional[str]:
+    """Почему рост не засчитывается, даже если процент положительный.
+
+    Убыток в конце окна — не рост, сколько бы он ни сократился: у Озона поток
+    на акцию с −255 до −110 ₽ — это «+57%» по модулю базы, но компания всё ещё
+    тратит больше, чем зарабатывает. Если бы такое проходило критерий, «Рост»
+    засчитывался бы компаниям, которые растут разве что в убытке.
+    """
+    if found is None or not found.ends_in_loss:
+        return None
+    what = "убыток" if found.newer < 0 else "ноль"
+    return (f"В конце окна {what}: {_per_share_text(found.older)} → "
+            f"{_per_share_text(found.newer)} ₽ на акцию — рост не засчитывается")
+
+
+def _growth_notes(found: Optional[WindowGrowth], span: int) -> Optional[str]:
+    """Как читать процент, когда он посчитан не по обычной формуле."""
+    if found is None:
+        return None
+    parts = []
+    if not found.smoothed:
+        parts.append(f"В окне {found.years} лет из {span} — сравниваются крайние "
+                     f"годы без сглаживания")
+    if found.from_loss and not found.ends_in_loss:
+        parts.append(f"Из убытка в прибыль: {_per_share_text(found.older)} → "
+                     f"{_per_share_text(found.newer)} ₽ на акцию, процент — от "
+                     f"модуля базы")
+    return _join_notes(*parts)
+
+
+def _growth_tone(found: Optional[WindowGrowth]) -> Optional[str]:
+    if found is None or found.percent is None:
+        return None
+    if found.ends_in_loss:
+        return "bad"
+    return _tone(found.percent)
+
+
+def _growth_suspect(found: Optional[WindowGrowth], cash: bool = False) -> Optional[str]:
+    """Проверка на невозможное — только для прибыли и только от обычной базы.
+
+    От убыточной базы процент — не годовой темп, а отношение к её модулю, и
+    крошечная база (−0,01 ₽) дала бы «+50 000%» без всякой порчи в данных.
+
+    Поток не проверяется вовсе, как и раньше: он законно скачет в разы от года
+    к году — у Башнефти пятилетний прирост потока +4 614%, и это не порча, а
+    маленькая база. Проверка годового темпа на нём объявляла бы испорченным
+    честный ряд.
+    """
+    if found is None or found.from_loss or cash:
+        return None
+    return _implausible(found.percent, found.gap)
 
 
 def _dividend_history(points) -> tuple:
@@ -907,15 +1037,18 @@ def growth(points, is_lender: bool, live=None) -> Axis:
     подменять второе первым значит выдавать более слабое основание за
     исходное.
     """
-    long_run, long_gap = _growth_with_gap(points, "eps")
-    short_run, short_gap = _growth_with_gap(
-        points, "eps", GROWTH_SPAN_SHORT, GROWTH_SMOOTH_SHORT)
+    long = _window_growth(points, "eps")
+    short = _window_growth(points, "eps", GROWTH_SPAN_SHORT, GROWTH_SMOOTH_SHORT,
+                           allow_short=True)
+    long_run = None if long is None else long.percent
+    short_run = None if short is None else short.percent
     metrics = [
         Metric(
             key="earnings_growth", label="Прирост прибыли на акцию за 10 лет", unit="%",
-            value=long_run, series=_series(points, "eps"), tone=_tone(long_run),
-            suspect=_implausible(long_run, long_gap),
+            value=long_run, series=_series(points, "eps"), tone=_growth_tone(long),
+            suspect=_growth_suspect(long), failed=_loss_verdict(long),
             note=_join_notes(
+                _growth_notes(long, GROWTH_SPAN),
                 _dilution_note(points, GROWTH_SPAN, 3),
                 _reversal_note(long_run, short_run, "прибыль на акцию"),
             ),
@@ -923,9 +1056,10 @@ def growth(points, is_lender: bool, live=None) -> Axis:
         Metric(
             key="earnings_growth_short",
             label=f"Прирост прибыли на акцию за {GROWTH_YEARS_BACK_SHORT} лет", unit="%",
-            value=short_run, tone=_tone(short_run),
-            suspect=_implausible(short_run, short_gap),
+            value=short_run, tone=_growth_tone(short),
+            suspect=_growth_suspect(short), failed=_loss_verdict(short),
             note=_join_notes(
+                _growth_notes(short, GROWTH_SPAN_SHORT),
                 _short_growth_caveat(points),
                 _dilution_note(points, GROWTH_SPAN_SHORT, GROWTH_SMOOTH_SHORT),
             ),
@@ -934,14 +1068,16 @@ def growth(points, is_lender: bool, live=None) -> Axis:
     if not is_lender:
         # Пятилетний поток считаем первым: он нужен не только своей строке, но
         # и длинной — чтобы та могла сказать, что внутри окна случился разворот.
-        short_cash = _growth_percent(points, "fcf_per_share", GROWTH_SPAN_SHORT,
-                                     CASH_SMOOTH_SHORT)
-        cash_run = _growth_percent(points, "fcf_per_share")
+        short_found = _window_growth(points, "fcf_per_share", GROWTH_SPAN_SHORT,
+                                     CASH_SMOOTH_SHORT, allow_short=True)
+        long_found = _window_growth(points, "fcf_per_share")
+        short_cash = None if short_found is None else short_found.percent
+        cash_run = None if long_found is None else long_found.percent
         # Окно сглаженных концов срабатывает уже на шести годах, и «за 10 лет»
         # тогда значило бы «за сколько нашлось». Для потока требуем почти всё
         # десятилетие: пропуск двух лет (2022-й) допустим, больше — нет.
         if _years_with(points, "fcf_per_share", GROWTH_SPAN) < GROWTH_SPAN - 2:
-            cash_run = None
+            cash_run, long_found = None, None
         # Разворот, не попавший в годовые точки, касается обеих строк потока
         # одинаково: конец окна у них общий.
         ltm_note = _ltm_cash_note(points, live)
@@ -955,8 +1091,10 @@ def growth(points, is_lender: bool, live=None) -> Axis:
         metrics.append(Metric(
             key="cash_growth", label=f"Прирост FCF за {GROWTH_SPAN} лет", unit="%",
             value=cash_run, series=_series(points, "fcf_per_share") if cash_run is not None else (),
-            tone=_tone(cash_run), suspect=_implausible(cash_run),
-            note=(_join_notes(_reversal_note(cash_run, short_cash, "поток"), ltm_note)
+            tone=_growth_tone(long_found), suspect=_growth_suspect(long_found, cash=True),
+            failed=_loss_verdict(long_found),
+            note=(_join_notes(_growth_notes(long_found, GROWTH_SPAN),
+                              _reversal_note(cash_run, short_cash, "поток"), ltm_note)
                   if cash_run is not None
                   else f"Потока в базе {years} лет из {GROWTH_SPAN} — десятилетний рост не подтверждён"),
         ))
@@ -967,10 +1105,11 @@ def growth(points, is_lender: bool, live=None) -> Axis:
         metrics.append(Metric(
             key="cash_growth_short",
             label=f"Прирост FCF за {GROWTH_YEARS_BACK_SHORT} лет", unit="%",
-            value=short_cash, tone=_tone(short_cash),
+            value=short_cash, tone=_growth_tone(short_found),
             series=_series(points, "fcf_per_share") if cash_run is None else (),
-            suspect=_implausible(short_cash),
+            suspect=_growth_suspect(short_found, cash=True), failed=_loss_verdict(short_found),
             note=_join_notes(
+                _growth_notes(short_found, GROWTH_SPAN_SHORT),
                 "То же окно, что и у короткого теста по прибыли" if cash_run is not None
                 else "Десяти лет потока в базе нет — проверяется только этот отрезок",
                 ltm_note),
@@ -994,13 +1133,24 @@ def _short_growth_caveat(points) -> str:
     истории меньше, пятилетний — единственное, что вообще есть, и отмахнуться
     от него значит остаться вовсе без суждения о росте.
     """
-    history = len({y for y, _ in _series(points, "eps")})
+    years = sorted({y for y, _ in _series(points, "eps")})
+    history = len(years)
+    # Какие из ненормальных лет действительно в окне. Прежде фраза про 2020-й
+    # и 2022-й писалась всем подряд — и Аренадате, чьё окно 2023–2025.
+    window = [y for y in years if years and y > years[-1] - GROWTH_SPAN_SHORT]
+    odd = [y for y in ABNORMAL_YEARS if y in window]
+    if not odd:
+        head = None
+    elif len(odd) == 1:
+        head = f"Окно накрывает {odd[0]} год — ненормальный"
+    else:
+        head = f"Окно накрывает {' и '.join(map(str, odd))} годы — оба ненормальные"
     if history >= GROWTH_SPAN:
-        return ("Окно накрывает 2020 и 2022 годы — оба ненормальные. "
-                "Десятилетний тест на этой же компании надёжнее")
-    return ("Окно накрывает 2020 и 2022 годы — оба ненормальные. "
-            f"Но десяти лет истории нет ({history}), и по росту это "
-            "единственная улика")
+        tail = "Десятилетний тест на этой же компании надёжнее"
+    else:
+        tail = (f"{'Но д' if head else 'Д'}есяти лет истории нет ({history}), "
+                f"и по росту это единственная улика")
+    return _join_notes(head, tail)
 
 
 def _bank_fresh(ltm_bank: Optional[dict], name: str, series: tuple):
