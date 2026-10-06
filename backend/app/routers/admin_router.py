@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException
 
 from app.schemas import PostgresBackupResponse
 from app.services.admin.backup_service import create_postgres_backup
+from app.services.analysis import data_audit
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -18,3 +19,15 @@ def backup_postgres():
         raise HTTPException(status_code=500, detail=str(exc)) from exc
     except RuntimeError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@router.get("/audit")
+def audit_failures():
+    """Компании, не прошедшие аудит данных, с дефектами по годам.
+
+    Такая компания не попадает в скринер, а в списке компаний этого не видно:
+    отчёты все помечены проверенными, и выглядит всё в порядке. Пометка в
+    списке нужна, чтобы это было видно сразу, а не после вопроса «почему её
+    нет в экране Грэма».
+    """
+    return data_audit.summary(data_audit.collect(set()))

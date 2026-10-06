@@ -15,6 +15,8 @@ import { Company, FinancialReportCreate, FinancialReport } from '../types';
 import VerificationBadge from '../components/VerificationBadge';
 import ReportDetailModal from '../components/ReportDetailModal';
 import { useAdmin } from '../hooks/useAdmin';
+import { fetchAuditFailures } from '../services/audit.api';
+import { auditTitle } from '../utils/auditText';
 import { formatPerShare } from '../utils/perShare';
 import { formatMln } from '../utils/format';
 import './SecuritiesList.css';
@@ -70,6 +72,20 @@ const CompaniesList: React.FC = () => {
     queryFn: getUnverifiedCountsByCompany,
     staleTime: 30_000,
   });
+
+  // Кто не прошёл аудит данных. Такая компания молча выпадает из скринера,
+  // хотя все её отчёты помечены проверенными, — без пометки здесь этого не
+  // видно. Запрос только у администратора: сервер закрывает /admin.
+  const { data: auditFailures } = useQuery({
+    queryKey: ['admin-audit'],
+    queryFn: fetchAuditFailures,
+    enabled: isAdmin,
+    staleTime: 60_000,
+  });
+  const auditByTicker = useMemo(
+    () => new Map((auditFailures ?? []).map((f) => [f.ticker, f])),
+    [auditFailures],
+  );
 
   const { data: reportCounts } = useQuery({
     queryKey: ['reports-counts-by-company'],
@@ -334,6 +350,14 @@ const CompaniesList: React.FC = () => {
                             title="В базе нет ни одного финансового отчёта"
                           >
                             📭 Нет отчётов
+                          </span>
+                        )}
+                        {auditByTicker.has(company.ticker) && (
+                          <span
+                            className="reports-audit-pill"
+                            title={auditTitle(auditByTicker.get(company.ticker)!)}
+                          >
+                            ⚠ аудит · {auditByTicker.get(company.ticker)!.defects.length}
                           </span>
                         )}
                         {company.id && unverifiedCounts && unverifiedCounts[company.id] > 0 && (

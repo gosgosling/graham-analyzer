@@ -26,6 +26,60 @@
 
 .ms-state--error { color: var(--color-error-text); }
 
+/* ── Поиск и отрасль над полной таблицей ─────────────────────────────── */
+
+.ms-filter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 var(--space-3);
+}
+
+.ms-filter-search,
+.ms-filter-industry {
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-surface);
+  color: var(--color-text-primary);
+  font: inherit;
+  font-size: 0.9rem;
+}
+
+.ms-filter-search { flex: 0 1 260px; min-width: 160px; }
+.ms-filter-industry { flex: 0 1 320px; min-width: 0; max-width: 100%; }
+
+.ms-filter-search:focus,
+.ms-filter-industry:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--color-primary-soft);
+}
+
+.ms-filter-count {
+  font-size: 0.85rem;
+  color: var(--color-text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.ms-filter-reset {
+  border: 0;
+  background: none;
+  padding: 0;
+  color: var(--color-link, var(--color-primary));
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.ms-empty {
+  padding: var(--space-5) !important;
+  text-align: left;
+  color: var(--color-text-tertiary);
+}
+
 /* ── Таблица ──────────────────────────────────────────────────────────── */
 
 .ms-scroll {
@@ -36,24 +90,33 @@
 }
 
 /* Раскладка фиксированная: ширины из colgroup, а не из содержимого.
-   Меньше 1080px колонки стали бы уже числа в них — тогда таблица
-   прокручивается вбок, а колонка компании стоит на месте. */
+   Меньше 1300px колонки стали бы уже числа в них — тогда таблица
+   прокручивается вбок, а колонка компании стоит на месте.
+
+   Минимум обязан помещаться в страницу: она сама не шире 1440px, и за
+   вычетом полей таблице остаётся около 1400. При минимуме 1440 таблица не
+   влезала ни на каком экране, и «Итог» всегда уезжал за край.
+
+   Кегль поднят: при 11–12 px названия компаний, значения и заголовки
+   читались с трудом, а в заголовках слова рвались посреди слога
+   («Отда-ча на капит-ал»). Вместе с кеглем расширены столбцы — иначе
+   крупный шрифт только чаще обрезался бы многоточием. */
 .ms-table {
   border-collapse: separate;
   border-spacing: 0;
   width: 100%;
-  min-width: 1080px;
+  min-width: 1300px;
   table-layout: fixed;
-  font-size: 0.88rem;
+  font-size: 0.95rem;
 }
 
-.ms-col-company { width: 172px; }
-.ms-col-safety  { width: 100px; }
-.ms-col-total   { width: 74px; }
+.ms-col-company { width: 184px; }
+.ms-col-safety  { width: 96px; }
+.ms-col-total   { width: 80px; }
 
 .ms-table th,
 .ms-table td {
-  padding: 8px 6px;
+  padding: 10px 7px;
   border-bottom: 1px solid var(--color-border-subtle);
   text-align: center;
   white-space: nowrap;
@@ -76,7 +139,7 @@
 
 .ms-col {
   display: block;
-  font-size: 0.76rem;
+  font-size: 0.84rem;
   font-weight: 600;
   color: var(--color-text-secondary);
   line-height: 1.25;
@@ -90,7 +153,7 @@
   display: block;
   margin-top: 3px;
   line-height: 1.25;
-  font-size: 0.74rem;
+  font-size: 0.8rem;
   font-weight: 400;
   color: var(--color-text-quaternary);
   font-variant-numeric: tabular-nums;
@@ -127,8 +190,8 @@
 }
 
 .ms-logo {
-  width: 22px;
-  height: 22px;
+  width: 26px;
+  height: 26px;
   border-radius: 50%;
   object-fit: contain;
   background: var(--color-bg-subtle);
@@ -145,13 +208,14 @@
   color: var(--color-text-link);
   text-decoration: none;
   font-weight: 600;
+  font-size: 1rem;
 }
 
 .ms-sticky a:hover { text-decoration: underline; }
 
 .ms-name {
   display: block;
-  font-size: 0.74rem;
+  font-size: 0.84rem;
   font-weight: 400;
   color: var(--color-text-quaternary);
   overflow: hidden;
@@ -185,13 +249,14 @@
 .ms-cell b {
   display: block;
   font-weight: 700;
-  font-size: 0.95rem;
+  font-size: 1.05rem;
 }
 
 .ms-cell i {
   display: block;
+  margin-top: 1px;
   font-style: normal;
-  font-size: 0.7rem;
+  font-size: 0.86rem;
   font-variant-numeric: tabular-nums;
 }
 
@@ -277,7 +342,7 @@
 .ms-cell u {
   display: block;
   text-decoration: none;
-  font-size: 0.66rem;
+  font-size: 0.72rem;
   font-weight: 600;
   letter-spacing: 0.04em;
   color: var(--color-text-tertiary);
@@ -287,8 +352,8 @@
      обрывалась бы внутри и читалась как приписка, а не как шапка. */
   background: var(--color-bg-elevated);
   border-bottom: 1px solid var(--color-border-default);
-  margin: -8px -6px 3px;
-  padding: 3px 6px;
+  margin: -10px -7px 4px;
+  padding: 3px 7px;
 }
 
 /* ── Сигнал о цене ────────────────────────────────────────────────────────
@@ -304,18 +369,27 @@
   border-left: 1px solid var(--color-border-default);
   cursor: help;
   line-height: 1.2;
+  /* Сигнал переносится по словам: «ОФЗ / выгоднее» в две строки вместо
+     одной широкой — ради неё столбец был на четверть шире. */
+  white-space: normal !important;
+}
+
+/* «Запас / прочности» — по словам, без слогового переноса «прочно-сти». */
+.ms-table thead th.ms-safety .ms-col {
+  hyphens: manual;
+  -webkit-hyphens: manual;
 }
 
 .ms-safety b {
   display: block;
   font-weight: 600;
-  font-size: 0.8rem;
+  font-size: 0.9rem;
 }
 
 .ms-safety i {
   display: block;
   font-style: normal;
-  font-size: 0.7rem;
+  font-size: 0.82rem;
   font-variant-numeric: tabular-nums;
   opacity: 0.8;
 }

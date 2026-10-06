@@ -361,3 +361,25 @@ def collect(wanted: set[str]) -> list[CompanyAudit]:
         db.close()
 
 
+
+
+def summary(audits: list[CompanyAudit]) -> list[dict]:
+    """Кто не прошёл аудит и почему — для пометки в списке компаний.
+
+    Только компании с дефектами: именно дефект выкидывает компанию из
+    скринера, а мягкие пометки («похоже на НКО», отрицательный капитал) ничего
+    не решают и в списке были бы шумом. Их число отдаётся отдельно — чтобы
+    было видно, что кроме дефекта там есть на что посмотреть.
+    """
+    out = []
+    for audit in audits:
+        if audit.clean:
+            continue
+        defects = sorted((f for f in audit.findings if f.level == DEFECT),
+                         key=lambda f: f.year)
+        out.append({
+            "ticker": audit.ticker,
+            "defects": [{"year": f.year, "message": f.message} for f in defects],
+            "warnings": sum(1 for f in audit.findings if f.level != DEFECT),
+        })
+    return out

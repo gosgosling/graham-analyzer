@@ -138,3 +138,26 @@ def test_a_zero_stake_is_not_the_same_as_an_empty_field():
     findings = balance(total_assets=100.0, total_liabilities=60.0, equity=35.0,
                        non_controlling_interest=0.0)
     assert [f.level for f in findings] == [DEFECT]
+
+
+# ── Сводка для списка компаний ─────────────────────────────────────────────
+
+from app.services.analysis.data_audit import CompanyAudit, Finding, summary  # noqa: E402
+
+
+def test_summary_lists_only_companies_with_defects():
+    """ДЭК: один дефект 2011 года и девять мягких пометок. Чистая компания
+    в сводку не попадает вовсе."""
+    dek = CompanyAudit(ticker="DVEC", company_type="general", findings=[
+        Finding(SUSPECT, 2012, "equity отрицательный"),
+        Finding(DEFECT, 2011, "баланс не сходится на 13.6%"),
+        Finding(GAP, 2012, "баланс не сходится на 4.1%"),
+    ])
+    clean = CompanyAudit(ticker="LKOH", company_type="general", findings=[
+        Finding(GAP, 2020, "похоже на НКО"),
+    ])
+    assert summary([dek, clean]) == [{
+        "ticker": "DVEC",
+        "defects": [{"year": 2011, "message": "баланс не сходится на 13.6%"}],
+        "warnings": 2,
+    }]
