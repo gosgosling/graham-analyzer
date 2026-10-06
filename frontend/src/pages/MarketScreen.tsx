@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
@@ -11,6 +11,7 @@ import {
 } from '../services/screen.api';
 import CompanyLogo from '../components/CompanyLogo';
 import { groupRows, sieve, type SieveStep } from '../utils/screenSieve';
+import { filterRows, industries } from '../utils/screenTableFilter';
 import CompareView from '../components/CompareView';
 import './MarketScreen.css';
 
@@ -87,7 +88,7 @@ const SHORT_HEAD: Record<string, string> = {
   profitable_years_short: 'Без убытка, 5 лет',
   earnings_growth: 'Рост EPS за 10 лет',
   earnings_growth_short: 'Рост EPS за 5 лет',
-  streak: 'Дивиденды подряд',
+  streak: 'Дивид. подряд',
   pe_average: 'P/E за 3 года',
   pb_tangible: 'P/B мат. капитала',
   pe_pb: 'P/E × P/B',
@@ -217,7 +218,7 @@ function Ident({ row }: { row: MarketScreenOut['rows'][number] }) {
       <CompanyLogo url={row.logo_url} alt="" className="ms-logo" />
       <span className="ms-ident-text">
         <Link to={`/company/${row.id}`}>{row.ticker}</Link>
-        <span className="ms-name">{row.name}</span>
+        <span className="ms-name" title={row.name}>{row.name}</span>
       </span>
     </span>
   );
@@ -371,8 +372,54 @@ function SieveView({ data, standard }: { data: MarketScreenOut; standard: string
 }
 
 function FullTable({ data }: { data: MarketScreenOut }) {
+  // Поиск и отрасль живут в адресе: отфильтрованную таблицу можно отправить
+  // ссылкой, и она переживает переключение «защитный / активный».
+  const [params, setParams] = useSearchParams();
+  const query = params.get('q') ?? '';
+  const industry = params.get('industry') ?? '';
+  const update = (key: 'q' | 'industry', value: string) => {
+    const next = new URLSearchParams(params);
+    if (value) next.set(key, value); else next.delete(key);
+    setParams(next, { replace: true });
+  };
+  const options = useMemo(() => industries(data.rows), [data.rows]);
+  const rows = useMemo(() => filterRows(data.rows, query, industry), [data.rows, query, industry]);
+  const narrowed = rows.length !== data.rows.length;
+
   return (
     <>
+      <div className="ms-filter" role="search">
+        <input
+          type="search"
+          className="ms-filter-search"
+          placeholder="Тикер или название"
+          aria-label="Найти компанию в таблице"
+          value={query}
+          onChange={(e) => update('q', e.target.value)}
+        />
+        <select
+          className="ms-filter-industry"
+          aria-label="Отрасль"
+          value={industry}
+          onChange={(e) => update('industry', e.target.value)}
+        >
+          <option value="">Все отрасли · {data.rows.length}</option>
+          {options.map((o) => (
+            <option key={o.key} value={o.key}>{o.label} · {o.count}</option>
+          ))}
+        </select>
+        {narrowed && (
+          <>
+            <span className="ms-filter-count">{rows.length} из {data.rows.length}</span>
+            <button type="button" className="ms-filter-reset" onClick={() => setParams(
+              (() => { const n = new URLSearchParams(params); n.delete('q'); n.delete('industry'); return n; })(),
+              { replace: true },
+            )}>
+              Сбросить
+            </button>
+          </>
+        )}
+      </div>
       <div className="ms-scroll">
         <table className="ms-table">
           {/* Ширины задаёт colgroup, а не содержимое: иначе колонку
@@ -409,7 +456,14 @@ function FullTable({ data }: { data: MarketScreenOut }) {
             </tr>
           </thead>
           <tbody>
-            {data.rows.map((row) => (
+            {rows.length === 0 && (
+              <tr>
+                <td className="ms-empty" colSpan={data.columns.length + 3}>
+                  Под запрос не подошла ни одна компания
+                </td>
+              </tr>
+            )}
+            {rows.map((row) => (
               <tr key={row.ticker} className={row.clears ? 'is-clear' : undefined}>
                 <th className="ms-sticky" title={row.profile_label}>
                   {/* Логотип перед тикером: в таблице на три десятка
@@ -424,7 +478,7 @@ function FullTable({ data }: { data: MarketScreenOut }) {
                     />
                     <span className="ms-ident-text">
                       <Link to={`/company/${row.id}`}>{row.ticker}</Link>
-                      <span className="ms-name">{row.name}</span>
+                      <span className="ms-name" title={row.name}>{row.name}</span>
                     </span>
                   </span>
                 </th>
