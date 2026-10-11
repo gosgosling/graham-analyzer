@@ -214,6 +214,11 @@ class ReportFigures(BaseModel):
     lease_interest: Optional[float] = None       # Проценты по аренде, млн
     interest_paid: Optional[float] = None        # Проценты уплаченные (financing), млн
     debt_principal: Optional[float] = None       # Тело долга (долг. ЦБ), млн — не в FCF
+    # Проценты полученные (ОДДС, любой раздел), млн, и стоят ли они в
+    # операционной деятельности. Нужны, чтобы считать кассу отдельно от бизнеса.
+    interest_received: Optional[float] = None
+    interest_received_in_ocf: Optional[bool] = None
+    cash_investments: Optional[float] = None
     # Амортизация и износ (D&A), млн — для сопоставления с CAPEX; не в формулах мультипликаторов.
     depreciation_amortization: Optional[float] = None
 

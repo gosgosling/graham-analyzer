@@ -1782,6 +1782,17 @@
 .hist-table:not(.hist-table--cols) .mult-cell { font-size: 0.9rem; }
 .hist-table:not(.hist-table--cols) .hist-group-th span { font-size: 0.8rem; }
 
+/* Текстовые метки («убыток», «Н/Д», «Искажено») — один кегль в обеих
+   раскладках. В строках правило выше раздувало их до кегля чисел и с рамкой,
+   в колонках они были 0.68rem и терялись. Середина: заметно, но тише чисел. */
+.hist-table .mult-cell.mult-cell-text-label,
+.hist-table--cols .mult-cell.mult-cell-text-label {
+  font-size: 0.78rem;
+  font-weight: 500;
+  border-color: transparent;
+  padding: 1px 6px;
+}
+
 /* Закреплённая подпись строки — непрозрачной: в тёмной теме подсветка
    полупрозрачная, и при прокрутке цифры просвечивали сквозь название. */
 .hist-table--cols tbody tr:hover th.col-label {

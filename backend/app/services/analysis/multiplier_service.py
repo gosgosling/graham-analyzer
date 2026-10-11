@@ -81,6 +81,7 @@ _LTM_FLOW_ATTRS: Tuple[str, ...] = (
     "lease_interest",
     "interest_paid",
     "debt_principal",
+    "interest_received",
 )
 # operating_expenses здесь ради Cost-to-Income: он должен считаться по той же
 # паре периодов, что и выручка, иначе полугодовой отчёт делает банк вдвое
@@ -476,6 +477,7 @@ def _flow_to_ltm_payload(flow: Dict[str, Optional[float]]) -> Dict[str, Optional
         "ltm_lease_interest": flow.get("lease_interest"),
         "ltm_interest_paid": flow.get("interest_paid"),
         "ltm_debt_principal": flow.get("debt_principal"),
+        "ltm_interest_received": flow.get("interest_received"),
         "ltm_net_interest_income": flow.get("net_interest_income"),
         "ltm_fee_commission_income": flow.get("fee_commission_income"),
         "ltm_operating_expenses": flow.get("operating_expenses"),
@@ -721,6 +723,10 @@ def calculate_current_multipliers(
         ltm_debt_principal=_ltm_back_to_report_currency(
             ltm.get("ltm_debt_principal"), balance_report
         ),
+        ltm_interest_received=_ltm_back_to_report_currency(
+            ltm.get("ltm_interest_received"), balance_report
+        ),
+        company_type=getattr(company, "company_type", None),
         ltm_operating_expenses=_ltm_back_to_report_currency(
             ltm.get("ltm_operating_expenses"), balance_report
         ),
@@ -1280,6 +1286,7 @@ def save_report_based_multiplier(
         override_shares=shares,
         banking_flow=banking_flow,
         key_rate=_key_rate_for_year(db, report.fiscal_year),
+        company_type=getattr(company, "company_type", None) if company else None,
     )
 
     # 1) Основная запись: ищем ранее созданную для ЭТОГО report_id.

@@ -211,16 +211,22 @@ function buildChecks(data: CompanyValuationOut): Check[] {
   const safety = data.safety;
 
   if (safety?.earnings_yield != null && safety.risk_free_rate != null && safety.yield_spread != null) {
+    // С отделённой кассой отдача — бизнеса к цене бизнеса: процент с депозитов
+    // и сама касса из сравнения с облигацией вынесены вместе.
+    const subject = data.business_price ? 'Прибыль бизнеса к его цене' : 'Прибыль к цене';
+    const basis = data.business_price
+      ? ` Цена бизнеса — ${rub(data.business_price)}: цена минус касса ${rub(data.net_cash_per_share)}.`
+      : '';
     checks.push(safety.yield_spread >= 0
       ? {
         tone: 'pass',
-        title: `Прибыль к цене ${pct(safety.earnings_yield)} — выше ОФЗ на ${ru(safety.yield_spread, 1)} п.п.`,
-        detail: 'Акция должна давать больше облигации, гл. 14.',
+        title: `${subject} ${pct(safety.earnings_yield)} — выше ОФЗ на ${ru(safety.yield_spread, 1)} п.п.`,
+        detail: 'Акция должна давать больше облигации, гл. 14.' + basis,
       }
       : {
         tone: 'fail',
-        title: `Прибыль к цене ${pct(safety.earnings_yield)} — ниже ОФЗ ${pct(safety.risk_free_rate)}`,
-        detail: 'Облигация даёт больше и без риска.',
+        title: `${subject} ${pct(safety.earnings_yield)} — ниже ОФЗ ${pct(safety.risk_free_rate)}`,
+        detail: 'Облигация даёт больше и без риска.' + basis,
       });
   }
 
@@ -417,8 +423,12 @@ export default function ValuationTab({ companyId }: { companyId: number }) {
   const normal = headline?.normal_earnings ?? band.ladders.find((l) => l.name === ladderName)?.normal_per_share ?? null;
   const reference = headline?.reference ?? detail.safety?.reference ?? null;
   const fair = headline?.value ?? null;
-  const multiple = reference !== null && normal ? reference / normal : band.multiple_low;
-  const fairMultiple = fair !== null && normal ? fair / normal : band.multiple_high;
+  // Касса, отделённая от бизнеса, сидит в опорной и справедливой рубль за
+  // рубль. Множитель — только бизнеса: без вычета кассы деление дало бы у
+  // ЛУКОЙЛа 4,57 вместо 3,99 и «потолок», которого не было.
+  const cash = band.net_cash ?? 0;
+  const multiple = reference !== null && normal ? (reference - cash) / normal : band.multiple_low;
+  const fairMultiple = fair !== null && normal ? (fair - cash) / normal : band.multiple_high;
   const price = detail.price ?? null;
   const margin = headline?.margin ?? detail.safety?.value_margin ?? null;
   const trendOf = (name: string) => detail.trends?.[name] ?? null;
@@ -450,7 +460,7 @@ export default function ValuationTab({ companyId }: { companyId: number }) {
   const checks = buildChecks(detail);
   const rates = summary?.rates ?? [];
   const nowRate = summary?.assumption?.risk_free_rate ?? riskFree;
-  const rateMultiples = rates.map((r) => (r.reference !== null && r.normal_earnings ? r.reference / r.normal_earnings : null));
+  const rateMultiples = rates.map((r) => (r.reference !== null && r.normal_earnings ? (r.reference - cash) / r.normal_earnings : null));
   const rateCapped = rateMultiples.length > 1
     && rateMultiples[rateMultiples.length - 1] !== null
     && rateMultiples[rateMultiples.length - 1] === rateMultiples[rateMultiples.length - 2];
@@ -473,8 +483,8 @@ export default function ValuationTab({ companyId }: { companyId: number }) {
   const sandboxed = sandbox !== null ? sandboxMultiple(vals, isEpv) : null;
   const shownRequired = sandbox ? vals.riskFree + vals.premium + vals.penalty : required;
   const shownMultiple = sandboxed ? sandboxed.reference : multiple;
-  const shownReference = sandboxed && sandboxed.reference !== null ? vals.normal * sandboxed.reference : reference;
-  const shownFair = sandboxed && sandboxed.fair !== null ? vals.normal * sandboxed.fair : fair;
+  const shownReference = sandboxed && sandboxed.reference !== null ? vals.normal * sandboxed.reference + cash : reference;
+  const shownFair = sandboxed && sandboxed.fair !== null ? vals.normal * sandboxed.fair + cash : fair;
   const shownMargin = sandbox
     ? (shownReference !== null && shownReference > 0 && price !== null ? (shownReference - price) / shownReference : null)
     : margin;
@@ -508,7 +518,7 @@ export default function ValuationTab({ companyId }: { companyId: number }) {
     title: 'Прибыль',
     lines: [{
       name: NORMAL_TITLE[ladderName] ?? 'Нормальная прибыль на акцию',
-      note: basisText,
+      note: cash ? `${basisText}, без процентов на кассу` : basisText,
       value: rub(vals.normal),
       edit: { key: 'normal', min: 0, max: normalMax, step: niceStep(normalMax / 200), fmt: (v) => rub(v) },
     }],
@@ -591,13 +601,22 @@ export default function ValuationTab({ companyId }: { companyId: number }) {
   }
   groups.push({ title: 'Множитель', lines: mult });
   const multipleLine = 1 + mult.length;
-  const referenceLine = multipleLine + 1;
+  const cashLines: Line[] = cash ? [{
+    name: 'Чистая касса на акцию',
+    note: 'деньги минус долг — по номиналу, без множителя',
+    value: rub(cash),
+    op: '+',
+  }] : [];
+  const referenceLine = multipleLine + cashLines.length + 1;
   groups.push({
     title: sandbox ? 'Итог в песочнице' : 'Итог',
     lines: [
+      ...cashLines,
       {
         name: 'Опорная стоимость',
-        note: sandbox && reference !== null ? `исходная — ${rub(reference)}` : `стр. 1 × стр. ${multipleLine}`,
+        note: sandbox && reference !== null
+          ? `исходная — ${rub(reference)}`
+          : `стр. 1 × стр. ${multipleLine}` + (cash ? ` + стр. ${multipleLine + 1}` : ''),
         value: rub(shownReference),
         op: '=',
         kind: 'total',
@@ -721,6 +740,7 @@ export default function ValuationTab({ companyId }: { companyId: number }) {
               {measureTrend?.capped && ' Тренд не выше лучшего года.'}
               {series?.years?.some((y) => y.ltm_label) && ` Последний столбик — ${series.years[series.years.length - 1].ltm_label}.`}
               {measure.ladder === 'прибыль' && ' Прибыль с разовыми статьями.'}
+              {cash ? ' В годах с чистой кассой из ряда вычтены проценты на депозиты: их доход заменён самой кассой в итоге.' : null}
             </p>
             {series?.years?.length ? (
               <EarningsChart
@@ -765,7 +785,7 @@ export default function ValuationTab({ companyId }: { companyId: number }) {
               </tbody>
             </table>
             <p className="vt-note">
-              Прибыль та же, меняется множитель. Зелёным — запас от трети, как требует Грэм.
+              Прибыль та же, меняется множитель{cash ? ', касса прибавлена к опорной' : ''}. Зелёным — запас от трети, как требует Грэм.
               {rateCapped && ' Ниже множитель упирается в потолок — дальше стоимость не растёт.'}
             </p>
           </div>
@@ -785,6 +805,7 @@ export default function ValuationTab({ companyId }: { companyId: number }) {
                     <td>{m?.label ?? l.name}</td>
                     <td title={`средняя за ${years(window)} — ${rub(detail.averages?.[l.name] ?? null)}`}>
                       {rub(l.normal_per_share)} × {ru(l.multiple, 2)}
+                      {band.net_cash ? <> + {rub(band.net_cash)}</> : null}
                     </td>
                     <td title={l.asset_note ?? undefined}>{rub(l.adjusted ?? l.value)}</td>
                   </tr>
@@ -795,6 +816,10 @@ export default function ValuationTab({ companyId }: { companyId: number }) {
           <p className="vt-note">
             {band.low !== null && band.high !== null && <>Полоса оценки {rub(band.low)} – {rub(band.high)}. </>}
             В опорную идёт {ladderMeasure.label.toLowerCase()}.
+            {band.net_cash ? (
+              <> Касса отдельно от бизнеса: заработок в лестницах — без процентов на депозиты,
+                а чистая касса {rub(band.net_cash)} на акцию прибавлена рубль за рубль.</>
+            ) : null}
             {band.asset_lift !== null && band.asset_lift !== 1 && ' К оценке по потоку добавлена треть избыточных активов (гл. 34).'}
           </p>
         </div>

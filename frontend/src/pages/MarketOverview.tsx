@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   Bar, BarChart, CartesianGrid, Cell, Line, LineChart, ReferenceLine,
@@ -6,6 +6,9 @@ import {
 } from 'recharts';
 import { fetchMarketOverview, type MarketOverview as Overview, type MarketYear, type SeriesPoint } from '../services/market.api';
 import { useChartColors } from '../contexts/ThemeContext';
+import { SpanBand, humanDate } from '../components/PriceSpanLayer';
+import { createSpanStore, type SpanStore } from '../components/priceSpanStore';
+import '../components/PriceChart.css';
 import './MarketOverview.css';
 
 /**
@@ -94,9 +97,51 @@ function Ranges({ value, onChange }: { value: string; onChange: (key: string) =>
 
 // ─── Индекс Мосбиржи и он же с дивидендами ─────────────────────────────────
 
+type IndexScale = 'points' | 'rel';
+const INDEX_SCALE_KEY = 'ga.market.indexScale';
+
+type IndexPoint = { date: string; imoex: number; mcftr: number | null; imoexRel: number; mcftrRel: number | null };
+
+const pctChange = (from: number, to: number) => (to / from - 1) * 100;
+
+/** Свод по протянутому отрезку: оба индекса, пункты и проценты. */
+function IndexSpanSummary({ store, points }: { store: SpanStore; points: IndexPoint[] }) {
+  const live = useSyncExternalStore(store.subscribe, store.get, store.get);
+  if (!live || live.fromDate === live.toDate) return null;
+  const [a, b] = live.fromDate < live.toDate ? [live.fromDate, live.toDate] : [live.toDate, live.fromDate];
+  const from = points.find((p) => p.date >= a);
+  const to = [...points].reverse().find((p) => p.date <= b);
+  if (!from || !to || from.date >= to.date) return null;
+  const line = (name: string, x: number | null, y: number | null) => {
+    if (x === null || y === null) return null;
+    const ch = pctChange(x, y);
+    return (
+      <span>
+        {name} <b>{ru(x)}</b> → <b>{ru(y)}</b>{' '}
+        <b className={ch >= 0 ? 'mo-up' : 'mo-down'}>{signed(y - x, 0)} п. · {signed(ch, 2)}%</b>
+      </span>
+    );
+  };
+  return (
+    <div className="mo-span">
+      <span className="mo-span-dates">{humanDate(from.date)} → {humanDate(to.date)}</span>
+      {line('IMOEX', from.imoex, to.imoex)}
+      {line('MCFTR', from.mcftr, to.mcftr)}
+    </div>
+  );
+}
+
 function IndexChart({ data, range }: { data: Overview; range: string }) {
   const colors = useChartColors();
   const years = RANGES.find((r) => r.key === range)?.years ?? null;
+  const [scale, setScaleState] = useState<IndexScale>(() => {
+    try { return (window.localStorage.getItem(INDEX_SCALE_KEY) as IndexScale) || 'points'; } catch { return 'points'; }
+  });
+  const setScale = (next: IndexScale) => {
+    setScaleState(next);
+    try { window.localStorage.setItem(INDEX_SCALE_KEY, next); } catch { /* приватный режим */ }
+  };
+
   const view = useMemo(() => {
     const imoex = data.series.IMOEX;
     if (!imoex.length) return null;
@@ -107,46 +152,126 @@ function IndexChart({ data, range }: { data: Overview; range: string }) {
       .map(([d, v]) => ({ date: d, imoex: v, mcftr: mcftr(d) }));
     const base = rows[0];
     if (!base || base.mcftr === null) return null;
-    // Обе линии от сотни в начале периода: так видно, сколько стало бы
-    // из 100 ₽ — с дивидендами и без. Разница линий и есть дивиденды.
-    const points = thin(rows.map((r) => ({
+    // Относительный вид — обе линии от сотни в начале периода: так видно,
+    // сколько стало бы из 100 ₽ с дивидендами и без. Абсолютный — пункты
+    // индексов, у каждого своя ось: MCFTR втрое «выше» IMOEX по шкале.
+    const points: IndexPoint[] = thin(rows.map((r) => ({
       date: r.date,
-      imoex: (r.imoex / base.imoex) * 100,
-      mcftr: r.mcftr !== null ? (r.mcftr / (base.mcftr as number)) * 100 : null,
+      imoex: r.imoex,
+      mcftr: r.mcftr,
+      imoexRel: (r.imoex / base.imoex) * 100,
+      mcftrRel: r.mcftr !== null ? (r.mcftr / (base.mcftr as number)) * 100 : null,
     })));
     const last = points[points.length - 1];
-    return { points, from: base.date, last };
+    return { points, from: base.date, last, base };
   }, [data, years]);
+
+  // Протяжка — как на графике цены компании: состояние вне React, чтобы
+  // движение мыши не перерисовывало сам график.
+  const spanStore = useRef(createSpanStore()).current;
+  const drag = useRef<{ pressed: boolean; fromX: number; fromDate: string } | null>(null);
+  const canvas = useRef<HTMLDivElement | null>(null);
+  const [band, setBand] = useState({ top: 8, bottom: 24 });
+  const measure = useCallback(() => {
+    const box = canvas.current;
+    const grid = box?.querySelector('.recharts-cartesian-grid');
+    if (!box || !grid) return;
+    const outer = box.getBoundingClientRect();
+    const inner = (grid as SVGGElement).getBoundingClientRect();
+    const next = { top: Math.max(0, Math.round(inner.top - outer.top)), bottom: Math.max(0, Math.round(outer.bottom - inner.bottom)) };
+    setBand((prev) => (prev.top === next.top && prev.bottom === next.bottom ? prev : next));
+  }, []);
+  useEffect(() => {
+    spanStore.set(null);
+    const frame = requestAnimationFrame(measure);
+    return () => cancelAnimationFrame(frame);
+  }, [measure, view, scale, spanStore]);
 
   if (!view) return <div className="mo-state">Истории индексов нет.</div>;
   const long = years === null || years >= 5;
+  const rel = scale === 'rel';
+  const xOf = (e: unknown) => {
+    const x = (e as { clientX?: number } | null)?.clientX;
+    const left = canvas.current?.getBoundingClientRect().left ?? 0;
+    return typeof x === 'number' ? x - left : null;
+  };
+  const dateOf = (state: unknown) => {
+    const at = (state as { activeLabel?: string | number } | null)?.activeLabel;
+    return at === undefined || at === null ? null : String(at);
+  };
+  const tooltipLabel: Record<string, string> = {
+    imoex: 'IMOEX', mcftr: 'MCFTR', imoexRel: 'без дивидендов', mcftrRel: 'с дивидендами',
+  };
   return (
     <>
-      <div className="mo-legend">
-        <span><i style={{ background: colors.textPrimary }} />Индекс Мосбиржи — {signed(view.last.imoex - 100)}%</span>
-        <span><i style={{ background: colors.line3 }} />с дивидендами (MCFTR) — {signed((view.last.mcftr ?? 100) - 100)}%</span>
-        <span className="mo-legend-note">100 ₽ с {dotDate(view.from)}</span>
+      <div className="mo-index-head">
+        <div className="mo-legend">
+          <span><i style={{ background: colors.textPrimary }} />IMOEX <b>{ru(view.last.imoex)}</b> — {signed(view.last.imoexRel - 100)}%</span>
+          <span><i style={{ background: colors.line3 }} />MCFTR с дивидендами <b>{view.last.mcftr !== null ? ru(view.last.mcftr) : '—'}</b> — {signed((view.last.mcftrRel ?? 100) - 100)}%</span>
+          <span className="mo-legend-note">за период с {dotDate(view.from)}</span>
+        </div>
+        <span className="seg" role="radiogroup" aria-label="Шкала">
+          {([['points', 'В пунктах'], ['rel', 'От 100 ₽']] as const).map(([key, label]) => (
+            <button key={key} type="button" role="radio" aria-checked={scale === key}
+              className={scale === key ? 'seg-btn is-on' : 'seg-btn'} onClick={() => setScale(key)}>{label}</button>
+          ))}
+        </span>
       </div>
-      <ResponsiveContainer width="100%" height={300}>
-        <LineChart data={view.points} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
-          <CartesianGrid stroke={colors.grid} vertical={false} />
-          <XAxis dataKey="date" tick={{ fill: colors.axis, fontSize: 11 }} stroke={colors.grid}
-            ticks={periodTicks(view.points.map((p) => p.date), years)} interval={0}
-            tickFormatter={(v: string) => axisDate(v, long)} />
-          <YAxis tick={{ fill: colors.axis, fontSize: 11 }} stroke={colors.grid} width={44}
-            domain={['auto', 'auto']} tickFormatter={(v: number) => ru(v)} />
-          <ReferenceLine y={100} stroke={colors.axis} strokeDasharray="3 3" />
-          <Tooltip
-            contentStyle={{ background: colors.tooltipBg, border: `1px solid ${colors.tooltipBorder}`, borderRadius: 6, fontSize: 12 }}
-            labelStyle={{ color: colors.textPrimary, marginBottom: 2 }}
-            itemStyle={{ color: colors.textPrimary }}
-            labelFormatter={(v) => dotDate(String(v))}
-            formatter={(v, name) => [`${ru(Number(v), 1)} ₽`, name === 'imoex' ? 'без дивидендов' : 'с дивидендами']}
-          />
-          <Line dataKey="imoex" stroke={colors.textPrimary} strokeWidth={1.4} dot={false} isAnimationActive={false} />
-          <Line dataKey="mcftr" stroke={colors.line3} strokeWidth={1.4} dot={false} isAnimationActive={false} connectNulls />
-        </LineChart>
-      </ResponsiveContainer>
+      <div className="mo-canvas" ref={canvas}>
+        <SpanBand store={spanStore} top={band.top} bottom={band.bottom} />
+        <ResponsiveContainer width="100%" height={300}>
+          <LineChart
+            data={view.points}
+            margin={{ top: 8, right: rel ? 8 : 4, bottom: 0, left: 0 }}
+            onMouseDown={(state, event) => {
+              spanStore.set(null);
+              measure();
+              const x = xOf(event);
+              drag.current = { pressed: true, fromX: x ?? 0, fromDate: dateOf(state) ?? '' };
+            }}
+            onMouseMove={(state, event) => {
+              const held = drag.current;
+              if (!held?.pressed) return;
+              const at = dateOf(state);
+              const x = xOf(event);
+              if (at === null || x === null) return;
+              if (!held.fromDate) { held.fromDate = at; return; }
+              spanStore.set({ fromX: held.fromX, toX: x, fromDate: held.fromDate, toDate: at });
+            }}
+            onMouseUp={() => { if (drag.current) drag.current.pressed = false; }}
+            onMouseLeave={() => { if (drag.current) drag.current.pressed = false; }}
+            style={{ userSelect: 'none' }}
+          >
+            <CartesianGrid stroke={colors.grid} vertical={false} />
+            <XAxis dataKey="date" tick={{ fill: colors.axis, fontSize: 11 }} stroke={colors.grid}
+              ticks={periodTicks(view.points.map((p) => p.date), years)} interval={0}
+              tickFormatter={(v: string) => axisDate(v, long)} />
+            {rel ? (
+              <YAxis yAxisId="l" tick={{ fill: colors.axis, fontSize: 11 }} stroke={colors.grid} width={44}
+                domain={['auto', 'auto']} tickFormatter={(v: number) => ru(v)} />
+            ) : (
+              <>
+                <YAxis yAxisId="l" tick={{ fill: colors.axis, fontSize: 11 }} stroke={colors.grid} width={52}
+                  domain={['auto', 'auto']} tickFormatter={(v: number) => ru(v)} />
+                <YAxis yAxisId="r" orientation="right" tick={{ fill: colors.line3, fontSize: 11 }} stroke={colors.grid} width={56}
+                  domain={['auto', 'auto']} tickFormatter={(v: number) => ru(v)} />
+              </>
+            )}
+            {rel && <ReferenceLine yAxisId="l" y={100} stroke={colors.axis} strokeDasharray="3 3" />}
+            <Tooltip
+              contentStyle={{ background: colors.tooltipBg, border: `1px solid ${colors.tooltipBorder}`, borderRadius: 6, fontSize: 12 }}
+              labelStyle={{ color: colors.textPrimary, marginBottom: 2 }}
+              itemStyle={{ color: colors.textPrimary }}
+              labelFormatter={(v) => dotDate(String(v))}
+              formatter={(v, name) => [rel ? `${ru(Number(v), 1)} ₽` : `${ru(Number(v), 2)} п.`, tooltipLabel[String(name)] ?? String(name)]}
+            />
+            <Line yAxisId="l" dataKey={rel ? 'imoexRel' : 'imoex'} stroke={colors.textPrimary} strokeWidth={1.4} dot={false} isAnimationActive={false} />
+            <Line yAxisId={rel ? 'l' : 'r'} dataKey={rel ? 'mcftrRel' : 'mcftr'} stroke={colors.line3} strokeWidth={1.4} dot={false} isAnimationActive={false} connectNulls />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+      <IndexSpanSummary store={spanStore} points={view.points} />
+      <p className="mo-hint">Зажмите кнопку мыши и проведите по графику — покажет изменение за отрезок.</p>
     </>
   );
 }

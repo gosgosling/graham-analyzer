@@ -221,6 +221,19 @@ class RiskPenalty:
         }
 
 
+def trusted_coverage(verdict) -> Optional[float]:
+    """Покрытие процентов, если финансовым расходам можно верить; иначе None.
+
+    Покрытие по расходам, которым сама проверка не верит, опасности не
+    доказывает: у Мосэнерго кредитов нет, а в строке сидят дисконтирование и
+    курсовые, и «покрытие 0,42» было бы приговором за чужую величину.
+    См. `valuation_guards.costs_are_credible`.
+    """
+    if verdict is None or getattr(verdict, "costs_credible", None) is False:
+        return None
+    return verdict.coverage
+
+
 def debt_to_equity(
     debt: Optional[float],
     equity: Optional[float],
@@ -701,6 +714,8 @@ class ValueBand:
     refused: bool = False
     reason: Optional[str] = None
     warnings: list = field(default_factory=list)
+    # Чистая касса на акцию, прибавленная к оценке бизнеса. См. `add_net_cash`.
+    net_cash: float = 0.0
 
     @property
     def width(self) -> Optional[float]:
@@ -710,7 +725,12 @@ class ValueBand:
         активы про качество ничего не знает и только сдвигает обе границы.
         """
         low, high = self.low_by_earnings, self.high_by_earnings
-        if not low or not high or low <= 0:
+        if not low or not high:
+            return None
+        # Ширина — про бизнес: касса одинаково сдвигает обе границы и сузила
+        # бы полосу компании, которая ничем не стала ровнее.
+        low, high = low - self.net_cash, high - self.net_cash
+        if low <= 0:
             return None
         return round(high / low, 2)
 
@@ -746,7 +766,38 @@ class ValueBand:
             "refused": self.refused,
             "reason": self.reason,
             "warnings": self.warnings,
+            "net_cash": self.net_cash or None,
         }
+
+
+def add_net_cash(band: "ValueBand", net_cash_per_share: Optional[float]) -> "ValueBand":
+    """Стоимость = стоимость бизнеса + чистая касса, рубль за рубль.
+
+    Вызывается из `value_band` для ряда, загруженного с отделённой кассой
+    (`load_points(separate_cash=True)`): лестницы там оценивают бизнес без
+    процента с депозитов, и касса возвращается в оценку по своей сумме, а не
+    множителем. Отказ в оценке остаётся отказом: стоимость бизнеса неизвестна,
+    и одна касса ответа не даёт.
+    """
+    cash = float(net_cash_per_share or 0.0)
+    if cash <= 0 or band.refused:
+        return band
+    band.net_cash = round(cash, 2)
+
+    def plus(value):
+        return None if value is None else round(float(value) + cash, 2)
+
+    band.low = plus(band.low)
+    band.high = plus(band.high)
+    band.low_by_earnings = plus(band.low_by_earnings)
+    band.high_by_earnings = plus(band.high_by_earnings)
+    band.conservative = plus(band.conservative)
+    for ladder in band.ladders:
+        ladder.value = plus(ladder.value)
+        ladder.adjusted = plus(ladder.adjusted)
+    # Не предупреждение, а способ счёта: страница пишет его под лестницами,
+    # по полю `net_cash`.
+    return band
 
 
 # ── Ловушка стоимости ──────────────────────────────────────────────────────
@@ -895,8 +946,15 @@ def value_band(
     observed_growth: Optional[dict] = None,
     distortion: Optional[dict] = None,
     leverage: Optional[float] = None,
+    net_cash_per_share: Optional[float] = None,
 ) -> ValueBand:
     """Полоса стоимости на акцию.
+
+    `net_cash_per_share` — касса, отделённая от бизнеса (см. `cash_income`):
+    лестницы тогда оценивают бизнес без процента с депозитов, а касса
+    прибавляется к итогу по своей сумме. `book_value_per_share` — полный
+    баланс, с кассой: проверка активов сравнивает его со стоимостью всей
+    компании, а рост выводится из отдачи капитала бизнеса — без кассы.
 
     `normal_earnings` — словарь «название лестницы → нормальная величина на
     акцию», например {'прибыль': 916.0, 'деньги': 1115.0}. Что именно туда
@@ -910,9 +968,22 @@ def value_band(
     потому, что число будет ложным.
     """
     band = ValueBand(basis=basis)
+    cash = float(net_cash_per_share or 0.0)
+    business_book = book_value_per_share
+    if cash and book_value_per_share is not None:
+        business_book = float(book_value_per_share) - cash
     roe, band.growth_roe_source = growth_roe(
-        roe, normal_earnings.get(LADDER_EARNINGS), book_value_per_share,
+        roe, normal_earnings.get(LADDER_EARNINGS), business_book,
     )
+
+    def assets(value):
+        # Проверка активов — по всей компании: стоимость бизнеса плюс касса
+        # против полного баланса. По одному бизнесу её не провести — у
+        # HeadHunter капитал бизнеса отрицателен, и поправка бы молча выпала.
+        if value is None or not cash:
+            return asset_adjustment(value, book_value_per_share)
+        adjusted, note = asset_adjustment(value + cash, book_value_per_share)
+        return (None if adjusted is None else per_share(adjusted - cash)), note
     band.growth_roe = None if roe is None else round(roe, 2)
 
     if structure is not None and not structure.valuation_allowed:
@@ -951,12 +1022,13 @@ def value_band(
     # назван в выдаче явно. Читатель должен видеть не только число, но и то,
     # какой формулой оно получено.
     if base is None or base.value is None:
-        return _epv_band(
+        return add_net_cash(_epv_band(
             band, normal_earnings, risk_free_rate, risk_premium,
             book_value_per_share, basis,
             reason=(base.problem if base else "не хватает данных"),
             payout=payout,
-        )
+            assets=assets,
+        ), cash)
 
     low_base = base_multiple(
         payout, risk_free_rate,
@@ -995,7 +1067,24 @@ def value_band(
     observed_growth = observed_growth or {}
     values, raw_values = [], []
     for name, normal in normal_earnings.items():
-        if normal is None or normal <= 0:
+        if normal is None:
+            continue
+        if normal <= 0:
+            # Без кассы такая лестница молчит: оценивать по способности
+            # зарабатывать нечего. С отделённой кассой молчать нельзя — у
+            # Интер РАО прибыль владельца положительна только благодаря
+            # процентам, и выпавшая лестница унесла бы самую низкую оценку.
+            # Бизнес по этой мерке стоит ноль, остаётся касса.
+            if cash:
+                adjusted, asset_note = assets(0.0)
+                band.ladders.append(Ladder(
+                    name=name, normal_per_share=float(normal), multiple=0.0,
+                    value=0.0, adjusted=adjusted, asset_note=asset_note,
+                    growth_note="бизнес по этой лестнице не зарабатывает — "
+                                "в оценке остаётся одна касса",
+                ))
+                values.append(adjusted if adjusted is not None else 0.0)
+                raw_values.append(0.0)
             continue
 
         growth, source, note = ladder_growth(
@@ -1017,7 +1106,7 @@ def value_band(
             _yield_gap(top, bottom),
         )
         raw = top_m * float(normal)
-        adjusted, asset_note = asset_adjustment(raw, book_value_per_share)
+        adjusted, asset_note = assets(raw)
         if name == LADDER_EARNINGS and bottom_m:
             band.conservative = per_share(bottom_m * float(normal))
         band.ladders.append(Ladder(
@@ -1036,7 +1125,7 @@ def value_band(
 
         if bottom_m:
             low_raw = bottom_m * float(normal)
-            low_adjusted, _ = asset_adjustment(low_raw, book_value_per_share)
+            low_adjusted, _ = assets(low_raw)
             values.append(low_adjusted if low_adjusted is not None else low_raw)
             raw_values.append(low_raw)
 
@@ -1049,7 +1138,7 @@ def value_band(
     band.high = per_share(max(values))
     band.low_by_earnings = per_share(min(raw_values))
     band.high_by_earnings = per_share(max(raw_values))
-    return band
+    return add_net_cash(band, cash)
 
 
 def denominator_note(
@@ -1157,14 +1246,16 @@ def assess(
     from app.services.analysis.earning_power import graham_numbers, with_ltm
     from datetime import date as _date
 
-    points = load_points(db, company.id)
+    # Касса отдельно от бизнеса — см. `cash_income`. Работает только там, где
+    # заведены полученные проценты; у прочих ряд прежний.
+    points = load_points(db, company.id, separate_cash=True)
     if not points:
         return {"available": False, "reason": "нет годовых отчётов"}
     # Последняя годовая точка заменяется последними двенадцатью месяцами, если
     # оба полугодия раскрыты: иначе оценка до следующей весны держится на
     # отчёте, которому уже больше года. У ЛУКОЙЛа это 158 ₽ прибыли на акцию
     # за 2025 год с разовыми списаниями против 738 ₽ за LTM 1П2026.
-    points = with_ltm(db, company.id, points, _date.today())
+    points = with_ltm(db, company.id, points, _date.today(), separate_cash=True)
     # Окно не длиннее истории. У Астры четыре года отчётов, и «нормальная
     # прибыль за десять лет» была бы той же четырёхлетней под чужой подписью —
     # а подпись читатель принимает за обещание.
@@ -1282,11 +1373,19 @@ def assess(
             float(assumption.long_run_growth)
             if getattr(assumption, "long_run_growth", None) is not None else None
         ),
+        net_cash_per_share=power.net_cash_per_share,
     )
+    net_cash = power.net_cash_per_share
 
     price = float(company.current_price) if company.current_price is not None else None
+    # Цена бизнеса: то, что рынок платит за дело сверх кассы. С ней и только
+    # с ней сравнивается заработок бизнеса — иначе касса попала бы в цену, а
+    # доход от неё нет, и бизнес выглядел бы дороже, чем есть.
+    business_price = price
+    if price and net_cash and price - net_cash > 0:
+        business_price = price - net_cash
     latest_point = max(points, key=lambda p: p.year)
-    artifact = molodovsky(price, latest_point.eps, ladders.get("прибыль"))
+    artifact = molodovsky(business_price, latest_point.eps, ladders.get("прибыль"))
     latest_multiple = (
         db.query(Multiplier)
         .filter(Multiplier.company_id == company.id, Multiplier.type == "current")
@@ -1336,6 +1435,7 @@ def assess(
         risk_free_rate=float(assumption.risk_free_rate),
         screen_clears=clears,
         book_value_per_share=power.book_value_per_share,
+        earnings_price=business_price,
         # Признаки ловушки стоимости: дисконт к балансу и утечка удержанного.
         price_to_book=(
             float(latest_multiple.pb_ratio)
@@ -1345,7 +1445,7 @@ def assess(
         ncav=ncav,
         leverage=leverage,
         coverage_verdict=verdict.verdict if verdict else None,
-        structure_coverage=verdict.coverage if verdict else None,
+        structure_coverage=trusted_coverage(verdict),
     )
 
     report_pb = [
@@ -1362,7 +1462,7 @@ def assess(
     signs = trap_signs(safety.as_dict(), payout, report_pb)
 
     priced_in = priced_in_growth(
-        price,
+        business_price,
         ladders.get("прибыль"),
         payout,
         float(assumption.risk_free_rate),
@@ -1381,6 +1481,11 @@ def assess(
         "book_value_per_share": (
             round(power.book_value_per_share, 2)
             if power.book_value_per_share else None
+        ),
+        # Чистая касса на акцию, отделённая от бизнеса; None — не отделялась.
+        "net_cash_per_share": round(net_cash, 2) if net_cash else None,
+        "business_price": (
+            round(business_price, 2) if net_cash and business_price else None
         ),
         "stability": steadiness.as_dict() if steadiness else None,
         "structure": verdict.as_dict(),
@@ -1448,14 +1553,14 @@ def series(db, company, window: int = DEFAULT_WINDOW) -> dict:
     from app.services.analysis.earning_power import analyze, load_points, with_ltm
     from datetime import date as _date
 
-    points = load_points(db, company.id)
+    points = load_points(db, company.id, separate_cash=True)
     if not points:
         return {"available": False, "years": [], "averages": {}}
     # Тот же ряд, что у `assess`: последний год заменён последними двенадцатью
     # месяцами. Без этого график во вкладке оценки рисовал 158 ₽ прибыли
     # ЛУКОЙЛа за 2025 год, а оценка стояла на LTM, и средняя на графике
     # (916 ₽) не сходилась со средней в расчёте (999 ₽).
-    points = with_ltm(db, company.id, points, _date.today())
+    points = with_ltm(db, company.id, points, _date.today(), separate_cash=True)
 
     is_lender = str(getattr(company, "company_type", "")).upper().endswith("LENDER")
     power = analyze(points, with_cash=not is_lender)
@@ -1475,6 +1580,7 @@ def series(db, company, window: int = DEFAULT_WINDOW) -> dict:
             "book_value_per_share": rounded(point.book_value_per_share),
             "dividends_per_share": rounded(point.dividends_per_share),
             "roe": rounded(point.roe),
+            "net_cash_per_share": rounded(point.net_cash_per_share),
             "price": rounded(_price_at(db, company.id, point.year)),
         }
         for point in sorted(points, key=lambda p: p.year)
@@ -1530,6 +1636,7 @@ def _epv_band(
     basis: str,
     reason: str,
     payout: Optional[float],
+    assets=None,
 ) -> ValueBand:
     """Полоса по EPV — когда формула гл. 32 неприменима.
 
@@ -1555,7 +1662,8 @@ def _epv_band(
         )
         top = round(top_m * float(normal), 2)
         bottom = round(bottom_m * float(normal), 2) if bottom_m else bottom
-        adjusted, asset_note = asset_adjustment(top, book_value_per_share)
+        adjusted, asset_note = (assets(top) if assets is not None
+                                else asset_adjustment(top, book_value_per_share))
         if name == LADDER_EARNINGS and bottom is not None:
             band.conservative = bottom
         band.ladders.append(Ladder(

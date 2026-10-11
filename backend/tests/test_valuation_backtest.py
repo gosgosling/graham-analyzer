@@ -197,7 +197,7 @@ def test_отрезки_оценки_без_заглядывания_вперё�
         (2023, 1.0, evaluate), (2024, 1.0, evaluate),
     ])
     # Ряд пуст — значит, ни точки LTM, ни числа Грэма; проверяются ступени.
-    monkeypatch.setattr(vb, "load_points", lambda db, company_id: [])
+    monkeypatch.setattr(vb, "load_points", lambda db, company_id, **_: [])
 
     class Rates:
         def trailing(self, day):
