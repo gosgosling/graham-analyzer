@@ -546,3 +546,21 @@ def test_прибыль_владельца_от_нормализованной_�
     assert owner_profit_base(report, 92_528.0) == pytest.approx(352_969.0)
     plain = SimpleNamespace(net_income=None, currency="RUB", exchange_rate=None)
     assert owner_profit_base(plain, 92_528.0) == pytest.approx(92_528.0)
+
+
+def test_недостоверные_расходы_не_дают_опасности():
+    """Мосэнерго: кредитов нет, «финансовые расходы» — дисконтирование;
+    покрытие 0,42 по ним не должно объявлять бумагу опасной."""
+    from app.services.analysis.company_valuation import trusted_coverage
+    from app.services.analysis.valuation_guards import structure
+
+    doubtful = structure(1043.0, 2488.0, debt=2877.0, key_rate=19.2)
+    assert doubtful.costs_credible is False
+    assert trusted_coverage(doubtful) is None
+    honest = structure(1414.0, 1463.0, debt=13223.0, key_rate=19.2)
+    assert trusted_coverage(honest) == honest.coverage
+    safety = assess_safety(
+        price=1.30, reference=0.94, normal_earnings_per_share=0.05, risk_free_rate=16.7,
+        coverage_verdict=doubtful.verdict, structure_coverage=trusted_coverage(doubtful),
+    )
+    assert safety.signal != "dangerous"

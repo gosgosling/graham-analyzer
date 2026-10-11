@@ -105,6 +105,19 @@ _COMPARABLE_FIELDS: tuple[_FieldSpec, ...] = (
         ("general",), scored=False,
     ),
     _FieldSpec("depreciation_amortization", "Амортизация (D&A)", "money_mln", ("general",)),
+    # Нужны только компаниям с чистой кассой — в оценку качества не входят.
+    _FieldSpec(
+        "interest_received", "Проценты полученные", "money_mln",
+        ("general",), scored=False,
+    ),
+    _FieldSpec(
+        "interest_received_in_ocf", "Проценты полученные в OCF", "bool",
+        ("general",), scored=False,
+    ),
+    _FieldSpec(
+        "cash_investments", "Депозиты и облигации", "money_mln",
+        ("general",), scored=False,
+    ),
 )
 
 
@@ -1212,6 +1225,9 @@ def parse_pdf_to_report(
         lease_interest=extracted.lease_interest,
         interest_paid=extracted.interest_paid,
         debt_principal=extracted.debt_principal,
+        interest_received=extracted.interest_received,
+        interest_received_in_ocf=extracted.interest_received_in_ocf,
+        cash_investments=extracted.cash_investments,
         depreciation_amortization=extracted.depreciation_amortization,
         currency=extracted.currency,
         exchange_rate=auto_exchange_rate,

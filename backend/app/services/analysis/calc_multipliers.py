@@ -2,6 +2,7 @@ from app.models.financial_report import FinancialReport
 from app.services.analysis.share_counts import resolve_shares_for_multipliers
 from app.services.analysis.fcf import compute_core_fcf, compute_fcf
 from app.services.analysis.net_debt import compute_net_debt
+from app.services.analysis import cash_income
 from app.utils.currency_converter import convert_to_rub
 from typing import Dict, Optional
 
@@ -37,6 +38,8 @@ def calculate_multipliers(
     ltm_operating_expenses: Optional[float] = None,
     banking_flow: Optional[float] = None,
     key_rate: Optional[float] = None,
+    ltm_interest_received: Optional[float] = None,
+    company_type: Optional[str] = None,
 ) -> Dict[str, Optional[float]]:
     """
     Рассчитывает финансовые мультипликаторы.
@@ -245,6 +248,9 @@ def calculate_multipliers(
     ltm_ocf_mln: Optional[float] = None
     ltm_capex_mln: Optional[float] = None
     price_to_fcf: Optional[float] = None
+    # Поток и цена бизнеса без кассы — заполнены, только если касса отделена.
+    business_fcf_mln: Optional[float] = None
+    business_price_mln: Optional[float] = None
     fcf_to_net_income: Optional[float] = None
     net_debt_mln: Optional[float] = None
     net_debt_to_fcf: Optional[float] = None
@@ -291,6 +297,7 @@ def calculate_multipliers(
     if not is_bank:
         # ─── FCF-показатели (у банка неприменимы концептуально) ──────────────
         # LTM операционный поток и CAPEX: сначала берём LTM-агрегат, затем fallback на отчёт
+        ltm_ocf_from_ltm = ltm_operating_cash_flow is not None
         ocf_raw = ltm_operating_cash_flow if ltm_operating_cash_flow is not None else getattr(report, 'operating_cash_flow', None)
         cap_raw = ltm_capex if ltm_capex is not None else getattr(report, 'capex', None)
         lease_p_raw = (
@@ -345,9 +352,43 @@ def calculate_multipliers(
 
         fcf_for_ratios = ltm_core_fcf_mln if ltm_core_fcf_mln is not None else ltm_fcf_mln
 
-        # P/FCF = Market Cap / LTM FCF  (только если FCF > 0)
-        if market_cap_full and fcf_for_ratios is not None and fcf_for_ratios > 0:
-            price_to_fcf = round(market_cap_full / (fcf_for_ratios * MILLION), 2)
+        # P/FCF — цена бизнеса к потоку бизнеса, по Грэму (cash_income.py).
+        # У компании с чистой кассой касса считается отдельно: из цены она
+        # вычитается, из потока — доход от неё, если он стоит в операционной
+        # деятельности. Иначе касса учлась бы дважды или наполовину: в
+        # капитализации она есть, а дохода от неё в потоке у одних компаний
+        # нет, у других есть — смотря куда МСФО позволил поставить проценты.
+        # Где проценты не заведены, правило не включается: P/FCF прежний.
+        price_for_fcf = market_cap_full
+        fcf_business = fcf_for_ratios
+        received_mln = (
+            to_rub_mln(ltm_interest_received) if ltm_ocf_from_ltm
+            else to_rub_mln(getattr(report, "interest_received", None))
+        )
+        net_cash_mln = cash_income.net_cash(
+            cash_mln, debt_mln,
+            to_rub_mln(getattr(report, "cash_investments", None)),
+        )
+        if (
+            received_mln is not None
+            and net_cash_mln
+            and market_cap_full
+            and fcf_business is not None
+            and cash_income.own_money(company_type, report_type)
+            and banking_flow is None
+        ):
+            if getattr(report, "interest_received_in_ocf", False):
+                fcf_business = fcf_business - received_mln
+            price_for_fcf = market_cap_full - net_cash_mln * MILLION
+            business_fcf_mln = round(fcf_business, 3)
+            business_price_mln = round(price_for_fcf / MILLION, 3)
+
+        # P/FCF только при положительных цене бизнеса и потоке: касса больше
+        # капитализации — это уже не «дорого или дёшево», а случай для теста
+        # гл. 15, и делить там нечего.
+        if (price_for_fcf and price_for_fcf > 0
+                and fcf_business is not None and fcf_business > 0):
+            price_to_fcf = round(price_for_fcf / (fcf_business * MILLION), 2)
 
         # FCF / Net Income — детектор качества прибыли (только при NI > 0).
         # Безразмерное соотношение: 1.0 = FCF равен прибыли, 1.25 = FCF на 25% выше NI.
@@ -391,6 +432,9 @@ def calculate_multipliers(
         "ltm_operating_cash_flow": ltm_ocf_mln,
         "ltm_capex": ltm_capex_mln,
         "price_to_fcf": price_to_fcf,
+        # Поток и цена бизнеса без кассы (млн ₽) — только если касса отделена.
+        "business_fcf": business_fcf_mln,
+        "business_price": business_price_mln,
         "fcf_to_net_income": fcf_to_net_income,
         "net_debt": net_debt_mln,
         "net_debt_to_fcf": net_debt_to_fcf,

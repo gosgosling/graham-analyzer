@@ -341,12 +341,15 @@ def assess_safety(
     leverage: Optional[float] = None,
     coverage_verdict: Optional[str] = None,
     structure_coverage: Optional[float] = None,
+    earnings_price: Optional[float] = None,
 ) -> Safety:
     """Собирает сигнал из трёх источников.
 
     `reference` — опорная оценка: лестница прибыли при множителе с надбавкой
     за риск, см. модульную строку документации. `normal_earnings_per_share` — нормальная прибыль по
     лестнице прибыли, из неё считается отдача, сопоставимая с купоном.
+    `earnings_price` — цена, к которой эта прибыль относится: у компании с
+    отделённой кассой это цена бизнеса, цена минус чистая касса на акцию.
 
     Порядок проверок — от жёсткого к мягкому, и он не случаен. Сначала
     рубильник свода, потом ставка, потом стоимость. Ставка идёт раньше
@@ -364,7 +367,8 @@ def assess_safety(
 
     # ── Запас по ставке ────────────────────────────────────────────────────
     if normal_earnings_per_share and normal_earnings_per_share > 0:
-        safety.earnings_yield = round(normal_earnings_per_share / price * 100, 2)
+        base = earnings_price if earnings_price and earnings_price > 0 else price
+        safety.earnings_yield = round(normal_earnings_per_share / base * 100, 2)
         if risk_free_rate is not None:
             safety.yield_spread = round(
                 safety.earnings_yield - float(risk_free_rate), 2

@@ -157,6 +157,9 @@ export interface ValueBandOut {
   refused: boolean;
   reason: string | null;
   warnings: string[];
+  /** Чистая касса на акцию, прибавленная к оценке бизнеса рубль за рубль:
+   *  прибыль и поток в лестницах — без процентов на неё. null — не отделялась. */
+  net_cash?: number | null;
   /** Чем меряется уровень: 'trend' или 'average'. */
   basis: string;
   /** Каким методом получена полоса: множитель гл. 32 или EPV. */
@@ -207,6 +210,10 @@ export interface CompanyValuationOut {
   /** Из чего сложился возврат владельцу: выплата и выкуп по отдельности. */
   payout_dividends?: number | null;
   payout_buyback?: number | null;
+  /** Чистая касса на акцию, отделённая от бизнеса, и цена самого бизнеса —
+   *  цена минус касса. null — касса не отделялась. */
+  net_cash_per_share?: number | null;
+  business_price?: number | null;
   /** Пометка о том, что высокая отдача держится на малом капитале. */
   denominator?: {
     roe: number;

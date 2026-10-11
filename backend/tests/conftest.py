@@ -44,6 +44,9 @@ _DEFAULTS: dict[str, Any] = {
     "lease_interest": None,
     "interest_paid": None,
     "debt_principal": None,
+    "interest_received": None,
+    "interest_received_in_ocf": None,
+    "cash_investments": None,
     "depreciation_amortization": 4_000.0,
     # Дивиденды, ₽ на акцию
     "dividends_paid": True,
