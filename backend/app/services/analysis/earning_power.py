@@ -220,6 +220,24 @@ class YearPoint:
     # должен.
     distorted: bool = False
 
+    # ── Касса отдельно от бизнеса, см. `cash_income` ───────────────────────
+    # Заполнены, только если ряд загружен с `separate_cash=True` и у года
+    # заведены полученные проценты. Тогда прибыль, поток и отдача в этой точке —
+    # бизнеса без кассы, а сама касса прибавляется к оценке рубль за рубль.
+    # Чистая касса на акцию: деньги минус долг на конец периода.
+    net_cash_per_share: Optional[float] = None
+    # Процентный доход кассы после налога на акцию — то, что вычтено из EPS.
+    # Нужен там, где считается не оценка, а отчётная арифметика: удержанная
+    # прибыль в тесте Баффета и число Грэма.
+    cash_income_per_share: Optional[float] = None
+
+    @property
+    def reported_eps(self) -> Optional[float]:
+        """Прибыль на акцию как в отчёте — с доходом кассы."""
+        if self.eps is None:
+            return None
+        return float(self.eps) + float(self.cash_income_per_share or 0.0)
+
 
 @dataclass
 class Average:
@@ -373,12 +391,31 @@ def window_average(
     )
 
 
-def latest_book_value(points: Iterable[YearPoint]) -> Optional[float]:
-    """Балансовая стоимость последнего года — база для способа B."""
+def latest_book_value(points: Iterable[YearPoint], business: bool = True) -> Optional[float]:
+    """Балансовая стоимость последнего года — база для способа B.
+
+    `business=True` — капитал бизнеса: без чистой кассы, если ряд её отделил.
+    Отдача в таком ряду посчитана от того же капитала, и их произведение —
+    заработок бизнеса, а не его плюс процент с депозитов. Если касса больше
+    всего капитала, капитала у бизнеса нет, и база не определена.
+    """
     known = [p for p in points if p.book_value_per_share is not None]
     if not known:
         return None
-    return float(max(known, key=lambda p: p.year).book_value_per_share)
+    point = max(known, key=lambda p: p.year)
+    book = float(point.book_value_per_share)
+    if not business or not point.net_cash_per_share:
+        return book
+    book -= float(point.net_cash_per_share)
+    return book if book > 0 else None
+
+
+def latest_net_cash(points: Iterable[YearPoint]) -> float:
+    """Чистая касса на акцию в последней точке ряда; 0, если не отделялась."""
+    points = list(points)
+    if not points:
+        return 0.0
+    return float(max(points, key=lambda p: p.year).net_cash_per_share or 0.0)
 
 
 def estimate(
@@ -730,7 +767,10 @@ def payout_over_window(
         if point is None or point.eps is None:
             continue
         seen = True
-        profit += float(point.eps)
+        # Отчётная прибыль: дивиденды платятся из всей, включая процент с
+        # кассы. Доля от одной прибыли бизнеса вышла бы больше настоящей и
+        # подняла бы множитель — у HeadHunter 142% вместо 128%.
+        profit += point.reported_eps
         if point.dividends_per_share is not None:
             dividends += float(point.dividends_per_share)
             amounts_known = True
@@ -791,7 +831,7 @@ def buyback_payout(
             previous = None
             continue
         if point.eps is not None and year > last - window:
-            profit += float(point.eps) * (point.shares_normalized or 0.0)
+            profit += point.reported_eps * (point.shares_normalized or 0.0)
         if (previous is not None and point.shares_normalized and point.price_normalized
                 and previous.shares_normalized and year > last - window):
             step = point.shares_normalized / previous.shares_normalized
@@ -850,11 +890,16 @@ class Analysis:
     backing: dict = field(default_factory=dict)
     growth: Optional[Direction] = None
     growth_passes: Optional[bool] = None
+    # Полная балансовая стоимость — с кассой: её сравнивают с оценкой,
+    # в которой касса тоже есть. Капитал бизнеса — `latest_book_value(points)`.
     book_value_per_share: Optional[float] = None
+    # Чистая касса на акцию, отделённая от бизнеса; 0 — не отделялась.
+    net_cash_per_share: float = 0.0
 
     def as_dict(self) -> dict:
         return {
             "book_value_per_share": self.book_value_per_share,
+            "net_cash_per_share": self.net_cash_per_share,
             "earnings": {w: e.as_dict() for w, e in self.earnings.items()},
             "cash": {w: e.as_dict() for w, e in self.cash.items()},
             "owner": {w: e.as_dict() for w, e in self.owner.items()},
@@ -880,7 +925,8 @@ def analyze(
     points = list(points)
     result = Analysis(
         windows=windows,
-        book_value_per_share=latest_book_value(points),
+        book_value_per_share=latest_book_value(points, business=False),
+        net_cash_per_share=latest_net_cash(points),
     )
     for window in windows:
         result.earnings[window] = estimate(points, window, "eps", "roe", end_year)
@@ -907,7 +953,7 @@ def analyze(
 # ── Загрузка ряда из базы ──────────────────────────────────────────────────
 
 
-def load_points(db, company_id: int) -> list:
+def load_points(db, company_id: int, separate_cash: bool = False) -> list:
     """Ряд по годам: кэш мультипликаторов плюс отчётная прибыль из отчёта.
 
     Из кэша берутся число акций, капитал и свободный поток — там всё уже
@@ -918,12 +964,20 @@ def load_points(db, company_id: int) -> list:
     величина в кэше очищена от разовых статей, а для многолетних средних
     очищать нельзя. По той же причине отдача на капитал здесь пересчитывается
     от отчётной прибыли и с сохранённым `roe` не совпадает.
+
+    `separate_cash=True` — касса отдельно от бизнеса, как у Грэма (см.
+    `cash_income`): там, где у года заведены полученные проценты, из прибыли
+    вычитается их доход после налога, из потока — сами проценты, если они в
+    операционной деятельности, а отдача считается на капитал без чистой кассы.
+    Включает оценка; свод критериев остаётся на отчётных числах.
     """
     from app.models.financial_report import FinancialReport
     from app.models.multiplier import Multiplier
     # Та же арифметика перевода, что и во всём кэше: держать вторую копию
     # правила пересчёта валют — верный способ развести их со временем.
     from app.services.analysis.multiplier_service import _field_rub
+
+    company_type = _company_type(db, company_id) if separate_cash else None
 
     rows = (
         db.query(Multiplier, FinancialReport)
@@ -978,6 +1032,24 @@ def load_points(db, company_id: int) -> list:
         operating_cash = _field_rub(report, "operating_cash_flow")
         owner_profit = owner_profit_base(report, profit)
 
+        # Касса отдельно: из заработка уходит доход кассы, из капитала — сама
+        # касса. Разрыв начислений ниже считается по отчётным числам: это
+        # диагностика бухгалтерии, а не оценка.
+        business_profit, business_equity = profit, equity
+        net_cash = cash_after_tax = None
+        if separate_cash:
+            parts = _cash_parts(report, company_type, report.fiscal_year)
+            if parts is not None:
+                net_cash, cash_after_tax, in_flow = parts
+                if business_profit is not None:
+                    business_profit -= cash_after_tax
+                if owner_profit is not None:
+                    owner_profit -= cash_after_tax
+                if fcf is not None:
+                    fcf = float(fcf) - in_flow
+                if equity is not None:
+                    business_equity = equity - net_cash
+
         # Поддерживающий капекс — то, что надо вычесть из заработка. Ростовой
         # вычитать нельзя: это не расход на поддержание дела, а вложение в
         # его расширение, и владельцу оно достаётся не деньгами, а будущим.
@@ -1023,12 +1095,12 @@ def load_points(db, company_id: int) -> list:
         points.append(
             YearPoint(
                 year=mult.date.year,
-                eps=per_share(profit),
+                eps=per_share(business_profit),
                 fcf_per_share=per_share(fcf),
                 owner_earnings_per_share=per_share(owner),
-                roe=_to_equity(profit, equity),
-                fcf_to_equity=_to_equity(fcf, equity),
-                owner_earnings_to_equity=_to_equity(owner, equity),
+                roe=_to_business(business_profit, business_equity, equity),
+                fcf_to_equity=_to_business(fcf, business_equity, equity),
+                owner_earnings_to_equity=_to_business(owner, business_equity, equity),
                 book_value_per_share=per_share(equity),
                 dividends_per_share=(
                     None if mult.ltm_dividends_per_share is None
@@ -1050,9 +1122,63 @@ def load_points(db, company_id: int) -> list:
                 depreciation_shortfall=shortfall,
                 accrual_gap=gap,
                 distorted=distorted,
+                net_cash_per_share=per_share(net_cash),
+                cash_income_per_share=per_share(cash_after_tax),
             )
         )
     return points
+
+
+def _company_type(db, company_id: int) -> Optional[str]:
+    from app.models.company import Company
+
+    row = db.query(Company.company_type).filter(Company.id == company_id).first()
+    if row is None or row[0] is None:
+        return None
+    value = row[0]
+    return str(getattr(value, "value", value))
+
+
+def _cash_parts(report, company_type: Optional[str], year: int,
+                received: Optional[float] = None) -> Optional[tuple]:
+    """(чистая касса, доход кассы после налога, проценты в потоке), млн ₽.
+
+    None — касса у этого периода не отделяется: см. `cash_income.separates`.
+    `received` — полученные проценты за период, если они не из самого отчёта
+    (у LTM-точки это сумма трёх отчётов).
+    """
+    from app.services.analysis import cash_income
+    from app.services.analysis.multiplier_service import _field_rub
+
+    if not cash_income.separates(report, company_type):
+        return None
+    if received is None:
+        received = _field_rub(report, "interest_received")
+    net = cash_income.net_cash(
+        _field_rub(report, "cash_and_equivalents"), _field_rub(report, "debt"),
+        _field_rub(report, "cash_investments"),
+    )
+    if received is None or not net:
+        return None
+    after_tax = received * (1.0 - cash_income.tax_rate(year))
+    in_flow = received if getattr(report, "interest_received_in_ocf", False) else 0.0
+    return net, after_tax, in_flow
+
+
+def _to_business(value_mln: Optional[float], business_mln: Optional[float],
+                 equity_mln: Optional[float]) -> Optional[float]:
+    """Отдача на капитал бизнеса.
+
+    Без отделения кассы совпадает с `_to_equity`. С отделением капитал бизнеса
+    бывает неположительным: у HeadHunter денег больше, чем всего капитала, —
+    дело работает на авансах клиентов. Делить на такой капитал значит получить
+    отдачу с перевёрнутым знаком, а выбросить год — потерять проверку ровности
+    отдачи и с ней надбавку за риск. Поэтому отдача тогда считается на весь
+    капитал: это нижняя граница настоящей, и надбавки она не снимает.
+    """
+    if business_mln is not None and business_mln <= 0:
+        return _to_equity(value_mln, equity_mln)
+    return _to_equity(value_mln, business_mln)
 
 
 def maintenance_floor(maintenance, growth_capex, capex, depreciation) -> tuple:
@@ -1348,7 +1474,9 @@ def retention_test(points: Iterable[YearPoint], window: int,
         if point.eps is None:
             continue
         dividend = point.dividends_per_share or 0.0
-        retained += float(point.eps) - float(dividend)
+        # Отчётная прибыль: процент с кассы тоже оседает в капитале, и без
+        # него удержанное выглядело бы меньше прироста.
+        retained += point.reported_eps - float(dividend)
         counted += 1
     if counted < 3 or retained <= 0:
         return None
@@ -1390,7 +1518,7 @@ def _flow_ltm(fy, h1_now, h1_prev, field: str) -> Optional[float]:
     return parts[0] + parts[1] - parts[2]
 
 
-def with_ltm(db, company_id: int, points: list, as_of) -> list:
+def with_ltm(db, company_id: int, points: list, as_of, separate_cash: bool = False) -> list:
     """Ряд, где последняя годовая точка заменена последними двенадцатью месяцами.
 
     Годовой ряд запаздывает: ступень по отчёту за 2017 год ЛУКОЙЛа жила с
@@ -1407,6 +1535,9 @@ def with_ltm(db, company_id: int, points: list, as_of) -> list:
 
     Возвращает исходный ряд без изменений, если любого из трёх отчётов нет или
     свежее полугодие к `as_of` ещё не раскрыто.
+
+    `separate_cash` — как в `load_points`: проценты за 12 месяцев собираются
+    теми же тремя отчётами, касса — на конец полугодия.
     """
     from datetime import date, timedelta
     from dataclasses import replace
@@ -1458,6 +1589,25 @@ def with_ltm(db, company_id: int, points: list, as_of) -> list:
     equity = _field_rub(h1_now, "equity")
     shares = float(last.shares_normalized)
 
+    reported_profit = profit
+    business_equity = equity
+    net_cash = cash_after_tax = None
+    in_flow = 0.0
+    if separate_cash:
+        received = _flow_ltm(fy, h1_now, h1_prev, "interest_received")
+        parts = None
+        if received is not None:
+            # Ставка налога — года, на который приходится конец LTM: в 1П2025
+            # уже действуют 25%.
+            parts = _cash_parts(h1_now, _company_type(db, company_id), year, received)
+        if parts is not None:
+            net_cash, cash_after_tax, in_flow = parts
+            # Проценты в потоке — по признаку полугодия: раздел, куда их
+            # ставит компания, от отчёта к отчёту не меняется.
+            profit -= cash_after_tax
+            if equity is not None:
+                business_equity = equity - net_cash
+
     def per_share(value):
         return None if value is None else round(value * 1_000_000 / shares, 6)
 
@@ -1466,7 +1616,7 @@ def with_ltm(db, company_id: int, points: list, as_of) -> list:
     # поддерживающего — свойство дела, не полугодия.
     fcf = None
     if operating_cash is not None and capex is not None:
-        fcf = operating_cash - capex
+        fcf = operating_cash - capex - in_flow
     maintenance = capex
     if capex is not None and last.capex and last.capex_maintenance is not None:
         maintenance = capex * (last.capex_maintenance / last.capex)
@@ -1475,6 +1625,8 @@ def with_ltm(db, company_id: int, points: list, as_of) -> list:
     owner_profit = _flow_ltm(fy, h1_now, h1_prev, "net_income")
     if owner_profit is None:
         owner_profit = profit
+    elif cash_after_tax is not None:
+        owner_profit -= cash_after_tax
     owner = None
     if None not in (owner_profit, depreciation, maintenance):
         owner = owner_profit + depreciation - maintenance
@@ -1482,7 +1634,7 @@ def with_ltm(db, company_id: int, points: list, as_of) -> list:
     gap = None
     distorted = False
     if None not in (operating_cash, depreciation):
-        gap = round(operating_cash - profit - depreciation, 3)
+        gap = round(operating_cash - reported_profit - depreciation, 3)
         if fcf:
             distorted = abs(gap) > abs(fcf) * ACCRUAL_GAP_SHARE
 
@@ -1491,10 +1643,12 @@ def with_ltm(db, company_id: int, points: list, as_of) -> list:
         eps=per_share(profit),
         fcf_per_share=per_share(fcf),
         owner_earnings_per_share=per_share(owner),
-        roe=_to_equity(profit, equity),
-        fcf_to_equity=_to_equity(fcf, equity),
-        owner_earnings_to_equity=_to_equity(owner, equity),
+        roe=_to_business(profit, business_equity, equity),
+        fcf_to_equity=_to_business(fcf, business_equity, equity),
+        owner_earnings_to_equity=_to_business(owner, business_equity, equity),
         book_value_per_share=per_share(equity),
+        net_cash_per_share=per_share(net_cash),
+        cash_income_per_share=per_share(cash_after_tax),
         capex=capex,
         capex_maintenance=maintenance,
         depreciation=depreciation,
@@ -1524,7 +1678,9 @@ def graham_numbers(points: list) -> dict:
     ordered = sorted(points, key=lambda p: p.year)
     out = {}
     for i, point in enumerate(ordered):
-        tail = [p.eps for p in ordered[max(0, i - 2): i + 1] if p.eps is not None]
+        # Отчётная прибыль: критерий гл. 14 — про отчётные числа, и касса в
+        # нём не отделяется.
+        tail = [p.reported_eps for p in ordered[max(0, i - 2): i + 1] if p.eps is not None]
         if len(tail) < 3 or not point.book_value_per_share:
             continue
         eps3 = sum(tail) / 3

@@ -96,6 +96,25 @@
 .mo-legend span { display: inline-flex; align-items: center; gap: 6px; }
 .mo-legend i { width: 14px; height: 2px; display: inline-block; }
 .mo-legend-note { color: var(--color-text-tertiary); }
+.mo-legend b { color: var(--color-text-primary); font-weight: 600; }
+
+/* График индексов: шкала справа от легенды, протяжка как у графика цены. */
+.mo-index-head { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 6px 16px; }
+.mo-canvas { position: relative; user-select: none; }
+.mo-span {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 18px;
+  margin-top: 8px; padding: 6px 10px;
+  border-left: 2px solid var(--color-primary);
+  font-size: 0.9rem; color: var(--color-text-secondary);
+}
+.mo-span b { color: var(--color-text-primary); font-weight: 600; }
+.mo-span .mo-up { color: var(--color-success-strong); }
+.mo-span .mo-down { color: var(--color-error-strong); }
+[data-theme='dark'] .mo-span .mo-up { color: var(--color-success-text); }
+[data-theme='dark'] .mo-span .mo-down { color: var(--color-error-text); }
+.mo-span-dates { color: var(--color-text-tertiary); }
+.mo-hint { margin: 6px 0 0; font-size: 0.8rem; color: var(--color-text-tertiary); }
+@media (hover: none) { .mo-hint { display: none; } }
 
 .mo-note { margin: 12px 0 0; font-size: 0.86rem; line-height: 1.6; color: var(--color-text-tertiary); max-width: 980px; }
 
@@ -161,3 +180,8 @@
   .mo-card-head h2 { font-size: 1.25rem; }
   .mo-table th[scope='row'] { width: 150px; white-space: normal; }
 }
+/* Recharts после щелчка ставит фокус на обёртку графика — без этого вокруг
+   поля остаётся чёрная рамка, пока не щёлкнешь мимо. */
+.mo .recharts-wrapper:focus,
+.mo .recharts-wrapper:focus-visible,
+.mo .recharts-surface:focus { outline: none; }

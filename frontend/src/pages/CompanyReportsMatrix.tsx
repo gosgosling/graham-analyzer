@@ -167,6 +167,9 @@ const MATRIX_ROWS: MatrixRowDef[] = [
   { key: 'lease_interest', label: '% по аренде', kind: 'number', hint: 'млн, опц.', hideFor: ['lender']},
   { key: 'interest_paid', label: 'Проценты уплаченные', kind: 'number', hint: 'млн, financing', hideFor: ['lender']},
   { key: 'debt_principal', label: 'Тело долга (долг. ЦБ)', kind: 'number', hint: 'млн, не в FCF', hideFor: ['lender']},
+  { key: 'interest_received', label: 'Проценты полученные', kind: 'number', hint: 'млн — доход кассы; только при чистой кассе (денег больше долга)', hideFor: ['lender', 'hybrid', 'exchange']},
+  { key: 'cash_investments', label: 'Депозиты и облигации', kind: 'number', hint: 'млн, на дату баланса — сверх денег и эквивалентов; без займов выданных и акций. Заполнять вместе с процентами полученными', hideFor: ['lender', 'hybrid', 'exchange']},
+  { key: 'interest_received_in_ocf', label: '— стоят в опер. потоке', kind: 'bool', hint: 'отметь, если в ОДДС они в операционной деятельности; иначе — в инвестиционной', hideFor: ['lender', 'hybrid', 'exchange']},
   { key: 'depreciation_amortization', label: 'Амортизация и износ (D&A)', kind: 'number', hint: 'млн', hideFor: ['lender']},
   { key: 'fcf_display', label: 'FCF (расчётное)', kind: 'readonly', hint: 'OCF − CAPEX − аренда − %', hideFor: ['lender']},
   {

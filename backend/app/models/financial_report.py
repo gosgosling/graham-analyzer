@@ -289,6 +289,22 @@ class FinancialReport(Base):
     debt_principal: Mapped[Optional[float]] = mapped_column(
         Numeric(15, 3), nullable=True
     )  # Выплаты по долговым ЦБ (тело долга), положит. отток, млн — не в FCF
+    # Проценты полученные за период, млн, из ОДДС — в каком бы разделе они ни
+    # стояли. Вместе с отметкой раздела нужны, чтобы считать кассу отдельно от
+    # бизнеса: см. app/services/analysis/cash_income.py.
+    interest_received: Mapped[Optional[float]] = mapped_column(
+        Numeric(15, 3), nullable=True
+    )
+    # True — проценты стоят в операционной деятельности (сидят в нашем FCF),
+    # False — в инвестиционной. Пусто, пока не разнесли.
+    interest_received_in_ocf: Mapped[Optional[bool]] = mapped_column(nullable=True)
+    # Депозиты и облигации сверх денег и эквивалентов, млн, на дату баланса:
+    # депозиты дольше трёх месяцев и долговые бумаги. Входят в кассу, которая
+    # считается отдельно от бизнеса, — проценты с них уже вычтены из прибыли.
+    # Без займов выданных, акций и вложений финсегмента.
+    cash_investments: Mapped[Optional[float]] = mapped_column(
+        Numeric(15, 3), nullable=True
+    )
     # Амортизация и износ (из ОПУ или корректировка к ОДДС), млн — для диагностики CAPEX vs D&A;
     # в расчёт мультипликаторов не входит (будущий модуль справедливой стоимости).
     depreciation_amortization: Mapped[Optional[float]] = mapped_column(

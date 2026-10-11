@@ -311,6 +311,35 @@ class ExtractedReport(BaseModel):
             "корректировка. В ИСХОДНЫХ единицах."
         ),
     )
+    interest_received: Optional[float] = Field(
+        None,
+        description=(
+            "Проценты полученные за период из ОДДС: 'Проценты полученные', "
+            "'Interest received'. ПОЛОЖИТЕЛЬНЫМ числом. Стоят либо в "
+            "операционной, либо в инвестиционной деятельности — раздел "
+            "отметь в interest_received_in_ocf. Если строки нет — null. "
+            "В ИСХОДНЫХ единицах."
+        ),
+    )
+    cash_investments: Optional[float] = Field(
+        None,
+        description=(
+            "Депозиты и облигации на дату баланса сверх денег и эквивалентов: "
+            "'Банковские депозиты', 'Краткосрочные финансовые вложения', "
+            "'Долговые ценные бумаги', 'Облигации' — краткосрочные и "
+            "долгосрочные, сумма. НЕ включать займы выданные, акции, паи и "
+            "вложения банковского сегмента. Нет таких строк — null. "
+            "В ИСХОДНЫХ единицах."
+        ),
+    )
+    interest_received_in_ocf: Optional[bool] = Field(
+        None,
+        description=(
+            "true — строка 'Проценты полученные' стоит в ОПЕРАЦИОННОЙ "
+            "деятельности (выше итога OCF), false — в инвестиционной. "
+            "null, если interest_received не заполнено."
+        ),
+    )
     debt_principal: Optional[float] = Field(
         None,
         description=(
@@ -530,6 +559,8 @@ _MONETARY_FIELDS_IN_MILLIONS: tuple[str, ...] = (
     "lease_principal",
     "lease_interest",
     "interest_paid",
+    "interest_received",
+    "cash_investments",
     "debt_principal",
     "depreciation_amortization",
 )

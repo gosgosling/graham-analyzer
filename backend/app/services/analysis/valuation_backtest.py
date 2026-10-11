@@ -189,7 +189,7 @@ def year_models(
     from app.models.financial_report import FinancialReport
 
     if points is None:
-        points = load_points(db, company.id)
+        points = load_points(db, company.id, separate_cash=True)
     if not points:
         return []
 
@@ -303,6 +303,8 @@ def year_models(
                 # Рычаг того года, а не сегодняшний: заглядывать вперёд нельзя
                 # и здесь.
                 leverage=debt_to_equity(_num("debt"), _num("equity")),
+                # Касса того года — та, что была на его балансе.
+                net_cash_per_share=_power.net_cash_per_share,
             )
 
         models.append((year, float(price), evaluate))
@@ -411,7 +413,7 @@ def valuation_segments(
 
     from app.utils.disclosure import default_disclosure, disclosure_dates
 
-    points = load_points(db, company.id)
+    points = load_points(db, company.id, separate_cash=True)
     models = year_models(db, company, window, points=points)
     graham = graham_numbers(points)
     # Ступень встаёт в день фактического раскрытия отчёта, где он известен
@@ -453,7 +455,7 @@ def valuation_segments(
         trimmed = [p for p in points if p.year <= year - 1]
         if start > today or not trimmed or trimmed[-1].year != year - 1:
             continue
-        rolled = with_ltm(db, company.id, trimmed, start)
+        rolled = with_ltm(db, company.id, trimmed, start, separate_cash=True)
         if not rolled[-1].ltm_label:
             continue
         models_ltm = [m for m in year_models(db, company, window, points=rolled)
