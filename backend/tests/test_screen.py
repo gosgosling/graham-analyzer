@@ -125,8 +125,10 @@ def test_one_failed_axis_is_enough_to_stop_the_company():
                    pe_average=(21.0,), pb=(1.1,), pe_pb=(23.1,))
     result = screened(axes)
     assert result.clears is False
-    assert {v.metric for v in result.failed} == {"pe_average", "pe_pb"}
-    assert result.passed == 7
+    # P/B 1,1 в пределах порога, поэтому критерий 7 пройден целиком; высокий
+    # P/E ловит критерий 6, а не произведение.
+    assert {v.metric for v in result.failed} == {"pe_average"}
+    assert result.passed == 8
 
 
 def test_the_product_catches_what_separate_thresholds_let_through():
@@ -705,3 +707,24 @@ def test_a_failed_spare_does_not_rescue_the_main_metric():
     rule = Rule("growth", "earnings_growth_short", "min", 0.0, "гл. 15",
                 alt="cash_growth_short")
     assert screen._judge(rule, {"growth": growth}, GRAHAM_DEFAULT).status == FAIL
+
+
+# ── Критерий 7: P/B или произведение ──────────────────────────────────────
+
+def test_low_pe_justifies_higher_pb():
+    """Гл. 14: P/E 10 и P/B 2,0 — произведение 20, и компания проходит."""
+    axes = healthy()
+    axes[6] = axis("price", "Динамика цен",
+                   pe_average=(10.0,), pb=(2.0,), pe_pb=(20.0,))
+    result = screened(axes)
+    assert verdict(result, "pb").status == PASS
+    assert "22.5" in verdict(result, "pb").as_dict()["note"]
+    assert result.clears is True
+
+
+def test_both_halves_of_criterion_seven_failing_is_a_failure():
+    axes = healthy()
+    axes[6] = axis("price", "Динамика цен",
+                   pe_average=(14.0,), pb=(2.0,), pe_pb=(28.0,))
+    result = screened(axes)
+    assert {v.metric for v in result.failed} == {"pb", "pe_pb"}

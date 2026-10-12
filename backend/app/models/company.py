@@ -92,6 +92,10 @@ class Company(Base):
 
     current_price: Mapped[Optional[float]] = mapped_column(Numeric(18, 6), nullable=True)
     price_updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Откуда цена: «tinvest» или «moex» (резерв, котировка с задержкой 15 минут),
+    # и момент самой котировки — у резервной он раньше момента запроса.
+    price_source: Mapped[Optional[str]] = mapped_column(String(16), nullable=True)
+    price_quoted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     
     # Метаданные
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

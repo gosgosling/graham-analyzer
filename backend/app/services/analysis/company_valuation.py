@@ -1305,12 +1305,26 @@ def assess(
         value = getattr(latest, field, None) if latest else None
         return None if value is None else float(value)
 
+    # Покрытие — по средней операционной прибыли за то же окно, что и
+    # оценка, и с поправкой на кассу: см. `valuation_guards.structure`.
+    from app.services.analysis.valuation_guards import net_cash, operating_history
+
+    annual = {
+        report.fiscal_year: report
+        for report in db.query(FinancialReport).filter(
+            FinancialReport.company_id == company.id,
+            FinancialReport.period_type == "ANNUAL",
+        )
+    }
     verdict = structure(
         _num("operating_profit"),
         _num("finance_costs"),
         lease_interest=_num("lease_interest"),
         debt=_num("debt"),
         key_rate=key_rate,
+        history=(operating_history(annual, latest.fiscal_year, window)
+                 if latest is not None else None),
+        net_cash=net_cash(latest),
     )
 
     # Рычаг и тест гл. 15 у финансовых институтов не считаются вовсе.

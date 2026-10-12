@@ -19,9 +19,18 @@ from app.utils.http_session import external_session
 BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent.parent
 load_dotenv(dotenv_path=BASE_DIR / '.env')
 
+from app.utils.source_health import TINVEST
+
 logger = logging.getLogger(__name__)
 
 TINKOFF_BASE_URL = "https://invest-public-api.tinkoff.ru/rest"
+
+
+def _note_failure(exc: requests.exceptions.RequestException) -> None:
+    """Сбой связи или сервера — пауза предохранителя; ошибка токена — нет."""
+    status = getattr(getattr(exc, "response", None), "status_code", None)
+    if status is None or status >= 500 or status == 429:
+        TINVEST.failure(exc)
 _CACHE_TTL = 300  # секунд
 
 # Простой in-memory кэш: (timestamp, data)
@@ -119,6 +128,10 @@ def _fetch_from_api() -> List[Dict]:
         logger.warning("TINKOFF_TOKEN не настроен — облигации не загружены")
         return []
 
+    if not TINVEST.available():
+        logger.info("T-Invest на паузе после сбоя — облигации не запрашиваются")
+        return []
+
     url = f"{TINKOFF_BASE_URL}/tinkoff.public.invest.api.contract.v1.InstrumentsService/Bonds"
     headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
     payload = {"instrument_status": "INSTRUMENT_STATUS_BASE"}
@@ -129,7 +142,9 @@ def _fetch_from_api() -> List[Dict]:
         data = response.json()
     except requests.exceptions.RequestException as e:
         logger.error(f"Ошибка T-Invest API (Bonds): {e}")
+        _note_failure(e)
         return []
+    TINVEST.success()
 
     instruments = None
     if isinstance(data, dict):
@@ -161,9 +176,13 @@ def get_bonds() -> List[Dict]:
     ts, data = _bonds_cache
     if time.monotonic() - ts < _CACHE_TTL and data:
         return data
-    data = _fetch_from_api()
-    _bonds_cache = (time.monotonic(), data)
-    return data
+    fresh = _fetch_from_api()
+    if not fresh and data:
+        # Брокер недоступен — лучше вчерашний список, чем пустая страница.
+        # Время кэша не обновляем: следующий запрос снова попробует свежий.
+        return data
+    _bonds_cache = (time.monotonic(), fresh)
+    return fresh
 
 
 def get_bond_by_figi(figi: str) -> Optional[Dict]:
@@ -183,6 +202,9 @@ def get_bond_by_figi(figi: str) -> Optional[Dict]:
     if not token:
         return None
 
+    if not TINVEST.available():
+        return None
+
     url = f"{TINKOFF_BASE_URL}/tinkoff.public.invest.api.contract.v1.InstrumentsService/BondBy"
     headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
     payload = {"idType": "INSTRUMENT_ID_TYPE_FIGI", "id": figi}
@@ -193,7 +215,9 @@ def get_bond_by_figi(figi: str) -> Optional[Dict]:
         data = response.json()
     except requests.exceptions.RequestException as e:
         logger.error(f"Ошибка BondBy {figi}: {e}")
+        _note_failure(e)
         return None
+    TINVEST.success()
 
     # Извлекаем инструмент из разных структур ответа
     inst = None
