@@ -44,7 +44,7 @@ P/B до 1,5, активному только до 1,2. Противоречия
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Optional
 
 from app.services.analysis import screen_axes
@@ -662,12 +662,44 @@ def apply(axes: list, profile: SectorProfile, standard: str = "defensive",
 
     by_key = {axis.key: axis for axis in axes}
     rules = (PROFITABILITY_RULE,) + RULES[standard]
+    verdicts = tuple(_judge(rule, by_key, profile) for rule in rules)
     return Screen(
         ticker=ticker,
         standard=standard,
         profile=profile,
-        verdicts=tuple(_judge(rule, by_key, profile) for rule in rules),
+        verdicts=_criterion_seven(verdicts),
     )
+
+
+def _criterion_seven(verdicts: tuple) -> tuple:
+    """Гл. 14, критерий 7: P/B не выше 1,5 **или** P/E × P/B не выше 22,5.
+
+    У Грэма произведение — не второе требование сверх P/B, а замена ему:
+    «множитель прибыли ниже 15 может оправдать соответственно более высокий
+    множитель активов», и правило 22,5 для этого и введено. Компания с P/E 10
+    и P/B 2,0 у него проходит. Прежде обе строки были обязательными порознь, и
+    свод выходил строже книги.
+
+    Обе строки остаются на виду: читатель видит и P/B, и произведение, а у
+    засчитанной по другой величине стоит объяснение.
+    """
+    by_metric = {v.metric: v for v in verdicts}
+    pb, product = by_metric.get("pb"), by_metric.get("pe_pb")
+    if pb is None or product is None:
+        return verdicts
+    if pb.status == FAIL and product.status == PASS:
+        fixed = replace(pb, status=PASS, reason=(
+            f"P/B выше порога, но произведение P/E × P/B {product.value:.1f} "
+            f"не выше {PE_PB_PRODUCT} — гл. 14 это допускает: низкий P/E "
+            f"оправдывает более высокий P/B"))
+    elif product.status == FAIL and pb.status == PASS:
+        fixed = replace(product, status=PASS, reason=(
+            "произведение выше 22,5, но P/B в пределах порога — у Грэма "
+            "произведение лишь позволяет превысить порог по P/B, а не "
+            "добавляет требование; высокий P/E ловит критерий 6"))
+    else:
+        return verdicts
+    return tuple(fixed if v.metric == fixed.metric else v for v in verdicts)
 
 
 def profile_for(db, company) -> SectorProfile:

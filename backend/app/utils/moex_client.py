@@ -1,6 +1,6 @@
 import logging
 import requests
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import List, Dict, Optional, Tuple
 
 logger = logging.getLogger(__name__)
@@ -89,6 +89,74 @@ def get_moex_securities() -> List[Dict]:
     except requests.exceptions.RequestException as e:
         logger.warning("Ошибка при запросе к MOEX API: %s", e)
         raise MoexUnavailableError(str(e)) from e
+
+
+# ─── Текущие цены (резерв для T-Invest) ──────────────────────────────────────
+
+# Порядок режимов при выборе цены: основной, затем остальные режимы рынка
+# акций. SPEQ — внебиржевые сделки, цена там договорная, и брать её за рыночную
+# нельзя.
+_LIVE_BOARDS = ("TQBR", "TQTY", "SMAL")
+
+
+def _quote_time(systime: Optional[str], updatetime: Optional[str]) -> Optional[datetime]:
+    """Время котировки по Москве → UTC. Дата берётся из SYSTIME, время — UPDATETIME."""
+    if not systime:
+        return None
+    day = systime[:10]
+    clock = updatetime or systime[11:19]
+    try:
+        local = datetime.strptime(f"{day} {clock}", "%Y-%m-%d %H:%M:%S")
+    except ValueError:
+        return None
+    return (local - timedelta(hours=3)).replace(tzinfo=timezone.utc)
+
+
+def get_last_prices(tickers: List[str]) -> Dict[str, Tuple[float, Optional[datetime]]]:
+    """Последние цены акций с Мосбиржи одним запросом. → {тикер: (цена, время котировки)}.
+
+    Резерв на случай, когда T-Invest недоступен. Без авторизации ISS отдаёт
+    данные с задержкой 15 минут — для оценки по Грэму этого достаточно, а
+    подпись источника на странице говорит об этом читателю.
+
+    Цена — последняя сделка (LAST), без неё — текущая официальная
+    (LCURRENTPRICE): вне торгов LAST бывает пустым. Бумаги, которых нет на
+    рынке акций (делистинг, торги приостановлены), в ответ не попадают.
+
+    Raises:
+        MoexUnavailableError: ISS не ответил.
+    """
+    wanted = {str(t).strip().upper() for t in tickers if t}
+    if not wanted:
+        return {}
+    url = "https://iss.moex.com/iss/engines/stock/markets/shares/securities.json"
+    params = {
+        "iss.only": "marketdata",
+        "iss.meta": "off",
+        "marketdata.columns": "SECID,BOARDID,LAST,LCURRENTPRICE,UPDATETIME,SYSTIME",
+    }
+    try:
+        response = _moex_get(url, params=params, timeout=15)
+        response.raise_for_status()
+        block = response.json().get("marketdata") or {}
+    except (requests.exceptions.RequestException, ValueError) as exc:
+        raise MoexUnavailableError(str(exc)) from exc
+
+    columns = block.get("columns") or []
+    found: Dict[str, Tuple[int, float, Optional[datetime]]] = {}
+    for raw in block.get("data") or []:
+        row = dict(zip(columns, raw))
+        secid, board = row.get("SECID"), row.get("BOARDID")
+        if secid not in wanted or board not in _LIVE_BOARDS:
+            continue
+        price = row.get("LAST") or row.get("LCURRENTPRICE")
+        if not price or float(price) <= 0:
+            continue
+        rank = _LIVE_BOARDS.index(board)
+        if secid in found and found[secid][0] <= rank:
+            continue
+        found[secid] = (rank, float(price), _quote_time(row.get("SYSTIME"), row.get("UPDATETIME")))
+    return {secid: (price, at) for secid, (_, price, at) in found.items()}
 
 
 # ─── Дивиденды ────────────────────────────────────────────────────────────────

@@ -20,7 +20,8 @@ COPY backend/ backend/
 COPY tools/edisclosure-scraper/ tools/edisclosure-scraper/
 
 RUN useradd --system --uid 10001 --home-dir /app app \
-    && chown -R app:app /app
+    && mkdir -p /data/logos \
+    && chown -R app:app /app /data
 USER app
 
 WORKDIR /app/backend

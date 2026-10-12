@@ -11,6 +11,7 @@ from app.services.analysis.valuation_guards import (
     MOLODOVSKY_DEPRESSION,
     interest_coverage,
     molodovsky,
+    operating_history,
     structure,
 )
 
@@ -239,3 +240,51 @@ def test_недостоверность_не_отменяет_отказ_при_
     """Смягчение работает только в пользу компании, а не против здравого смысла."""
     verdict = structure(-500.0, 200.0, debt=200.0, key_rate=19.1)
     assert verdict.verdict == "refuse"
+
+
+# ── Покрытие по средней за ряд лет и касса (Распадская, 2024) ──────────────
+
+RASP_HISTORY = [(2018, 34901.0), (2019, 15919.0), (2020, 15724.0), (2021, 81862.0),
+                (2022, 75207.0), (2023, 41347.0), (2024, -9897.0)]
+
+
+def test_убыток_одного_года_не_отказ_если_средняя_положительна():
+    # Операционный убыток 2024 г. — целиком обесценение; средняя за семь лет
+    # покрывает проценты двадцатикратно. Отказывать по году нельзя.
+    verdict = structure(-9897.0, 1864.0, debt=4831.0, key_rate=19.2,
+                        history=RASP_HISTORY)
+    assert verdict.verdict != "refuse"
+    assert verdict.coverage == pytest.approx(19.55, abs=0.01)
+    # но худший год не даёт назвать покрытие спокойным
+    assert verdict.verdict == "fragile"
+    assert "2024" in verdict.reason
+
+
+def test_денег_больше_долга_долг_не_бремя():
+    verdict = structure(-9897.0, 1864.0, debt=4831.0, key_rate=19.2,
+                        history=RASP_HISTORY, net_cash=4050.0)
+    assert verdict.verdict == "ok"
+    assert "кассы" in verdict.reason
+
+
+def test_касса_не_спасает_убыточное_в_среднем_дело():
+    history = [(2021, -500.0), (2022, -300.0), (2023, 100.0)]
+    verdict = structure(100.0, 50.0, debt=400.0, history=history, net_cash=1000.0)
+    assert verdict.verdict == "refuse"
+
+
+def test_без_ряда_судит_последний_год():
+    verdict = structure(-10.0, 5.0, debt=50.0, history=[(2024, -10.0)])
+    assert verdict.verdict == "refuse"
+
+
+def test_ряд_берётся_в_валюте_последнего_отчёта():
+    from types import SimpleNamespace as R
+
+    reports = {
+        2010: R(currency="USD", operating_profit=100.0),
+        2011: R(currency="RUB", operating_profit=3000.0),
+        2012: R(currency="RUB", operating_profit=None),
+        2013: R(currency="RUB", operating_profit=2000.0),
+    }
+    assert operating_history(reports, 2013, 7) == [(2011, 3000.0), (2013, 2000.0)]

@@ -47,6 +47,23 @@ COVERAGE_STRAINED = 2.5
 # Выше этого запас прочности по процентам считается спокойным.
 COVERAGE_COMFORTABLE = 5.0
 
+# ── Покрытие по средней, а не по году ─────────────────────────────────────
+# У Грэма и Додда покрытие процентов — это **средняя прибыль за ряд лет против
+# сегодняшних процентов** плюс отдельная проверка худшего года («Анализ
+# ценных бумаг», гл. о стандартах надёжности облигаций; «Разумный
+# инвестор», гл. 11: средняя за 7 лет и худший год). Один год ничего не
+# доказывает ни в какую сторону: у Распадской в 2024 г. операционный убыток
+# целиком от неденежного обесценения 18 млрд, а средняя операционная прибыль
+# за семь лет покрывает проценты в двадцать раз. Отказ по году назвал бы
+# «опасной» компанию без кредитов.
+#
+# Меньше трёх лет — не ряд, и тогда, как и раньше, судит последний год.
+MIN_COVERAGE_YEARS = 3
+# Худший год, в котором прибыль не покрыла проценты и одного раза, не даёт
+# назвать покрытие спокойным, даже если средняя высокая: авторы проверяют
+# его отдельно именно потому, что средняя прячет провалы.
+WORST_YEAR_FLOOR = 1.0
+
 # ── Достоверность самих финансовых расходов ────────────────────────────────
 # Во сколько раз подразумеваемая ставка (`расходы ÷ долг`) может отличаться от
 # ключевой, чтобы цифре ещё можно было верить. Границы широкие намеренно:
@@ -197,18 +214,62 @@ def costs_are_credible(
     return True, rate, None
 
 
+def operating_history(reports_by_year: dict, year: int, window: int) -> list:
+    """Операционная прибыль за окно, кончающееся годом `year`. → [(год, прибыль)].
+
+    Берутся только годы в валюте последнего отчёта: проценты стоят в ней же,
+    и делить доллары прошлого на рубли сегодняшних процентов нельзя.
+    """
+    latest = reports_by_year.get(year)
+    if latest is None:
+        return []
+    currency = getattr(latest, "currency", None)
+    out = []
+    for y in range(year - window + 1, year + 1):
+        report = reports_by_year.get(y)
+        if report is None or getattr(report, "currency", None) != currency:
+            continue
+        value = getattr(report, "operating_profit", None)
+        if value is not None:
+            out.append((y, float(value)))
+    return out
+
+
+def net_cash(report) -> Optional[float]:
+    """Деньги и краткосрочные вложения за вычетом долга; None, если не из чего."""
+    if report is None:
+        return None
+    debt = getattr(report, "debt", None)
+    cash = getattr(report, "cash_and_equivalents", None)
+    if debt is None or cash is None:
+        return None
+    investments = getattr(report, "cash_investments", None) or 0
+    return float(cash) + float(investments) - float(debt)
+
+
 def structure(
     operating_profit: Optional[float],
     finance_costs: Optional[float],
     lease_interest: Optional[float] = None,
     debt: Optional[float] = None,
     key_rate: Optional[float] = None,
+    history: Optional[list] = None,
+    net_cash: Optional[float] = None,
 ) -> StructureVerdict:
     """Приговор структуре капитала.
 
-    Операционный убыток при наличии долга — отказ независимо от его размера:
-    покрытие отрицательно, проценты платятся не из прибыли, и формальный
-    множитель к такой компании неприменим.
+    **Покрытие считается по средней операционной прибыли за окно** (`history`,
+    см. `MIN_COVERAGE_YEARS`), проценты — последнего года. Худший год
+    проверяется отдельно и не даёт назвать покрытие спокойным.
+
+    **Денег больше долга — долг не бремя.** Компания, которая может погасить
+    весь долг из кассы завтра, обслуживает его не из заработка, а из запаса,
+    и проверка покрытия к ней неприменима: у Грэма это предельный случай
+    финансовой силы, а не риска.
+
+    Отказ — только когда **средняя** операционная прибыль не положительна:
+    тогда проценты действительно платятся не из заработка. Убыток одного года
+    при положительной средней — худший год, а не приговор.
 
     Во всех прочих случаях оценка разрешена. Тонкое покрытие превращается в
     вердикт `strained` и в крупную надбавку к премии за риск — см.
@@ -222,7 +283,35 @@ def structure(
         )
 
     credible, rate, note = costs_are_credible(finance_costs, debt, key_rate)
-    coverage = interest_coverage(operating_profit, finance_costs, lease_interest)
+
+    # Средняя за ряд лет вместо одного года, когда ряд есть.
+    years = list(history or [])
+    averaged = len(years) >= MIN_COVERAGE_YEARS
+    earnings = (
+        sum(value for _, value in years) / len(years) if averaged else operating_profit
+    )
+    coverage = interest_coverage(earnings, finance_costs, lease_interest)
+    n = len(years)
+    word = "года" if 2 <= n % 10 <= 4 and not 12 <= n % 100 <= 14 else "лет"
+    period = f"средняя за {n} {word}" if averaged else "последний год"
+
+    # Касса спасает только прибыльное в среднем дело: убыточное проедает её,
+    # и завтрашний запас сегодняшним долгом уже не меряется.
+    if (
+        net_cash is not None and net_cash >= 0
+        and debt is not None and float(debt) > 0
+        and (earnings is None or float(earnings) > 0)
+    ):
+        return StructureVerdict(
+            coverage=coverage,
+            verdict="ok",
+            reason=(
+                f"денег и краткосрочных вложений больше всего долга (запас "
+                f"{net_cash:,.0f} млн сверх него) — долг гасится из кассы, а не "
+                f"из заработка, и покрытие процентов здесь не мера риска"
+            ).replace(f"{net_cash:,.0f}", f"{net_cash:,.0f}".replace(",", " ")),
+            implied_rate=rate, costs_credible=credible, credibility_note=note,
+        )
 
     if coverage is None:
         return StructureVerdict(
@@ -236,7 +325,7 @@ def structure(
     # только в сторону смягчения: обвинять компанию по цифре, которой мы сами
     # не верим, нельзя. Хорошее покрытие при недостоверных расходах тоже
     # перестаёт быть заслугой, поэтому вердикт один — `unknown`.
-    if not credible and operating_profit is not None and float(operating_profit) > 0:
+    if not credible and earnings is not None and float(earnings) > 0:
         return StructureVerdict(
             coverage=coverage,
             verdict="unknown",
@@ -244,27 +333,50 @@ def structure(
             implied_rate=rate, costs_credible=False, credibility_note=note,
         )
 
-    if operating_profit is not None and float(operating_profit) <= 0:
+    if earnings is not None and float(earnings) <= 0:
         return StructureVerdict(
             coverage=coverage,
             verdict="refuse",
             reason=(
-                f"операционный убыток при долге: покрытие {coverage}× — "
-                f"проценты платятся не из прибыли, и формальная оценка даст "
-                f"не число, а деление на знак"
+                f"операционный убыток при долге ({period}): покрытие "
+                f"{coverage}× — проценты платятся не из прибыли, и формальная "
+                f"оценка даст не число, а деление на знак"
             ),
             implied_rate=rate, costs_credible=credible, credibility_note=note,
         )
+
+    # Худший год — отдельная проверка авторов: средняя прячет провалы.
+    worst = min(years, key=lambda item: item[1]) if averaged else None
+    worst_coverage = (
+        None if worst is None
+        else interest_coverage(worst[1], finance_costs, lease_interest)
+    )
+    worst_note = (
+        f" В худший год окна ({worst[0]}) покрытие {worst_coverage}×."
+        if worst_coverage is not None and worst_coverage < WORST_YEAR_FLOOR else ""
+    )
 
     if coverage < COVERAGE_STRAINED:
         return StructureVerdict(
             coverage=coverage,
             verdict="strained",
             reason=(
-                f"проценты покрыты {coverage}× при спокойных "
+                f"проценты покрыты {coverage}× ({period}) при спокойных "
                 f"{COVERAGE_COMFORTABLE}× — долг обслуживается почти всей "
                 f"операционной прибылью. Оценка считается, но дорожает: "
-                f"владельцу от такого дела остаётся мало"
+                f"владельцу от такого дела остаётся мало.{worst_note}"
+            ).rstrip(),
+            implied_rate=rate, costs_credible=credible, credibility_note=note,
+        )
+
+    if coverage >= COVERAGE_COMFORTABLE and worst_note:
+        return StructureVerdict(
+            coverage=coverage,
+            verdict="fragile",
+            reason=(
+                f"в среднем проценты покрыты {coverage}× ({period}), но средняя "
+                f"прячет провал: авторы требуют и спокойной средней, и не "
+                f"меньше {WORST_YEAR_FLOOR:g}× в худший год.{worst_note}"
             ),
             implied_rate=rate, costs_credible=credible, credibility_note=note,
         )
@@ -274,14 +386,16 @@ def structure(
             coverage=coverage,
             verdict="fragile",
             reason=(
-                f"проценты покрыты {coverage}× — оценка считается, но запас "
-                f"невелик: у авторов спокойным считается {COVERAGE_COMFORTABLE}×"
+                f"проценты покрыты {coverage}× ({period}) — оценка считается, "
+                f"но запас невелик: у авторов спокойным считается "
+                f"{COVERAGE_COMFORTABLE}× в среднем.{worst_note}"
             ),
             implied_rate=rate, costs_credible=credible, credibility_note=note,
         )
 
     return StructureVerdict(
         coverage=coverage, verdict="ok",
+        reason=f"проценты покрыты {coverage}× ({period})",
         implied_rate=rate, costs_credible=credible, credibility_note=note,
     )
 
