@@ -15,7 +15,7 @@
 что рынок знал о прибыли за полгода до её публикации.
 """
 
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -147,6 +147,24 @@ def _events(db: Session, company_id: int, splits: Optional[list] = None) -> list
     return out
 
 
+# Через сколько текущая цена считается устаревшей. Три дня — чтобы выходные
+# и короткие праздники не давали ложной тревоги, а недельный простой брокера
+# был виден сразу.
+STALE_QUOTE = timedelta(days=3)
+
+
+def _quote(company: Company) -> Optional[dict]:
+    """Откуда текущая цена и насколько она свежая — для подписи в шапке."""
+    at = company.price_quoted_at or company.price_updated_at
+    if at is None:
+        return None
+    return {
+        "source": company.price_source or "tinvest",
+        "quoted_at": at.isoformat(),
+        "stale": datetime.now(timezone.utc) - at > STALE_QUOTE,
+    }
+
+
 @router.get("/{company_id}/prices")
 def price_history(
     company_id: int,
@@ -167,6 +185,7 @@ def price_history(
         return {
             "company": {"id": company.id, "ticker": company.ticker, "name": company.name},
             "points": [], "reports": [], "events": [], "summary": None,
+            "quote": _quote(company),
         }
 
     # Прибыль и капитал на акцию берутся из мультипликаторов по отчётам — из
@@ -258,6 +277,7 @@ def price_history(
         "events": _events(db, company_id, splits),
         # Пусто, если сплитов не было; иначе — подпись под графиком.
         "split_note": split_note(splits),
+        "quote": _quote(company),
         "summary": {
             "from": points[0]["date"],
             "till": points[-1]["date"],

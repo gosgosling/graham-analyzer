@@ -26,7 +26,8 @@ def _daily_price_update() -> None:
     Ежедневная задача:
       1. Бэкфилл — MOEX докачивает все пропущенные дни (в т.ч. если сервер
          был выключен несколько дней).
-      2. Текущая цена — T-Invest обновляет сегодняшнее значение.
+      2. Текущая цена — T-Invest обновляет сегодняшнее значение; что брокер
+         не дал (или весь список, если он недоступен) — с Мосбиржи.
     """
     from app.services.market.price_history_service import backfill_all_companies
     from app.services.market.tinvest_price_service import update_all_company_prices
@@ -78,6 +79,13 @@ def _daily_price_update() -> None:
         from app.services.market.oil_service import refresh as refresh_oil
 
         logger.info("Нефть и курс обновлены: %d строк", refresh_oil(db))
+
+        # Логотипы — свои копии вместо CDN Т-Банка; качаются только недостающие.
+        from app.models.company import Company
+        from app.services.companies import logo_cache
+
+        logos = logo_cache.cache_all(db.query(Company).all(), wait=False)
+        logger.info("Логотипы: в кэше %d, без логотипа %d", logos["cached"], len(logos["missing"]))
 
         # Дивидендные отсечки и сплиты — засечки на графике цены.
         from app.services.market.corporate_events_service import refresh_all

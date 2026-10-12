@@ -23,6 +23,7 @@ from sqlalchemy.orm import Session
 from app.models import Company
 from app.models.corporate_event import CorporateEvent
 from app.utils.moex_client import _moex_get
+from app.utils.source_health import TINVEST
 from app.utils.tinkoff_client import external_session
 
 logger = logging.getLogger(__name__)
@@ -70,6 +71,8 @@ def fetch_dividends(figi: str) -> Optional[list[tuple]]:
     token = (settings.TINKOFF_TOKEN or "").strip()
     if not figi or not token or token == "your_token_here":
         return None
+    if not TINVEST.available():
+        return None
     try:
         resp = external_session().post(
             TINVEST_DIVIDENDS,
@@ -83,7 +86,13 @@ def fetch_dividends(figi: str) -> Optional[list[tuple]]:
         rows = resp.json().get("dividends") or []
     except Exception as exc:  # noqa: BLE001 — сеть, JSON, что угодно: пропускаем бумагу
         logger.warning("Дивиденды %s из T-Invest не получены: %s", figi, exc)
+        # Сбой связи или сервера ставит брокера на паузу: иначе обход
+        # дивидендов по ста пятидесяти бумагам ждал бы таймаута на каждой.
+        status = getattr(getattr(exc, "response", None), "status_code", None)
+        if status is None or status >= 500 or status == 429:
+            TINVEST.failure(exc)
         return None
+    TINVEST.success()
     # Одна и та же выплата бывает в ответе дважды (ЛУКОЙЛ, реестр 21.12.2022).
     # Ответ идёт от свежих записей к старым — остаётся первая, то есть
     # последняя по времени правка.

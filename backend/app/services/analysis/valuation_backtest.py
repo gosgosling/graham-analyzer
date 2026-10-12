@@ -43,7 +43,7 @@ from app.services.analysis.earning_power import (
     payout_over_window,
     stability,
 )
-from app.services.analysis.valuation_guards import structure
+from app.services.analysis.valuation_guards import net_cash, operating_history, structure
 
 # Насколько доходность длинных ОФЗ отличается от ключевой ставки. На
 # 30.08.2026 ключевая 14,98% против ОФЗ 15,7–16,2% — около пункта. Величина
@@ -264,6 +264,7 @@ def year_models(
             risk_free=None,
             _num=_num, _power=power, _steady=steadiness, _payout=payout,
             _ladders=ladders, _observed=observed, _history=history, _w=w,
+            _year=year, _reports=reports,
         ):
             verdict = structure(
                 _num("operating_profit"),
@@ -275,6 +276,8 @@ def year_models(
                 lease_interest=_num("lease_interest"),
                 debt=_num("debt"),
                 key_rate=rate,
+                history=operating_history(_reports, _year, _w),
+                net_cash=net_cash(_reports.get(_year)),
             )
             return value_band(
                 payout=_payout,

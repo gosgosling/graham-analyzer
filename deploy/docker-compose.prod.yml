@@ -39,6 +39,10 @@ services:
       POSTGRES_HOST: db
       POSTGRES_PORT: "5432"
       DATABASE_URL: ""
+      LOGO_CACHE_DIR: /data/logos
+    volumes:
+      # Копии логотипов переживают пересборку образа (см. logo_cache.py).
+      - logos:/data/logos
     depends_on:
       db:
         condition: service_healthy
@@ -66,6 +70,7 @@ services:
       - backend
 
 volumes:
+  logos:
   pg_data:
   caddy_data:
   caddy_config:
