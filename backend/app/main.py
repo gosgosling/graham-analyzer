@@ -1,3 +1,4 @@
+import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -8,6 +9,19 @@ from app.routers import multipliers_router, market_router, bonds_router, admin_r
 from app.routers import mass_parse_router, disclosure_router, holdings_router, auth_router
 from app.scheduler import start_scheduler, stop_scheduler
 from app.services.mass_parse.worker import recover_orphaned_running_jobs
+
+# Журнал приложения. Без настройки корневой логгер пропускает только WARNING,
+# и в `docker compose logs` не было ни «Планировщик запущен», ни обновления
+# цен, ни прогрева кэша — сервер работал молча. Uvicorn настраивает только
+# свои логгеры, поэтому корневой — здесь. Планировщик APScheduler на INFO
+# пишет о каждом запуске задания, а на WARNING — о каждом пропуске прогрева,
+# пока идёт предыдущий (это норма: прогрев дольше минуты). Падение задания
+# он пишет как ERROR — его и оставляем.
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
+logging.getLogger("apscheduler").setLevel(logging.ERROR)
 
 
 @asynccontextmanager

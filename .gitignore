@@ -5,7 +5,8 @@
 deploy/.env*
 !deploy/env.prod.example
 # e-disclosure Playwright cookies (may contain session secrets)
-tools/edisclosure-scraper/.edisclosure_storage_state.json
+# Сессия e-disclosure (куки) и её резервные копии — секрет
+tools/edisclosure-scraper/.edisclosure_storage_state.json*
 
 # Отчёты покрытия — вход для scripts/code_quality.py, в гит не нужны
 .coverage

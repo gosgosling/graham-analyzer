@@ -216,7 +216,8 @@ def start_scheduler() -> None:
 
     _scheduler.start()
     logger.info(
-        "Планировщик запущен. Следующее обновление цен: %s",
+        "Планировщик запущен: цены каждые %d мин, дневное обновление — %s",
+        INTRADAY_PRICE_MINUTES,
         _scheduler.get_job("daily_price_update").next_run_time,
     )
 
