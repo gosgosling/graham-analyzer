@@ -19,7 +19,10 @@ set -a; source .env.prod; set +a
 
 mkdir -p "$BACKUP_DIR"
 FILE="$BACKUP_DIR/${POSTGRES_DB}_$(date +%Y%m%d_%H%M%S).dump"
-"${COMPOSE[@]}" exec -T db pg_dump -U "$POSTGRES_USER" -Fc --no-owner --no-acl "$POSTGRES_DB" > "$FILE"
+# </dev/null: `compose exec` читает стандартный ввод. Когда скрипт зовут из
+# `ssh … bash -s <<REMOTE` (push-data.sh), ввод — это остаток удалённого
+# скрипта: exec его «съедал», и всё после бэкапа молча не выполнялось.
+"${COMPOSE[@]}" exec -T db pg_dump -U "$POSTGRES_USER" -Fc --no-owner --no-acl "$POSTGRES_DB" > "$FILE" </dev/null
 echo "$(date -Is) бэкап: $FILE ($(du -h "$FILE" | cut -f1))"
 
 ls -1t "$BACKUP_DIR"/"${POSTGRES_DB}"_*.dump | tail -n +"$((KEEP + 1))" | xargs -r rm -f --
