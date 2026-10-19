@@ -9,7 +9,16 @@
 #      заменяются заглушкой (старый токен попадал и в env.example);
 #   3. дампы базы, в которых есть строки таблиц users / user_sessions /
 #      auth_tokens (хэши паролей, e-mail, сессии). Дампы без данных аккаунтов
-#      остаются — бэкапы в git нужны.
+#      остаются — бэкапы в git нужны;
+#   4. документация, планы, гайды и материалы к конференции (PRIVATE_PATHS) —
+#      они живут только локально и перечислены в .gitignore;
+#   5. подписи соавторов-ассистентов в сообщениях коммитов («Co-Authored-By:
+#      Claude…», «Generated with Claude Code») — по ним GitHub записывает в
+#      контрибьюторы.
+#
+# Автор всех коммитов приводится к AUTHOR_EMAIL (скрытый адрес GitHub): в
+# старых коммитах адрес записан с опечаткой, и GitHub не привязывал их к
+# профилю.
 #
 # В копию попадают только закоммиченные изменения. Перед переездом:
 # закоммитить работу в исходном репозитории и запустить скрипт заново.
@@ -29,6 +38,9 @@ set -euo pipefail
 SRC="$(git -C "$(dirname "${BASH_SOURCE[0]}")/.." rev-parse --show-toplevel)"
 DEST="${1:-$(dirname "$SRC")/graham-analyzer-clean}"
 PG_CONTAINER="${PG_CONTAINER:-graham_postgres}"
+AUTHOR_NAME="${AUTHOR_NAME:-gosgosling}"
+AUTHOR_EMAIL="${AUTHOR_EMAIL:-198343943+gosgosling@users.noreply.github.com}"
+PRIVATE_PATHS=(docs/ plans/ "ROADMAP GA.md" conference-2026/ .claude/)
 
 source "$SRC/scripts/pg_docker.sh"
 pg_docker_init
@@ -63,7 +75,11 @@ while read -r sha path; do
 done < <(git -C "$SRC" rev-list --all --objects | awk '$2 ~ /\.dump$/' | sort -k2 -u)
 echo "Дампов в истории: $total, с данными аккаунтов: $(wc -l < "$WORK/paths.txt")"
 
-printf '%s\n' ".env" >> "$WORK/paths.txt"
+printf '%s\n' ".env" "${PRIVATE_PATHS[@]}" >> "$WORK/paths.txt"
+
+# Все авторы и коммитеры истории — один человек под одним адресом.
+git -C "$SRC" log --all --format='%an <%ae>%n%cn <%ce>' | sort -u \
+  | sed "s|^|$AUTHOR_NAME <$AUTHOR_EMAIL> |" > "$WORK/mailmap.txt"
 
 cat > "$WORK/replace.txt" <<'EOF'
 regex:\bt\.[A-Za-z0-9_-]{60,}==>REMOVED_TINVEST_TOKEN
@@ -81,7 +97,13 @@ done
 
 git -C "$DEST" filter-repo --force \
   --invert-paths --paths-from-file "$WORK/paths.txt" \
-  --replace-text "$WORK/replace.txt"
+  --replace-text "$WORK/replace.txt" \
+  --mailmap "$WORK/mailmap.txt" \
+  --message-callback '
+import re
+message = re.sub(rb"(?im)^[ \t]*(co-authored-by:[^\n]*(claude|anthropic)[^\n]*|[^\n]*generated with \[?claude code[^\n]*)\n?", b"", message)
+return message.rstrip() + b"\n"
+'
 
 git -C "$DEST" reflog expire --expire=now --all
 git -C "$DEST" gc --quiet --prune=now --aggressive
