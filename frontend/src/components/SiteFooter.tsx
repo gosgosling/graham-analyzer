@@ -10,9 +10,9 @@ import './SiteFooter.css';
  */
 
 const TELEGRAM = { label: '@graham_analyzer', href: 'https://t.me/graham_analyzer' };
-// Почты для связи пока нет: строка в подвале появится, когда адрес будет
-// вписан сюда. Выдуманный адрес на публичном сайте хуже, чем никакого.
-const EMAIL: { label: string; href: string } | null = null;
+// Ящик на почте Timeweb: с него же сайт отправляет письма (SMTP в .env.prod).
+// null — строка в подвале скрывается: выдуманный адрес хуже, чем никакого.
+const EMAIL: { label: string; href: string } | null = { label: 'info@graham-analyzer.ru', href: 'mailto:info@graham-analyzer.ru' };
 const GITHUB = 'https://github.com/gosgosling/graham-analyzer';
 
 export default function SiteFooter() {
