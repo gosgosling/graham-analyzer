@@ -40,7 +40,7 @@ DEST="${1:-$(dirname "$SRC")/graham-analyzer-clean}"
 PG_CONTAINER="${PG_CONTAINER:-graham_postgres}"
 AUTHOR_NAME="${AUTHOR_NAME:-gosgosling}"
 AUTHOR_EMAIL="${AUTHOR_EMAIL:-198343943+gosgosling@users.noreply.github.com}"
-PRIVATE_PATHS=(docs/ plans/ "ROADMAP GA.md" conference-2026/ .claude/)
+PRIVATE_PATHS=(docs/ plans/ "ROADMAP GA.md" conference-2026/ .claude/ .cursor/rules/)
 
 source "$SRC/scripts/pg_docker.sh"
 pg_docker_init
