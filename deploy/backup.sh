@@ -10,6 +10,8 @@
 set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")"
+# В бэкапе аккаунты посетителей (email, хэши паролей) — читает только владелец.
+umask 077
 BACKUP_DIR="${BACKUP_DIR:-$HOME/graham-backups}"
 KEEP="${KEEP:-14}"
 COMPOSE=(docker compose -f docker-compose.prod.yml --env-file .env.prod)
