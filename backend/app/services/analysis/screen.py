@@ -152,6 +152,18 @@ class Rule:
     # Расхождение между таблицей и паспортом отсюда и бралось. С этим флагом
     # красное в таблице означает провал в паспорте, и наоборот.
     lenient: bool = False
+    # Отраслевая поправка не делает порог строже отраслевого «хорошо».
+    #
+    # Поправка относительная (см. `_threshold`), и на P/B активного свода она
+    # считает скидку дважды. Книжные 1,2 у Грэма — уже цена охотника за
+    # дешевизной, а отраслевое «хорошо» для нефтегаза (P/B 1,2 против 1,5 у
+    # промышленности) уже отражает, что отрасль торгуется дёшево. Умножив
+    # одно на другое, свод требовал от нефтяника P/B 0,96 — строже и книги, и
+    # собственной полосы отрасли, и Лукойл с 0,97 не проходил его, проходя
+    # защитный. Поэтому порог здесь — не строже меньшего из двух: книжных 1,2
+    # и отраслевого «хорошо». Там, где поправка ослабляет (IT, ритейл,
+    # биржа), она действует как раньше.
+    sector_floor: bool = False
 
     def holds(self, value: Optional[float], of: Optional[float]) -> Optional[bool]:
         if value is None:
@@ -302,7 +314,8 @@ ENTERPRISING = (
     Rule("price", "pe_average", "max", 15.0,
          "гл. 14, критерий 6"),
     Rule("price", "pb_tangible", "max", 1.2,
-         "гл. 15 — не выше 120% чистых материальных активов"),
+         "гл. 15 — не выше 120% чистых материальных активов",
+         sector_floor=True),
     # Поток — на горизонте самого свода. Активный у Грэма смотрит на пять лет
     # (пять лет без убытка, прибыль выше, чем пять лет назад), и десятилетний
     # тест потока требовал истории, которой у молодой компании нет по
@@ -549,7 +562,10 @@ def _threshold(rule: Rule, profile: SectorProfile):
     if base is None or not base.good:
         return rule.threshold, rule.threshold, False
     ratio = float(edge) / float(base.good)
-    return round(rule.threshold * ratio, 4), rule.threshold, False
+    applied = round(rule.threshold * ratio, 4)
+    if rule.sector_floor and rule.mode == "max":
+        applied = max(applied, min(rule.threshold, float(edge)))
+    return applied, rule.threshold, False
 
 
 def _alternate(rule: Rule, axis, applied: Optional[float]) -> Optional[str]:

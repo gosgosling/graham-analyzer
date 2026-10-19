@@ -7,7 +7,7 @@ from datetime import date, datetime
 from functools import lru_cache
 from typing import Dict, Optional, Union
 
-from pydantic import BaseModel, computed_field, field_serializer, model_validator
+from pydantic import BaseModel, computed_field, field_serializer, field_validator, model_validator
 
 from app.models.enums import AccountingStandard, PeriodType, ReportSource
 from app.services.analysis.bank_metrics import (
@@ -159,6 +159,17 @@ class ReportFigures(BaseModel):
     debt: Optional[float] = None                  # долг, млн
     dividends_per_share: Optional[float] = None   # ₽/$ за акцию, ВСЕГО (полные единицы)
     dividends_paid: bool = False
+
+    @field_validator("dividends_paid", "has_preferred_shares", mode="before")
+    @classmethod
+    def _null_flag_is_false(cls, value):
+        """В базе флаг бывает пустым («не установлено») — для API это «нет».
+
+        Колонка допускает NULL, схема — нет, и одна такая строка роняла весь
+        список отчётов компании ответом 500.
+        """
+        return False if value is None else value
+
     # Разовая часть выплаты (входит в dividends_per_share): спецдивиденд,
     # компенсация пропущенных лет, распределение от продажи актива
     special_dividends_per_share: Optional[float] = None

@@ -341,17 +341,6 @@
 
 /* Расчёт ядра и динамика сегмента — рядом: одно объясняет другое.
    На узком экране столбцы схлопываются в один. */
-.bank-bottom-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-  gap: var(--space-4);
-  align-items: start;
-}
-
-.bank-bottom-grid > .bank-core-flow {
-  margin-top: var(--space-5);
-}
-
 .bank-segment-history .bank-history-table {
   width: 100%;
 }
@@ -369,8 +358,13 @@
 
 /* У биржи внизу только таблица динамики — сетка не нужна, но отступ от
    предыдущего блока остаётся тем же, что и у колонок гибрида. */
-.bank-exchange-bottom {
+.bank-bottom {
   margin-top: var(--space-5);
+}
+
+/* Скользящий год отделён от календарных лет чертой: это другой период. */
+.bank-history-table .bank-history-ltm {
+  border-left: 1px solid var(--color-border-default);
 }
 
 /* Строка с подсказкой об источнике величины: пунктир зовёт навести мышь. */

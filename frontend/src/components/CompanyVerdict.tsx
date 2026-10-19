@@ -7,6 +7,7 @@ import {
   type ValuationSummaryOut,
 } from '../services/valuation.api';
 import { formatPerShare } from '../utils/perShare';
+import { LIVE_PRICE_REFRESH_MS, LIVE_PRICE_STALE_MS } from '../services/prices.api';
 import './CompanyVerdict.css';
 
 /**
@@ -168,7 +169,9 @@ export function useCompanyVerdict(companyId: number): VerdictData {
   const { data: summary, isLoading: summaryLoading } = useQuery<ValuationSummaryOut>({
     queryKey: ['valuation-summary', companyId],
     queryFn: () => fetchValuationSummary(companyId),
-    staleTime: 10 * 60 * 1000,
+    // Запас прочности зависит от цены — перечитывается вместе с ней.
+    staleTime: LIVE_PRICE_STALE_MS,
+    refetchInterval: LIVE_PRICE_REFRESH_MS,
     enabled,
   });
   const { data: passport, isLoading: passportLoading } = useQuery<PassportOut>({

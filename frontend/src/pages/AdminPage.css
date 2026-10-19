@@ -50,3 +50,15 @@
   color: var(--color-text-primary);
   cursor: pointer;
 }
+
+/* Источники данных */
+.ds-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; margin-bottom: 8px; }
+.ds-table td { padding: 6px 8px; border-bottom: 1px solid var(--color-border); vertical-align: top; }
+.ds-meta { color: var(--color-text-tertiary); font-size: 0.82rem; }
+.ds-error { color: var(--color-text-tertiary); max-width: 420px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ds-state { font-weight: 600; white-space: nowrap; }
+.ds-state--ok { color: var(--color-success-text, #15803d); }
+.ds-state--degraded { color: var(--color-warning-text, #b45309); }
+.ds-state--down { color: var(--color-danger-text, #b91c1c); }
+.ds-refresh { background: none; border: none; color: var(--color-link, #2563eb); cursor: pointer; padding: 0; font: inherit; }
+@media (max-width: 600px) { .ds-table td:last-child { display: none; } }

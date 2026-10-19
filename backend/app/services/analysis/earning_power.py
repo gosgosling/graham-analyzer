@@ -1011,7 +1011,11 @@ def load_points(db, company_id: int, separate_cash: bool = False) -> list:
             (live.date.year, live.shares_used, live.equity, live.market_cap)
         )
 
-    factors = split_factors(scale_rows)
+    from app.models.company import Company
+    from app.services.share_splits import company_splits
+
+    company = db.get(Company, company_id)
+    factors = split_factors(scale_rows, company_splits(db, company) if company else None)
 
     # Разделение капекса считается по всему ряду сразу: капиталоёмкость — это
     # свойство бизнеса, а не года, и брать её из одной строки нельзя.
@@ -1333,7 +1337,7 @@ def distortion_summary(points: Iterable[YearPoint], window: int,
     }
 
 
-def split_factors(rows: list) -> dict:
+def split_factors(rows: list, known: Optional[list] = None) -> dict:
     """Во сколько раз надо уменьшить величины на акцию каждого года.
 
     Значения на акцию через дробление несопоставимы: у Норникеля прибыль на
@@ -1359,10 +1363,20 @@ def split_factors(rows: list) -> dict:
     Без данных о капитале приведение не делается. Промолчать безопаснее, чем
     угадать: не приведённый ряд виден глазом, а стёртое размывание — нет.
 
+    **Известное дробление признаётся без проверки капитала.** `known` — список
+    `{"date", "ratio"}` из карточки компании и событий Мосбиржи
+    (`share_splits.company_splits`). Проверка капитала нужна, когда о событии
+    ничего не известно, кроме счёта акций. Когда биржа сама говорит «10:1 от
+    27.03.2025», а счёт вырос ровно вдесятеро, сомневаться не в чем — а
+    капитал мог сдвинуться и сам по себе: у Полюса за 2025 год он вырос в 2,1
+    раза из-за прибыли, и без этого правила дробление не узнавалось, а ряд
+    прибыли на акцию смешивал 3 224 ₽ и 331 ₽.
+
     `rows` — тройки (год, число акций, капитал). Возвращается словарь
     «год → множитель», на который надо **разделить** величину на акцию.
     """
-    known = sorted(
+    splits = known or []
+    known_rows = sorted(
         (
             year,
             float(shares),
@@ -1372,23 +1386,44 @@ def split_factors(rows: list) -> dict:
         for year, shares, equity, market_cap in rows
         if shares
     )
-    if len(known) < 2:
+    if len(known_rows) < 2:
         return {}
 
     # Идём с конца: накапливаем дробления, случившиеся после каждого года.
     factors = {}
     factor = 1.0
-    for (year, shares, equity, cap), (_, later_shares, later_equity, later_cap) in zip(
-        reversed(known[:-1]), reversed(known[1:])
+    for (year, shares, equity, cap), (later_year, later_shares, later_equity, later_cap) in zip(
+        reversed(known_rows[:-1]), reversed(known_rows[1:])
     ):
         step = later_shares / shares
         big_step = step >= SPLIT_RATIO or step <= 1 / SPLIT_RATIO
-        if big_step and _within(equity, later_equity, SPLIT_EQUITY_TOLERANCE) \
+        if big_step and _known_split(splits, year, later_year, step):
+            factor *= step
+        elif big_step and _within(equity, later_equity, SPLIT_EQUITY_TOLERANCE) \
                 and _within(cap, later_cap, SPLIT_CAP_TOLERANCE):
             factor *= step
         factors[year] = factor
-    factors[known[-1][0]] = 1.0
+    factors[known_rows[-1][0]] = 1.0
     return {year: value for year, value in factors.items() if value != 1.0}
+
+
+# Насколько шаг счёта акций может отличаться от коэффициента известного
+# дробления: между отчётами счёт ещё меняют выкупы и планы поощрения.
+KNOWN_SPLIT_TOLERANCE = 0.2
+
+
+def _known_split(splits: list, year: int, later_year: int, step: float) -> bool:
+    """Было ли между годами известное дробление с тем же коэффициентом."""
+    for entry in splits or ():
+        try:
+            when = int(str(entry["date"])[:4])
+            ratio = float(entry["ratio"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        if year < when <= later_year and ratio > 0 \
+                and abs(step / ratio - 1) <= KNOWN_SPLIT_TOLERANCE:
+            return True
+    return False
 
 
 def _within(before: Optional[float], after: Optional[float], tolerance: float) -> bool:
@@ -1638,20 +1673,29 @@ def with_ltm(db, company_id: int, points: list, as_of, separate_cash: bool = Fal
         if fcf:
             distorted = abs(gap) > abs(fcf) * ACCRUAL_GAP_SHARE
 
+    # Сокращённое полугодие без денежного потока (Полюс за 1П2026 раскрыл
+    # только выручку, прибыль и баланс) не должно оставлять денежные ступени
+    # без последней точки: дыра в конце ряда тянула среднюю вниз так же, как
+    # настоящий провал. Если поток за LTM не посчитать, остаётся годовой —
+    # он хотя бы измерен, а прибыль при этом берётся свежая.
+    cash_known = fcf is not None
+    owner_known = owner is not None
     rolled = replace(
         last,
         eps=per_share(profit),
-        fcf_per_share=per_share(fcf),
-        owner_earnings_per_share=per_share(owner),
+        fcf_per_share=per_share(fcf) if cash_known else last.fcf_per_share,
+        owner_earnings_per_share=per_share(owner) if owner_known else last.owner_earnings_per_share,
         roe=_to_business(profit, business_equity, equity),
-        fcf_to_equity=_to_business(fcf, business_equity, equity),
-        owner_earnings_to_equity=_to_business(owner, business_equity, equity),
+        fcf_to_equity=(_to_business(fcf, business_equity, equity) if cash_known
+                       else last.fcf_to_equity),
+        owner_earnings_to_equity=(_to_business(owner, business_equity, equity) if owner_known
+                                  else last.owner_earnings_to_equity),
         book_value_per_share=per_share(equity),
         net_cash_per_share=per_share(net_cash),
         cash_income_per_share=per_share(cash_after_tax),
-        capex=capex,
-        capex_maintenance=maintenance,
-        depreciation=depreciation,
+        capex=capex if cash_known else last.capex,
+        capex_maintenance=maintenance if cash_known else last.capex_maintenance,
+        depreciation=depreciation if depreciation is not None else last.depreciation,
         accrual_gap=gap,
         distorted=distorted,
         ltm_label=f"LTM 1П{year}",

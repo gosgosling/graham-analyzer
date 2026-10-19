@@ -197,6 +197,30 @@ const HISTORY_ROWS: {
     higherIsBetter: null,
     tip: 'Кредиты физлицам ÷ портфель до резерва. Профиль риска: розница доходнее и рискованнее.',
   },
+  // Поток ядра — здесь же, а не отдельной карточкой: приток, который из
+  // него вычитается, складывается из движения портфеля и депозитов, а по
+  // годам видно, сколько потока компании на деле дал банк.
+  {
+    key: 'reported_fcf',
+    label: 'FCF по отчёту',
+    unit: 'mln',
+    higherIsBetter: null,
+    tip: 'Операционный поток минус CAPEX и погашение тела аренды — как считается у любой компании.',
+  },
+  {
+    key: 'banking_flow',
+    label: '− приток финсегмента',
+    unit: 'mln',
+    higherIsBetter: null,
+    tip: 'Сумма двух строк ОДДС: прирост клиентских депозитов и выдача кредитов, каждая со своим знаком. Эти деньги проходят через операционный поток как приток, но их придётся вернуть.',
+  },
+  {
+    key: 'core_fcf',
+    label: 'FCF ядра',
+    unit: 'mln',
+    higherIsBetter: true,
+    tip: 'FCF по отчёту минус приток финсегмента. С дивидендами сопоставим только он — по нему же считаются P/FCF и FCF/Прибыль.',
+  },
 ];
 
 /**
@@ -235,6 +259,16 @@ function formatChange(
 function changeLevel(direction: number, higherIsBetter: boolean | null): 'good' | 'bad' | 'na' {
   if (higherIsBetter === null || direction === 0) return 'na';
   return direction > 0 === higherIsBetter ? 'good' : 'bad';
+}
+
+/** Колонка истории: годовой отчёт или скользящий год. */
+interface HistoryColumn {
+  id: string;
+  label: string;
+  title?: string;
+  metrics: BankMetrics | null;
+  /** Отчёт колонки — для сырых строк; у скользящего года его нет. */
+  report: FinancialReport | null;
 }
 
 interface Props {
@@ -331,6 +365,27 @@ const BankMetricsPanel: React.FC<Props> = ({ companyId, reports, companyType }) 
         .filter((r) => r.bank_metrics && isFullYear(r))
         .sort((a, b) => a.fiscal_year - b.fiscal_year)
     : [];
+  // Последняя колонка — скользящий год, если свежий отчёт неполный: иначе
+  // она повторила бы последний год. Потоки в ней за двенадцать месяцев,
+  // балансовые величины — на дату свежего отчёта.
+  const ltmLatest = isHybrid && latest && !isFullYear(latest) && ltmMetrics ? latest : null;
+  const historyColumns: HistoryColumn[] = [
+    ...segmentHistory.map((r) => ({
+      id: String(r.id),
+      label: String(r.fiscal_year),
+      metrics: (r.bank_metrics as BankMetrics | null) ?? null,
+      report: r,
+    })),
+    ...(ltmLatest
+      ? [{
+          id: 'ltm',
+          label: 'LTM',
+          title: `Последние 12 месяцев по ${periodLabel(ltmLatest)}: потоки — годовой отчёт плюс текущий период минус тот же период прошлого года; портфель и депозиты — на ${ltmLatest.report_date ?? 'отчётную дату'}.`,
+          metrics: ltmMetrics as BankMetrics,
+          report: null,
+        }]
+      : []),
+  ];
 
   return (
     <div className="bank-panel">
@@ -465,47 +520,6 @@ const BankMetricsPanel: React.FC<Props> = ({ companyId, reports, companyType }) 
           них здесь, рядом с портфелем и депозитами: приток, который
           вычитается, складывается ровно из их движения. Раньше расчёт жил в
           карточке мультипликаторов, где связь с финсегментом была неочевидна. */}
-      {isHybrid && (metrics.core_fcf != null || segmentHistory.length > 0) && (
-        <div className={isExchange ? 'bank-exchange-bottom' : 'bank-bottom-grid'}>
-      {isHybrid && !isExchange && metrics.core_fcf != null && (
-        <div className="bank-core-flow">
-          <div className="bank-core-flow-title">
-            {isExchange ? 'Поток без клиентских денег' : 'Свободный поток без финсегмента'}
-          </div>
-          <div className="bank-core-flow-row">
-            <span>FCF по отчёту</span>
-            <b>{formatMln(metrics.reported_fcf ?? null)}</b>
-          </div>
-          <div className="bank-core-flow-row">
-            <span>
-              {isExchange
-                ? '− приток клиентских средств'
-                : '− приток от роста банковского баланса'}
-            </span>
-            <b>{formatMln(metrics.banking_flow ?? null)}</b>
-          </div>
-          <div className="bank-core-flow-row is-total">
-            <span>FCF ядра</span>
-            <b>{formatMln(metrics.core_fcf)}</b>
-          </div>
-
-          <p className="bank-panel-note">
-            {isExchange
-              ? 'Прирост обязательств перед участниками торгов и депонентами минус размещение этих денег. Средства клиентов проходят через баланс насквозь и в отчётный поток попадают как приток — но вернуть их придётся по первому требованию.'
-              : 'Приток средств клиентов минус выдача кредитов. Эти деньги придётся вернуть.'}
-            {' '}С дивидендами сопоставим только поток ядра — по нему же
-            считаются P/FCF и FCF/Прибыль.
-            {metrics.banking_flow_basis === 'balance_delta' && (
-              <>
-                {' '}Посчитано по приростам остатков — приблизительно: в них попадают
-                секьюритизация и списания, не проходящие через денежный поток.
-                Выпишите строки ОДДС, чтобы получить точную цифру.
-              </>
-            )}
-          </p>
-        </div>
-      )}
-
       {metrics.capital_to_rwa != null && metrics.capital_adequacy_ratio != null && (
         <p className="bank-panel-note">
           Сверка ввода: капитал ÷ RWA = {fmtValue(metrics.capital_to_rwa, 'pct')}, эмитент раскрыл{' '}
@@ -527,9 +541,7 @@ const BankMetricsPanel: React.FC<Props> = ({ companyId, reports, companyType }) 
       )}
 
       {segmentHistory.length > 0 && (
-        <div
-          className="bank-core-flow bank-segment-history"
-        >
+        <div className="bank-core-flow bank-segment-history bank-bottom">
           <div className="bank-core-flow-title bank-history-title">
             <span>
               {isExchange ? 'Динамика по годам' : 'Финсегмент по годам'}
@@ -550,8 +562,14 @@ const BankMetricsPanel: React.FC<Props> = ({ companyId, reports, companyType }) 
               <thead>
                 <tr>
                   <th>Показатель</th>
-                  {segmentHistory.map((r) => (
-                    <th key={r.id}>{r.fiscal_year}</th>
+                  {historyColumns.map((col) => (
+                    <th
+                      key={col.id}
+                      title={col.title}
+                      className={col.report ? undefined : 'bank-history-ltm has-tip'}
+                    >
+                      {col.label}
+                    </th>
                   ))}
                 </tr>
               </thead>
@@ -561,46 +579,49 @@ const BankMetricsPanel: React.FC<Props> = ({ companyId, reports, companyType }) 
                   // показатели, а исходные величины, из которых те считаются.
                   const fromReport = 'fromReport' in row && row.fromReport;
                   const unit = row.unit ?? 'pct';
-                  const valueOf = (rep: FinancialReport): number | null =>
-                    (fromReport
-                      ? ((rep as unknown as Record<string, number | null>)[row.key as string] ?? null)
-                      : (((rep.bank_metrics as BankMetrics | null)?.[
-                          row.key as keyof BankMetrics
-                        ] ?? null) as number | null)) as number | null;
+                  const valueOf = (col: HistoryColumn): number | null => {
+                    if (fromReport) {
+                      // У скользящего года отдельного отчёта нет — сырых строк тоже.
+                      if (!col.report) return null;
+                      return (col.report as unknown as Record<string, number | null>)[row.key as string] ?? null;
+                    }
+                    return ((col.metrics?.[row.key as keyof BankMetrics] ?? null) as number | null);
+                  };
                   return (
                   <tr key={String(row.key)}>
                     <td className="bank-history-label has-tip" title={row.tip}>
                       {row.label}
                     </td>
-                    {segmentHistory.map((rep, i) => {
-                      const value = valueOf(rep);
+                    {historyColumns.map((col, i) => {
+                      const value = valueOf(col);
+                      const ltmCell = col.report ? '' : ' bank-history-ltm';
                       if (showChange) {
                         // Первому году сравнивать не с чем — он остаётся пустым.
-                        const prev = i > 0 ? valueOf(segmentHistory[i - 1]) : null;
+                        // Скользящий год сравнивается с последним полным годом.
+                        const prev = i > 0 ? valueOf(historyColumns[i - 1]) : null;
                         const { text, direction, tip } = formatChange(value, prev, unit);
                         const level = changeLevel(direction, row.higherIsBetter);
                         return (
                           <td
-                            key={rep.id}
+                            key={col.id}
                             title={tip}
                             className={`bank-history-cell level-${level}${
                               text === '—' ? ' is-empty' : ''
-                            }${tip ? ' has-tip' : ''}`}
+                            }${tip ? ' has-tip' : ''}${ltmCell}`}
                           >
                             {text}
                           </td>
                         );
                       }
                       const status = (
-                        fromReport ? 'n/a' : (rep.bank_metrics as BankMetrics | null)
-                          ?.statuses?.[row.key as string] ?? 'n/a'
+                        fromReport ? 'n/a' : col.metrics?.statuses?.[row.key as string] ?? 'n/a'
                       ) as Status;
                       return (
                         <td
-                          key={rep.id}
+                          key={col.id}
                           className={`bank-history-cell level-${levelClass(status)}${
                             value === null ? ' is-empty' : ''
-                          }`}
+                          }${ltmCell}`}
                         >
                           {fmtValue(value, unit)}
                         </td>
@@ -612,8 +633,22 @@ const BankMetricsPanel: React.FC<Props> = ({ companyId, reports, companyType }) 
               </tbody>
             </table>
           </div>
-        </div>
-      )}
+          {!isExchange && (
+            <p className="bank-panel-note">
+              FCF ядра — поток без притока финсегмента: депозиты клиентов минус
+              выданные кредиты. Эти деньги придётся вернуть, поэтому с дивидендами
+              сопоставим только поток ядра — по нему же считаются P/FCF и
+              FCF/Прибыль.
+              {metrics.banking_flow_basis === 'balance_delta' && (
+                <>
+                  {' '}Приток в колонке LTM посчитан по приростам остатков —
+                  приблизительно: в них попадают секьюритизация и списания, не
+                  проходящие через денежный поток. Выпишите строки ОДДС, чтобы
+                  получить точную цифру.
+                </>
+              )}
+            </p>
+          )}
         </div>
       )}
 

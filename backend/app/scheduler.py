@@ -2,10 +2,12 @@
 Планировщик фоновых задач (APScheduler).
 
 Задачи:
-  1. Ежедневно в 19:00 МСК (UTC+3) — обновить текущие цены из T-Invest
-     и докачать пропущенные исторические цены из MOEX.
-  2. При старте сервера — сразу проверить и закрыть пробелы в ценах.
-  3. Раз в минуту — прогреть кэш расчётов, если данные изменились.
+  1. Каждые 5 минут — текущие цены из T-Invest (что брокер не дал — с
+     Мосбиржи). Пишутся только изменившиеся цены.
+  2. Ежедневно в 19:00 МСК (UTC+3) — докачать пропущенные исторические цены
+     из MOEX, ставку, ОФЗ, индексы и прочие дневные данные.
+  3. При старте сервера — сразу проверить и закрыть пробелы в ценах.
+  4. Раз в минуту — прогреть кэш расчётов, если данные изменились.
 """
 
 import logging
@@ -19,6 +21,8 @@ from app.database import SessionLocal
 logger = logging.getLogger(__name__)
 
 _scheduler: BackgroundScheduler | None = None
+
+INTRADAY_PRICE_MINUTES = 5
 
 
 def _daily_price_update() -> None:
@@ -97,6 +101,25 @@ def _daily_price_update() -> None:
         db.close()
 
 
+def _intraday_prices() -> None:
+    """Текущие цены всех компаний: один запрос к брокеру, резерв — Мосбиржа.
+
+    Раньше цена обновлялась раз в день в 19:00 (и при открытии карточки
+    администратором), и днём сайт показывал вчерашнюю. Опрос дешёвый: один
+    запрос на все бумаги, без изменений — ни одной записи в базу. Вне торгов
+    цены не меняются, и задание ничего не пишет.
+    """
+    from app.services.market.tinvest_price_service import update_all_company_prices
+
+    db = SessionLocal()
+    try:
+        update_all_company_prices(db)
+    except Exception as e:
+        logger.error("Обновление текущих цен не удалось: %s", e)
+    finally:
+        db.close()
+
+
 def _startup_backfill() -> None:
     """
     Запускается при старте сервера: докачивает все пропуски в ценах.
@@ -136,6 +159,20 @@ def start_scheduler() -> None:
         CronTrigger(hour=19, minute=0, timezone="Europe/Moscow"),
         id="daily_price_update",
         replace_existing=True,
+    )
+
+    # Текущие цены — каждые 5 минут, первый раз через 10 секунд после старта.
+    # Котировки MOEX ISS без подписки идут с задержкой 15 минут, так что чаще
+    # опрашивать резерв бессмысленно, а брокеру хватает и этого.
+    _scheduler.add_job(
+        _intraday_prices,
+        "interval",
+        minutes=INTRADAY_PRICE_MINUTES,
+        next_run_time=datetime.now(timezone.utc) + timedelta(seconds=10),
+        id="intraday_prices",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
     )
 
     # Бэкфилл при старте — через 5 секунд после инициализации

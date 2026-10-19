@@ -8,9 +8,9 @@ from app.services import data_cache
 from app.utils.http_cache import ETagMiddleware
 
 
-def _fresh(monkeypatch):
+def _fresh(monkeypatch, data=7, prices=1):
     data_cache.clear()
-    monkeypatch.setattr(data_cache, "_read_db_counter", lambda: 7)
+    monkeypatch.setattr(data_cache, "_read_db_counters", lambda: (data, prices))
     monkeypatch.setattr(data_cache, "_db_checked_at", 0.0)
 
 
@@ -29,9 +29,70 @@ def test_чужая_запись_видна_по_счётчику_postgres(monke
     calls = []
     compute = lambda: calls.append(1) or len(calls)  # noqa: E731
     data_cache.cached("k", compute)
-    monkeypatch.setattr(data_cache, "_read_db_counter", lambda: 8)
+    monkeypatch.setattr(data_cache, "_read_db_counters", lambda: (8, 1))
     monkeypatch.setattr(data_cache, "_db_checked_at", 0.0)
     assert data_cache.cached("k", compute) == 2
+
+
+def test_смена_цен_не_заставляет_посетителя_ждать(monkeypatch):
+    _fresh(monkeypatch)
+    calls = []
+    compute = lambda: calls.append(1) or len(calls)  # noqa: E731
+    assert data_cache.cached("k", compute) == 1
+    data_cache.bump_prices()
+    # Посетитель получает прежний ответ сразу…
+    assert data_cache.cached("k", compute) == 1
+    # …а прогрев пересчитывает под новые цены.
+    with data_cache.refreshing():
+        assert data_cache.cached("k", compute) == 2
+    assert data_cache.cached("k", compute) == 2
+    assert len(calls) == 2
+
+
+def test_ответ_по_старым_ценам_живёт_не_дольше_предела(monkeypatch):
+    _fresh(monkeypatch)
+    clock = {"now": 1000.0}
+    monkeypatch.setattr(data_cache.time, "monotonic", lambda: clock["now"])
+    calls = []
+    compute = lambda: calls.append(1) or len(calls)  # noqa: E731
+    data_cache.cached("k", compute)
+    data_cache.bump_prices()
+    clock["now"] += data_cache.PRICE_STALE_SECONDS + 1
+    assert data_cache.cached("k", compute) == 2
+
+
+def test_чужая_смена_цен_тоже_мягкая(monkeypatch):
+    _fresh(monkeypatch)
+    calls = []
+    compute = lambda: calls.append(1) or len(calls)  # noqa: E731
+    data_cache.cached("k", compute)
+    monkeypatch.setattr(data_cache, "_read_db_counters", lambda: (7, 2))
+    monkeypatch.setattr(data_cache, "_db_checked_at", 0.0)
+    assert data_cache.cached("k", compute) == 1
+
+
+def test_ответ_none_тоже_кэшируется(monkeypatch):
+    _fresh(monkeypatch)
+    calls = []
+    compute = lambda: calls.append(1)  # noqa: E731 — возвращает None
+    data_cache.cached("k", compute)
+    data_cache.cached("k", compute)
+    assert len(calls) == 1
+
+
+def test_правка_только_цены_компании_отличается_от_правки_данных():
+    from sqlalchemy.orm.attributes import set_committed_value
+
+    from app.models.company import Company
+
+    company = Company()
+    for key in ("ticker", "current_price", "name", "price_source"):
+        set_committed_value(company, key, None)
+    company.current_price = 100.0
+    company.price_source = "moex"
+    assert data_cache._price_only_update(company)
+    company.name = "Тест"
+    assert not data_cache._price_only_update(company)
 
 
 def test_ошибка_расчёта_не_кэшируется(monkeypatch):

@@ -728,3 +728,25 @@ def test_both_halves_of_criterion_seven_failing_is_a_failure():
                    pe_average=(14.0,), pb=(2.0,), pe_pb=(28.0,))
     result = screened(axes)
     assert {v.metric for v in result.failed} == {"pb", "pe_pb"}
+
+
+# ── P/B активного свода: отраслевая поправка не строже отрасли ─────────────
+
+def test_enterprising_pb_not_stricter_than_sector_good():
+    """Нефтегаз: книжные 1,2 × поправка 0,8 давали 0,96 — строже и книги, и
+    отраслевого «хорошо» 1,2. Теперь порог 1,2, и P/B 0,97 проходит."""
+    from app.services.analysis.sector_profiles import OIL_GAS_MINING
+
+    axes = healthy()
+    axes[6] = axis("price", "Динамика цен",
+                   pe_average=(6.0,), pb=(0.97,), pb_tangible=(0.97,), pe_pb=(5.8,))
+    v = verdict(screened(axes, profile=OIL_GAS_MINING, standard="enterprising"), "pb_tangible")
+    assert v.applied == 1.2
+    assert v.status == PASS
+
+
+def test_enterprising_pb_loosening_sectors_unchanged():
+    """Где поправка ослабляет порог (ритейл), правило ничего не меняет."""
+    axes = healthy()
+    v = verdict(screened(axes, profile=RETAIL_GROCERY, standard="enterprising"), "pb_tangible")
+    assert v.applied == 2.4

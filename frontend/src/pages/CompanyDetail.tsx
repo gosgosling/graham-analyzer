@@ -32,7 +32,9 @@ import ReportDetailModal from '../components/ReportDetailModal';
 import AiParsePdfModal from '../components/AiParsePdfModal';
 import { formatPerShare } from '../utils/perShare';
 import { resolveSharesForMultipliers, explainSharesCapBasis } from '../utils/shareCounts';
-import { fetchPriceHistory, type PriceHistoryOut } from '../services/prices.api';
+import {
+  fetchPriceHistory, LIVE_PRICE_REFRESH_MS, LIVE_PRICE_STALE_MS, type PriceHistoryOut,
+} from '../services/prices.api';
 import { fetchPassport, type PassportOut } from '../services/screen.api';
 import { getCompanyCurrentMultipliers } from '../services';
 import { useAdmin } from '../hooks/useAdmin';
@@ -96,6 +98,9 @@ function capLabel(mln: number): string {
 
 /** «2026-09-30» → «30.09.2026». */
 const dotDate = (iso: string) => iso.split('-').reverse().join('.');
+/** Время котировки по Москве: «22:42». Биржа живёт по московскому времени. */
+const quoteClock = (iso: string) =>
+  new Date(iso).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Moscow' });
 
 const CompanyDetail: React.FC = () => {
   const { companyId } = useParams<{ companyId: string }>();
@@ -219,7 +224,8 @@ const CompanyDetail: React.FC = () => {
   const { data: priceHistory } = useQuery<PriceHistoryOut>({
     queryKey: ['price-history', Number(companyId)],
     queryFn: () => fetchPriceHistory(Number(companyId)),
-    staleTime: 30 * 60 * 1000,
+    staleTime: LIVE_PRICE_STALE_MS,
+    refetchInterval: LIVE_PRICE_REFRESH_MS,
     enabled: !!companyId,
   });
 
@@ -240,7 +246,8 @@ const CompanyDetail: React.FC = () => {
   const { data: currentMultipliers } = useQuery({
     queryKey: ['multipliers-current', Number(companyId)],
     queryFn: () => getCompanyCurrentMultipliers(Number(companyId)),
-    staleTime: 5 * 60 * 1000,
+    staleTime: LIVE_PRICE_STALE_MS,
+    refetchInterval: LIVE_PRICE_REFRESH_MS,
     enabled: !!companyId,
     retry: false,
   });
@@ -415,6 +422,7 @@ const CompanyDetail: React.FC = () => {
   const prevPoint = points.length > 1 ? points[points.length - 2] : null;
   const price = lastPoint?.price ?? latestReport?.price_per_share_rub ?? null;
   const priceDate = lastPoint?.date ?? latestReport?.report_date ?? null;
+  const quote = priceHistory?.quote ?? null;
   const dayChange = lastPoint && prevPoint && prevPoint.price > 0
     ? { abs: lastPoint.price - prevPoint.price, rel: lastPoint.price / prevPoint.price - 1 }
     : null;
@@ -513,7 +521,17 @@ const CompanyDetail: React.FC = () => {
                   </>
                 )}
                 {priceDate && <>цена на {dotDate(priceDate)}</>}
+                {quote?.source === 'moex' && !quote.stale && (
+                  <span title="T-Invest не ответил — цена взята с Мосбиржи. Без авторизации биржа отдаёт котировку с задержкой 15 минут.">
+                    {' · '}Мосбиржа, {quoteClock(quote.quoted_at)}, задержка 15 мин
+                  </span>
+                )}
               </span>
+              {quote?.stale && (
+                <span className="cd-quote-stale" role="status">
+                  Цена не обновлялась с {dotDate(quote.quoted_at.slice(0, 10))} — оценка ниже считается по ней
+                </span>
+              )}
             </div>
           )}
         </div>

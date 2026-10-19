@@ -13,6 +13,12 @@
 сохраняется источник (`price_source`) и момент котировки (`price_quoted_at`),
 чтобы страница могла сказать, откуда цена и насколько она свежая.
 
+**Внутри дня.** Планировщик зовёт `update_all_company_prices` каждые пять
+минут торгового дня. Записываются только изменившиеся цены: если цена та же,
+ни строка компании, ни дневная запись не трогаются — версия цен в кэше
+расчётов (`data_cache`) не меняется, и тяжёлые ответы не пересчитываются
+зря (вечером и в выходные — ни одной записи).
+
 **Предохранитель.** Обращения к T-Invest идут через `source_health.TINVEST`:
 после сбоя брокер не опрашивается до конца паузы (1, 2, 4… до 30 минут), и
 цены сразу берутся с биржи, без ожидания таймаута.
@@ -20,6 +26,7 @@
 import requests
 import logging
 from datetime import date, datetime, timezone
+from zoneinfo import ZoneInfo
 from typing import Optional, List, Dict
 
 from sqlalchemy.orm import Session
@@ -34,6 +41,7 @@ from app.utils.source_health import MOEX_LIVE, TINVEST
 logger = logging.getLogger(__name__)
 
 TINVEST_BASE_URL = "https://invest-public-api.tinkoff.ru/rest"
+MOSCOW = ZoneInfo("Europe/Moscow")
 
 
 def _parse_tinvest_price(price_dict: dict) -> Optional[float]:
@@ -50,15 +58,34 @@ def _parse_tinvest_price(price_dict: dict) -> Optional[float]:
         return None
 
 
+def _parse_time(value: object) -> Optional[datetime]:
+    """Время последней сделки из ответа брокера (RFC 3339, UTC)."""
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        # Python до 3.11 не понимает «Z» и наносекунды — режем до микросекунд.
+        head, _, frac = value.rstrip("Z").partition(".")
+        stamp = datetime.fromisoformat(head + ("." + frac[:6] if frac else ""))
+    except ValueError:
+        return None
+    return stamp.replace(tzinfo=timezone.utc) if stamp.tzinfo is None else stamp
+
+
 def get_last_prices(figis: List[str]) -> Dict[str, Optional[float]]:
+    """Последние цены по FIGI из T-Invest API. → {figi: цена}."""
+    return {figi: quote[0] for figi, quote in get_last_quotes(figis).items()}
+
+
+def get_last_quotes(figis: List[str]) -> Dict[str, tuple]:
     """
-    Получает последние цены для списка FIGI из T-Invest API.
+    Последние цены и время сделки для списка FIGI из T-Invest API.
 
     Args:
         figis: Список FIGI инструментов (не более 3000 за раз по документации API)
 
     Returns:
-        Словарь {figi: price}. Если цена недоступна — значение None.
+        Словарь {figi: (цена, время сделки или None)}. Если цена недоступна —
+        цена None.
     """
     token = settings.TINKOFF_TOKEN
     if not token or token == "your_token_here":
@@ -99,12 +126,12 @@ def get_last_prices(figis: List[str]) -> Dict[str, Optional[float]]:
         return {}
 
     TINVEST.success()
-    result: Dict[str, Optional[float]] = {}
+    result: Dict[str, tuple] = {}
     for lp in data.get("lastPrices", []):
         figi = lp.get("figi")
         price = _parse_tinvest_price(lp.get("price"))
         if figi:
-            result[figi] = price
+            result[figi] = (price, _parse_time(lp.get("time")))
 
     logger.info("Получено цен от T-Invest API: %d из %d запрошенных", len(result), len(figis))
     return result
@@ -135,13 +162,39 @@ def get_moex_prices(companies: List[Company]) -> Dict[int, tuple]:
 
 
 def _apply_price(db: Session, company: Company, price: float, source: str,
-                 quoted_at: Optional[datetime], now: datetime) -> None:
+                 quoted_at: Optional[datetime], now: datetime) -> bool:
+    """Записать цену компании. False — цена та же, ничего не писалось.
+
+    Дневная запись в `stock_prices` датируется днём котировки по Москве, а не
+    днём опроса: ночной или субботний опрос с пятничной ценой обновит
+    пятницу, а не заведёт лишний день на графике.
+
+    Та же цена из того же источника за тот же день не пишется вовсе: время
+    котировки у компании остаётся временем, когда цена стала такой. Без этого
+    каждый пятиминутный опрос менял бы строку компании, и кэш расчётов
+    пересчитывался бы и вечером, и в выходные.
+    """
+    quoted = quoted_at or now
+    day = quoted.astimezone(MOSCOW).date()
+    stored = company.price_quoted_at or company.price_updated_at
+    if (
+        company.current_price is not None
+        and abs(float(company.current_price) - price) < 1e-9
+        and company.price_source == source
+        and stored is not None
+        and _aware(stored).astimezone(MOSCOW).date() == day
+    ):
+        return False
     company.current_price = price  # type: ignore
     company.price_updated_at = now  # type: ignore
     company.price_source = source  # type: ignore
-    company.price_quoted_at = quoted_at or now  # type: ignore
-    _upsert_stock_price(db, company_id=company.id, price_date=now.date(), price=price,
-                        source=source)
+    company.price_quoted_at = quoted  # type: ignore
+    _upsert_stock_price(db, company_id=company.id, price_date=day, price=price, source=source)
+    return True
+
+
+def _aware(moment: datetime) -> datetime:
+    return moment if moment.tzinfo else moment.replace(tzinfo=timezone.utc)
 
 
 def get_last_price(figi: str) -> Optional[float]:
@@ -163,9 +216,10 @@ def update_company_price(db: Session, company: Company) -> Optional[float]:
         Обновлённая цена или None если не удалось получить
     """
     now = datetime.now(timezone.utc)
-    price = get_last_price(company.figi) if company.figi else None
+    price, traded_at = get_last_quotes([company.figi]).get(company.figi, (None, None)) \
+        if company.figi else (None, None)
     if price is not None:
-        _apply_price(db, company, price, "tinvest", now, now)
+        _apply_price(db, company, price, "tinvest", traded_at, now)
     else:
         quote = get_moex_prices([company]).get(company.id)
         if quote is None:
@@ -219,35 +273,35 @@ def update_all_company_prices(db: Session) -> Dict[str, Optional[float]]:
     if not companies:
         return {}
 
-    figi_to_company = {c.figi: c for c in companies if c.figi}
-    prices = get_last_prices(list(figi_to_company.keys()))
+    figis = [c.figi for c in companies if c.figi]
+    quotes = get_last_quotes(figis) if figis else {}
 
     now = datetime.now(timezone.utc)
     result: Dict[str, Optional[float]] = {}
     missing: List[Company] = []
+    changed = {"tinvest": 0, "moex": 0}
 
     for company in companies:
-        price = prices.get(company.figi) if company.figi else None
+        price, traded_at = quotes.get(company.figi, (None, None)) if company.figi else (None, None)
         if price is not None:
-            _apply_price(db, company, price, "tinvest", now, now)
+            if _apply_price(db, company, price, "tinvest", traded_at, now):
+                changed["tinvest"] += 1
             result[company.ticker] = price
         else:
             missing.append(company)
 
     # Всё, что брокер не дал — или весь список, если он недоступен, — с биржи.
+    by_id = {c.id: c for c in missing}
     for company_id, (price, quoted_at) in get_moex_prices(missing).items():
-        company = next(c for c in missing if c.id == company_id)
-        _apply_price(db, company, price, "moex", quoted_at, now)
+        company = by_id[company_id]
+        if _apply_price(db, company, price, "moex", quoted_at, now):
+            changed["moex"] += 1
         result[company.ticker] = price
     for company in missing:
         result.setdefault(company.ticker, None)
 
     db.commit()
-    by_source = {"tinvest": 0, "moex": 0}
-    for company in companies:
-        if company.price_updated_at == now and company.price_source in by_source:
-            by_source[company.price_source] += 1
-    logger.info("Обновлено цен компаний: T-Invest %d, Мосбиржа %d, без цены %d",
-                by_source["tinvest"], by_source["moex"],
+    logger.info("Цены компаний: изменилось T-Invest %d, Мосбиржа %d; без цены %d",
+                changed["tinvest"], changed["moex"],
                 sum(1 for v in result.values() if v is None))
     return result

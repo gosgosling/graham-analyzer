@@ -40,8 +40,28 @@ export interface PriceEvent {
   value?: number | null;
 }
 
+/**
+ * Как часто открытая страница перечитывает цену. Сервер обновляет цены
+ * каждые пять минут сам; страница забирает готовое из базы — это быстро и
+ * ничего не пишет. В фоновой вкладке опрос стоит, при возврате на неё цена
+ * перечитывается сразу.
+ */
+export const LIVE_PRICE_REFRESH_MS = 5 * 60 * 1000;
+/** Чуть меньше шага опроса: при возврате на вкладку цена не старше минуты. */
+export const LIVE_PRICE_STALE_MS = 60 * 1000;
+
+/** Откуда текущая цена и насколько она свежая. */
+export interface PriceQuote {
+  /** «tinvest» — брокер; «moex» — резерв, котировка Мосбиржи с задержкой 15 минут. */
+  source: 'tinvest' | 'moex' | string;
+  quoted_at: string;
+  /** Цена старше трёх дней — оценка считается по устаревшей цене. */
+  stale: boolean;
+}
+
 export interface PriceHistoryOut {
   company: { id: number; ticker: string; name: string };
+  quote?: PriceQuote | null;
   points: PricePoint[];
   reports: PriceReportMark[];
   events?: PriceEvent[];

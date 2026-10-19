@@ -215,7 +215,7 @@ function SafetyCell({ safety }: { safety: RowSafety | null }) {
 function Ident({ row }: { row: MarketScreenOut['rows'][number] }) {
   return (
     <span className="ms-ident">
-      <CompanyLogo url={row.logo_url} alt="" className="ms-logo" />
+      <CompanyLogo url={row.logo_url} ticker={row.ticker} alt="" className="ms-logo" />
       <span className="ms-ident-text">
         <Link to={`/company/${row.id}`}>{row.ticker}</Link>
         <span className="ms-name" title={row.name}>{row.name}</span>
@@ -473,6 +473,7 @@ function FullTable({ data }: { data: MarketScreenOut }) {
                   <span className="ms-ident">
                     <CompanyLogo
                       url={row.logo_url}
+                      ticker={row.ticker}
                       alt=""
                       className="ms-logo"
                     />

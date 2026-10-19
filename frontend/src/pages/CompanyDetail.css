@@ -1651,6 +1651,15 @@
 [data-theme='dark'] .cd-change.is-up   { color: var(--color-success-text); }
 [data-theme='dark'] .cd-change.is-down { color: var(--color-error-text); }
 .cd-quote-meta { font-size: 0.86rem; color: var(--color-text-tertiary); }
+/* Цена старше трёх дней: брокер и резерв молчали. Не тревога, а честная пометка. */
+.cd-quote-stale {
+  font-size: 0.82rem;
+  color: var(--color-warning-text, #b45309);
+  background: var(--color-warning-soft, rgba(217, 119, 6, 0.08));
+  border-radius: 6px;
+  padding: 2px 8px;
+  margin-top: 4px;
+}
 
 /* Ключевые цифры — строкой между жирной и тонкой чертой. */
 .cd-stats {

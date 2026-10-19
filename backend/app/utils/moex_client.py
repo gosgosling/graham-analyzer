@@ -100,15 +100,23 @@ _LIVE_BOARDS = ("TQBR", "TQTY", "SMAL")
 
 
 def _quote_time(systime: Optional[str], updatetime: Optional[str]) -> Optional[datetime]:
-    """Время котировки по Москве → UTC. Дата берётся из SYSTIME, время — UPDATETIME."""
+    """Время котировки по Москве → UTC. Дата берётся из SYSTIME, время — UPDATETIME.
+
+    Даты котировки в marketdata нет. Если время котировки позже системного
+    (ночью или в выходной: системные 03:00, котировка 23:49), котировка
+    вчерашняя.
+    """
     if not systime:
         return None
     day = systime[:10]
     clock = updatetime or systime[11:19]
     try:
         local = datetime.strptime(f"{day} {clock}", "%Y-%m-%d %H:%M:%S")
+        now_local = datetime.strptime(systime[:19], "%Y-%m-%d %H:%M:%S")
     except ValueError:
         return None
+    if local > now_local + timedelta(minutes=1):
+        local -= timedelta(days=1)
     return (local - timedelta(hours=3)).replace(tzinfo=timezone.utc)
 
 

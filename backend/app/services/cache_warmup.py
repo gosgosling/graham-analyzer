@@ -1,7 +1,7 @@
 """Прогрев кэша расчётов: тяжёлые ответы считаются в фоне, а не на запросе.
 
 Планировщик раз в минуту сверяет версию данных. Если она сменилась — после
-ежедневного обновления цен, загрузки отчёта, правки компании, — скринер,
+пятиминутного обновления цен, загрузки отчёта, правки компании, — скринер,
 сравнение, обзор рынка и оценки проверенных компаний пересчитываются здесь.
 Посетитель получает готовый ответ из памяти.
 """
@@ -40,20 +40,23 @@ def warm(force: bool = False) -> bool:
         started = time.perf_counter()
         db = SessionLocal()
         try:
-            for standard in screen.STANDARDS:
-                market_screen(standard=standard, all_companies=False, db=db)
-            compare_groups(db=db)
-            market_overview(db=db)
-            market_multiple(year=None, data_year=DEFAULT_YEAR, db=db)
-            tickers = trustworthy_tickers(db)
-            for company in db.query(Company).filter(Company.ticker.in_(tickers)):
-                try:
-                    company_summary(company_id=company.id, window=DEFAULT_WINDOW, db=db)
-                    company_peers(company_id=company.id, db=db)
-                    # «Сравнить с отраслью» из карточки — компания и три соседки.
-                    compare_companies(ids=None, with_id=company.id, all_peers=False, db=db)
-                except Exception as e:  # noqa: BLE001 — одна компания не должна сорвать прогрев
-                    logger.warning("Прогрев кэша: %s — %s", company.ticker, e)
+            # Записи по прежним ценам пересчитываются, а не берутся из кэша;
+            # посетители тем временем получают прежний ответ.
+            with data_cache.refreshing():
+                for standard in screen.STANDARDS:
+                    market_screen(standard=standard, all_companies=False, db=db)
+                compare_groups(db=db)
+                market_overview(db=db)
+                market_multiple(year=None, data_year=DEFAULT_YEAR, db=db)
+                tickers = trustworthy_tickers(db)
+                for company in db.query(Company).filter(Company.ticker.in_(tickers)):
+                    try:
+                        company_summary(company_id=company.id, window=DEFAULT_WINDOW, db=db)
+                        company_peers(company_id=company.id, db=db)
+                        # «Сравнить с отраслью» из карточки — компания и три соседки.
+                        compare_companies(ids=None, with_id=company.id, all_peers=False, db=db)
+                    except Exception as e:  # noqa: BLE001 — одна компания не должна сорвать прогрев
+                        logger.warning("Прогрев кэша: %s — %s", company.ticker, e)
         finally:
             db.close()
         _last_warmed = version
