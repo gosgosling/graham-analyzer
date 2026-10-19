@@ -298,10 +298,47 @@ def test_interim_without_dividends_does_not_erase_annual_one(db, company):
     assert latest.dividends_paid is False
 
 
-def test_unknown_dividend_stays_unknown(db, company):
-    """Поле пусто, а флаг говорит «платили» — это неизвестность, не ноль."""
+def test_unknown_interim_dividend_carries_annual_one(db, company):
+    """Флаг «платили» в полугодии без суммы — берётся дивиденд прошлого года.
+
+    Флаг в полугодии обычно значит «заплатили за прошлый год», а сумма на
+    акцию записана в год начисления. Раньше такая пустота обнуляла дивиденд
+    LTM, и у Яндекса пропала доходность, как только появились полугодия.
+    """
     _report(db, company, fiscal_year=2025, dividends_per_share=675.0,
             dividends_paid=True, report_date=date(2025, 12, 31))
+    _report(db, company, period_type=PeriodType.SEMI_ANNUAL, fiscal_year=2025,
+            dividends_per_share=None, dividends_paid=True,
+            report_date=date(2025, 6, 30))
+    _report(db, company, period_type=PeriodType.SEMI_ANNUAL, fiscal_year=2026,
+            dividends_per_share=None, dividends_paid=True,
+            report_date=date(2026, 6, 30))
+
+    result = calculate_current_multipliers(db, company.id)
+
+    assert result["ltm_dividends_per_share"] == 675.0
+
+
+def test_known_interim_dividends_go_through_formula(db, company):
+    """Промежуточные дивиденды известны — LTM = 1П + год − 1П прошлого года."""
+    _report(db, company, fiscal_year=2025, dividends_per_share=675.0,
+            dividends_paid=True, report_date=date(2025, 12, 31))
+    _report(db, company, period_type=PeriodType.SEMI_ANNUAL, fiscal_year=2025,
+            dividends_per_share=100.0, dividends_paid=True,
+            report_date=date(2025, 6, 30))
+    _report(db, company, period_type=PeriodType.SEMI_ANNUAL, fiscal_year=2026,
+            dividends_per_share=120.0, dividends_paid=True,
+            report_date=date(2026, 6, 30))
+
+    result = calculate_current_multipliers(db, company.id)
+
+    assert result["ltm_dividends_per_share"] == 695.0
+
+
+def test_no_annual_dividend_carries_zero(db, company):
+    """За прошлый год не платили — перенос даёт ноль, а не пустоту."""
+    _report(db, company, fiscal_year=2025, dividends_per_share=None,
+            dividends_paid=False, report_date=date(2025, 12, 31))
     _report(db, company, period_type=PeriodType.SEMI_ANNUAL, fiscal_year=2025,
             dividends_per_share=None, dividends_paid=True,
             report_date=date(2025, 6, 30))
@@ -311,7 +348,7 @@ def test_unknown_dividend_stays_unknown(db, company):
 
     result = calculate_current_multipliers(db, company.id)
 
-    assert result["ltm_dividends_per_share"] is None
+    assert result["ltm_dividends_per_share"] == 0.0
 
 
 def test_regular_payer_is_recognised(db, company):
@@ -382,3 +419,49 @@ def test_recent_payer_has_no_silence_gap(db, company):
     result = calculate_current_multipliers(db, company.id)
 
     assert result["dividend_years_since_last"] == 0
+
+
+# ─── Приток финсегмента гибрида за двенадцать месяцев ──────────────────────
+
+
+def _hybrid_half_years(db, company, *, with_prior_cf: bool = True):
+    company.company_type = "hybrid"
+    company.current_price = 100.0
+    db.commit()
+    _report(db, company, fiscal_year=2025, report_date=date(2025, 12, 31),
+            cf_customer_deposits=1_000.0, cf_customer_loans=-400.0,
+            customer_deposits=5_000.0, gross_loans=3_000.0)
+    _report(db, company, period_type=PeriodType.SEMI_ANNUAL, fiscal_year=2025,
+            report_date=date(2025, 6, 30),
+            cf_customer_deposits=300.0 if with_prior_cf else None,
+            cf_customer_loans=-100.0 if with_prior_cf else None,
+            customer_deposits=4_000.0, gross_loans=2_500.0)
+    _report(db, company, period_type=PeriodType.SEMI_ANNUAL, fiscal_year=2026,
+            report_date=date(2026, 6, 30),
+            cf_customer_deposits=500.0, cf_customer_loans=-200.0,
+            customer_deposits=5_800.0, gross_loans=3_400.0)
+
+
+def test_half_year_banking_flow_is_twelve_months(db, company):
+    """Строки ОДДС полугодия — полгода; к LTM-потоку их собирают за год.
+
+    Депозиты 500 + 1000 − 300 = 1200, кредиты −200 − 400 + 100 = −500.
+    Взять полугодовые 300 значило бы вычесть из годового потока полгода.
+    """
+    _hybrid_half_years(db, company)
+
+    result = calculate_current_multipliers(db, company.id)
+
+    assert result["banking_flow"] == 700.0
+    assert result["banking_flow_basis"] == "cash_flow"
+
+
+def test_half_year_without_prior_cf_uses_year_over_year_balances(db, company):
+    """Нет строк ОДДС в прошлом полугодии — прирост остатков за год, а не полгода."""
+    _hybrid_half_years(db, company, with_prior_cf=False)
+
+    result = calculate_current_multipliers(db, company.id)
+
+    # (5800 − 4000) − (3400 − 2500)
+    assert result["banking_flow"] == 900.0
+    assert result["banking_flow_basis"] == "balance_delta"

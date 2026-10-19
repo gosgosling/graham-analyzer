@@ -10,7 +10,8 @@ import {
 // Адрес API задаётся при сборке. Локально — отдельный порт uvicorn; на
 // сервере — тот же домен, путь /api (его проксирует Caddy), поэтому cookie
 // входа и CORS там не нужны: страница и API — один сайт.
-export const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+import { API_BASE_URL } from './apiBase';
+export { API_BASE_URL };
 
 const api = axios.create({
     baseURL: API_BASE_URL,

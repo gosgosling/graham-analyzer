@@ -100,37 +100,6 @@
   animation: fadeIn 0.3s ease;
 }
 
-.refresh-auto-indicator {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 0.78rem;
-  color: var(--color-text-tertiary);
-  font-style: italic;
-  animation: fadeIn 0.3s ease;
-}
-
-.refresh-auto-spinner {
-  display: inline-block;
-  width: 12px;
-  height: 12px;
-  border: 2px solid var(--color-border-default);
-  border-top-color: var(--color-accent-indigo);
-  border-radius: 50%;
-  animation: refreshSpin 0.9s linear infinite;
-}
-
-@keyframes refreshSpin {
-  to { transform: rotate(360deg); }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .refresh-auto-spinner {
-    animation: none;
-    border-top-color: var(--color-border-default);
-  }
-}
-
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(-4px); }
   to   { opacity: 1; transform: translateY(0); }

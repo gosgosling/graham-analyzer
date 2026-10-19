@@ -57,6 +57,7 @@ import {
   type ValuationSummaryOut,
 } from '../services/valuation.api';
 import { useAdmin } from '../hooks/useAdmin';
+import { LIVE_PRICE_REFRESH_MS, LIVE_PRICE_STALE_MS } from '../services/prices.api';
 import './MultipliersPanel.css';
 
 
@@ -2759,12 +2760,9 @@ const TouchTip: React.FC<{ tip: { head: string; body: string } | null; onClose: 
 };
 
 const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company, reports }) => {
-  const { isAdmin, checking: adminChecking } = useAdmin();
+  const { isAdmin } = useAdmin();
   const [refreshMsg, setRefreshMsg] = useState<string | null>(null);
-  const [autoRefreshing, setAutoRefreshing] = useState(false);
   const [histPctMode, setHistPctMode] = useState(false);
-  /** После первого sync цены с T-Invest можно грузить current-мультипликаторы. */
-  const [initialPriceSynced, setInitialPriceSynced] = useState(false);
   const queryClient = useQueryClient();
 
   const companyId = company.id!;
@@ -2788,10 +2786,13 @@ const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company, reports })
     retry: false,
   });
 
+  // Цены сервер обновляет сам каждые пять минут — карточка перечитывает
+  // показатели с тем же шагом, без записи в базу с открытой страницы.
   const { data: currentData, isLoading: currentLoading, error: currentError } = useQuery({
     queryKey: ['multipliers-current', companyId],
     queryFn: () => getCompanyCurrentMultipliers(companyId),
-    enabled: initialPriceSynced,
+    staleTime: LIVE_PRICE_STALE_MS,
+    refetchInterval: LIVE_PRICE_REFRESH_MS,
     retry: false,
   });
 
@@ -2854,69 +2855,6 @@ const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company, reports })
     },
   });
 
-  // Авто-обновление цены при заходе на карточку компании.
-  // Сначала тянем цену из T-Invest, затем (через enabled) грузим current-мультипликаторы —
-  // иначе useQuery успевает отрисовать устаревшие P/E, P/B и т.д.
-  //
-  // Не используем ref «уже обновляли» — в React StrictMode первый запрос
-  // прерывается cleanup, а ref блокировал повтор на втором mount.
-  useEffect(() => {
-    setInitialPriceSynced(false);
-  }, [companyId]);
-
-  useEffect(() => {
-    if (!companyId || adminChecking) return;
-    // Гость цену не обновляет: это запись в базу, она закрыта. Цены и так
-    // обновляет ежедневная задача на сервере.
-    if (!isAdmin) {
-      setInitialPriceSynced(true);
-      return;
-    }
-
-    let disposed = false;
-    const controller = new AbortController();
-    const timeoutId = window.setTimeout(() => controller.abort(), 20_000);
-
-    setAutoRefreshing(true);
-
-    refreshCompanyMultipliers(companyId, true, controller.signal)
-      .then((res) => {
-        if (disposed) return;
-        queryClient.invalidateQueries({ queryKey: ['multipliers-current', companyId] });
-        queryClient.invalidateQueries({ queryKey: ['multipliers-history', companyId] });
-        queryClient.invalidateQueries({ queryKey: ['company', companyId] });
-        if (res.success && res.price !== null) {
-          setRefreshMsg('Цена обновлена');
-        } else {
-          setRefreshMsg('⚠ Не удалось получить актуальную цену');
-        }
-        setTimeout(() => setRefreshMsg(null), 3500);
-      })
-      .catch((err) => {
-        if (disposed) return;
-        const isAbort =
-          err?.name === 'CanceledError' ||
-          err?.code === 'ERR_CANCELED' ||
-          err?.message === 'canceled';
-        if (!isAbort) {
-          // eslint-disable-next-line no-console
-          console.warn('Авто-обновление цены не удалось:', err);
-        }
-      })
-      .finally(() => {
-        window.clearTimeout(timeoutId);
-        if (!disposed) {
-          setInitialPriceSynced(true);
-          setAutoRefreshing(false);
-        }
-      });
-
-    return () => {
-      disposed = true;
-      window.clearTimeout(timeoutId);
-      controller.abort();
-    };
-  }, [companyId, queryClient, isAdmin, adminChecking]);
 
   const rows = histData ?? [];
   const [histExpanded, setHistExpanded] = React.useState(false);
@@ -3125,10 +3063,8 @@ const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company, reports })
 
       {currentData && rows.length < GRAHAM_YEARS && <HistoryDepth years={rows.length} />}
 
-      {(autoRefreshing || !initialPriceSynced || currentLoading || histLoading) ? (
-        <div className="mult-loading">
-          {autoRefreshing || !initialPriceSynced ? 'Обновляем цену и загружаем показатели…' : 'Загрузка показателей…'}
-        </div>
+      {(currentLoading || histLoading) ? (
+        <div className="mult-loading">Загрузка показателей…</div>
       ) : (
         <div
           ref={sheetRef}
@@ -3205,9 +3141,6 @@ const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company, reports })
           </p>
         )}
         {isAdmin && <div className="ys-admin">
-          {autoRefreshing && !refreshMutation.isPending && (
-            <span className="refresh-auto-indicator"><span className="refresh-auto-spinner" aria-hidden />обновляем цену…</span>
-          )}
           {refreshMsg && <span className="refresh-msg">{refreshMsg}</span>}
           <label className="legend-profile" title="Метод анализа: какие показатели применимы">
             <span className="legend-profile-label">Тип:</span>

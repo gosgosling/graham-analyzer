@@ -37,11 +37,32 @@ mkdir -p "$BACKUP_ROOT"
 STAMP="$(date +%Y%m%d_%H%M%S)"
 FILE="$BACKUP_ROOT/${PG_DB}_${STAMP}.dump"
 
-echo "Бэкап $PG_DB → $FILE"
-pg_docker exec "$CONTAINER" pg_dump -U "$PG_USER" -Fc --no-owner --no-acl "$PG_DB" > "$FILE"
+# Аккаунты (email, хэши паролей, сессии) в основной дамп не кладутся: папка
+# бэкапов коммитится в публичный репозиторий. Схема этих таблиц в дампе есть,
+# данных нет. Сами данные — отдельным маленьким дампом в backups/private/,
+# который в гит не попадает (.gitignore) и читается только владельцем.
+AUTH_TABLES=(users user_sessions auth_tokens)
+EXCLUDE=()
+ONLY=()
+for t in "${AUTH_TABLES[@]}"; do
+  EXCLUDE+=(--exclude-table-data="public.$t")
+  ONLY+=(-t "public.$t")
+done
+PRIVATE_ROOT="${POSTGRES_PRIVATE_BACKUP_DIR:-$BACKUP_ROOT/../private}"
+mkdir -p "$PRIVATE_ROOT"
+chmod 700 "$PRIVATE_ROOT"
+AUTH_FILE="$PRIVATE_ROOT/${PG_DB}_auth_${STAMP}.dump"
+
+echo "Бэкап $PG_DB → $FILE (без данных аккаунтов)"
+pg_docker exec "$CONTAINER" pg_dump -U "$PG_USER" -Fc --no-owner --no-acl "${EXCLUDE[@]}" "$PG_DB" > "$FILE"
+
+( umask 077 && pg_docker exec "$CONTAINER" pg_dump -U "$PG_USER" -Fc --no-owner --no-acl \
+    --data-only "${ONLY[@]}" "$PG_DB" > "$AUTH_FILE" )
 
 SIZE="$(du -h "$FILE" | cut -f1)"
-echo "Готово ($SIZE). Восстановление: ./scripts/pg_restore.sh \"$FILE\""
+echo "Готово ($SIZE). Аккаунты отдельно: $AUTH_FILE"
+echo "Восстановление: ./scripts/pg_restore.sh \"$FILE\", затем при необходимости аккаунты:"
+echo "  pg_restore --data-only из \"$AUTH_FILE\" (или заново: python -m scripts.create_admin)"
 
 # Опционально: хранить только последние KEEP_BACKUPS файлов
 if [[ -n "${POSTGRES_BACKUP_KEEP:-}" ]]; then

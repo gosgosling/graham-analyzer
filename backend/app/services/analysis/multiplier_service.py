@@ -462,7 +462,35 @@ def _try_interim_ltm(
     flow = _ltm_from_interim_formula(
         latest, prior_fy, prior_ytd, _LTM_FLOW_ATTRS + _LTM_BANK_ATTRS, splits
     )
+    _carry_annual_dividends(flow, prior_fy, splits)
     return flow, _interim_ltm_source_label(latest)
+
+
+def _carry_annual_dividends(
+    flow: Dict[str, Optional[float]],
+    prior_fy: FinancialReport,
+    splits: Any = None,
+) -> None:
+    """Дивиденд LTM промежуточного отчёта без промежуточных дивидендов — годовой.
+
+    Дивиденд записывается в год, за который начислен, поэтому в полугодовом
+    отчёте сумма на акцию обычно пуста, а флаг «выплачивались» может стоять:
+    в полугодии заплатили за прошлый год. Формула «текущий YTD + год −
+    прошлый YTD» видит в пустом поле неизвестность и обнуляет весь дивиденд —
+    и у Яндекса, НМТП, Совкомфлота пропадала дивидендная доходность, как только
+    появлялись полугодовые отчёты.
+
+    Без промежуточных сумм остаётся считать их равными, и формула сводится к
+    дивиденду последнего полного года: доходность года отнесена к нынешней
+    цене. Если промежуточные дивиденды известны, формула их учитывает.
+    """
+    for attr in _DIVIDEND_ATTRS:
+        if flow.get(attr) is not None:
+            continue
+        value = _dividend_field(prior_fy, attr)
+        if value is not None and splits:
+            value = _to_today_scale(value, prior_fy, splits)
+        flow[attr] = value
 
 
 def _flow_to_ltm_payload(flow: Dict[str, Optional[float]]) -> Dict[str, Optional[float]]:
@@ -598,10 +626,73 @@ def _previous_comparable_report(
     )
 
 
+_BANKING_CF_ATTRS = ("cf_customer_deposits", "cf_customer_loans", "cf_other_float")
+
+
+class _NoBankingCashFlow:
+    """Отчёт без строк ОДДС финсегмента — для расчёта по приросту остатков."""
+
+    def __init__(self, report: FinancialReport):
+        self._report = report
+
+    def __getattr__(self, name: str):
+        if name in _BANKING_CF_ATTRS:
+            return None
+        return getattr(self._report, name)
+
+
+def _ltm_banking_flow(
+    db: Session,
+    balance_report: FinancialReport,
+) -> Tuple[Optional[float], Optional[str]]:
+    """Приток финсегмента за те же двенадцать месяцев, что и LTM-поток.
+
+    Строки ОДДС промежуточного отчёта — это полгода (или девять месяцев), а
+    вычитаются они из операционного потока за двенадцать. Поэтому они
+    собираются той же формулой, что и поток: текущий YTD + прошлый год −
+    прошлогодний YTD. Не собралась ни одна строка — прирост остатков за год
+    к тому же периоду прошлого года: он тоже двенадцатимесячный.
+    """
+    prior_fy = _find_matching_report(
+        db, balance_report.company_id, period_type=PeriodType.ANNUAL,
+        fiscal_year=balance_report.fiscal_year - 1, fiscal_quarter=None,
+        anchor=balance_report,
+    )
+    prior_ytd = comparative_prior(balance_report, _find_matching_report(
+        db, balance_report.company_id, period_type=PeriodType(balance_report.period_type),
+        fiscal_year=balance_report.fiscal_year - 1,
+        fiscal_quarter=balance_report.fiscal_quarter, anchor=balance_report,
+    ))
+    if prior_fy is not None and prior_ytd is not None:
+        parts = [
+            _ltm_formula_field(balance_report, prior_fy, prior_ytd, attr)
+            for attr in _BANKING_CF_ATTRS
+        ]
+        # Строка, которой нет ни в одном из трёх отчётов, — просто ноль;
+        # строка, которой нет только в части из них, делает сумму неизвестной.
+        present = [
+            attr for attr in _BANKING_CF_ATTRS
+            if any(getattr(r, attr, None) is not None
+                   for r in (balance_report, prior_fy, prior_ytd))
+        ]
+        if present and all(
+            part is not None for attr, part in zip(_BANKING_CF_ATTRS, parts) if attr in present
+        ):
+            return round(sum(p for p in parts if p is not None), 3), "cash_flow"
+
+    previous = _previous_comparable_report(db, balance_report)
+    banking_flow, basis = compute_banking_flow(_NoBankingCashFlow(balance_report), previous)
+    if banking_flow is None:
+        return None, None
+    rate = _to_float(balance_report.exchange_rate)
+    return _convert(banking_flow, balance_report.currency, rate), basis
+
+
 def _hybrid_banking_flow(
     db: Session,
     company: Company,
     balance_report: FinancialReport,
+    ltm: bool = False,
 ) -> Tuple[Optional[float], Optional[str]]:
     """Приток от роста клиентских остатков, млн ₽, и его основание.
 
@@ -610,6 +701,11 @@ def _hybrid_banking_flow(
     акционерам. Считается до мультипликаторов: от этой величины зависит, по
     какому потоку строятся P/FCF, ND/FCF и FCF/NI. Для остальных типов
     компаний очистка не нужна — возвращаем None, и база остаётся прежней.
+
+    `ltm=True` — приток нужен за двенадцать месяцев, к LTM-потоку. Для
+    промежуточного отчёта он тогда собирается из трёх отчётов, см.
+    `_ltm_banking_flow`. Без флага — за период самого отчёта, как строка
+    таблицы по годам.
     """
     # Биржа — тот же случай, что гибрид: в операционный поток попадает движение
     # средств участников торгов и депонентов. Это чужие деньги, их нельзя
@@ -619,6 +715,13 @@ def _hybrid_banking_flow(
         CompanyType.EXCHANGE.value,
     ):
         return None, None
+
+    if (
+        ltm
+        and balance_report.period_type != PeriodType.ANNUAL
+        and not _covers_full_year(balance_report)
+    ):
+        return _ltm_banking_flow(db, balance_report)
 
     previous = _previous_comparable_report(db, balance_report)
     banking_flow, basis = compute_banking_flow(balance_report, previous)
@@ -665,7 +768,7 @@ def calculate_current_multipliers(
 
     # Банковский поток считается ДО мультипликаторов: от него зависит, по
     # какому свободному потоку строить P/FCF, ND/FCF и FCF/NI у гибрида.
-    banking_flow, banking_flow_basis = _hybrid_banking_flow(db, company, balance_report)
+    banking_flow, banking_flow_basis = _hybrid_banking_flow(db, company, balance_report, ltm=True)
 
     # Кол-во акций для market cap — приоритет: в обращении → средневзв. → размещённые.
     # Если после отчёта выпуск изменился (допэмиссия, конвертация префов),
@@ -951,7 +1054,7 @@ def _core_flow_summary(
     ними. Место у них здесь — рядом с портфелем и депозитами, из движения
     которых этот приток и складывается.
     """
-    banking_flow, basis = _hybrid_banking_flow(db, company, balance_report)
+    banking_flow, basis = _hybrid_banking_flow(db, company, balance_report, ltm=True)
 
     rate = _to_float(balance_report.exchange_rate)
     ocf = ltm.get("ltm_operating_cash_flow")

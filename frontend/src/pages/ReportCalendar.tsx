@@ -66,7 +66,7 @@ function DayCard({ day, items, today }: { day: string; items: UpcomingReport[]; 
               </span>
             </div>
             <Link className="cal-company" to={`/company/${i.company_id}/reports-matrix`}>
-              <CompanyLogo url={i.logo_url} className="cal-logo" />
+              <CompanyLogo url={i.logo_url} ticker={i.ticker} className="cal-logo" />
               <span className="cal-name">{i.name ?? i.ticker}</span>
               <span className="cal-ticker">{i.ticker}</span>
             </Link>

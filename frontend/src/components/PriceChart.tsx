@@ -5,7 +5,8 @@ import {
   ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts';
 import {
-  fetchPriceHistory, type PriceEvent, type PriceHistoryOut, type PricePoint,
+  fetchPriceHistory, LIVE_PRICE_REFRESH_MS, LIVE_PRICE_STALE_MS,
+  type PriceEvent, type PriceHistoryOut, type PricePoint,
 } from '../services/prices.api';
 import {
   fetchValuationHistory,
@@ -385,7 +386,8 @@ export default function PriceChart({ companyId, oil = false }: { companyId: numb
   const { data, isLoading, error } = useQuery<PriceHistoryOut>({
     queryKey: ['price-history', companyId],
     queryFn: () => fetchPriceHistory(companyId),
-    staleTime: 30 * 60 * 1000,
+    staleTime: LIVE_PRICE_STALE_MS,
+    refetchInterval: LIVE_PRICE_REFRESH_MS,
     enabled: Number.isFinite(companyId) && companyId > 0,
   });
 

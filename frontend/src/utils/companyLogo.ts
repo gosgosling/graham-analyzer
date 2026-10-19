@@ -1,4 +1,5 @@
 import type { Company } from '../types';
+import { API_BASE_URL } from '../services/apiBase';
 
 const BRAND_CDN = 'https://invest-brands.cdn-tinkoff.ru';
 
@@ -52,13 +53,29 @@ function addCdnKeys(id: string, add: (u: string) => void): void {
   add(`${BRAND_CDN}/${k}x640.png`);
 }
 
-/** Варианты URL логотипа: API, CDN по base-тикеру (префы), ISIN, тикер; размеры x160/x640 */
+/**
+ * Копия логотипа на нашем сервере (`GET /logos/{тикер}.png`).
+ *
+ * Идёт первой: CDN Т-Банка — чужая площадка, и при её недоступности логотипы
+ * пропадали бы у всех компаний сразу. Если копии нет, сервер отвечает 404 и
+ * перебор переходит к CDN.
+ */
+export function localLogoUrl(ticker: string | null | undefined): string | null {
+  const t = ticker?.trim().toUpperCase();
+  if (!t || !/^[A-Z0-9._-]{1,20}$/.test(t)) return null;
+  return `${API_BASE_URL}/logos/${encodeURIComponent(t)}.png`;
+}
+
+/** Варианты URL логотипа: своя копия, API, CDN по base-тикеру (префы), ISIN, тикер; размеры x160/x640 */
 export function getCompanyLogoCandidates(company: Company): string[] {
   const out: string[] = [];
   const add = (u: string) => {
     const t = u.trim();
     if (t && !out.includes(t)) out.push(t);
   };
+
+  const local = localLogoUrl(company.ticker);
+  if (local) add(local);
 
   const raw = company.brand_logo_url?.trim();
   if (raw) {
@@ -100,14 +117,19 @@ export function getCompanyLogoCandidates(company: Company): string[] {
  * CDN Тинькофф отдаёт только объекты с суффиксом размера, а API возвращает
  * ссылку без него, поэтому прямой src всегда даёт 403.
  */
-export function logoCandidatesFromUrl(url: string | null | undefined): string[] {
+export function logoCandidatesFromUrl(
+  url: string | null | undefined,
+  ticker?: string | null,
+): string[] {
   const raw = url?.trim();
-  if (!raw) return [];
   const out: string[] = [];
   const add = (u: string) => {
     const t = u.trim();
     if (t && !out.includes(t)) out.push(t);
   };
+  const local = localLogoUrl(ticker);
+  if (local) add(local);
+  if (!raw) return out;
   if (raw.toLowerCase().includes('invest-brands.cdn-tinkoff.ru')) {
     withSizeSuffixes(raw, add);
   }

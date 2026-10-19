@@ -4,6 +4,7 @@ import { api } from '../services/companies.api';
 import { AUTH_KEY, useAuth } from '../hooks/useAdmin';
 import { Link, Navigate } from 'react-router-dom';
 import DbBackupButton from '../components/DbBackupButton';
+import DataSourcesPanel from '../components/DataSourcesPanel';
 import TInvestSyncBar from '../components/TInvestSyncBar';
 import ThemeToggle from '../components/ThemeToggle';
 import './AdminPage.css';
@@ -76,6 +77,11 @@ export default function AdminPage() {
             </Link>
           ))}
         </div>
+      </section>
+
+      <section className="admin-card">
+        <h2>Источники данных</h2>
+        <DataSourcesPanel />
       </section>
 
       <section className="admin-card">

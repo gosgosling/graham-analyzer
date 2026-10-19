@@ -824,3 +824,18 @@ def test_ltm_не_подставляется_до_конца_полугодия(
 
     points = [YearPoint(year=2025, eps=100.0, shares_normalized=1_000_000.0)]
     assert with_ltm(None, 1, points, date(2026, 6, 29)) is points
+
+
+def test_known_split_recognised_even_if_equity_moved():
+    """Полюс: дробление 10:1 в марте 2025, капитал за год вырос в 2,1 раза.
+    Без сведений о дроблении шаг не признаётся; с ними — признаётся."""
+    rows = [(2024, 94_922_000, 126_938.0, 1_800_000.0),
+            (2025, 949_217_000, 271_883.0, 1_036_000.0)]
+    assert split_factors(rows) == {}
+    factors = split_factors(rows, [{"date": "2025-03-27", "ratio": 10}])
+    assert factors[2024] == pytest.approx(10.0, rel=0.01)
+
+
+def test_known_split_with_other_ratio_is_not_applied():
+    rows = [(2024, 100_000_000, 100.0, 1000.0), (2025, 300_000_000, 400.0, 3000.0)]
+    assert split_factors(rows, [{"date": "2025-03-27", "ratio": 10}]) == {}

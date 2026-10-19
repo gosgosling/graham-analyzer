@@ -11,13 +11,15 @@ import { logoCandidatesFromUrl } from '../utils/companyLogo';
  */
 const CompanyLogo: React.FC<{
   url: string | null | undefined;
+  /** Тикер — для копии логотипа на нашем сервере; без него только CDN. */
+  ticker?: string | null;
   alt?: string;
   className?: string;
-}> = ({ url, alt = '', className }) => {
-  const candidates = React.useMemo(() => logoCandidatesFromUrl(url), [url]);
+}> = ({ url, ticker, alt = '', className }) => {
+  const candidates = React.useMemo(() => logoCandidatesFromUrl(url, ticker), [url, ticker]);
   const [attempt, setAttempt] = useState(0);
 
-  React.useEffect(() => setAttempt(0), [url]);
+  React.useEffect(() => setAttempt(0), [url, ticker]);
 
   if (attempt >= candidates.length) return null;
   return (
