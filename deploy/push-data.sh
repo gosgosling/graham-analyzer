@@ -37,7 +37,9 @@ scp -q "$TMP" "$SERVER:/tmp/graham-data.dump"
 ssh "$SERVER" bash -s <<REMOTE
 set -euo pipefail
 cd "$REMOTE_DIR/deploy"
-./backup.sh
+# Ввод удалённого bash — этот самый скрипт: всё, что читает stdin, должно
+# получать /dev/null, иначе съест строки ниже (см. backup.sh).
+./backup.sh </dev/null
 set -a; source .env.prod; set +a
 COMPOSE=(docker compose -f docker-compose.prod.yml --env-file .env.prod)
 # --clean пересоздаёт только таблицы из файла: таблиц входа в нём нет.
@@ -45,6 +47,6 @@ COMPOSE=(docker compose -f docker-compose.prod.yml --env-file .env.prod)
 rm -f /tmp/graham-data.dump
 # Кэш расчётов увидит новые данные по статистике Postgres; перезапуск — для
 # верности и чтобы прогрев начался сразу.
-"\${COMPOSE[@]}" restart backend
+"\${COMPOSE[@]}" restart backend </dev/null
 echo "Данные на сервере обновлены."
 REMOTE
