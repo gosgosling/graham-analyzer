@@ -426,7 +426,14 @@ function ValuationTable({ years }: { years: MarketYear[] }) {
             tip: r.tip,
             cell: (col) => {
               const y = byKey.get(col.key);
-              return y ? { node: r.value(y), className: r.tone?.(y) || undefined } : null;
+              if (!y) return null;
+              const text = r.value(y);
+              // Ячейки «Рынка» — готовые строки («12,3», «−1,4 п.п.»); число
+              // для графика достаём из них.
+              const num = typeof text === 'string'
+                ? Number(text.replace(/\s/g, '').replace('−', '-').replace(',', '.').replace(/[^\d.-].*$/, ''))
+                : NaN;
+              return { node: text, className: r.tone?.(y) || undefined, value: Number.isFinite(num) && text !== '—' ? num : null };
             },
           })),
         }))}

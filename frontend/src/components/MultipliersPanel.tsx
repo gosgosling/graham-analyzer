@@ -2247,6 +2247,45 @@ function sheetFromColsTable(table: HTMLTableElement, title: string): Sheet {
 const yearOf = (r: MultiplierRecord) => r.fiscal_year ?? Number(String(r.date).slice(0, 4));
 
 /**
+ * Числа строк листа — для графика в истории показателя (телефон). В клетках
+ * таблицы готовая разметка со значками, а график строится по величинам.
+ * Показатели без простого числа (банковские, переключаемые) — без графика.
+ */
+function histNumbers(
+  s: HistRowSnapshot,
+  reference: number | null,
+  peReported: number | null,
+): Partial<Record<HistColKey, number | null>> {
+  const margin = reference !== null && reference > 0 && s.price_used !== null
+    ? (reference - s.price_used) / reference * 100
+    : null;
+  return {
+    price: s.price_used,
+    ref: reference,
+    margin,
+    cap: s.market_cap,
+    pe: s.pe_ratio,
+    peRep: peReported,
+    pb: s.pb_ratio,
+    pfcf: s.price_to_fcf,
+    div: s.dividend_yield,
+    roe: s.roe,
+    spread: s.roe_spread,
+    fcfNi: s.fcf_to_net_income,
+    de: s.debt_to_equity,
+    cr: s.current_ratio,
+    ndFcf: s.net_debt_to_fcf,
+    netDebt: s.net_debt,
+    revenue: s.ltm_revenue,
+    profit: s.ltm_net_income,
+    fcf: s.ltm_fcf,
+    capex: s.ltm_capex,
+    eps: s.eps,
+    shares: s.shares_used,
+  };
+}
+
+/**
  * «По годам» на телефоне: период выбирается кнопкой, показатели — списком.
  *
  * Таблица в 29 строк и семь колонок на экране шириной 375 пикселей читалась
@@ -2260,7 +2299,10 @@ const yearOf = (r: MultiplierRecord) => r.fiscal_year ?? Number(String(r.date).s
  * потерял.
  */
 const HistList: React.FC<{
-  periods: { id: string; label: React.ReactNode; isLtm: boolean; cells: HistCells }[];
+  periods: {
+    id: string; label: React.ReactNode; isLtm: boolean; cells: HistCells;
+    numbers?: Partial<Record<HistColKey, number | null>>;
+  }[];
   groupRuns: { group: HistGroup; columns: HistColumn[] }[];
 }> = ({ periods, groupRuns }) => (
   <PeriodChipList
@@ -2274,7 +2316,11 @@ const HistList: React.FC<{
         // (P/FCF ↔ доходность), а строка списка сама кнопка.
         label: c.name,
         tip: c.tip,
-        cell: (col) => periods.find((p) => p.id === col.key)?.cells[c.key],
+        cell: (col) => {
+          const p = periods.find((x) => x.id === col.key);
+          const cell = p?.cells[c.key];
+          return cell ? { ...cell, value: p?.numbers?.[c.key] ?? null } : null;
+        },
       })),
     }))}
   />
@@ -2390,6 +2436,7 @@ const HistTable: React.FC<HistTableProps> = ({
     label: React.ReactNode;
     isLtm: boolean;
     cells: HistCells;
+    numbers: Partial<Record<HistColKey, number | null>>;
   }
   const common = {
     pctMode,
@@ -2420,6 +2467,7 @@ const HistTable: React.FC<HistTableProps> = ({
     periods.push({
       id: 'ltm',
       isLtm: true,
+      numbers: histNumbers(snapshot, ltmReference, ltmPeReported),
       label: <span className="badge-ltm" title="Последние 12 месяцев">LTM</span>,
       cells: histRowCells({
         ...common,
@@ -2450,6 +2498,7 @@ const HistTable: React.FC<HistTableProps> = ({
     periods.push({
       id: String(r.id),
       isLtm: false,
+      numbers: histNumbers(snapshot, refOf(r), peReportedOf(r)),
       label: periodLabel(r),
       cells: histRowCells({
         ...common,

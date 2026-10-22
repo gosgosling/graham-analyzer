@@ -145,11 +145,36 @@ const CompanyDetail: React.FC = () => {
   const [mobileSection, setMobileSection] = useState<CardSection>('overview');
   // Вкладки на телефоне: переход из оглавления или «Дальше» поднимает к ним,
   // иначе новый раздел открылся бы где-то выше экрана.
-  const mobileTabsRef = useRef<HTMLElement | null>(null);
+  const mobileTabsRef = useRef<HTMLDivElement | null>(null);
+  // Якорь перед панелью: прилипший элемент браузер меряет по месту, где он
+  // прилип, и прокрутка к самой панели никуда бы не вела.
+  const tabsAnchorRef = useRef<HTMLDivElement | null>(null);
   const openSection = (key: CardSection) => {
     setMobileSection(key);
-    requestAnimationFrame(() => mobileTabsRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' }));
+    requestAnimationFrame(() => tabsAnchorRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' }));
   };
+  // Вкладка в закреплённой панели: если страница уже прокручена ниже начала
+  // разделов, новый раздел открывается с начала, а не с середины; если нет —
+  // экран не дёргается.
+  const headRef = useRef<HTMLElement | null>(null);
+  const [headGone, setHeadGone] = useState(false);
+  const pickTab = (key: CardSection) => {
+    const bar = mobileTabsRef.current;
+    const offset = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--site-header-offset')) || 0;
+    const stuck = bar ? bar.getBoundingClientRect().top <= offset + 2 && window.scrollY > 0 : false;
+    if (stuck) openSection(key); else setMobileSection(key);
+  };
+  // Шапка карточки ушла за экран — в закреплённой панели появляется строка с
+  // названием и ценой: иначе в середине «Отчётности» не видно, чья она.
+  useEffect(() => {
+    const check = () => {
+      const el = headRef.current;
+      setHeadGone(Boolean(el) && el!.getBoundingClientRect().bottom < 0);
+    };
+    check();
+    window.addEventListener('scroll', check, { passive: true });
+    return () => window.removeEventListener('scroll', check);
+  }, []);
   const [editingDescription, setEditingDescription] = useState(false);
   const [descriptionDraft, setDescriptionDraft] = useState('');
 
@@ -496,7 +521,7 @@ const CompanyDetail: React.FC = () => {
 
   return (
     <div className="company-detail-container cd-page">
-      <section className="cd-card cd-head">
+      <section className="cd-card cd-head" ref={headRef}>
         <div className="cd-head-top">
           <div className="cd-identity">
             <button onClick={() => navigate('/companies')} className="cd-back" type="button">
@@ -610,20 +635,35 @@ const CompanyDetail: React.FC = () => {
         </div>
       </section>
 
-      <nav className="cd-mobile-tabs" role="tablist" aria-label="Разделы карточки" ref={mobileTabsRef}>
-        {[{ key: 'overview' as CardSection, tab: 'Обзор' }, ...SECTIONS].map((s) => (
-          <button
-            key={s.key}
-            type="button"
-            role="tab"
-            aria-selected={mobileSection === s.key}
-            className={`cd-mobile-tab${mobileSection === s.key ? ' is-on' : ''}`}
-            onClick={() => setMobileSection(s.key)}
-          >
-            {s.tab}
-          </button>
-        ))}
-      </nav>
+      {/* Телефон: панель разделов прилипает к верху, как вкладки в приложении
+          брокера. Когда шапка карточки ушла за экран, в панели появляется
+          строка с компанией и ценой. */}
+      <div className="cd-tabs-anchor" ref={tabsAnchorRef} aria-hidden />
+      <div className={`cd-mobile-bar${headGone ? ' is-compact' : ''}`} ref={mobileTabsRef}>
+        <div className="cd-mobile-title" aria-hidden={!headGone}>
+          {logoSrc && <img src={logoSrc} alt="" className="cd-mobile-title-logo" referrerPolicy="no-referrer" />}
+          <span className="cd-mobile-title-name">{company.name}</span>
+          {price !== null && (
+            <span className="cd-mobile-title-price">
+              {Math.abs(price) >= 100 ? ru(price) : formatPerShare(price)} ₽
+            </span>
+          )}
+        </div>
+        <nav className="cd-mobile-tabs" role="tablist" aria-label="Разделы карточки">
+          {[{ key: 'overview' as CardSection, tab: 'Обзор' }, ...SECTIONS].map((s) => (
+            <button
+              key={s.key}
+              type="button"
+              role="tab"
+              aria-selected={mobileSection === s.key}
+              className={`cd-mobile-tab${mobileSection === s.key ? ' is-on' : ''}`}
+              onClick={() => pickTab(s.key)}
+            >
+              {s.tab}
+            </button>
+          ))}
+        </nav>
+      </div>
 
       <div className={`cd-overview ${tabbed('overview')}`}>
         <div className="cd-overview-main" ref={overviewMainRef}>

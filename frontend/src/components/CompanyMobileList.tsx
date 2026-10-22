@@ -5,6 +5,7 @@ import { fetchMarketScreen, type MarketRow, type MarketScreenOut } from '../serv
 import type { Company } from '../types';
 import CompanyLogo from './CompanyLogo';
 import { marginText, SIGNAL_SHORT } from './SafetyMargin';
+import { SECTOR_RU } from '../utils/sectors';
 import './CompanyMobileList.css';
 
 /**
@@ -19,21 +20,6 @@ import './CompanyMobileList.css';
  * странице скринера. У компаний без проверенной отчётности оценки нет — так и
  * пишем, а не прячем их.
  */
-
-/** Отрасли T-Invest по-русски — для компаний, у которых нет профиля скринера. */
-const SECTOR_RU: Record<string, string> = {
-  materials: 'сырьё',
-  utilities: 'энергетика',
-  consumer: 'потребительский',
-  financial: 'финансы',
-  energy: 'нефть и газ',
-  it: 'IT',
-  industrials: 'промышленность',
-  telecom: 'телеком',
-  health_care: 'здравоохранение',
-  real_estate: 'недвижимость',
-  other: 'прочее',
-};
 
 type Sort = 'safety' | 'pe' | 'name';
 

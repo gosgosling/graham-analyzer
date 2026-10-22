@@ -1803,7 +1803,42 @@
 }
 
 /* Вкладки не прячутся под липкую шапку сайта при переходе к ним. */
-.cd-mobile-tabs { scroll-margin-top: calc(var(--site-header-h, 140px) + 8px); }
+/* Закреплённая панель разделов (телефон). На компьютере её нет: там разделы
+   идут подряд, и строка с названием не нужна. */
+.cd-mobile-title { display: none; }
+
+@media (max-width: 760px) {
+  .cd-tabs-anchor { scroll-margin-top: var(--site-header-offset, 0px); }
+  .cd-mobile-bar {
+    position: sticky;
+    top: var(--site-header-offset, 0px);
+    z-index: 40;
+    /* Во всю ширину экрана: отступ страницы карточки на телефоне — 14 px. */
+    margin: 18px -14px 0;
+    padding: 0 14px;
+    background: var(--color-bg-base);
+    border-bottom: 1px solid var(--color-border-default);
+    transition: top 0.22s ease, box-shadow 0.2s;
+  }
+  .cd-mobile-bar.is-compact { box-shadow: 0 6px 16px -10px rgba(0, 0, 0, 0.35); }
+  .cd-mobile-bar .cd-mobile-tabs { margin-top: 0; border-bottom: 0; padding: 0; }
+  .cd-mobile-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 0;
+    overflow: hidden;
+    opacity: 0;
+    transition: height 0.2s ease, opacity 0.2s ease;
+  }
+  .cd-mobile-bar.is-compact .cd-mobile-title { height: 42px; opacity: 1; }
+  .cd-mobile-title-logo { width: 22px; height: 22px; border-radius: 50%; flex: none; object-fit: cover; }
+  .cd-mobile-title-name { flex: 1; min-width: 0; font-weight: 600; font-size: 0.98rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cd-mobile-title-price { flex: none; font-family: var(--font-mono); font-size: 0.95rem; color: var(--color-text-primary); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cd-mobile-bar, .cd-mobile-title { transition: none; }
+}
 
 .cd-reports {
   max-width: 880px;

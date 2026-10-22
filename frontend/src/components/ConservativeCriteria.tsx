@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { fetchPassport, type PassportOut, type ScreenStatus, type Verdict } from '../services/screen.api';
 import CompanyPassport from './CompanyPassport';
+import { PHONE_QUERY, useMediaQuery } from '../hooks/useMediaQuery';
 import './ConservativeCriteria.css';
 
 /**
@@ -107,7 +108,73 @@ function Mark({ v }: { v: Verdict }) {
   );
 }
 
+/** Тон значения на телефоне: цвет вместо значка в колонке «Итог». */
+function tone(v: Verdict): string {
+  if (v.status === 'pass') return v.marginal ? 'warn' : 'good';
+  if (v.status === 'fail') return 'bad';
+  return 'none';
+}
+
+/**
+ * Критерии на телефоне: раздел — заголовок с итогом, строка — показатель и
+ * значение в цвет, под ними порог.
+ *
+ * Шесть колонок таблицы на телефоне складывались в столбик без подписей:
+ * «порог ≥ 15%», под ним «порог —» (это был книжный), под ним галочка, и всё
+ * это вперемешку с пояснениями. Здесь книжный порог показан, только когда он
+ * отличается от нашего, а пояснение — по нажатию на строку.
+ */
+function CriteriaList({ sections }: {
+  sections: { axis: string; label: string; verdicts: Verdict[] }[];
+}) {
+  const [open, setOpen] = useState<string | null>(null);
+  return (
+    <div className="ccm">
+      {sections.map((s) => {
+        const status = sectionStatus(s.verdicts);
+        return (
+          <section key={s.axis} className="ccm-sec">
+            <header className="ccm-head">
+              <h4>{s.label}</h4>
+              <span className={`cc-section-status cc-section-status--${status === 'n/a' ? 'unknown' : status}`}>
+                {SECTION_WORD[status]}
+              </span>
+            </header>
+            <ul className="ccm-list">
+              {s.verdicts.map((v) => {
+                const key = `${s.axis}/${v.metric}`;
+                const note = v.caveat ?? v.note;
+                const ours = threshold(v.text, v);
+                const book = isOurs(v) ? null : threshold(v.book_text, v);
+                const isOpen = open === key;
+                return (
+                  <li key={key} className={`ccm-row${isOpen ? ' is-open' : ''}`}>
+                    <button type="button" className="ccm-btn" aria-expanded={note ? isOpen : undefined}
+                      onClick={() => note && setOpen(isOpen ? null : key)}>
+                      <span className="ccm-line">
+                        <span className="ccm-name">{v.metric_label}{note && <i className="ccm-more" aria-hidden>?</i>}</span>
+                        <b className={`ccm-val ccm-val--${tone(v)}`}>{value(v)}</b>
+                      </span>
+                      <span className="ccm-sub">
+                        порог {ours}
+                        {book && book !== ours && <> · в книге {book}</>}
+                        {v.status === 'pass' && v.marginal && <> · по мягкому краю</>}
+                      </span>
+                    </button>
+                    {isOpen && note && <p className="ccm-note">{comma(note)}</p>}
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function ConservativeCriteria({ companyId }: { companyId: number }) {
+  const isPhone = useMediaQuery(PHONE_QUERY);
   const [standard, setStandard] = useState('defensive');
   const [details, setDetails] = useState(false);
   const { data, isLoading, error } = useQuery<PassportOut>({
@@ -157,6 +224,7 @@ export default function ConservativeCriteria({ companyId }: { companyId: number 
     <>
       {head}
       <p className="cc-lede">Пороги — {data.profile.label.toLowerCase()}.</p>
+      {isPhone ? <CriteriaList sections={sections} /> : (
       <div className="cc-table-wrap">
         <table className="cc-table">
           <colgroup>
@@ -208,6 +276,7 @@ export default function ConservativeCriteria({ companyId }: { companyId: number 
           </tbody>
         </table>
       </div>
+      )}
       <div className="cc-foot">
         <span>
           Пройдено разделов: {passed} из {sections.length}. Раздел пройден, когда пройдены все его строки.
