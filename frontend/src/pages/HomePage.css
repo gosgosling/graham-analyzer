@@ -1,273 +1,224 @@
-/* Главная. Цвета метода — те же, что в знаке: стоимость оранжевая, цена
-   синяя, запас зелёный. */
+/* Главная. Вёрстка — та же газетная, что у карточки компании: засечки в
+   заголовках, тонкие линейки вместо плашек, цвет только там, где он что-то
+   значит (цена — цвет линии цены, опорная — цвет опорной на графике). */
 .hp {
-  --hp-value: #ea580c;
-  --hp-price: #4f46e5;
-  --hp-gap: #059669;
-  --hp-tint: color-mix(in srgb, var(--hp-price) 7%, var(--color-bg-base));
+  --hp-rule: var(--color-text-primary);
+  --hp-price: var(--color-chart-line-1);
+  --hp-ref: var(--color-chart-ref-line);
+  --hp-below: var(--screen-pass-text);
+  --hp-above: var(--color-text-tertiary);
   box-sizing: border-box;
-  max-width: 1040px;
+  max-width: 980px;
   margin: 0 auto;
-  padding: 28px var(--space-5) 56px;
-}
-:root[data-theme="dark"] .hp {
-  --hp-value: #fb923c;
-  --hp-price: #818cf8;
-  --hp-gap: #34d399;
-  --hp-tint: color-mix(in srgb, var(--hp-price) 12%, var(--color-bg-base));
+  padding: 48px var(--space-5) 64px;
 }
 
 /* ── Первый экран ─────────────────────────────────────────────────────── */
-.hp-hero {
-  display: grid;
-  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
-  gap: 36px;
-  align-items: center;
-  padding: 36px 36px 32px;
-  border-radius: 20px;
-  background:
-    radial-gradient(120% 90% at 100% 0%, color-mix(in srgb, var(--hp-value) 14%, transparent), transparent 60%),
-    radial-gradient(90% 80% at 0% 100%, color-mix(in srgb, var(--hp-gap) 12%, transparent), transparent 60%),
-    var(--hp-tint);
-  border: 1px solid color-mix(in srgb, var(--hp-price) 18%, var(--color-border-default));
-}
-.hp-eyebrow {
-  margin: 0 0 10px;
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--hp-value);
-}
-.hp-hero h1 {
+.hp-intro { max-width: 700px; }
+.hp-intro h1 {
   margin: 0;
   font-family: 'IBM Plex Serif', Georgia, serif;
   font-weight: 500;
-  font-size: 44px;
-  line-height: 1.12;
+  font-size: 46px;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
   color: var(--color-text-primary);
 }
 .hp-lede {
-  margin: 14px 0 20px;
-  font-size: 17.5px;
+  margin: 18px 0 24px;
+  font-size: 18px;
   line-height: 1.55;
   color: var(--color-text-secondary);
 }
 
 /* Поиск из шапки — здесь он во всю ширину колонки. */
 .hp-search .sh-search { max-width: none; width: 100%; margin: 0; }
-.hp-search .sh-search-input { height: 46px; border-radius: 12px; font-size: 1rem; background: var(--color-bg-surface); }
+.hp-search .sh-search-input { height: 46px; border-radius: 10px; font-size: 1rem; background: var(--color-bg-surface); }
 
-.hp-popular { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
-.hp-chip {
-  border: 1px solid var(--color-border-default);
-  border-radius: 999px;
-  padding: 5px 12px;
-  font-size: 0.9rem;
-  color: var(--color-text-secondary);
-  background: var(--color-bg-surface);
+.hp-popular { margin: 12px 0 0; font-size: 0.95rem; line-height: 1.7; color: var(--color-text-tertiary); }
+.hp-popular a { color: var(--color-text-link); text-decoration: none; white-space: nowrap; }
+.hp-popular a:hover { text-decoration: underline; }
+.hp-sep { color: var(--color-text-quaternary); }
+
+/* ── Рынок сегодня: три числа под жирной линейкой, как в карточке ───── */
+.hp-today {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 48px;
+  border-top: 2px solid var(--hp-rule);
+  border-bottom: 1px solid var(--color-border-strong);
+}
+.hp-fig {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: 14px 18px 16px;
+  border-left: 1px solid var(--color-border-default);
+  color: inherit;
   text-decoration: none;
 }
-.hp-chip:hover { color: var(--color-text-primary); border-color: var(--color-border-strong); }
-
-/* Картинка метода. */
-.hp-pic {
-  margin: 0;
-  padding: 22px 22px 18px;
-  border-radius: 16px;
-  background: var(--color-bg-surface);
-  box-shadow: 0 10px 30px -18px rgba(15, 23, 42, 0.45);
-}
-.hp-pic-row + .hp-pic-row { margin-top: 16px; }
-.hp-pic-label { display: block; margin-bottom: 6px; font-size: 0.85rem; color: var(--color-text-tertiary); }
-.hp-pic-bar { display: block; height: 22px; border-radius: 11px; }
-.hp-pic-bar--value { width: 100%; background: var(--hp-value); }
-.hp-pic-track {
-  position: relative;
-  display: flex;
-  height: 22px;
-  border-radius: 11px;
-  background: color-mix(in srgb, var(--hp-gap) 22%, transparent);
-}
-.hp-pic-bar--price { width: 62%; background: var(--hp-price); animation: hp-grow 0.9s ease-out both; }
-.hp-pic-gap {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.72rem;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  color: var(--hp-gap);
-  white-space: nowrap;
-}
-.hp-pic figcaption { margin-top: 14px; font-size: 0.88rem; color: var(--color-text-secondary); }
-@keyframes hp-grow { from { width: 95%; } to { width: 62%; } }
-
-/* ── Секции ───────────────────────────────────────────────────────────── */
-.hp-section { margin-top: 44px; }
-.hp-section-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
-.hp-section-link { font-size: 0.9rem; color: var(--color-text-link); text-decoration: none; }
-.hp-kicker {
-  margin: 0 0 14px;
-  font-size: 13px;
+.hp-fig:first-child { border-left: 0; padding-left: 0; }
+.hp-fig-label { font-size: 0.85rem; color: var(--color-text-tertiary); }
+.hp-fig-num {
+  font-family: 'IBM Plex Serif', Georgia, serif;
+  font-size: 2rem;
   font-weight: 500;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--color-text-tertiary);
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-primary);
 }
+.hp-fig-num small { font-size: 1.05rem; color: var(--color-text-tertiary); }
+.hp-fig-sub { font-size: 0.85rem; line-height: 1.4; color: var(--color-text-tertiary); }
+.hp-fig:hover .hp-fig-num { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 5px; }
 
-/* Рынок сегодня. */
-.hp-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
-.hp-stat {
+/* ── Блоки ────────────────────────────────────────────────────────────── */
+.hp-block { margin-top: 56px; }
+.hp-block-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid var(--hp-rule);
+}
+.hp-block-head h2 {
+  margin: 0;
+  font-family: 'IBM Plex Serif', Georgia, serif;
+  font-weight: 500;
+  font-size: 1.5rem;
+  color: var(--color-text-primary);
+}
+.hp-block-head a { font-size: 0.92rem; color: var(--color-text-link); text-decoration: none; white-space: nowrap; }
+.hp-block-head a:hover { text-decoration: underline; }
+.hp-note { max-width: 680px; margin: 12px 0 6px; font-size: 0.95rem; line-height: 1.55; color: var(--color-text-secondary); }
+
+/* Цена против опорной: строка — компания, два числа и шкала, где середина —
+   опорная стоимость, а точка — цена. */
+.hp-vr-head,
+.hp-vr {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) 88px 88px minmax(0, 1.6fr) 150px;
+  align-items: center;
+  gap: 16px;
+}
+.hp-vr-head { padding: 12px 0 6px; font-size: 0.8rem; color: var(--color-text-tertiary); }
+.hp-vr-head > span:nth-child(2),
+.hp-vr-head > span:nth-child(3) { text-align: right; }
+.hp-vr-head-scale { display: flex; justify-content: space-between; }
+.hp-vr-head-scale i { font-style: normal; }
+.hp-vr-list { list-style: none; margin: 0; padding: 0; }
+.hp-vr { padding: 12px 0; border-top: 1px solid var(--color-border-default); }
+.hp-vr-name { min-width: 0; display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 10px; color: inherit; text-decoration: none; }
+.hp-vr-name b { font-weight: 600; color: var(--color-text-primary); }
+.hp-vr-name:hover b { text-decoration: underline; text-underline-offset: 3px; }
+.hp-vr-tag { font-size: 0.78rem; color: var(--hp-below); white-space: nowrap; }
+.hp-vr-num { font-family: var(--font-mono); font-size: 0.95rem; text-align: right; color: var(--hp-price); white-space: nowrap; }
+.hp-vr-num.hp-vr-ref { color: var(--hp-ref); }
+.hp-vr-scale { position: relative; height: 20px; }
+.hp-vr-axis {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  border-radius: 1px;
+  background: var(--hp-ref);
+}
+.hp-vr-scale::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  border-top: 1px dashed var(--color-border-strong);
+}
+.hp-vr-gap {
+  position: absolute;
+  top: 50%;
+  height: 4px;
+  margin-top: -2px;
+  background: color-mix(in srgb, var(--hp-above) 45%, transparent);
+}
+.hp-vr-gap.is-below { background: color-mix(in srgb, var(--hp-below) 55%, transparent); }
+.hp-vr-dot {
+  position: absolute;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  margin: -5px 0 0 -5px;
+  border-radius: 50%;
+  background: var(--hp-price);
+  box-shadow: 0 0 0 2px var(--color-bg-base);
+}
+.hp-vr-margin { font-size: 0.9rem; text-align: right; color: var(--color-text-secondary); white-space: nowrap; }
+.hp-vr-margin.is-below { color: var(--hp-below); font-weight: 600; }
+
+/* Что здесь есть: оглавление в две колонки, без плашек. */
+.hp-index {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 40px;
+}
+.hp-index-item {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  padding: 16px 18px;
-  border-radius: 14px;
-  border: 1px solid var(--color-border-default);
+  padding: 16px 0 18px;
+  border-bottom: 1px solid var(--color-border-default);
   color: inherit;
   text-decoration: none;
 }
-.hp-stat:hover { border-color: var(--color-border-strong); }
-.hp-stat-num { font-family: var(--font-mono); font-size: 1.9rem; font-weight: 500; line-height: 1.1; color: var(--color-text-primary); }
-.hp-stat-num i { font-style: normal; font-size: 0.95rem; color: var(--color-text-tertiary); }
-.hp-stat-label { font-weight: 600; font-size: 0.95rem; color: var(--color-text-primary); }
-.hp-stat small { font-size: 0.85rem; line-height: 1.4; color: var(--color-text-tertiary); }
-.hp-stat--accent {
-  border-color: color-mix(in srgb, var(--hp-gap) 45%, var(--color-border-default));
-  background: color-mix(in srgb, var(--hp-gap) 8%, transparent);
-}
-.hp-stat--accent .hp-stat-num { color: var(--hp-gap); }
-
-/* Идеи Грэма. */
-.hp-ideas {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-}
-.hp-idea {
-  display: flex;
-  flex-direction: column;
-  padding: 18px;
-  border-radius: 14px;
-  background: var(--hp-tint);
-  border: 1px solid color-mix(in srgb, var(--hp-price) 12%, var(--color-border-default));
-}
-.hp-idea-num { font-family: var(--font-mono); font-size: 0.85rem; font-weight: 600; color: var(--hp-value); }
-.hp-idea h3 { margin: 6px 0 6px; font-family: 'IBM Plex Serif', Georgia, serif; font-weight: 500; font-size: 1.25rem; color: var(--color-text-primary); }
-.hp-idea p { flex: 1; margin: 0 0 10px; font-size: 0.93rem; line-height: 1.5; color: var(--color-text-secondary); }
-.hp-idea a { font-size: 0.88rem; color: var(--color-text-link); text-decoration: none; }
-.hp-motto {
-  margin: 18px 0 0;
-  padding: 4px 0 4px 16px;
-  border-left: 3px solid var(--hp-value);
+.hp-index-item b {
   font-family: 'IBM Plex Serif', Georgia, serif;
-  font-style: italic;
-  font-size: 1.15rem;
-  line-height: 1.45;
+  font-weight: 500;
+  font-size: 1.2rem;
   color: var(--color-text-primary);
 }
-
-/* С чего начать. */
-.hp-go { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
-.hp-card {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 16px;
-  border: 1px solid var(--color-border-default);
-  border-top: 3px solid var(--hp-card, var(--color-border-strong));
-  border-radius: 12px;
-  color: inherit;
-  text-decoration: none;
-  transition: border-color 0.15s, transform 0.15s;
-}
-.hp-card:hover { transform: translateY(-1px); }
-.hp-card--screen { --hp-card: var(--hp-gap); }
-.hp-card--companies { --hp-card: var(--hp-price); }
-.hp-card--method { --hp-card: var(--hp-value); }
-.hp-card-text b { display: block; font-size: 1.05rem; font-weight: 600; color: var(--color-text-primary); }
-.hp-card-text small { display: block; margin-top: 4px; font-size: 0.88rem; line-height: 1.4; color: var(--color-text-tertiary); }
-.hp-card-num { flex: none; font-family: var(--font-mono); font-size: 1.35rem; font-weight: 500; color: var(--color-text-primary); white-space: nowrap; }
-.hp-card-num i { font-style: normal; font-size: 0.85rem; color: var(--color-text-tertiary); }
-
-/* Как считаем. */
-.hp-steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; counter-reset: hp-step; }
-.hp-steps li { position: relative; padding: 14px 16px 14px 52px; border-radius: 12px; border: 1px dashed var(--color-border-strong); counter-increment: hp-step; }
-.hp-steps li::before {
-  content: counter(hp-step);
-  position: absolute;
-  left: 14px;
-  top: 14px;
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: var(--font-mono);
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: var(--color-bg-surface);
-  background: var(--hp-price);
-}
-.hp-steps b { display: block; color: var(--color-text-primary); }
-.hp-steps span { display: block; margin-top: 2px; font-size: 0.88rem; color: var(--color-text-tertiary); }
-
-/* Telegram. */
-.hp-tg {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 16px;
-  margin-top: 44px;
-  padding: 18px 20px;
-  border-radius: 16px;
-  background: linear-gradient(120deg, color-mix(in srgb, #2aabee 16%, transparent), color-mix(in srgb, var(--hp-price) 10%, transparent));
-  border: 1px solid color-mix(in srgb, #2aabee 35%, var(--color-border-default));
-  color: inherit;
-  text-decoration: none;
-}
-.hp-tg b { display: block; font-size: 1.05rem; color: var(--color-text-primary); }
-.hp-tg small { display: block; margin-top: 3px; font-size: 0.88rem; color: var(--color-text-secondary); }
-.hp-tg-handle { flex: none; font-weight: 600; color: #1d8fd1; }
-:root[data-theme="dark"] .hp-tg-handle { color: #5cc4f6; }
-
-@media (prefers-reduced-motion: reduce) {
-  .hp-pic-bar--price { animation: none; }
-  .hp-card { transition: none; }
-}
+.hp-index-item span { font-size: 0.95rem; line-height: 1.5; color: var(--color-text-secondary); }
+.hp-index-item:hover b { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 4px; }
 
 /* ── Телефон ──────────────────────────────────────────────────────────── */
-@media (max-width: 900px) {
-  /* minmax(0, …): иначе колонка растягивается по ряду кнопок популярных. */
-  .hp-hero { grid-template-columns: minmax(0, 1fr); gap: 22px; }
-  .hp-ideas { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}
 @media (max-width: 760px) {
-  .hp { padding: 12px 12px 36px; }
-  .hp-hero { padding: 22px 16px 18px; border-radius: 16px; }
-  .hp-eyebrow { font-size: 11.5px; }
-  .hp-hero h1 { font-size: 29px; }
-  .hp-lede { font-size: 15.5px; margin: 10px 0 14px; }
-  /* Кнопки популярных — одной строкой с прокруткой: в две строки они
-     съедали бы первый экран. */
-  .hp-popular { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
-  .hp-popular::-webkit-scrollbar { display: none; }
-  .hp-chip { flex: none; }
-  .hp-pic { padding: 16px; }
-  .hp-section { margin-top: 30px; padding: 0 4px; }
-  .hp-stats, .hp-ideas, .hp-go, .hp-steps { grid-template-columns: minmax(0, 1fr); gap: 8px; }
-  .hp-stat { flex-direction: column; padding: 14px 16px; }
-  .hp-stat-num { font-size: 1.6rem; }
-  .hp-idea { padding: 14px 16px; }
-  .hp-idea h3 { font-size: 1.12rem; }
-  .hp-card { padding: 12px 14px; align-items: center; }
-  .hp-motto { font-size: 1.02rem; }
-  .hp-tg { flex-direction: column; align-items: flex-start; margin: 30px 4px 0; }
+  .hp { padding: 24px 16px 40px; }
+  .hp-intro h1 { font-size: 32px; }
+  .hp-lede { font-size: 16px; margin: 12px 0 18px; }
+
+  .hp-today { grid-template-columns: minmax(0, 1fr); margin-top: 32px; }
+  /* Числа в строку с подписью: три колонки в 343 пикселя не помещались. */
+  .hp-fig {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: baseline;
+    column-gap: 12px;
+    padding: 12px 0;
+    border-left: 0;
+    border-top: 1px solid var(--color-border-default);
+  }
+  .hp-fig:first-child { border-top: 0; }
+  .hp-fig-label { grid-column: 1; grid-row: 1; font-size: 0.95rem; color: var(--color-text-primary); }
+  .hp-fig-num { grid-column: 2; grid-row: 1 / 3; font-size: 1.6rem; text-align: right; }
+  .hp-fig-sub { grid-column: 1; grid-row: 2; font-size: 0.82rem; }
+
+  .hp-block { margin-top: 40px; }
+  .hp-block-head h2 { font-size: 1.3rem; }
+
+  /* Строка компании: имя и вывод — первой строкой, шкала с ценами — второй. */
+  .hp-vr-head { display: none; }
+  .hp-vr {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 8px 12px;
+  }
+  .hp-vr-name { grid-column: 1 / 3; grid-row: 1; }
+  .hp-vr-margin { grid-column: 3; grid-row: 1; }
+  .hp-vr-num { grid-row: 2; font-size: 0.85rem; }
+  .hp-vr-num:not(.hp-vr-ref) { grid-column: 1; text-align: left; }
+  .hp-vr-scale { grid-column: 2; grid-row: 2; }
+  .hp-vr-num.hp-vr-ref { grid-column: 3; }
+
+  .hp-index { grid-template-columns: minmax(0, 1fr); }
+  .hp-index-item { padding: 14px 0; }
+  .hp-index-item b { font-size: 1.1rem; }
+  .hp-index-item span { font-size: 0.9rem; }
 }

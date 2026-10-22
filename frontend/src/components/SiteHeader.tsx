@@ -237,36 +237,24 @@ export default function SiteHeader() {
     observer.observe(el);
     return () => observer.disconnect();
   }, []);
-  // Телефон: шапка уезжает при прокрутке вниз и возвращается, когда листают
-  // вверх или подходят к началу. На экране в 812 пикселей две её строки —
-  // почти пятая часть высоты, а читают ниже. Видимую высоту публикуем в
-  // --site-header-offset: по ней липнут вкладки карточки.
+  // Телефон: шапка видна только у начала страницы. На экране в 812 пикселей
+  // две её строки — почти пятая часть высоты, а читают ниже. Раньше она
+  // возвращалась и при прокрутке вверх, но вверх листают постоянно — чтобы
+  // перечитать абзац, — и шапка выскакивала поверх текста. Видимую высоту
+  // публикуем в --site-header-offset: по ней липнут вкладки карточки.
   const isPhone = useMediaQuery(PHONE_QUERY);
   const [hidden, setHidden] = useState(false);
   useEffect(() => {
     if (!isPhone) { setHidden(false); return undefined; }
-    const NEAR_TOP = 120; // ближе к началу — шапка видна всегда
-    const HIDE_AFTER = 12; // столько вниз за кадр — прятать
-    const SHOW_AFTER = 80; // столько вверх подряд — показать
-    let last = window.scrollY;
-    let up = 0;
+    const NEAR_TOP = 120; // ближе к началу — шапка видна
     // Без requestAnimationFrame: события прокрутки и так приходят не чаще
     // кадра, а кадр в свёрнутой вкладке не наступает вовсе.
     const onScroll = () => {
-      const y = window.scrollY;
-      const dy = y - last;
-      last = y;
       // Пока в шапке что-то в фокусе (поиск с подсказками), её не трогаем.
       if (headerRef.current?.contains(document.activeElement)) return;
-      if (y < NEAR_TOP) { up = 0; setHidden(false); return; }
-      if (dy > HIDE_AFTER) { up = 0; setHidden(true); return; }
-      if (dy < 0) {
-        up -= dy;
-        if (up > SHOW_AFTER) setHidden(false);
-      } else if (dy > 0) {
-        up = 0;
-      }
+      setHidden(window.scrollY >= NEAR_TOP);
     };
+    onScroll();
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
   }, [isPhone]);

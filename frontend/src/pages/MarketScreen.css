@@ -567,7 +567,20 @@
   }
 }
 @media (max-width: 640px) {
-  .sc-row--pass, .sc-row--head { grid-template-columns: minmax(0, 1fr) repeat(3, 56px) 80px; gap: 8px; font-size: 13px; }
+  /* Пять колонок в 375 пикселей не помещались: P/E налезал на тикер.
+     Название и запас — первой строкой, числа с подписями — второй. */
+  .sc-row--head { display: none; }
+  .sc-row--pass { grid-template-columns: minmax(0, 1fr) auto auto 80px; gap: 6px 18px; }
+  .sc-row--pass .ms-ident { grid-column: 1 / 4; grid-row: 1; min-width: 0; }
+  .sc-row--pass .sc-margin { grid-column: 4; grid-row: 1; }
+  .sc-row--pass .sc-num { grid-row: 2; font-size: 14px; white-space: nowrap; }
+  .sc-row--pass .sc-num:nth-child(4) { grid-column: 3 / -1; }
+  .sc-row--pass .sc-num::before {
+    content: attr(data-label) ' ';
+    font-family: var(--font-sans);
+    font-size: 12.5px;
+    color: var(--color-text-tertiary);
+  }
   .sc-row--miss { grid-template-columns: minmax(0, 1fr) 80px; }
   .sc-row--miss .sc-why { grid-column: 1 / -1; grid-row: 2; font-size: 13px; }
   .sc-head h1 { font-size: 26px; }

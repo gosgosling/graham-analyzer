@@ -224,3 +224,8 @@
   .sh-register { display: none; }
   .sh-login { border: 1px solid var(--color-border-strong); }
 }
+
+/* Подсказка «/» — для клавиатуры; на телефоне её нечем нажать. */
+@media (hover: none), (max-width: 760px) {
+  .sh-search-key { display: none; }
+}

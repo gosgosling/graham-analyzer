@@ -604,7 +604,7 @@ const CompanyDetail: React.FC = () => {
             <span className="cd-stat-sub">расчёт, не прогноз</span>
           </a>
           <a className="cd-stat" href="#valuation">
-            <span className="cd-stat-label">Запас прочности</span>
+            <span className="cd-stat-label">Запас<span className="cd-stat-label-tail"> прочности</span></span>
             <span className={`cd-stat-value cd-tone--${verdict.marginTone}`}>{marginLabel(verdict.margin)}</span>
             <span className="cd-stat-sub">
               {verdict.margin === null ? 'нет оценки' : verdict.margin < 0 ? 'цена выше опорной' : 'цена ниже опорной'}
@@ -641,6 +641,15 @@ const CompanyDetail: React.FC = () => {
       <div className="cd-tabs-anchor" ref={tabsAnchorRef} aria-hidden />
       <div className={`cd-mobile-bar${headGone ? ' is-compact' : ''}`} ref={mobileTabsRef}>
         <div className="cd-mobile-title" aria-hidden={!headGone}>
+          {/* Шапка сайта на телефоне ниже первого экрана не появляется —
+              выход из карточки здесь. Назад — туда, откуда пришли (скринер,
+              поиск), а со ссылки снаружи — к списку компаний. */}
+          <button type="button" className="cd-mobile-back" aria-label="Назад" tabIndex={headGone ? 0 : -1}
+            onClick={() => ((window.history.state?.idx ?? 0) > 0 ? navigate(-1) : navigate('/companies'))}>
+            <svg viewBox="0 0 20 20" width="20" height="20" aria-hidden>
+              <path d="M12.5 4.5 7 10l5.5 5.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
           {logoSrc && <img src={logoSrc} alt="" className="cd-mobile-title-logo" referrerPolicy="no-referrer" />}
           <span className="cd-mobile-title-name">{company.name}</span>
           {price !== null && (
