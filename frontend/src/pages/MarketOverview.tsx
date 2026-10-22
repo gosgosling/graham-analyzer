@@ -11,6 +11,7 @@ import { createSpanStore, type SpanStore } from '../components/priceSpanStore';
 import '../components/PriceChart.css';
 import PeriodChipList from '../components/PeriodChipList';
 import { PHONE_QUERY, useMediaQuery } from '../hooks/useMediaQuery';
+import { useTwoFingerSpan } from '../hooks/useTwoFingerSpan';
 import './MarketOverview.css';
 
 /**
@@ -133,8 +134,20 @@ function IndexSpanSummary({ store, points }: { store: SpanStore; points: IndexPo
   );
 }
 
+/**
+ * Ось на телефоне — подписи внутри поля, без линии и засечек: так график
+ * идёт от края до края экрана, а не теряет по пять сантиметров на оси с двух
+ * сторон. Сетка остаётся — по ней и читаются подписи.
+ */
+const PHONE_AXIS = { mirror: true, axisLine: false, tickLine: false } as const;
+/** Высота графиков на телефоне: на 240 пикселях линии сливались в полосу. */
+const PHONE_HEIGHT = 280;
+/** Подсказка на телефоне — у верхнего края поля, а не под пальцем. */
+const PHONE_TIP = { position: { y: 0 } } as const;
+
 function IndexChart({ data, range }: { data: Overview; range: string }) {
   const colors = useChartColors();
+  const isPhone = useMediaQuery(PHONE_QUERY);
   const years = RANGES.find((r) => r.key === range)?.years ?? null;
   const [scale, setScaleState] = useState<IndexScale>(() => {
     try { return (window.localStorage.getItem(INDEX_SCALE_KEY) as IndexScale) || 'points'; } catch { return 'points'; }
@@ -188,6 +201,7 @@ function IndexChart({ data, range }: { data: Overview; range: string }) {
     const frame = requestAnimationFrame(measure);
     return () => cancelAnimationFrame(frame);
   }, [measure, view, scale, spanStore]);
+  useTwoFingerSpan(canvas, view?.points, spanStore, isPhone, measure);
 
   if (!view) return <div className="mo-state">Истории индексов нет.</div>;
   const long = years === null || years >= 5;
@@ -221,10 +235,10 @@ function IndexChart({ data, range }: { data: Overview; range: string }) {
       </div>
       <div className="mo-canvas" ref={canvas}>
         <SpanBand store={spanStore} top={band.top} bottom={band.bottom} />
-        <ResponsiveContainer width="100%" height={300}>
+        <ResponsiveContainer width="100%" height={isPhone ? PHONE_HEIGHT : 300}>
           <LineChart
             data={view.points}
-            margin={{ top: 8, right: rel ? 8 : 4, bottom: 0, left: 0 }}
+            margin={isPhone ? { top: 8, right: 0, bottom: 0, left: 0 } : { top: 8, right: rel ? 8 : 4, bottom: 0, left: 0 }}
             onMouseDown={(state, event) => {
               spanStore.set(null);
               measure();
@@ -250,13 +264,14 @@ function IndexChart({ data, range }: { data: Overview; range: string }) {
               tickFormatter={(v: string) => axisDate(v, long)} />
             {rel ? (
               <YAxis yAxisId="l" tick={{ fill: colors.axis, fontSize: 11 }} stroke={colors.grid} width={44}
-                domain={['auto', 'auto']} tickFormatter={(v: number) => ru(v)} />
+                domain={['auto', 'auto']} tickFormatter={(v: number) => ru(v)}
+                {...(isPhone ? { ...PHONE_AXIS, orientation: 'right' as const } : {})} />
             ) : (
               <>
                 <YAxis yAxisId="l" tick={{ fill: colors.axis, fontSize: 11 }} stroke={colors.grid} width={52}
-                  domain={['auto', 'auto']} tickFormatter={(v: number) => ru(v)} />
+                  domain={['auto', 'auto']} tickFormatter={(v: number) => ru(v)} {...(isPhone ? PHONE_AXIS : {})} />
                 <YAxis yAxisId="r" orientation="right" tick={{ fill: colors.line3, fontSize: 11 }} stroke={colors.grid} width={56}
-                  domain={['auto', 'auto']} tickFormatter={(v: number) => ru(v)} />
+                  domain={['auto', 'auto']} tickFormatter={(v: number) => ru(v)} {...(isPhone ? PHONE_AXIS : {})} />
               </>
             )}
             {rel && <ReferenceLine yAxisId="l" y={100} stroke={colors.axis} strokeDasharray="3 3" />}
@@ -266,6 +281,7 @@ function IndexChart({ data, range }: { data: Overview; range: string }) {
               itemStyle={{ color: colors.textPrimary }}
               labelFormatter={(v) => dotDate(String(v))}
               formatter={(v, name) => [rel ? `${ru(Number(v), 1)} ₽` : `${ru(Number(v), 2)} п.`, tooltipLabel[String(name)] ?? String(name)]}
+              {...(isPhone ? PHONE_TIP : {})}
             />
             <Line yAxisId="l" dataKey={rel ? 'imoexRel' : 'imoex'} stroke={colors.textPrimary} strokeWidth={1.4} dot={false} isAnimationActive={false} />
             <Line yAxisId={rel ? 'l' : 'r'} dataKey={rel ? 'mcftrRel' : 'mcftr'} stroke={colors.line3} strokeWidth={1.4} dot={false} isAnimationActive={false} connectNulls />
@@ -273,7 +289,9 @@ function IndexChart({ data, range }: { data: Overview; range: string }) {
         </ResponsiveContainer>
       </div>
       <IndexSpanSummary store={spanStore} points={view.points} />
-      <p className="mo-hint">Зажмите кнопку мыши и проведите по графику — покажет изменение за отрезок.</p>
+      {isPhone
+        ? <p className="mo-hint mo-hint--touch">Коснитесь графика двумя пальцами — покажем изменение за отрезок.</p>
+        : <p className="mo-hint">Зажмите кнопку мыши и проведите по графику — покажет изменение за отрезок.</p>}
     </>
   );
 }
@@ -282,6 +300,7 @@ function IndexChart({ data, range }: { data: Overview; range: string }) {
 
 function RatesChart({ data, range }: { data: Overview; range: string }) {
   const colors = useChartColors();
+  const isPhone = useMediaQuery(PHONE_QUERY);
   const years = RANGES.find((r) => r.key === range)?.years ?? null;
   const view = useMemo(() => {
     const days = data.series.RGBI_yield;
@@ -304,26 +323,30 @@ function RatesChart({ data, range }: { data: Overview; range: string }) {
         <span><i style={{ background: colors.line1 }} />ОФЗ 10 лет</span>
         <span><i style={{ background: colors.line4 }} />доходность RGBI</span>
       </div>
-      <ResponsiveContainer width="100%" height={240}>
-        <LineChart data={view} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+      <div className="mo-bleed">
+      <ResponsiveContainer width="100%" height={isPhone ? PHONE_HEIGHT : 240}>
+        <LineChart data={view} margin={isPhone ? { top: 8, right: 0, bottom: 0, left: 0 } : { top: 8, right: 8, bottom: 0, left: 0 }}>
           <CartesianGrid stroke={colors.grid} vertical={false} />
           <XAxis dataKey="date" tick={{ fill: colors.axis, fontSize: 11 }} stroke={colors.grid}
             ticks={periodTicks(view.map((p) => p.date), years)} interval={0}
             tickFormatter={(v: string) => axisDate(v, long)} />
           <YAxis tick={{ fill: colors.axis, fontSize: 11 }} stroke={colors.grid} width={36}
-            domain={[0, 'auto']} tickFormatter={(v: number) => `${ru(v)}%`} />
+            domain={[0, 'auto']} tickFormatter={(v: number) => `${ru(v)}%`}
+            {...(isPhone ? { ...PHONE_AXIS, orientation: 'right' as const } : {})} />
           <Tooltip
             contentStyle={{ background: colors.tooltipBg, border: `1px solid ${colors.tooltipBorder}`, borderRadius: 6, fontSize: 12 }}
             labelStyle={{ color: colors.textPrimary, marginBottom: 2 }}
             itemStyle={{ color: colors.textPrimary }}
             labelFormatter={(v) => dotDate(String(v))}
             formatter={(v, name) => [`${ru(Number(v), 2)}%`, names[String(name)] ?? String(name)]}
+            {...(isPhone ? PHONE_TIP : {})}
           />
           <Line type="stepAfter" dataKey="key" stroke={colors.textPrimary} strokeWidth={1.4} dot={false} isAnimationActive={false} />
           <Line dataKey="ofz" stroke={colors.line1} strokeWidth={1.4} dot={false} isAnimationActive={false} connectNulls />
           <Line dataKey="rgbi" stroke={colors.line4} strokeWidth={1.2} dot={false} isAnimationActive={false} />
         </LineChart>
       </ResponsiveContainer>
+      </div>
     </>
   );
 }
@@ -332,18 +355,21 @@ function RatesChart({ data, range }: { data: Overview; range: string }) {
 
 function PremiumChart({ years }: { years: MarketYear[] }) {
   const colors = useChartColors();
+  const isPhone = useMediaQuery(PHONE_QUERY);
   const rows = years
     .filter((y) => y.premium !== null)
     .map((y) => ({ label: y.year === 'now' ? 'сейчас' : String(y.year), premium: y.premium as number }));
   if (!rows.length) return <div className="mo-state">Не с чем сравнить.</div>;
   return (
-    <ResponsiveContainer width="100%" height={240}>
-      <BarChart data={rows} margin={{ top: 16, right: 8, bottom: 0, left: 0 }}>
+    <div className="mo-bleed">
+    <ResponsiveContainer width="100%" height={isPhone ? PHONE_HEIGHT : 240}>
+      <BarChart data={rows} margin={isPhone ? { top: 16, right: 0, bottom: 0, left: 0 } : { top: 16, right: 8, bottom: 0, left: 0 }}>
         <CartesianGrid stroke={colors.grid} vertical={false} />
         <XAxis dataKey="label" tick={{ fill: colors.axis, fontSize: 11 }} stroke={colors.grid}
           tickFormatter={(v: string) => (v === 'сейчас' ? v : `’${v.slice(2)}`)} interval={0} />
         <YAxis tick={{ fill: colors.axis, fontSize: 11 }} stroke={colors.grid} width={36}
-          tickFormatter={(v: number) => ru(v)} />
+          tickFormatter={(v: number) => ru(v)}
+          {...(isPhone ? { ...PHONE_AXIS, orientation: 'right' as const } : {})} />
         <ReferenceLine y={0} stroke={colors.axis} />
         <Tooltip
           contentStyle={{ background: colors.tooltipBg, border: `1px solid ${colors.tooltipBorder}`, borderRadius: 6, fontSize: 12 }}
@@ -351,6 +377,7 @@ function PremiumChart({ years }: { years: MarketYear[] }) {
             itemStyle={{ color: colors.textPrimary }}
           formatter={(v) => [`${signed(Number(v))} п.п.`, 'премия к ОФЗ']}
           cursor={{ fill: colors.grid }}
+          {...(isPhone ? PHONE_TIP : {})}
         />
         <Bar dataKey="premium" isAnimationActive={false} radius={[2, 2, 0, 0]}>
           {rows.map((r) => (
@@ -359,6 +386,7 @@ function PremiumChart({ years }: { years: MarketYear[] }) {
         </Bar>
       </BarChart>
     </ResponsiveContainer>
+    </div>
   );
 }
 

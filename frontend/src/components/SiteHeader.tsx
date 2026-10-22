@@ -37,7 +37,12 @@ function sectionOf(pathname: string): Section {
 const MAX_RESULTS = 8;
 
 /** Поиск компании с подсказками. Живёт в шапке; на главной — в первом экране. */
-export function CompanySearch() {
+export function CompanySearch({ autoFocus = false, onClose }: {
+  /** Сразу ставить курсор в поле — когда поиск открыли значком. */
+  autoFocus?: boolean;
+  /** Поиск закончен: выбрали компанию или нажали Esc. */
+  onClose?: () => void;
+} = {}) {
   const navigate = useNavigate();
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
@@ -97,6 +102,7 @@ export function CompanySearch() {
     setQuery('');
     setOpen(false);
     inputRef.current?.blur();
+    onClose?.();
   };
 
   return (
@@ -105,6 +111,7 @@ export function CompanySearch() {
         strokeWidth="2" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
       <input
         ref={inputRef}
+        autoFocus={autoFocus}
         type="search"
         className="sh-search-input"
         placeholder="Найти компанию: тикер или название"
@@ -128,6 +135,7 @@ export function CompanySearch() {
           } else if (e.key === 'Escape') {
             setOpen(false);
             inputRef.current?.blur();
+            onClose?.();
           }
         }}
       />
@@ -273,6 +281,14 @@ export default function SiteHeader() {
   // Переход на другую страницу — шапка снова на месте.
   useEffect(() => { setHidden(false); }, [pathname]);
 
+  // Поиск компании. На главной, в скринере и в списке компаний у страницы
+  // своё поле — второе в шапке над ним дублировало бы его. На телефоне
+  // строка поиска занимала целый ряд шапки; там вместо неё значок, а поле
+  // открывается поверх верхней строки по нажатию.
+  const ownSearch = pathname === '/' || pathname.startsWith('/screen') || pathname === '/companies';
+  const [searchOpen, setSearchOpen] = useState(false);
+  useEffect(() => setSearchOpen(false), [pathname, isPhone]);
+
   const link = (key: Exclude<Section, null>, to: string, label: string) => (
     <Link to={to} className={`sh-link${active === key ? ' is-on' : ''}`} aria-current={active === key ? 'page' : undefined}>
       {label}
@@ -289,9 +305,14 @@ export default function SiteHeader() {
             <span className="sh-tagline">рынок голосует, весы взвешивают</span>
           </span>
         </Link>
-        {/* На главной поиск стоит в первом экране — второй прямо над ним лишний. */}
-        {pathname !== '/' && <CompanySearch />}
+        {!ownSearch && !isPhone && <CompanySearch />}
         <div className="sh-actions">
+          {!ownSearch && isPhone && (
+            <button type="button" className="sh-search-btn" aria-label="Найти компанию" onClick={() => setSearchOpen(true)}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                strokeLinecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
+            </button>
+          )}
           <ThemeToggle compact />
           {user && user.role === 'admin' && (
             <Link to="/admin" className={`sh-admin${active === 'admin' ? ' is-on' : ''}`}>Админ</Link>
@@ -304,6 +325,12 @@ export default function SiteHeader() {
           )}
         </div>
       </div>
+      {searchOpen && (
+        <div className="sh-search-panel">
+          <CompanySearch autoFocus onClose={() => setSearchOpen(false)} />
+          <button type="button" className="sh-search-cancel" onClick={() => setSearchOpen(false)}>Отмена</button>
+        </div>
+      )}
       <nav className="sh-tabs" aria-label="Разделы сайта">
         {link('ideas', '/screen', 'Скринер')}
         {link('companies', '/companies', 'Компании')}

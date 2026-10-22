@@ -51,12 +51,17 @@ export const SpanBand: React.FC<{ store: SpanStore; top: number; bottom: number 
 };
 
 /** Строка свода под графиком. */
-export const SpanSummary: React.FC<{ store: SpanStore; points: readonly SpanPoint[] }> = (
-  { store, points },
+export const SpanSummary: React.FC<{
+  store: SpanStore;
+  points: readonly SpanPoint[];
+  /** Как выделить отрезок — пока он не выделен (на телефоне жест неочевиден). */
+  hint?: string;
+}> = (
+  { store, points, hint },
 ) => {
   const live = useSpan(store);
   const span = live ? priceSpan(points, live.fromDate, live.toDate) : null;
-  if (!span) return null;
+  if (!span) return hint ? <p className="pc-span-hint">{hint}</p> : null;
 
   const up = span.delta >= 0;
   return (
