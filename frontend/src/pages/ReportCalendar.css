@@ -205,3 +205,10 @@
   .cal-row { grid-template-columns: 64px 1fr; gap: var(--space-3); }
   .cal-date-num { font-size: 1.25rem; }
 }
+
+/* Длинные названия («Вторая генерирующая компания оптового рынка…») не
+   переносились и распирали страницу на телефоне до 658 пикселей. */
+.cal-row, .cal-items, .cal-item { min-width: 0; }
+.cal-company { max-width: 100%; min-width: 0; box-sizing: border-box; }
+.cal-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cal-ticker, .cal-logo { flex-shrink: 0; }

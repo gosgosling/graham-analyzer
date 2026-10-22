@@ -171,3 +171,6 @@
   .cv-groups button { grid-template-columns: minmax(0, 1fr) auto; }
   .cv-group-members { grid-column: 1 / -1; grid-row: 2; }
 }
+
+/* Лучшее значение в телефонном списке (PeriodChipList) — тем же тоном. */
+.hl .cv-best { font-weight: 600; background: var(--cv-best); padding: 0 4px; border-radius: 4px; }

@@ -115,3 +115,10 @@
 @media (max-width: 760px) {
   .st-table { --st-label: 150px; --st-col: 74px; font-size: 0.86rem; }
 }
+
+/* Телефон: список (StatementsList) в разметке «По годам» — классы hl-* из
+   MultipliersPanel.css. Здесь только отличия отчётности. */
+.st-list .st-neg { color: var(--color-error-text); }
+@media (max-width: 760px) {
+  .st-controls .st-note { flex-basis: 100%; }
+}

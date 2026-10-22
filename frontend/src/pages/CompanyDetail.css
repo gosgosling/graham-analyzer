@@ -1771,8 +1771,39 @@
   .cd-mobile-tab.is-on { color: var(--color-text-primary); font-weight: 600; border-bottom-color: var(--color-text-primary); }
 
   .cd-tabbed:not(.is-current) { display: none !important; }
-  .ca-toc { display: none; }
+  /* Оглавление на телефоне — продолжение «Обзора»: щелчок переключает вкладку. */
+  .ca-toc-item { padding-top: 12px; padding-bottom: 12px; }
+
+  .cd-next {
+    display: flex;
+    justify-content: space-between;
+    align-items: stretch;
+    gap: 12px;
+    margin-top: 28px;
+    padding-top: 16px;
+    border-top: 2px solid var(--cd-rule);
+  }
+  .cd-next button {
+    border: 1px solid var(--color-border-default);
+    border-radius: 10px;
+    background: none;
+    font: inherit;
+    color: var(--color-text-primary);
+    padding: 10px 14px;
+    cursor: pointer;
+  }
+  .cd-next-back { color: var(--color-text-secondary) !important; white-space: nowrap; }
+  .cd-next-go { display: flex; flex-direction: column; align-items: flex-end; text-align: right; font-weight: 600; }
+  .cd-next-kicker { font-size: 0.75rem; font-weight: 400; color: var(--color-text-tertiary); text-transform: uppercase; letter-spacing: 0.06em; }
 }
+
+/* Переход «Дальше» нужен только телефону: на компьютере разделы идут подряд. */
+@media (min-width: 761px) {
+  .cd-next { display: none; }
+}
+
+/* Вкладки не прячутся под липкую шапку сайта при переходе к ним. */
+.cd-mobile-tabs { scroll-margin-top: calc(var(--site-header-h, 140px) + 8px); }
 
 .cd-reports {
   max-width: 880px;

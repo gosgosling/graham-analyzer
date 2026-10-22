@@ -388,12 +388,18 @@ export const AsideNotes = React.forwardRef<HTMLElement, { verdict: VerdictData; 
 AsideNotes.displayName = 'AsideNotes';
 
 /** Оглавление разделов страницы. */
-export function AsideToc({ sections }: { sections: { id: string; label: string; note?: string }[] }) {
+export function AsideToc({ sections, onSelect }: {
+  sections: { id: string; label: string; note?: string }[];
+  /** На телефоне разделы — вкладки, и якорь ведёт в скрытый блок: страница
+   *  перехватывает щелчок и переключает вкладку сама. */
+  onSelect?: (id: string, event: React.MouseEvent) => void;
+}) {
   return (
     <nav className="ca-card ca-toc" aria-label="Разделы страницы">
       <h2 className="ca-kicker">На странице</h2>
       {sections.map((s) => (
-        <a key={s.id} href={`#${s.id}`} className="ca-toc-item">
+        <a key={s.id} href={`#${s.id}`} className="ca-toc-item"
+          onClick={onSelect ? (e) => onSelect(s.id, e) : undefined}>
           <span>{s.label}</span>
           {s.note && <span className="ca-toc-note">{s.note}</span>}
         </a>

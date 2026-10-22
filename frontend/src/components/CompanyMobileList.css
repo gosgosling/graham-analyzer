@@ -1,0 +1,64 @@
+/* Список компаний для телефона. На широком экране его нет — там таблица. */
+.cml { display: none; }
+
+@media (max-width: 760px) {
+  .cml { display: block; }
+
+  .cml-sorts {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    margin: 4px 0 6px;
+  }
+  .cml-sorts::-webkit-scrollbar { display: none; }
+  .cml-chip {
+    flex: none;
+    border: 1px solid var(--color-border-default);
+    border-radius: 999px;
+    background: none;
+    font: inherit;
+    font-size: 0.85rem;
+    color: var(--color-text-secondary);
+    padding: 5px 12px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .cml-chip.is-on {
+    background: var(--color-text-primary);
+    border-color: var(--color-text-primary);
+    color: var(--color-bg-surface);
+  }
+
+  .cml-list { list-style: none; margin: 0; padding: 0; }
+  .cml-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 11px 0;
+    border-bottom: 1px solid var(--color-border-default);
+    color: inherit;
+    text-decoration: none;
+  }
+  .cml-logo { width: 30px; height: 30px; border-radius: 50%; flex: none; object-fit: cover; }
+  .cml-name { flex: 1; min-width: 0; }
+  .cml-name b,
+  .cml-name small {
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .cml-name b { font-weight: 500; font-size: 0.95rem; }
+  .cml-ticker { font-weight: 700; }
+  .cml-name small { color: var(--color-text-tertiary); font-size: 0.8rem; margin-top: 1px; }
+
+  .cml-right { flex: none; text-align: right; line-height: 1.25; }
+  .cml-right b { display: block; font-family: var(--font-mono); font-weight: 500; font-size: 0.98rem; background: none; }
+  .cml-right small { display: block; font-size: 0.78rem; background: none; }
+  /* Подпись сигнала берёт цвет у класса сигнала, остальное — приглушённое. */
+  .cml-right small:not([class*='ms-safety--']) { color: var(--color-text-tertiary); }
+  .cml-right small[class*='ms-safety--'] { font-size: 0.74rem; }
+  .cml-right small.cml-clears { color: var(--screen-pass-text); }
+  .cml-none { color: var(--color-text-quaternary) !important; }
+}

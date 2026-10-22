@@ -245,7 +245,9 @@
   line-height: 1.2;
 }
 
-/* Знак сверху, величина под ним: видно не только «мимо», но и насколько. */
+/* Пройден или нет — говорит цвет клетки, главное в ней — величина: видно не
+   только «мимо», но и насколько. Знак («·», «?») остался только у клеток без
+   числа и стоит над прочерком. */
 .ms-cell b {
   display: block;
   font-weight: 700;
@@ -256,7 +258,8 @@
   display: block;
   margin-top: 1px;
   font-style: normal;
-  font-size: 0.86rem;
+  font-size: 0.95rem;
+  font-weight: 500;
   font-variant-numeric: tabular-nums;
 }
 
@@ -544,12 +547,112 @@
 .sc-empty { margin: 12px 0 0; color: var(--color-text-tertiary); font-size: 16px; }
 .sc-empty a { color: var(--color-text-link); }
 
+.sc-side-title { display: none; }
+
 @media (max-width: 1000px) {
   .sc { grid-template-columns: 1fr; gap: 28px; }
+  /* Сначала — кто прошёл, потом — как отбирали: на телефоне воронка из
+     двенадцати строк стояла первой, и результат оказывался на третьем экране. */
+  .sc-side { order: 2; }
+  /* Оформлен как заголовки групп «Прошли…», «Не хватило…» — это ещё одна группа. */
+  .sc-side-title {
+    display: block;
+    margin: 0 0 4px;
+    padding-bottom: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-text-tertiary);
+  }
 }
 @media (max-width: 640px) {
   .sc-row--pass, .sc-row--head { grid-template-columns: minmax(0, 1fr) repeat(3, 56px) 80px; gap: 8px; font-size: 13px; }
   .sc-row--miss { grid-template-columns: minmax(0, 1fr) 80px; }
   .sc-row--miss .sc-why { grid-column: 1 / -1; grid-row: 2; font-size: 13px; }
   .sc-head h1 { font-size: 26px; }
+}
+
+/* ── Полная таблица на телефоне: строки с полоской требований ─────────────── */
+
+.smb { display: none; }
+
+@media (max-width: 760px) {
+  .smb { display: block; }
+  .ms-scroll--wide { display: none; }
+
+  .smb-legend {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 6px;
+    margin: 4px 0 10px;
+    font-size: 12px;
+    color: var(--color-text-tertiary);
+  }
+  .smb-legend .smb-dot { margin-left: 6px; }
+  .smb-legend .smb-dot:first-child { margin-left: 0; }
+
+  .smb-list { list-style: none; margin: 0; padding: 0; }
+  .smb-item { border-bottom: 1px solid var(--color-border-default); }
+  .smb-row {
+    display: block;
+    width: 100%;
+    border: 0;
+    background: none;
+    font: inherit;
+    color: inherit;
+    text-align: left;
+    padding: 11px 0 10px;
+    cursor: pointer;
+  }
+  .smb-head { display: flex; align-items: center; gap: 8px; }
+  .smb-logo { width: 22px; height: 22px; border-radius: 50%; flex: none; }
+  .smb-name { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 0.95rem; }
+  .smb-name b { font-weight: 700; }
+  .smb-count { flex: none; font-family: var(--font-mono); font-size: 0.88rem; color: var(--color-text-secondary); }
+  .smb-count.is-clear { color: var(--screen-pass-text); font-family: inherit; font-weight: 600; }
+
+  .smb-bar { display: flex; gap: 3px; margin-top: 7px; }
+  .smb-bar .smb-dot { flex: 1; }
+  .smb-dot { display: inline-block; width: 14px; height: 6px; border-radius: 2px; }
+  .smb-dot--pass { background: var(--color-success); }
+  .smb-dot--near { background: var(--color-warning); }
+  .smb-dot--fail { background: var(--color-error); }
+  .smb-dot--unknown { background: var(--color-border-strong); }
+  .smb-dot--na { background: var(--color-border-default); }
+
+  .smb-detail { padding: 0 0 12px; }
+  .smb-misses { list-style: none; margin: 0; padding: 0; }
+  .smb-misses li { padding: 6px 0; font-size: 0.9rem; border-top: 1px dashed var(--color-border-default); }
+  .smb-ok { margin: 0; font-size: 0.9rem; color: var(--screen-pass-text); }
+  .smb-foot { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 8px; font-size: 0.9rem; }
+  .smb-safety { display: inline-flex; align-items: center; gap: 6px; color: var(--color-text-tertiary); }
+  .smb-safety .sc-margin { display: inline-flex; gap: 6px; align-items: baseline; }
+  .smb-safety .sc-margin b, .smb-safety .sc-margin i { display: inline; font-size: 0.9rem; }
+  .smb-foot a { color: var(--color-text-link); white-space: nowrap; }
+
+  /* Переключатель: «защитный / активный» — вкладки, режимы — отдельной строкой
+     кнопками. В одну строку шесть надписей не помещались и уезжали за край. */
+  .sc-switch { flex-wrap: wrap; overflow: visible; row-gap: 10px; border-bottom: 0; }
+  .sc-switch-gap { flex-basis: 100%; height: 0; }
+  .sc-switch button:not(.sc-view) { border-bottom-width: 2px; }
+  .sc-switch .sc-view {
+    border: 1px solid var(--color-border-default);
+    border-radius: 999px;
+    padding: 5px 12px;
+    margin: 0;
+    font-size: 0.88rem;
+  }
+  .sc-switch .sc-view.is-on {
+    background: var(--color-text-primary);
+    border-color: var(--color-text-primary);
+    color: var(--color-bg-surface);
+  }
+  .sc-switch { gap: 8px 18px; }
+}
+
+@media (max-width: 760px) {
+  .ms-filter { flex-direction: column; align-items: stretch; }
+  .ms-filter-search, .ms-filter-industry { width: 100%; max-width: none; box-sizing: border-box; }
 }

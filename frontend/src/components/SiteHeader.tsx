@@ -35,7 +35,8 @@ function sectionOf(pathname: string): Section {
 
 const MAX_RESULTS = 8;
 
-function CompanySearch() {
+/** Поиск компании с подсказками. Живёт в шапке; на главной — в первом экране. */
+export function CompanySearch() {
   const navigate = useNavigate();
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
@@ -244,14 +245,15 @@ export default function SiteHeader() {
   return (
     <header className="sh" ref={headerRef}>
       <div className="sh-row">
-        <Link to="/companies" className="sh-brand" aria-label="Graham Analyzer — на главную">
+        <Link to="/" className="sh-brand" aria-label="Graham Analyzer — на главную">
           <ScalesIcon />
           <span className="sh-brand-text">
             <span className="sh-name">Graham Analyzer</span>
             <span className="sh-tagline">рынок голосует, весы взвешивают</span>
           </span>
         </Link>
-        <CompanySearch />
+        {/* На главной поиск стоит в первом экране — второй прямо над ним лишний. */}
+        {pathname !== '/' && <CompanySearch />}
         <div className="sh-actions">
           <ThemeToggle compact />
           {user && user.role === 'admin' && (

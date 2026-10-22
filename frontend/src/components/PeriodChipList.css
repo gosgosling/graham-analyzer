@@ -1,0 +1,78 @@
+/* Список «колонка кнопкой, показатели строками» (PeriodChipList) — телефонная
+   замена широких таблиц: «По годам», «Отчётность», «Рынок», «Сравнение». */
+
+.hl-periods {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  margin: 2px 0 6px;
+  padding-bottom: 2px;
+}
+.hl-periods::-webkit-scrollbar { display: none; }
+.hl-chip {
+  flex: none;
+  border: 1px solid var(--color-border-default);
+  border-radius: 999px;
+  background: none;
+  font: inherit;
+  font-size: 0.85rem;
+  color: var(--color-text-secondary);
+  padding: 5px 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.hl-chip.is-on {
+  background: var(--color-text-primary);
+  border-color: var(--color-text-primary);
+  color: var(--color-bg-surface);
+}
+
+.hl-kicker {
+  margin: 18px 0 2px;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-tertiary);
+}
+.hl-list { list-style: none; margin: 0; padding: 0; }
+.hl-item { border-bottom: 1px solid var(--color-border-default); }
+.hl-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  padding: 9px 0;
+  cursor: pointer;
+}
+.hl-name { flex: 1; min-width: 0; font-size: 0.93rem; color: var(--color-text-primary); }
+.hl-item.is-open .hl-name { font-weight: 600; }
+.hl-values { flex: none; max-width: 58%; text-align: right; line-height: 1.25; }
+.hl-value { display: block; font-size: 0.95rem; font-variant-numeric: tabular-nums; }
+.hl-prev { display: block; margin-top: 2px; font-size: 0.76rem; color: var(--color-text-tertiary); }
+/* Значение прошлого периода — подпись, а не второе число: без заливок и значков крупно. */
+.hl-prev .mult-cell { background: none !important; padding: 0 !important; color: inherit !important; font-size: inherit; }
+.hl-prev svg, .hl-prev .metric-badge { display: none; }
+
+.hl-history {
+  margin: 0 0 10px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: var(--color-bg-overlay);
+  display: grid;
+  grid-template-columns: 1fr;
+}
+.hl-history > div { display: flex; justify-content: space-between; gap: 12px; padding: 5px 0; font-size: 0.88rem; }
+.hl-history > div + div { border-top: 1px dashed var(--color-border-default); }
+.hl-history dt { color: var(--color-text-tertiary); }
+.hl-history dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+.hl-history .is-current dt { color: var(--color-text-primary); font-weight: 600; }
+
+.hl-item--sub .hl-name { padding-left: 12px; color: var(--color-text-secondary); }

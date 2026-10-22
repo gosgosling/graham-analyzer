@@ -9,6 +9,8 @@ import { useChartColors } from '../contexts/ThemeContext';
 import { SpanBand, humanDate } from '../components/PriceSpanLayer';
 import { createSpanStore, type SpanStore } from '../components/priceSpanStore';
 import '../components/PriceChart.css';
+import PeriodChipList from '../components/PeriodChipList';
+import { PHONE_QUERY, useMediaQuery } from '../hooks/useMediaQuery';
 import './MarketOverview.css';
 
 /**
@@ -405,6 +407,32 @@ const ROWS: { group: string; rows: Row[] }[] = [
 ];
 
 function ValuationTable({ years }: { years: MarketYear[] }) {
+  const isPhone = useMediaQuery(PHONE_QUERY);
+  if (isPhone) {
+    // Четырнадцать лет в колонках на телефоне не помещаются: год кнопкой,
+    // показатели списком, «сейчас» — первым.
+    const ordered = [...years].reverse();
+    const byKey = new Map(ordered.map((y) => [String(y.year), y]));
+    return (
+      <PeriodChipList
+        ariaLabel="Год"
+        columns={ordered.map((y) => ({ key: String(y.year), label: y.year === 'now' ? 'сейчас' : String(y.year) }))}
+        groups={ROWS.map((g) => ({
+          key: g.group,
+          title: g.group,
+          rows: g.rows.map((r) => ({
+            key: r.label,
+            label: r.label,
+            tip: r.tip,
+            cell: (col) => {
+              const y = byKey.get(col.key);
+              return y ? { node: r.value(y), className: r.tone?.(y) || undefined } : null;
+            },
+          })),
+        }))}
+      />
+    );
+  }
   return (
     <div className="mo-table-wrap">
       <table className="mo-table" style={{ '--cols': years.length } as React.CSSProperties}>

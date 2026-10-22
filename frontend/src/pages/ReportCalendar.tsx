@@ -65,7 +65,8 @@ function DayCard({ day, items, today }: { day: string; items: UpcomingReport[]; 
                 {CONFIDENCE[i.confidence]?.label ?? i.confidence}
               </span>
             </div>
-            <Link className="cal-company" to={`/company/${i.company_id}/reports-matrix`}>
+            {/* В карточку, а не в матрицу отчётов: матрица — служебная, гостю закрыта. */}
+            <Link className="cal-company" to={`/company/${i.company_id}`}>
               <CompanyLogo url={i.logo_url} ticker={i.ticker} className="cal-logo" />
               <span className="cal-name">{i.name ?? i.ticker}</span>
               <span className="cal-ticker">{i.ticker}</span>
