@@ -1,29 +1,62 @@
-/* Главная. Узкая колонка: здесь читают, а не сравнивают таблицы. */
+/* Главная. Цвета метода — те же, что в знаке: стоимость оранжевая, цена
+   синяя, запас зелёный. */
 .hp {
+  --hp-value: #ea580c;
+  --hp-price: #4f46e5;
+  --hp-gap: #059669;
+  --hp-tint: color-mix(in srgb, var(--hp-price) 7%, var(--color-bg-base));
   box-sizing: border-box;
-  max-width: 880px;
+  max-width: 1040px;
   margin: 0 auto;
-  padding: 48px var(--space-5) 56px;
+  padding: 28px var(--space-5) 56px;
+}
+:root[data-theme="dark"] .hp {
+  --hp-value: #fb923c;
+  --hp-price: #818cf8;
+  --hp-gap: #34d399;
+  --hp-tint: color-mix(in srgb, var(--hp-price) 12%, var(--color-bg-base));
 }
 
+/* ── Первый экран ─────────────────────────────────────────────────────── */
+.hp-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+  gap: 36px;
+  align-items: center;
+  padding: 36px 36px 32px;
+  border-radius: 20px;
+  background:
+    radial-gradient(120% 90% at 100% 0%, color-mix(in srgb, var(--hp-value) 14%, transparent), transparent 60%),
+    radial-gradient(90% 80% at 0% 100%, color-mix(in srgb, var(--hp-gap) 12%, transparent), transparent 60%),
+    var(--hp-tint);
+  border: 1px solid color-mix(in srgb, var(--hp-price) 18%, var(--color-border-default));
+}
+.hp-eyebrow {
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--hp-value);
+}
 .hp-hero h1 {
   margin: 0;
   font-family: 'IBM Plex Serif', Georgia, serif;
   font-weight: 500;
-  font-size: 42px;
-  line-height: 1.15;
+  font-size: 44px;
+  line-height: 1.12;
   color: var(--color-text-primary);
 }
 .hp-lede {
-  margin: 14px 0 22px;
-  max-width: 640px;
-  font-size: 18px;
+  margin: 14px 0 20px;
+  font-size: 17.5px;
   line-height: 1.55;
   color: var(--color-text-secondary);
 }
 
 /* Поиск из шапки — здесь он во всю ширину колонки. */
 .hp-search .sh-search { max-width: none; width: 100%; margin: 0; }
+.hp-search .sh-search-input { height: 46px; border-radius: 12px; font-size: 1rem; background: var(--color-bg-surface); }
 
 .hp-popular { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 .hp-chip {
@@ -32,13 +65,51 @@
   padding: 5px 12px;
   font-size: 0.9rem;
   color: var(--color-text-secondary);
+  background: var(--color-bg-surface);
   text-decoration: none;
 }
 .hp-chip:hover { color: var(--color-text-primary); border-color: var(--color-border-strong); }
 
+/* Картинка метода. */
+.hp-pic {
+  margin: 0;
+  padding: 22px 22px 18px;
+  border-radius: 16px;
+  background: var(--color-bg-surface);
+  box-shadow: 0 10px 30px -18px rgba(15, 23, 42, 0.45);
+}
+.hp-pic-row + .hp-pic-row { margin-top: 16px; }
+.hp-pic-label { display: block; margin-bottom: 6px; font-size: 0.85rem; color: var(--color-text-tertiary); }
+.hp-pic-bar { display: block; height: 22px; border-radius: 11px; }
+.hp-pic-bar--value { width: 100%; background: var(--hp-value); }
+.hp-pic-track {
+  position: relative;
+  display: flex;
+  height: 22px;
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--hp-gap) 22%, transparent);
+}
+.hp-pic-bar--price { width: 62%; background: var(--hp-price); animation: hp-grow 0.9s ease-out both; }
+.hp-pic-gap {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--hp-gap);
+  white-space: nowrap;
+}
+.hp-pic figcaption { margin-top: 14px; font-size: 0.88rem; color: var(--color-text-secondary); }
+@keyframes hp-grow { from { width: 95%; } to { width: 62%; } }
+
+/* ── Секции ───────────────────────────────────────────────────────────── */
 .hp-section { margin-top: 44px; }
+.hp-section-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.hp-section-link { font-size: 0.9rem; color: var(--color-text-link); text-decoration: none; }
 .hp-kicker {
-  margin: 0 0 12px;
+  margin: 0 0 14px;
   font-size: 13px;
   font-weight: 500;
   letter-spacing: 0.08em;
@@ -46,6 +117,62 @@
   color: var(--color-text-tertiary);
 }
 
+/* Рынок сегодня. */
+.hp-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.hp-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px 18px;
+  border-radius: 14px;
+  border: 1px solid var(--color-border-default);
+  color: inherit;
+  text-decoration: none;
+}
+.hp-stat:hover { border-color: var(--color-border-strong); }
+.hp-stat-num { font-family: var(--font-mono); font-size: 1.9rem; font-weight: 500; line-height: 1.1; color: var(--color-text-primary); }
+.hp-stat-num i { font-style: normal; font-size: 0.95rem; color: var(--color-text-tertiary); }
+.hp-stat-label { font-weight: 600; font-size: 0.95rem; color: var(--color-text-primary); }
+.hp-stat small { font-size: 0.85rem; line-height: 1.4; color: var(--color-text-tertiary); }
+.hp-stat--accent {
+  border-color: color-mix(in srgb, var(--hp-gap) 45%, var(--color-border-default));
+  background: color-mix(in srgb, var(--hp-gap) 8%, transparent);
+}
+.hp-stat--accent .hp-stat-num { color: var(--hp-gap); }
+
+/* Идеи Грэма. */
+.hp-ideas {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.hp-idea {
+  display: flex;
+  flex-direction: column;
+  padding: 18px;
+  border-radius: 14px;
+  background: var(--hp-tint);
+  border: 1px solid color-mix(in srgb, var(--hp-price) 12%, var(--color-border-default));
+}
+.hp-idea-num { font-family: var(--font-mono); font-size: 0.85rem; font-weight: 600; color: var(--hp-value); }
+.hp-idea h3 { margin: 6px 0 6px; font-family: 'IBM Plex Serif', Georgia, serif; font-weight: 500; font-size: 1.25rem; color: var(--color-text-primary); }
+.hp-idea p { flex: 1; margin: 0 0 10px; font-size: 0.93rem; line-height: 1.5; color: var(--color-text-secondary); }
+.hp-idea a { font-size: 0.88rem; color: var(--color-text-link); text-decoration: none; }
+.hp-motto {
+  margin: 18px 0 0;
+  padding: 4px 0 4px 16px;
+  border-left: 3px solid var(--hp-value);
+  font-family: 'IBM Plex Serif', Georgia, serif;
+  font-style: italic;
+  font-size: 1.15rem;
+  line-height: 1.45;
+  color: var(--color-text-primary);
+}
+
+/* С чего начать. */
 .hp-go { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 .hp-card {
   display: flex;
@@ -54,44 +181,93 @@
   gap: 12px;
   padding: 16px;
   border: 1px solid var(--color-border-default);
+  border-top: 3px solid var(--hp-card, var(--color-border-strong));
   border-radius: 12px;
   color: inherit;
   text-decoration: none;
-  transition: border-color 0.15s;
+  transition: border-color 0.15s, transform 0.15s;
 }
-.hp-card:hover { border-color: var(--color-border-strong); }
+.hp-card:hover { transform: translateY(-1px); }
+.hp-card--screen { --hp-card: var(--hp-gap); }
+.hp-card--companies { --hp-card: var(--hp-price); }
+.hp-card--method { --hp-card: var(--hp-value); }
 .hp-card-text b { display: block; font-size: 1.05rem; font-weight: 600; color: var(--color-text-primary); }
 .hp-card-text small { display: block; margin-top: 4px; font-size: 0.88rem; line-height: 1.4; color: var(--color-text-tertiary); }
-.hp-card-num {
-  flex: none;
-  font-family: var(--font-mono);
-  font-size: 1.35rem;
-  font-weight: 500;
-  color: var(--color-text-primary);
-  white-space: nowrap;
-}
+.hp-card-num { flex: none; font-family: var(--font-mono); font-size: 1.35rem; font-weight: 500; color: var(--color-text-primary); white-space: nowrap; }
 .hp-card-num i { font-style: normal; font-size: 0.85rem; color: var(--color-text-tertiary); }
 
-.hp-more { margin: 14px 0 0; font-size: 0.92rem; color: var(--color-text-tertiary); }
-.hp-more a { color: var(--color-text-link); }
+/* Как считаем. */
+.hp-steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; counter-reset: hp-step; }
+.hp-steps li { position: relative; padding: 14px 16px 14px 52px; border-radius: 12px; border: 1px dashed var(--color-border-strong); counter-increment: hp-step; }
+.hp-steps li::before {
+  content: counter(hp-step);
+  position: absolute;
+  left: 14px;
+  top: 14px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-bg-surface);
+  background: var(--hp-price);
+}
+.hp-steps b { display: block; color: var(--color-text-primary); }
+.hp-steps span { display: block; margin-top: 2px; font-size: 0.88rem; color: var(--color-text-tertiary); }
 
-.hp-glossary { margin: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 28px; }
-.hp-glossary div { border-top: 1px solid var(--color-border-default); padding-top: 10px; }
-.hp-glossary dt { font-weight: 600; color: var(--color-text-primary); }
-.hp-glossary dd { margin: 4px 0 0; font-size: 0.9rem; line-height: 1.45; color: var(--color-text-secondary); }
+/* Telegram. */
+.hp-tg {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-top: 44px;
+  padding: 18px 20px;
+  border-radius: 16px;
+  background: linear-gradient(120deg, color-mix(in srgb, #2aabee 16%, transparent), color-mix(in srgb, var(--hp-price) 10%, transparent));
+  border: 1px solid color-mix(in srgb, #2aabee 35%, var(--color-border-default));
+  color: inherit;
+  text-decoration: none;
+}
+.hp-tg b { display: block; font-size: 1.05rem; color: var(--color-text-primary); }
+.hp-tg small { display: block; margin-top: 3px; font-size: 0.88rem; color: var(--color-text-secondary); }
+.hp-tg-handle { flex: none; font-weight: 600; color: #1d8fd1; }
+:root[data-theme="dark"] .hp-tg-handle { color: #5cc4f6; }
 
+@media (prefers-reduced-motion: reduce) {
+  .hp-pic-bar--price { animation: none; }
+  .hp-card { transition: none; }
+}
+
+/* ── Телефон ──────────────────────────────────────────────────────────── */
+@media (max-width: 900px) {
+  /* minmax(0, …): иначе колонка растягивается по ряду кнопок популярных. */
+  .hp-hero { grid-template-columns: minmax(0, 1fr); gap: 22px; }
+  .hp-ideas { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
 @media (max-width: 760px) {
-  .hp { padding: 22px 16px 36px; }
-  .hp-hero h1 { font-size: 28px; }
-  .hp-lede { font-size: 16px; margin: 10px 0 16px; }
-  /* На телефоне кнопки популярных — одной строкой с прокруткой: в две строки
-     они съедали бы первый экран. */
+  .hp { padding: 12px 12px 36px; }
+  .hp-hero { padding: 22px 16px 18px; border-radius: 16px; }
+  .hp-eyebrow { font-size: 11.5px; }
+  .hp-hero h1 { font-size: 29px; }
+  .hp-lede { font-size: 15.5px; margin: 10px 0 14px; }
+  /* Кнопки популярных — одной строкой с прокруткой: в две строки они
+     съедали бы первый экран. */
   .hp-popular { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
   .hp-popular::-webkit-scrollbar { display: none; }
   .hp-chip { flex: none; }
-  .hp-section { margin-top: 30px; }
-  .hp-go { grid-template-columns: 1fr; gap: 8px; }
+  .hp-pic { padding: 16px; }
+  .hp-section { margin-top: 30px; padding: 0 4px; }
+  .hp-stats, .hp-ideas, .hp-go, .hp-steps { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .hp-stat { flex-direction: column; padding: 14px 16px; }
+  .hp-stat-num { font-size: 1.6rem; }
+  .hp-idea { padding: 14px 16px; }
+  .hp-idea h3 { font-size: 1.12rem; }
   .hp-card { padding: 12px 14px; align-items: center; }
-  .hp-glossary { grid-template-columns: 1fr; gap: 0; }
-  .hp-glossary div { padding: 10px 0; }
+  .hp-motto { font-size: 1.02rem; }
+  .hp-tg { flex-direction: column; align-items: flex-start; margin: 30px 4px 0; }
 }

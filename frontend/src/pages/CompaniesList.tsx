@@ -1,6 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import CompanyMobileList from '../components/CompanyMobileList';
+import SelectSheet from '../components/SelectSheet';
+import { sectorRu } from '../utils/sectors';
 import { useNavigate } from 'react-router-dom';
 import {
   getCompanies,
@@ -264,17 +266,19 @@ const CompaniesList: React.FC = () => {
           <div className="companies-filter-group companies-filter-selects">
             <label className="companies-select-wrap">
               <span>Сектор</span>
-              <select
+              <SelectSheet
+                label="Сектор"
                 value={sectorFilter}
-                onChange={(e) => setSectorFilter(e.target.value)}
-              >
-                <option value="">Все сектора</option>
-                {sectorOptions.map((sec) => (
-                  <option key={sec} value={sec}>
-                    {sec}
-                  </option>
-                ))}
-              </select>
+                onChange={setSectorFilter}
+                options={[
+                  { value: '', label: 'Все сектора', count: companies?.length },
+                  ...[...sectorOptions].sort((a, b) => (sectorRu(a) ?? a).localeCompare(sectorRu(b) ?? b, 'ru')).map((sec) => ({
+                    value: sec,
+                    label: sectorRu(sec) ?? sec,
+                    count: companies?.filter((c) => (c.sector?.trim() || '') === sec).length,
+                  })),
+                ]}
+              />
             </label>
             <label className="companies-select-wrap companies-sort-select">
               <span>Сортировка</span>

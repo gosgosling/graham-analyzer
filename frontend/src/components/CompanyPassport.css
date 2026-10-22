@@ -417,12 +417,27 @@
 }
 
 @media (max-width: 640px) {
-  .pp-metric {
-    grid-template-columns: minmax(74px, auto) 1fr;
+  /* Мини-графики скрыты — у величин две колонки, а не три: иначе следующее
+     число въезжало в пустую третью и ложилось поверх подписи. */
+  .pp-values {
+    grid-template-columns: max-content minmax(0, 1fr);
+    column-gap: var(--space-3);
   }
 
   .pp-spark,
   .pp-spark-empty {
     display: none;
   }
+
+  /* Подпись порогов и переключатель — с переносом: в одну строку они
+     распирали страницу до шестисот пикселей. */
+  .pp-section { flex-wrap: wrap; row-gap: 6px; }
+  .pp-section > span { white-space: normal; }
+  .pp-section > i { display: none; }
+  .pp-switch { flex-wrap: wrap; }
+
+  /* Итог оси и так написан в плашке у порога — крупный значок слева лишний. */
+  .pp-row { grid-template-columns: minmax(0, 1fr); }
+  .pp-mark { display: none; }
+  .pp-name, .pp-values, .pp-verdict { grid-column: 1; }
 }

@@ -10,6 +10,7 @@ import {
   type Verdict,
 } from '../services/screen.api';
 import CompanyLogo from '../components/CompanyLogo';
+import SelectSheet from '../components/SelectSheet';
 import { marginText, SafetyMargin, SIGNAL_SHORT } from '../components/SafetyMargin';
 import { groupRows, sieve, type SieveStep } from '../utils/screenSieve';
 import { filterRows, industries } from '../utils/screenTableFilter';
@@ -399,17 +400,43 @@ function ScreenMobileList({ data, rows }: { data: MarketScreenOut; rows: MarketS
               </button>
               {isOpen && (
                 <div className="smb-detail">
-                  {misses.length === 0
-                    ? <p className="smb-ok">Все требования пройдены.</p>
-                    : (
+                  {misses.length === 0 ? (
+                    <p className="smb-ok">Все требования пройдены.</p>
+                  ) : (
+                    <>
+                      <h5 className="smb-kicker">Не прошла</h5>
                       <ul className="smb-misses">
-                        {misses.map((m) => <li key={m.metric}><Miss cell={m} /></li>)}
+                        {misses.map((m) => {
+                          const tone = m.status === 'unknown' ? 'unknown' : dotTone(m);
+                          return (
+                            <li key={m.metric} className="smb-miss" title={cellTitle(m)}>
+                              <span className="smb-miss-name">{m.metric_label}</span>
+                              <span className="smb-miss-val">
+                                <b className={`smb-tone--${tone}`}>
+                                  {m.status === 'unknown' ? 'нет данных' : cellValue(m)}
+                                </b>
+                                {m.status !== 'unknown' && (
+                                  <small>порог {m.text.replace(/(\d)\.(\d)/g, '$1,$2')}</small>
+                                )}
+                              </span>
+                            </li>
+                          );
+                        })}
                       </ul>
+                    </>
+                  )}
+                  <div className="smb-miss smb-safety-row">
+                    <span className="smb-miss-name">Запас прочности</span>
+                    {row.safety ? (
+                      <span className={`smb-miss-val smb-signal ms-safety--${row.safety.signal}`}>
+                        <b>{marginText(row.safety.value_margin)}</b>
+                        <small>{SIGNAL_SHORT[row.safety.signal]}</small>
+                      </span>
+                    ) : (
+                      <span className="smb-miss-val"><b className="smb-tone--unknown">не посчитан</b></span>
                     )}
-                  <div className="smb-foot">
-                    <span className="smb-safety">Запас прочности: <SafetyMargin safety={row.safety} /></span>
-                    <Link to={`/company/${row.id}`}>Карточка →</Link>
                   </div>
+                  <Link className="smb-open" to={`/company/${row.id}`}>Открыть карточку</Link>
                 </div>
               )}
             </li>
@@ -446,17 +473,16 @@ function FullTable({ data }: { data: MarketScreenOut }) {
           value={query}
           onChange={(e) => update('q', e.target.value)}
         />
-        <select
+        <SelectSheet
           className="ms-filter-industry"
-          aria-label="Отрасль"
+          label="Отрасль"
           value={industry}
-          onChange={(e) => update('industry', e.target.value)}
-        >
-          <option value="">Все отрасли · {data.rows.length}</option>
-          {options.map((o) => (
-            <option key={o.key} value={o.key}>{o.label} · {o.count}</option>
-          ))}
-        </select>
+          onChange={(v) => update('industry', v)}
+          options={[
+            { value: '', label: 'Все отрасли', count: data.rows.length },
+            ...options.map((o) => ({ value: o.key, label: o.label, count: o.count })),
+          ]}
+        />
         {narrowed && (
           <>
             <span className="ms-filter-count">{rows.length} из {data.rows.length}</span>

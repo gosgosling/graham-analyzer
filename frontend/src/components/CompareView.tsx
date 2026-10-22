@@ -136,6 +136,7 @@ function CompareList({ data }: { data: CompareOut }) {
               if (i === undefined) return null;
               const v = values[i];
               return {
+                value: v,
                 node: v === null ? '—' : r.fmt(v),
                 className: [i === best ? 'cv-best' : '', r.tone && v !== null ? (v < 0 ? 'cv-down' : 'cv-up') : '']
                   .join(' ').trim() || undefined,

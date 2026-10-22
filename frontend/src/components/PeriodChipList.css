@@ -63,16 +63,85 @@
 
 .hl-history {
   margin: 0 0 10px;
-  padding: 6px 10px;
-  border-radius: 10px;
+  padding: 10px 12px 8px;
+  border-radius: 12px;
   background: var(--color-bg-overlay);
-  display: grid;
-  grid-template-columns: 1fr;
 }
-.hl-history > div { display: flex; justify-content: space-between; gap: 12px; padding: 5px 0; font-size: 0.88rem; }
-.hl-history > div + div { border-top: 1px dashed var(--color-border-default); }
-.hl-history dt { color: var(--color-text-tertiary); }
-.hl-history dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
-.hl-history .is-current dt { color: var(--color-text-primary); font-weight: 600; }
+
+/* График: область столбиков 80 пикселей, под ней подписи; линия нуля и
+   положение столбиков посчитаны в PeriodChipList. */
+.hl-bars {
+  position: relative;
+  display: flex;
+  gap: 3px;
+  height: 96px;
+}
+.hl-zero {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: 1px solid var(--color-border-strong);
+  pointer-events: none;
+}
+.hl-bar {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  height: 96px;
+  border: 0;
+  padding: 0;
+  background: none;
+  cursor: pointer;
+}
+.hl-bar-fill {
+  position: absolute;
+  left: 1px;
+  right: 1px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--color-primary) 45%, transparent);
+}
+.hl-bar.is-neg .hl-bar-fill { background: color-mix(in srgb, var(--color-error) 50%, transparent); }
+.hl-bar.is-current .hl-bar-fill { background: var(--color-primary); }
+.hl-bar.is-neg.is-current .hl-bar-fill { background: var(--color-error); }
+.hl-bar.is-picked .hl-bar-fill { box-shadow: 0 0 0 2px var(--color-text-primary); }
+.hl-bar-label {
+  position: absolute;
+  left: 50%;
+  top: 82px;
+  transform: translateX(-50%);
+  font-size: 10px;
+  line-height: 14px;
+  white-space: nowrap;
+  color: var(--color-text-tertiary);
+}
+.hl-bar.is-current .hl-bar-label { color: var(--color-text-primary); font-weight: 600; }
+
+.hl-readout {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  margin: 6px 0 2px;
+  font-size: 0.9rem;
+}
+.hl-readout span { color: var(--color-text-tertiary); }
+.hl-readout b { font-weight: 600; font-variant-numeric: tabular-nums; }
+
+.hl-all {
+  border: 0;
+  background: none;
+  padding: 4px 0 0;
+  font: inherit;
+  font-size: 0.82rem;
+  color: var(--color-text-link);
+  cursor: pointer;
+}
+
+.hl-history-list { margin: 6px 0 0; }
+.hl-history-list > div { display: flex; justify-content: space-between; gap: 12px; padding: 5px 0; font-size: 0.88rem; }
+.hl-history-list > div + div { border-top: 1px dashed var(--color-border-default); }
+.hl-history-list dt { color: var(--color-text-tertiary); }
+.hl-history-list dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+.hl-history-list .is-current dt { color: var(--color-text-primary); font-weight: 600; }
 
 .hl-item--sub .hl-name { padding-left: 12px; color: var(--color-text-secondary); }

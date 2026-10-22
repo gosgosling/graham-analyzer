@@ -11,6 +11,11 @@
 }
 :root[data-theme="dark"] .sh { --sh-accent: #e7b84a; }
 
+/* Телефон: шапка уезжает вверх при прокрутке вниз (см. SiteHeader). */
+.sh { transition: transform 0.22s ease; }
+.sh--hidden { transform: translateY(-100%); }
+@media (prefers-reduced-motion: reduce) { .sh { transition: none; } }
+
 .sh-row, .sh-tabs { max-width: 1440px; margin: 0 auto; padding: 0 20px; box-sizing: border-box; }
 .sh-row {
   display: grid;

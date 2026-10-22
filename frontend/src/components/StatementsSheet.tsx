@@ -171,7 +171,7 @@ function StatementsList({ cols, lines }: { cols: Column[]; lines: Line[] }) {
           cell: (col) => {
             const c = byKey.get(col.key);
             const v = c ? r.get(c.values) : null;
-            return v == null ? null : { node: format(v, r.fmt), className: v < 0 ? 'st-neg' : undefined };
+            return v == null ? null : { node: format(v, r.fmt), className: v < 0 ? 'st-neg' : undefined, value: v };
           },
         })),
       }))}
