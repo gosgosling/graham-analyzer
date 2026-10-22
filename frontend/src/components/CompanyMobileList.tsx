@@ -29,6 +29,16 @@ const SORTS: { key: Sort; label: string }[] = [
   { key: 'name', label: 'Название' },
 ];
 
+/**
+ * Стрелка порядка на выбранной кнопке. Запас по умолчанию — от большего
+ * (сначала дешёвые), P/E — от меньшего, название — от А.
+ */
+const arrow = (key: Sort, reversed: boolean): string => {
+  if (key === 'name') return reversed ? ' Я→А' : ' А→Я';
+  const down = key === 'safety' ? !reversed : reversed;
+  return down ? ' ↓' : ' ↑';
+};
+
 const ru = (n: number, digits = 1) => n.toLocaleString('ru-RU', { maximumFractionDigits: digits });
 
 /** P/E по средней за три года — тот же, что в скринере. */
@@ -41,6 +51,13 @@ function peOf(row: MarketRow | undefined, data: MarketScreenOut | undefined): nu
 
 export default function CompanyMobileList({ companies }: { companies: Company[] }) {
   const [sort, setSort] = useState<Sort>('safety');
+  // Повторное нажатие на ту же кнопку переворачивает порядок: «сначала
+  // дорогие» или «сначала с большим P/E» тоже бывает нужно.
+  const [reversed, setReversed] = useState(false);
+  const pick = (key: Sort) => {
+    if (key === sort) setReversed((r) => !r);
+    else { setSort(key); setReversed(false); }
+  };
   // Ключ совпадает со страницей скринера: второй раз не считается.
   const { data } = useQuery<MarketScreenOut>({
     queryKey: ['screen-market', 'defensive', false],
@@ -52,8 +69,9 @@ export default function CompanyMobileList({ companies }: { companies: Company[] 
     const byId = new Map((data?.rows ?? []).map((r) => [r.id, r]));
     const items = companies.map((c) => ({ company: c, row: c.id ? byId.get(c.id) : undefined }));
     const name = (a: (typeof items)[number]) => a.company.name || a.company.ticker || '';
+    const dir = reversed ? -1 : 1;
     items.sort((a, b) => {
-      if (sort === 'name') return name(a).localeCompare(name(b), 'ru');
+      if (sort === 'name') return dir * name(a).localeCompare(name(b), 'ru');
       // Без оценки — в конец при любом числовом порядке: «нет данных» не
       // самое дешёвое и не самое дорогое.
       const va = sort === 'safety' ? a.row?.safety?.value_margin ?? null : peOf(a.row, data);
@@ -61,18 +79,18 @@ export default function CompanyMobileList({ companies }: { companies: Company[] 
       if (va === null && vb === null) return name(a).localeCompare(name(b), 'ru');
       if (va === null) return 1;
       if (vb === null) return -1;
-      return sort === 'safety' ? vb - va : va - vb;
+      return dir * (sort === 'safety' ? vb - va : va - vb);
     });
     return items;
-  }, [companies, data, sort]);
+  }, [companies, data, sort, reversed]);
 
   return (
     <div className="cml">
       <div className="cml-sorts" role="group" aria-label="Порядок">
         {SORTS.map((s) => (
           <button key={s.key} type="button" className={`cml-chip${sort === s.key ? ' is-on' : ''}`}
-            aria-pressed={sort === s.key} onClick={() => setSort(s.key)}>
-            {s.label}{sort === s.key && s.key !== 'name' ? (s.key === 'safety' ? ' ↓' : ' ↑') : ''}
+            aria-pressed={sort === s.key} onClick={() => pick(s.key)}>
+            {s.label}{sort === s.key ? arrow(s.key, reversed) : ''}
           </button>
         ))}
       </div>

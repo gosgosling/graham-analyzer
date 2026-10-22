@@ -309,3 +309,26 @@
 @media (max-width: 760px) {
   .pc-canvas { width: auto; margin: 0 calc(-1 * var(--pc-bleed, 14px)); }
 }
+
+/* Подсказка на телефоне — узкая, у верхнего края поля. */
+.pc-tip {
+  min-width: 128px;
+  max-width: 200px;
+  padding: 6px 9px;
+  border: 1px solid;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.45;
+  box-shadow: 0 6px 18px -10px rgba(0, 0, 0, 0.45);
+}
+.pc-tip-date { margin-bottom: 2px; color: var(--color-text-tertiary); }
+.pc-tip-row { display: flex; align-items: center; gap: 6px; }
+.pc-tip-row i { flex: none; width: 8px; height: 2px; border-radius: 1px; }
+.pc-tip-row span { flex: 1; color: var(--color-text-secondary); }
+.pc-tip-row b { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* Касание двумя пальцами выделяет отрезок, а не увеличивает страницу. */
+@media (max-width: 760px) {
+  .pc-canvas { touch-action: pan-y; }
+}
+.pc-span-hint { margin: 6px 0 0; font-size: 0.78rem; color: var(--color-text-quaternary); }

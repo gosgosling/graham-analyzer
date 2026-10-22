@@ -18,7 +18,8 @@ import { useChartColors } from '../contexts/ThemeContext';
 import { fetchOil, type OilOut } from '../services/market.api';
 import { formatPerShare } from '../utils/perShare';
 import { PHONE_QUERY, useMediaQuery } from '../hooks/useMediaQuery';
-import { SpanBand, SpanSummary } from './PriceSpanLayer';
+import { plotArea, useTwoFingerSpan } from '../hooks/useTwoFingerSpan';
+import { humanDate, SpanBand, SpanSummary } from './PriceSpanLayer';
 import { createSpanStore } from './priceSpanStore';
 import './PriceChart.css';
 
@@ -306,6 +307,38 @@ function PhonePriceTick(props: {
   );
 }
 
+/**
+ * Подсказка на телефоне: дата и числа без пояснений, у верхнего края поля.
+ *
+ * Полная подсказка с основой оценки и ставкой ОФЗ шириной больше экрана —
+ * у края она вылезала за телефон. Пояснения к опорной есть в разделе
+ * «Оценка»; здесь важно, сколько стоило в этот день.
+ */
+function PhoneTip({ active, payload, label, colors, format }: {
+  active?: boolean;
+  payload?: readonly { name?: unknown; value?: unknown; color?: string }[];
+  label?: unknown;
+  colors: ReturnType<typeof useChartColors>;
+  format: (value: number, name: string) => string;
+}) {
+  if (!active || !payload?.length) return null;
+  // Цена — первой: ради неё и водят пальцем; остальное — как в легенде.
+  const rows = payload.filter((p) => typeof p.value === 'number')
+    .sort((a, b) => Number(b.name === 'Цена') - Number(a.name === 'Цена'));
+  return (
+    <div className="pc-tip" style={{ background: colors.tooltipBg, borderColor: colors.tooltipBorder, color: colors.textPrimary }}>
+      <div className="pc-tip-date">{humanDate(String(label))}</div>
+      {rows.map((p) => (
+        <div key={String(p.name)} className="pc-tip-row">
+          <i style={{ background: p.color }} />
+          <span>{String(p.name)}</span>
+          <b>{format(p.value as number, String(p.name))}</b>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function EventMark(props: { mark: EventMarkData; colors: ReturnType<typeof useChartColors>; viewBox?: { x: number; y: number; height: number } }) {
   const { mark, colors, viewBox } = props;
   if (!viewBox) return null;
@@ -375,14 +408,12 @@ export default function PriceChart({ companyId, oil = false }: { companyId: numb
   const canvasLeft = useRef(0);
   const measureBand = useCallback(() => {
     const box = canvas.current;
-    const grid = box?.querySelector('.recharts-cartesian-grid');
-    if (!box || !grid) return;
-    const outer = box.getBoundingClientRect();
-    const inner = (grid as SVGGElement).getBoundingClientRect();
-    canvasLeft.current = outer.left;
+    const area = box && plotArea(box);
+    if (!box || !area) return;
+    canvasLeft.current = box.getBoundingClientRect().left;
     const next = {
-      top: Math.max(0, Math.round(inner.top - outer.top)),
-      bottom: Math.max(0, Math.round(outer.bottom - inner.bottom)),
+      top: Math.max(0, Math.round(area.top)),
+      bottom: Math.max(0, Math.round(box.getBoundingClientRect().height - area.top - area.height)),
     };
     // Сравнение обязательно: без него каждое нажатие клало новый объект в
     // состояние и перерисовывало весь график — ровно то, от чего уходим.
@@ -563,6 +594,9 @@ export default function PriceChart({ companyId, oil = false }: { companyId: numb
     const frame = requestAnimationFrame(measureBand);
     return () => cancelAnimationFrame(frame);
   }, [measureBand, view]);
+
+  // Телефон: отрезок — двумя пальцами (см. хук).
+  useTwoFingerSpan(canvas, view?.points, spanStore, isPhone, measureBand);
 
 
   if (isLoading) return <div className="pc-state">Загружаем историю цены…</div>;
@@ -905,6 +939,19 @@ export default function PriceChart({ companyId, oil = false }: { companyId: numb
             ))}
 
             <Tooltip
+              {...(isPhone ? {
+                content: (
+                  <PhoneTip
+                    colors={colors}
+                    format={(v, name) => (name === 'Цена' || name === 'Опорная' || name === 'Справедливая'
+                      ? `${edgeLabel(v)} ₽`
+                      : overlay === 'oil' && name === overlayLabel
+                        ? `${ru(v, oilRub ? 0 : 2)} ${oilRub ? '₽' : '$'}`
+                        : ru(v, 2))}
+                  />
+                ),
+                position: { y: 0 },
+              } : {})}
               contentStyle={{
                 background: colors.tooltipBg,
                 border: `1px solid ${colors.tooltipBorder}`,
@@ -962,7 +1009,8 @@ export default function PriceChart({ companyId, oil = false }: { companyId: numb
 
           Стоит под графиком, а не над ним: появляясь сверху, полоса сдвигала
           поле вниз прямо во время протяжки, и график уезжал из-под курсора. */}
-      <SpanSummary store={spanStore} points={view.points} />
+      <SpanSummary store={spanStore} points={view.points}
+        hint={isPhone ? 'Коснитесь графика двумя пальцами — покажем, как изменилась цена между датами.' : undefined} />
 
       {view.traps.length > 0 && (
         <p
