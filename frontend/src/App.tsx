@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
 import { ConfigProvider, theme as antdTheme } from 'antd';
 import ruRU from 'antd/locale/ru_RU';
 import './App.css';
 import SecuritiesList from './pages/SecuritiesList';
 import CompaniesList from './pages/CompaniesList';
+import HomePage from './pages/HomePage';
 import CompanyDetail from './pages/CompanyDetail';
 import CompanyReportsMatrix from './pages/CompanyReportsMatrix';
 import BondsList from './pages/BondsList';
@@ -101,9 +102,9 @@ function App() {
         <ScrollToTop />
         <Chrome>
           <Routes>
-            {/* Главная для гостя — список компаний; справочник бумаг Мосбиржи —
-                служебный и переехал на /securities. */}
-            <Route path="/" element={<Navigate to="/companies" replace />} />
+            {/* Главная — что это за сайт и куда идти; справочник бумаг
+                Мосбиржи — служебный и живёт на /securities. */}
+            <Route path="/" element={<HomePage />} />
             <Route path="/securities" element={<AdminOnly><SecuritiesList /></AdminOnly>} />
             <Route path="/companies" element={<CompaniesList />} />
             <Route path="/company/:companyId" element={<CompanyDetail />} />

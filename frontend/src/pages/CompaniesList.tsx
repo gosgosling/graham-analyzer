@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import CompanyMobileList from '../components/CompanyMobileList';
 import { useNavigate } from 'react-router-dom';
 import {
   getCompanies,
@@ -227,12 +228,15 @@ const CompaniesList: React.FC = () => {
 
   return (
     <div className="securities-container">
-      <h1 className="securities-title">Российские компании и компании Мосбиржи (T Invest API)</h1>
+      <h1 className="securities-title">
+        <span className="cmp-title-full">Российские компании и компании Мосбиржи (T Invest API)</span>
+        <span className="cmp-title-short">Компании</span>
+      </h1>
       <div className="companies-toolbar">
         <input
           type="search"
           className="companies-search"
-          placeholder="Поиск по названию, тикеру, ISIN или сектору…"
+          placeholder="Название или тикер"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           aria-label="Поиск компаний"
@@ -272,7 +276,7 @@ const CompaniesList: React.FC = () => {
                 ))}
               </select>
             </label>
-            <label className="companies-select-wrap">
+            <label className="companies-select-wrap companies-sort-select">
               <span>Сортировка</span>
               <select
                 value={sortMode}
@@ -295,7 +299,9 @@ const CompaniesList: React.FC = () => {
           {' '}из {companies?.length ?? 0} компаний
         </p>
       </div>
-      <div className="table-wrapper">
+      {/* На телефоне — список строками; таблица с ISIN и лотом не помещается. */}
+      <CompanyMobileList companies={visibleCompanies} />
+      <div className="table-wrapper companies-table-desktop">
         <table className="securities-table companies-expandable-table">
           <thead>
             <tr>

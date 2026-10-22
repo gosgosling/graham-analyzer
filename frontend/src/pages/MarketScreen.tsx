@@ -10,6 +10,7 @@ import {
   type Verdict,
 } from '../services/screen.api';
 import CompanyLogo from '../components/CompanyLogo';
+import { marginText, SafetyMargin, SIGNAL_SHORT } from '../components/SafetyMargin';
 import { groupRows, sieve, type SieveStep } from '../utils/screenSieve';
 import { filterRows, industries } from '../utils/screenTableFilter';
 import CompareView from '../components/CompareView';
@@ -156,28 +157,10 @@ const cellTitle = (v: Verdict | null): string => {
   return parts.join('\n');
 };
 
-/** Запас к опорной оценке: «+12%», «−9%»; за −100% — во сколько раз дороже. */
-const marginText = (margin: number | null): string => {
-  if (margin === null) return '—';
-  if (margin < -1) return `×${(1 - margin).toLocaleString('ru-RU', { maximumFractionDigits: 1 })}`;
-  const pct = Math.round(margin * 100);
-  return `${pct > 0 ? '+' : pct < 0 ? '−' : ''}${Math.abs(pct)}%`;
-};
-
 /** Порог столбца так, как он написан в книге (выручка — в миллиардах). */
 const thresholdText = (c: MarketColumn): string => (c.metric === 'revenue' && c.book !== null
   ? `≥ ${Math.round(c.book / 1000)} млрд`
   : c.book_text.replace(/(\d)\.(\d)/g, '$1,$2'));
-
-/** Короткая подпись сигнала: в колонку шириной в два слова длинная не влезет. */
-const SIGNAL_SHORT: Record<RowSafety['signal'], string> = {
-  favourable: 'дёшево',
-  acceptable: 'умеренно',
-  fair: 'вровень',
-  expensive: 'дорого',
-  bond_better: 'ОФЗ выгоднее',
-  dangerous: 'опасная',
-};
 
 /**
  * Ячейка сигнала о цене.
@@ -220,17 +203,6 @@ function Ident({ row }: { row: MarketScreenOut['rows'][number] }) {
         <Link to={`/company/${row.id}`}>{row.ticker}</Link>
         <span className="ms-name" title={row.name}>{row.name}</span>
       </span>
-    </span>
-  );
-}
-
-/** Запас прочности словами и числом — как в колонке таблицы. */
-function Margin({ safety }: { safety: RowSafety | null }) {
-  if (!safety) return <span className="sc-margin sc-margin--none" title="Оценка не посчитана">—</span>;
-  return (
-    <span className={`sc-margin ms-safety--${safety.signal}`} title={safety.reason ?? undefined}>
-      <b>{marginText(safety.value_margin)}</b>
-      <i>{SIGNAL_SHORT[safety.signal]}</i>
     </span>
   );
 }
@@ -310,12 +282,15 @@ function SieveView({ data, standard }: { data: MarketScreenOut; standard: string
       <span className="sc-why">
         {misses.map((m, i) => <React.Fragment key={m.metric}>{i > 0 && '; '}<Miss cell={m} /></React.Fragment>)}
       </span>
-      <Margin safety={row.safety} />
+      <SafetyMargin safety={row.safety} />
     </li>
   );
   return (
     <div className="sc">
       <aside className="sc-side">
+        {/* На узком экране воронка идёт после результата и без заголовка
+            читалась бы как продолжение списка компаний. */}
+        <h2 className="sc-side-title">Как отбирали: {data.rows.length} → {cleared}</h2>
         <Sieve data={data} steps={steps} afterGraham={afterGraham} cleared={cleared} />
       </aside>
       <div className="sc-main">
@@ -339,7 +314,7 @@ function SieveView({ data, standard }: { data: MarketScreenOut; standard: string
                   <span className="sc-num">{value(row, 'pe_average')}</span>
                   <span className="sc-num">{value(row, pbMetric)}</span>
                   <span className="sc-num">{value(row, 'streak')}</span>
-                  <Margin safety={row.safety} />
+                  <SafetyMargin safety={row.safety} />
                 </li>
               ))}
             </ul>
@@ -367,6 +342,80 @@ function SieveView({ data, standard }: { data: MarketScreenOut; standard: string
           </p>
         </section>
       </div>
+    </div>
+  );
+}
+
+/** Тон отрезка полоски: пройдено, чуть не дотянула, не пройдено, нет числа. */
+const dotTone = (cell: Verdict | null): string => {
+  if (!cell || cell.status === 'n/a') return 'na';
+  if (cell.status === 'unknown') return 'unknown';
+  if (cell.status === 'pass') return 'pass';
+  const negative = cell.value != null && cell.value < 0;
+  return !negative && cell.shortfall != null && cell.shortfall <= NEAR_MISS ? 'near' : 'fail';
+};
+
+/**
+ * Полная таблица на телефоне: компания — строка, требования — полоска.
+ *
+ * Пятнадцать колонок на экране в 375 пикселей читались только прокруткой
+ * вбок, и через две колонки терялось, чья это строка. Здесь каждое требование
+ * — отрезок полоски в его цвет, а по нажатию раскрывается то, ради чего
+ * таблицу и открывают: что именно не прошло, на сколько и при каком пороге.
+ */
+function ScreenMobileList({ data, rows }: { data: MarketScreenOut; rows: MarketScreenOut['rows'] }) {
+  const [open, setOpen] = useState<number | null>(null);
+  const sorted = useMemo(() => [...rows].sort((a, b) => (b.passed - a.passed)
+    || ((b.safety?.value_margin ?? -Infinity) - (a.safety?.value_margin ?? -Infinity))), [rows]);
+  return (
+    <div className="smb">
+      <p className="smb-legend" aria-hidden>
+        <i className="smb-dot smb-dot--pass" /> пройдено
+        <i className="smb-dot smb-dot--near" /> чуть не дотянула
+        <i className="smb-dot smb-dot--fail" /> не пройдено
+        <i className="smb-dot smb-dot--unknown" /> нет данных
+      </p>
+      <ul className="smb-list">
+        {sorted.map((row) => {
+          const isOpen = open === row.id;
+          const misses = row.cells.filter((c): c is Verdict => c != null && (c.status === 'fail' || c.status === 'unknown'));
+          return (
+            <li key={row.ticker} className={`smb-item${isOpen ? ' is-open' : ''}`}>
+              <button type="button" className="smb-row" aria-expanded={isOpen}
+                onClick={() => setOpen(isOpen ? null : row.id)}>
+                <span className="smb-head">
+                  <CompanyLogo url={row.logo_url} ticker={row.ticker} alt="" className="smb-logo" />
+                  <span className="smb-name"><b>{row.ticker}</b> · {row.name}</span>
+                  <span className={`smb-count${row.clears ? ' is-clear' : ''}`}>
+                    {row.clears ? 'прошла все' : `${row.passed} из ${row.checked}`}
+                  </span>
+                </span>
+                <span className="smb-bar" aria-label={`Пройдено ${row.passed} требований из ${row.checked}`}>
+                  {row.cells.map((cell, i) => (
+                    <i key={data.columns[i].metric} className={`smb-dot smb-dot--${dotTone(cell)}`}
+                      title={`${data.columns[i].label}: ${TITLE[cell?.status ?? 'n/a']}`} />
+                  ))}
+                </span>
+              </button>
+              {isOpen && (
+                <div className="smb-detail">
+                  {misses.length === 0
+                    ? <p className="smb-ok">Все требования пройдены.</p>
+                    : (
+                      <ul className="smb-misses">
+                        {misses.map((m) => <li key={m.metric}><Miss cell={m} /></li>)}
+                      </ul>
+                    )}
+                  <div className="smb-foot">
+                    <span className="smb-safety">Запас прочности: <SafetyMargin safety={row.safety} /></span>
+                    <Link to={`/company/${row.id}`}>Карточка →</Link>
+                  </div>
+                </div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
     </div>
   );
 }
@@ -420,7 +469,8 @@ function FullTable({ data }: { data: MarketScreenOut }) {
           </>
         )}
       </div>
-      <div className="ms-scroll">
+      <ScreenMobileList data={data} rows={rows} />
+      <div className="ms-scroll ms-scroll--wide">
         <table className="ms-table">
           {/* Ширины задаёт colgroup, а не содержимое: иначе колонку
               раздувал самый длинный заголовок, и одинаковые по смыслу
@@ -497,7 +547,12 @@ function FullTable({ data }: { data: MarketScreenOut }) {
                       title={cellTitle(cell)}
                     >
                       {swapped && <u>{SWAP_LABEL[cell!.metric] ?? cell!.metric_label}</u>}
-                      <b>{cell ? MARK[cell.status] : '—'}</b>
+                      {/* Пройден или нет — видно по цвету клетки; галочка
+                          рядом с числом только мешала его читать. Знак
+                          остаётся там, где числа нет: «·» и «?» объясняют
+                          пустую клетку. */}
+                      {(!cell || cell.status === 'n/a' || cell.status === 'unknown')
+                        && <b>{cell ? MARK[cell.status] : '—'}</b>}
                       <i>{cellValue(cell)}</i>
                     </td>
                   );
@@ -553,9 +608,9 @@ export default function MarketScreen() {
             </button>
           ))}
           <span className="sc-switch-gap" />
-          <button type="button" className={view === 'sieve' ? 'is-on' : ''} onClick={() => setParams({})}>Отбор</button>
-          <button type="button" className={view === 'table' ? 'is-on' : ''} onClick={() => setParams({ view: 'table' })}>Полная таблица</button>
-          <button type="button" className={view === 'compare' ? 'is-on' : ''} onClick={() => setParams({ view: 'compare' })}>Сравнение</button>
+          <button type="button" className={`sc-view ${view === 'sieve' ? 'is-on' : ''}`} onClick={() => setParams({})}>Отбор</button>
+          <button type="button" className={`sc-view ${view === 'table' ? 'is-on' : ''}`} onClick={() => setParams({ view: 'table' })}>Полная таблица</button>
+          <button type="button" className={`sc-view ${view === 'compare' ? 'is-on' : ''}`} onClick={() => setParams({ view: 'compare' })}>Сравнение</button>
         </nav>
         <label className="ms-all" title="Непроверенные данные выглядят так же, как настоящие">
           <input type="checkbox" checked={allCompanies} onChange={(e) => setAllCompanies(e.target.checked)} />

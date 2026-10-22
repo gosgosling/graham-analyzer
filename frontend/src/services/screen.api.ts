@@ -173,6 +173,8 @@ export interface RowSafety {
   /** Доля опорной оценки. Отрицательная — цена выше неё. */
   value_margin: number | null;
   reference: number | null;
+  /** Цена, по которой посчитан запас, ₽. */
+  price: number | null;
   earnings_yield: number | null;
   yield_spread: number | null;
   /** Признаки ловушки стоимости: почему дешевизна может быть не скидкой. */

@@ -4,6 +4,8 @@ import { useQuery } from '@tanstack/react-query';
 import { getCompanies } from '../services';
 import type { Company } from '../types';
 import { fetchCompare, fetchCompareGroups, type CompareCard, type CompareOut } from '../services/compare.api';
+import PeriodChipList from './PeriodChipList';
+import { PHONE_QUERY, useMediaQuery } from '../hooks/useMediaQuery';
 import './CompareView.css';
 
 /**
@@ -100,6 +102,52 @@ function bestOf(values: (number | null)[], better: Better): number | null {
   return known.filter((x) => x[0] === pick[0]).length > 1 ? null : pick[1];
 }
 
+/**
+ * Сравнение на телефоне: компания кнопкой, показатели списком.
+ *
+ * Под значением — та же строка у первой компании, ради которой открыли
+ * сравнение; по нажатию на строку — показатель у всех сразу, лучший выделен.
+ */
+function CompareList({ data }: { data: CompareOut }) {
+  const groups: { key: string; title: string; rows: Exclude<Line, { group: string }>[] }[] = [];
+  rows(data).forEach((r) => {
+    if ('group' in r) groups.push({ key: r.group, title: r.group, rows: [] });
+    else if (groups.length) groups[groups.length - 1].rows.push(r);
+    else groups.push({ key: '_', title: '', rows: [r] });
+  });
+  const byId = new Map(data.companies.map((c, i) => [String(c.id), i]));
+  return (
+    <PeriodChipList
+      ariaLabel="Компания"
+      compareWith={String(data.companies[0].id)}
+      columns={data.companies.map((c) => ({ key: String(c.id), label: c.ticker }))}
+      groups={groups.map((g) => ({
+        key: g.key,
+        title: g.title || undefined,
+        rows: g.rows.map((r) => {
+          const values = data.companies.map(r.value);
+          const best = bestOf(values, r.better);
+          return {
+            key: r.label,
+            label: r.label,
+            tip: r.tip,
+            cell: (col) => {
+              const i = byId.get(col.key);
+              if (i === undefined) return null;
+              const v = values[i];
+              return {
+                node: v === null ? '—' : r.fmt(v),
+                className: [i === best ? 'cv-best' : '', r.tone && v !== null ? (v < 0 ? 'cv-down' : 'cv-up') : '']
+                  .join(' ').trim() || undefined,
+              };
+            },
+          };
+        }),
+      }))}
+    />
+  );
+}
+
 function AddCompany({ taken, onAdd }: { taken: number[]; onAdd: (id: number) => void }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
@@ -163,6 +211,7 @@ function Groups({ onPick }: { onPick: (ids: number[]) => void }) {
 }
 
 export default function CompareView({ showTitle = true }: { showTitle?: boolean }) {
+  const isPhone = useMediaQuery(PHONE_QUERY);
   const [params, setParams] = useSearchParams();
   const ids = (params.get('ids') ?? '').split(',').map(Number).filter((x) => Number.isFinite(x) && x > 0);
   const withId = Number(params.get('with')) || undefined;
@@ -233,6 +282,9 @@ export default function CompareView({ showTitle = true }: { showTitle?: boolean 
       {data && data.companies.length >= 2 && (
         <div className={`cv-grid${wide ? ' cv-grid--wide' : ''}`}>
           <section className="cv-main">
+            {isPhone ? (
+              <CompareList data={data} />
+            ) : (
             <div className="cv-table-wrap">
               <table className="cv-table">
                 <thead>
@@ -267,6 +319,7 @@ export default function CompareView({ showTitle = true }: { showTitle?: boolean 
                 </tbody>
               </table>
             </div>
+            )}
             <p className="cv-note">
               Выделено лучшее значение в строке. Прибыль на акцию — без разовых статей; рост — по средним за три
               года, чтобы один год не решал за десять.

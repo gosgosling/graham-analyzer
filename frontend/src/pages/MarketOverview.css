@@ -185,3 +185,8 @@
 .mo .recharts-wrapper:focus,
 .mo .recharts-wrapper:focus-visible,
 .mo .recharts-surface:focus { outline: none; }
+
+/* Те же оттенки премии в телефонном списке (PeriodChipList). */
+.hl .mo-good { color: var(--color-success-strong); font-weight: 600; }
+.hl .mo-warn { color: var(--color-warning-strong); font-weight: 600; }
+.hl .mo-bad  { color: var(--color-error-strong); font-weight: 600; }

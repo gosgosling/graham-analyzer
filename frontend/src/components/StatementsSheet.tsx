@@ -3,6 +3,8 @@ import type { FinancialReport } from '../types';
 import { buildColumns, derived, type Column } from '../utils/statements';
 import { downloadSheet, type ExportFormat, type Sheet } from '../utils/tableExport';
 import DownloadLinks from './DownloadLinks';
+import { PHONE_QUERY, useMediaQuery } from '../hooks/useMediaQuery';
+import PeriodChipList from './PeriodChipList';
 import './StatementsSheet.css';
 
 /**
@@ -134,12 +136,56 @@ function format(v: number, kind: Row['fmt']): string {
   }
 }
 
+/**
+ * Отчётность на телефоне: период кнопкой, строки отчёта — списком.
+ *
+ * Двадцать периодов в таблице шириной полторы тысячи пикселей на телефоне
+ * читались по одному столбцу, а подпись строки уезжала за край. Здесь строка
+ * отчёта целиком на экране: значение выбранного периода, под ним — прошлого,
+ * по нажатию — вся история строки.
+ */
+function StatementsList({ cols, lines }: { cols: Column[]; lines: Line[] }) {
+  // Свежие периоды первыми: открывают, чтобы посмотреть последний отчёт.
+  const periods = [...cols].reverse();
+  const byKey = new Map(periods.map((c) => [c.key, c]));
+  const groups: { key: string; title: string; rows: Row[] }[] = [];
+  lines.forEach((l) => {
+    if ('group' in l) groups.push({ key: l.group, title: `${l.group}${l.unit === 'млрд' ? ', млрд' : ''}`, rows: [] });
+    else if (groups.length) groups[groups.length - 1].rows.push(l);
+  });
+  return (
+    <PeriodChipList
+      className="st-list"
+      columns={periods.map((c) => ({
+        key: c.key,
+        label: `${c.isLtm ? '12 мес.' : c.label}${c.currency !== 'RUB' ? ` ${c.currency === 'USD' ? '$' : c.currency}` : ''}`,
+      }))}
+      groups={groups.map((g) => ({
+        key: g.key,
+        title: g.title,
+        rows: g.rows.map((r) => ({
+          key: r.label,
+          label: r.label,
+          tip: r.tip,
+          sub: r.sub,
+          cell: (col) => {
+            const c = byKey.get(col.key);
+            const v = c ? r.get(c.values) : null;
+            return v == null ? null : { node: format(v, r.fmt), className: v < 0 ? 'st-neg' : undefined };
+          },
+        })),
+      }))}
+    />
+  );
+}
+
 interface Props {
   reports: FinancialReport[];
   company?: { ticker: string; name: string };
 }
 
 export default function StatementsSheet({ reports, company }: Props) {
+  const isPhone = useMediaQuery(PHONE_QUERY);
   const [interim, setInterim] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const cols: Column[] = useMemo(() => buildColumns(reports, interim), [reports, interim]);
@@ -223,6 +269,7 @@ export default function StatementsSheet({ reports, company }: Props) {
         </span>
         <span className="st-dl"><DownloadLinks what="отчётность" onPick={onDownload} /></span>
       </div>
+      {isPhone ? <StatementsList cols={cols} lines={visible} /> : (
       <div className={`st-body${collapsible && !expanded ? ' is-collapsed' : ''}`}>
       <div className="st-wrap" ref={wrap}>
         <table className="st-table" style={{ '--st-cols': cols.length } as React.CSSProperties}>
@@ -270,6 +317,7 @@ export default function StatementsSheet({ reports, company }: Props) {
         </button>
       )}
       </div>
+      )}
     </div>
   );
 }

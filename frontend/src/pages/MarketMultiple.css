@@ -517,3 +517,13 @@ code {
   .mm-arg-value { width: 100%; }
   .mm-table { font-size: 0.88rem; }
 }
+
+/* Телефон: строка «если …, то …» — в две строки, сравнение «против …» — под
+   числом. В три колонки таблица была на 17 пикселей шире экрана. */
+@media (max-width: 760px) {
+  .mm-table th, .mm-table td { padding: var(--space-2) var(--space-1); }
+  .mm-table .mm-vs { display: block; padding-top: 0; border-bottom: 0; text-align: right; white-space: normal; }
+  .mm-table tr:has(.mm-vs) { display: grid; grid-template-columns: minmax(0, 1fr) auto; border-bottom: 1px solid var(--color-border-subtle); }
+  .mm-table tr:has(.mm-vs) td { border-bottom: 0; }
+  .mm-table tr:has(.mm-vs) .mm-vs { grid-column: 1 / -1; }
+}

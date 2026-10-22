@@ -62,6 +62,35 @@ const SECTIONS: { key: Exclude<CardSection, 'overview'>; label: string; tab: str
   { key: 'about', label: 'О компании', tab: 'О компании' },
 ];
 
+/** Ширина, на которой разделы карточки становятся вкладками (см. CSS). */
+const MOBILE_QUERY = '(max-width: 760px)';
+
+/** Конец раздела на телефоне: дальше по порядку и назад к обзору.
+ *
+ *  На компьютере все разделы идут подряд, и страница просто листается. На
+ *  телефоне раздел — вкладка, и без этой строки он обрывался в пустоту: чтобы
+ *  открыть следующий, надо было вернуться наверх к вкладкам, которые ещё и не
+ *  помещаются в ширину. */
+function MobileNext({ current, className, onOpen }: {
+  current: Exclude<CardSection, 'overview'>;
+  className: string;
+  onOpen: (key: CardSection) => void;
+}) {
+  const index = SECTIONS.findIndex((s) => s.key === current);
+  const next = SECTIONS[index + 1];
+  return (
+    <nav className={`cd-next ${className}`} aria-label="Следующий раздел">
+      <button type="button" className="cd-next-back" onClick={() => onOpen('overview')}>← Обзор</button>
+      {next && (
+        <button type="button" className="cd-next-go" onClick={() => onOpen(next.key)}>
+          <span className="cd-next-kicker">Дальше</span>
+          <span>{next.label} →</span>
+        </button>
+      )}
+    </nav>
+  );
+}
+
 const STANDARD_LABEL: Record<string, string> = {
   IFRS: 'МСФО',
   RAS: 'РСБУ',
@@ -114,6 +143,13 @@ const CompanyDetail: React.FC = () => {
   const [reportStandardFilter, setReportStandardFilter] = useState<string>('all');
   const [showAllReports, setShowAllReports] = useState(false);
   const [mobileSection, setMobileSection] = useState<CardSection>('overview');
+  // Вкладки на телефоне: переход из оглавления или «Дальше» поднимает к ним,
+  // иначе новый раздел открылся бы где-то выше экрана.
+  const mobileTabsRef = useRef<HTMLElement | null>(null);
+  const openSection = (key: CardSection) => {
+    setMobileSection(key);
+    requestAnimationFrame(() => mobileTabsRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' }));
+  };
   const [editingDescription, setEditingDescription] = useState(false);
   const [descriptionDraft, setDescriptionDraft] = useState('');
 
@@ -574,7 +610,7 @@ const CompanyDetail: React.FC = () => {
         </div>
       </section>
 
-      <nav className="cd-mobile-tabs" role="tablist" aria-label="Разделы карточки">
+      <nav className="cd-mobile-tabs" role="tablist" aria-label="Разделы карточки" ref={mobileTabsRef}>
         {[{ key: 'overview' as CardSection, tab: 'Обзор' }, ...SECTIONS].map((s) => (
           <button
             key={s.key}
@@ -599,6 +635,11 @@ const CompanyDetail: React.FC = () => {
           <AsideValuation verdict={verdict} />
           {!notesBelow && <AsideNotes ref={notesRef} verdict={verdict} oneOffs={oneOffs} />}
           <AsideToc
+            onSelect={(id, event) => {
+              if (!window.matchMedia(MOBILE_QUERY).matches) return;
+              event.preventDefault();
+              openSection(id as CardSection);
+            }}
             sections={SECTIONS.map((s) => ({
               id: s.key,
               label: s.label,
@@ -648,13 +689,19 @@ const CompanyDetail: React.FC = () => {
           </div>
         )}
 
+      <MobileNext current="years" className={tabbed('years')} onOpen={openSection} />
+
       <section id="valuation" className={`cd-card ${tabbed('valuation')}`}>
         <ValuationTab companyId={company.id!} />
       </section>
 
+      <MobileNext current="valuation" className={tabbed('valuation')} onOpen={openSection} />
+
       <section id="criteria" className={`cd-card ${tabbed('criteria')}`}>
         <ConservativeCriteria companyId={company.id!} />
       </section>
+
+      <MobileNext current="criteria" className={tabbed('criteria')} onOpen={openSection} />
 
       {/* Отчётность как в отчётах — без поправок проекта, по периодам. */}
       <section id="statements" className={`cd-card ${tabbed('statements')}`}>
@@ -664,6 +711,8 @@ const CompanyDetail: React.FC = () => {
         </div>
         {reports ? <StatementsSheet reports={reports} company={company} /> : null}
       </section>
+
+      <MobileNext current="statements" className={tabbed('statements')} onOpen={openSection} />
 
       {/* Отчёты: гостю — список и просмотр, администратору — ещё добавление,
           AI-парсер, проверка и удаление. */}
@@ -866,6 +915,8 @@ const CompanyDetail: React.FC = () => {
 
       </section>
 
+      <MobileNext current="reports" className={tabbed('reports')} onOpen={openSection} />
+
       <section id="about" className={`cd-card cd-card--flush ${tabbed('about')}`}>
       <div className="company-content-grid">
         <div className="content-column">
@@ -982,6 +1033,7 @@ const CompanyDetail: React.FC = () => {
         </div>
       </div>
       </section>
+      <MobileNext current="about" className={tabbed('about')} onOpen={openSection} />
 
       {/* Модальное окно просмотра отчёта */}
       {selectedReport && (

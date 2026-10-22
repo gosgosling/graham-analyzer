@@ -57,6 +57,8 @@ import {
   type ValuationSummaryOut,
 } from '../services/valuation.api';
 import { useAdmin } from '../hooks/useAdmin';
+import { PHONE_QUERY, useMediaQuery } from '../hooks/useMediaQuery';
+import PeriodChipList from './PeriodChipList';
 import { LIVE_PRICE_REFRESH_MS, LIVE_PRICE_STALE_MS } from '../services/prices.api';
 import './MultipliersPanel.css';
 
@@ -2203,6 +2205,8 @@ interface HistTableProps {
   earlierShown?: boolean;
   /** Отдаёт наружу список столбцов — для выбора строк. */
   onColumns?: (columns: HistColumn[]) => void;
+  /** Телефон: показатели списком по выбранному периоду вместо таблицы. */
+  asList?: boolean;
 }
 
 /**
@@ -2242,6 +2246,40 @@ function sheetFromColsTable(table: HTMLTableElement, title: string): Sheet {
 
 const yearOf = (r: MultiplierRecord) => r.fiscal_year ?? Number(String(r.date).slice(0, 4));
 
+/**
+ * «По годам» на телефоне: период выбирается кнопкой, показатели — списком.
+ *
+ * Таблица в 29 строк и семь колонок на экране шириной 375 пикселей читалась
+ * по одному году за раз и прокруткой вбок, при этом подпись строки уезжала.
+ * Здесь вопрос «какой P/E сейчас и каким он был год назад» читается сверху
+ * вниз без прокрутки, а вся история показателя — по нажатию на строку.
+ *
+ * Значения — те же узлы, что в клетках таблицы, с теми же значками и цветом.
+ * Поэтому история — список значений, а не столбики: у многих показателей
+ * рядом с числом пометка (разовая прибыль, убыток, сплит), и столбик её бы
+ * потерял.
+ */
+const HistList: React.FC<{
+  periods: { id: string; label: React.ReactNode; isLtm: boolean; cells: HistCells }[];
+  groupRuns: { group: HistGroup; columns: HistColumn[] }[];
+}> = ({ periods, groupRuns }) => (
+  <PeriodChipList
+    columns={periods.map((p) => ({ key: p.id, label: p.isLtm ? '12 мес.' : p.label }))}
+    groups={groupRuns.map((run) => ({
+      key: run.group,
+      title: run.group,
+      rows: run.columns.map((c) => ({
+        key: c.key,
+        // Плоское имя, а не подпись столбца: в подписи бывают кнопки-переключатели
+        // (P/FCF ↔ доходность), а строка списка сама кнопка.
+        label: c.name,
+        tip: c.tip,
+        cell: (col) => periods.find((p) => p.id === col.key)?.cells[c.key],
+      })),
+    }))}
+  />
+);
+
 const HistTable: React.FC<HistTableProps> = ({
   rows,
   currentRow,
@@ -2261,6 +2299,7 @@ const HistTable: React.FC<HistTableProps> = ({
   onToggleEarlier,
   earlierShown = false,
   onColumns,
+  asList = false,
 }) => {
   const [pfcfColMode, setPfcfColMode] = React.useState<PfcfColMode>('pfcf');
   // Прибыль или деньги: ROE и «на акцию» переключаются на свободный поток.
@@ -2468,6 +2507,10 @@ const HistTable: React.FC<HistTableProps> = ({
     if (last && last.group === c.group) last.columns.push(c);
     else groupRuns.push({ group: c.group, columns: [c] });
   });
+
+  if (asList) {
+    return <HistList periods={periods} groupRuns={groupRuns} />;
+  }
 
   if (orientation === 'cols') {
     // Старые годы слева, свежие справа, LTM — последней колонкой.
@@ -2760,6 +2803,8 @@ const TouchTip: React.FC<{ tip: { head: string; body: string } | null; onClose: 
 };
 
 const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company, reports }) => {
+  // На телефоне лист — список по периодам (HistList), таблицы нет вовсе.
+  const isPhone = useMediaQuery(PHONE_QUERY);
   const { isAdmin } = useAdmin();
   const [refreshMsg, setRefreshMsg] = useState<string | null>(null);
   const [histPctMode, setHistPctMode] = useState(false);
@@ -3013,7 +3058,7 @@ const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company, reports })
     <div className="ys">
       <div className="ys-controls">
         <div className="ys-controls-main">
-          <Segmented<SheetOrientation>
+          {!isPhone && <Segmented<SheetOrientation>
             label="Как расположить годы"
             value={orientation}
             onChange={setOrientation}
@@ -3021,7 +3066,7 @@ const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company, reports })
               { key: 'cols', label: 'Годы в колонках' },
               { key: 'rows', label: 'Годы в строках' },
             ]}
-          />
+          />}
           <Segmented<'values' | 'pct'>
             label="Значения или изменение"
             value={histPctMode ? 'pct' : 'values'}
@@ -3068,12 +3113,13 @@ const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company, reports })
       ) : (
         <div
           ref={sheetRef}
-          className={`mult-history-body${orientation === 'rows' && histHidden > 0 && !histExpanded ? ' is-collapsed' : ''}`}
+          className={`mult-history-body${!isPhone && orientation === 'rows' && histHidden > 0 && !histExpanded ? ' is-collapsed' : ''}`}
           onClick={onSheetClick}
         >
           <HistTable
             isHolding={isHolding}
-            rows={sheetRows}
+            rows={isPhone ? rows : sheetRows}
+            asList={isPhone}
             currentRow={currentData ?? undefined}
             profile={profile}
             isPreferredShare={!!company.is_preferred_share}
@@ -3091,7 +3137,7 @@ const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company, reports })
             onToggleEarlier={() => setEarlierShown((v) => !v)}
             onColumns={setSheetColumns}
           />
-          {orientation === 'rows' && histHidden > 0 && (
+          {!isPhone && orientation === 'rows' && histHidden > 0 && (
             <button
               type="button"
               className="hist-expand"

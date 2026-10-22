@@ -1,0 +1,97 @@
+/* Главная. Узкая колонка: здесь читают, а не сравнивают таблицы. */
+.hp {
+  box-sizing: border-box;
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 48px var(--space-5) 56px;
+}
+
+.hp-hero h1 {
+  margin: 0;
+  font-family: 'IBM Plex Serif', Georgia, serif;
+  font-weight: 500;
+  font-size: 42px;
+  line-height: 1.15;
+  color: var(--color-text-primary);
+}
+.hp-lede {
+  margin: 14px 0 22px;
+  max-width: 640px;
+  font-size: 18px;
+  line-height: 1.55;
+  color: var(--color-text-secondary);
+}
+
+/* Поиск из шапки — здесь он во всю ширину колонки. */
+.hp-search .sh-search { max-width: none; width: 100%; margin: 0; }
+
+.hp-popular { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.hp-chip {
+  border: 1px solid var(--color-border-default);
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-size: 0.9rem;
+  color: var(--color-text-secondary);
+  text-decoration: none;
+}
+.hp-chip:hover { color: var(--color-text-primary); border-color: var(--color-border-strong); }
+
+.hp-section { margin-top: 44px; }
+.hp-kicker {
+  margin: 0 0 12px;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-tertiary);
+}
+
+.hp-go { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.hp-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--color-border-default);
+  border-radius: 12px;
+  color: inherit;
+  text-decoration: none;
+  transition: border-color 0.15s;
+}
+.hp-card:hover { border-color: var(--color-border-strong); }
+.hp-card-text b { display: block; font-size: 1.05rem; font-weight: 600; color: var(--color-text-primary); }
+.hp-card-text small { display: block; margin-top: 4px; font-size: 0.88rem; line-height: 1.4; color: var(--color-text-tertiary); }
+.hp-card-num {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: 1.35rem;
+  font-weight: 500;
+  color: var(--color-text-primary);
+  white-space: nowrap;
+}
+.hp-card-num i { font-style: normal; font-size: 0.85rem; color: var(--color-text-tertiary); }
+
+.hp-more { margin: 14px 0 0; font-size: 0.92rem; color: var(--color-text-tertiary); }
+.hp-more a { color: var(--color-text-link); }
+
+.hp-glossary { margin: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 28px; }
+.hp-glossary div { border-top: 1px solid var(--color-border-default); padding-top: 10px; }
+.hp-glossary dt { font-weight: 600; color: var(--color-text-primary); }
+.hp-glossary dd { margin: 4px 0 0; font-size: 0.9rem; line-height: 1.45; color: var(--color-text-secondary); }
+
+@media (max-width: 760px) {
+  .hp { padding: 22px 16px 36px; }
+  .hp-hero h1 { font-size: 28px; }
+  .hp-lede { font-size: 16px; margin: 10px 0 16px; }
+  /* На телефоне кнопки популярных — одной строкой с прокруткой: в две строки
+     они съедали бы первый экран. */
+  .hp-popular { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+  .hp-popular::-webkit-scrollbar { display: none; }
+  .hp-chip { flex: none; }
+  .hp-section { margin-top: 30px; }
+  .hp-go { grid-template-columns: 1fr; gap: 8px; }
+  .hp-card { padding: 12px 14px; align-items: center; }
+  .hp-glossary { grid-template-columns: 1fr; gap: 0; }
+  .hp-glossary div { padding: 10px 0; }
+}
