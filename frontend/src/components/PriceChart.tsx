@@ -17,6 +17,7 @@ import {
 import { useChartColors } from '../contexts/ThemeContext';
 import { fetchOil, type OilOut } from '../services/market.api';
 import { formatPerShare } from '../utils/perShare';
+import { PHONE_QUERY, useMediaQuery } from '../hooks/useMediaQuery';
 import { SpanBand, SpanSummary } from './PriceSpanLayer';
 import { createSpanStore } from './priceSpanStore';
 import './PriceChart.css';
@@ -278,6 +279,33 @@ function eventMarks(events: PriceEvent[], points: PricePoint[]): EventMarkData[]
 }
 
 /** Метка события у нижнего края поля; подробности — в системной подсказке. */
+/** Ширина плашки цены на телефоне: по числу знаков — мерить SVG-текст до отрисовки нечем. */
+const pillWidth = (text: string) => Math.round(text.length * 6.6 + 12);
+
+/**
+ * Подпись цены на телефоне — справа от линии, как в приложениях брокеров.
+ * Текущая цена — плашкой цвета линии, минимум окна — просто текстом.
+ */
+function PhonePriceTick(props: {
+  x?: number; y?: number; payload?: { value: number };
+  current: number; colors: ReturnType<typeof useChartColors>;
+}) {
+  const { x = 0, y = 0, payload, current, colors } = props;
+  if (!payload) return null;
+  const text = edgeLabel(payload.value);
+  if (payload.value !== current) {
+    return (
+      <text x={x + 6} y={y} dy={4} textAnchor="start" fill={colors.axis} fontSize={11}>{text}</text>
+    );
+  }
+  return (
+    <g>
+      <rect x={x} y={y - 9} width={pillWidth(text)} height={18} rx={4} fill={colors.line1} />
+      <text x={x + 6} y={y} dy={4} textAnchor="start" fill="#fff" fontSize={11} fontWeight={600}>{text}</text>
+    </g>
+  );
+}
+
 function EventMark(props: { mark: EventMarkData; colors: ReturnType<typeof useChartColors>; viewBox?: { x: number; y: number; height: number } }) {
   const { mark, colors, viewBox } = props;
   if (!viewBox) return null;
@@ -322,6 +350,7 @@ const readDiscount = (): number => {
 
 export default function PriceChart({ companyId, oil = false }: { companyId: number; oil?: boolean }) {
   const colors = useChartColors();
+  const isPhone = useMediaQuery(PHONE_QUERY);
   const [range, setRange] = useState('5y');
   const [overlay, setOverlay] = useState<Overlay | null>(null);
   // Нефть: в долларах или рублях; Urals — Brent минус дисконт.
@@ -576,6 +605,17 @@ export default function PriceChart({ companyId, oil = false }: { companyId: numb
   // Подписи последних значений расходятся в разные стороны, чтобы не лечь
   // друг на друга: выше та, что выше на графике.
   const priceOnTop = lastReference === null || view.last.price >= lastReference;
+  // На телефоне на оси цены две подписи — минимум окна и текущая, как у
+  // брокеров. Сетка из пяти чисел на узком поле читалась хуже, чем линия.
+  // Минимум рядом с текущей не подписываем — плашки легли бы друг на друга.
+  // Даты на телефоне — через одну, если их много, и не у самого левого края:
+  // поле там начинается от края экрана, и подпись «2022» обрезалась пополам.
+  const edge = view.points.length * 0.06;
+  const phoneDateTicks = (view.ticks.length > 5 ? view.ticks.filter((_, i) => i % 2 === 1) : view.ticks)
+    .filter((d) => view.points.findIndex((p) => p.date === d) >= edge);
+  const phoneTicks = Math.abs(view.last.price - view.min) > (view.max - view.min) * 0.08
+    ? [view.min, view.last.price]
+    : [view.last.price];
   const toggleValue = (key: ValueKey) => setShown((prev) => {
     const next = new Set(prev);
     if (next.has(key)) next.delete(key); else next.add(key);
@@ -637,10 +677,12 @@ export default function PriceChart({ companyId, oil = false }: { companyId: numb
 
       <div className="pc-canvas" ref={canvas}>
         <SpanBand store={spanStore} top={band.top} bottom={band.bottom} />
-        <ResponsiveContainer width="100%" height={320}>
+        <ResponsiveContainer width="100%" height={isPhone ? 300 : 320}>
           <ComposedChart
             data={view.points}
-            margin={{ top: 16, right: overlay ? 56 : 44, bottom: 4, left: 4 }}
+            margin={isPhone
+              ? { top: 12, right: 0, bottom: 0, left: 0 }
+              : { top: 16, right: overlay ? 56 : 44, bottom: 4, left: 4 }}
             // Выделение одной левой кнопкой: нажали, провели, отпустили.
             // Нажатие само по себе снимает прежнее — щелчок по пустому месту
             // очищает график, и отдельная кнопка «сбросить» не нужна.
@@ -685,28 +727,47 @@ export default function PriceChart({ companyId, oil = false }: { companyId: numb
             onMouseLeave={() => { if (drag.current) drag.current.pressed = false; }}
             style={{ userSelect: 'none' }}
           >
-            <CartesianGrid stroke={colors.grid} vertical={false} />
+            {!isPhone && <CartesianGrid stroke={colors.grid} vertical={false} />}
             <XAxis
               dataKey="date"
               tick={{ fill: colors.axis, fontSize: 11 }}
-              ticks={view.ticks}
+              ticks={isPhone ? phoneDateTicks : view.ticks}
               tickFormatter={(v: string) => axisDate(v, view.longRange)}
               interval={0}
               minTickGap={0}
               stroke={colors.grid}
             />
-            <YAxis
-              yAxisId="price"
-              tick={{ fill: colors.axis, fontSize: 11 }}
-              tickFormatter={(v: number) => rub(v)}
-              domain={['auto', 'auto']}
-              width={view.pennyScale ? 74 : 58}
-              stroke={colors.grid}
-            />
+            {isPhone ? (
+              // Ось только справа и узкая — под плашку текущей цены; слева
+              // оси нет, линия начинается от края экрана.
+              <YAxis
+                yAxisId="price"
+                orientation="right"
+                width={Math.max(...phoneTicks.map((v) => pillWidth(edgeLabel(v)))) + 6}
+                axisLine={false}
+                tickLine={false}
+                tickSize={0}
+                tickMargin={4}
+                ticks={phoneTicks}
+                interval={0}
+                tick={<PhonePriceTick current={view.last.price} colors={colors} />}
+                domain={['auto', 'auto']}
+              />
+            ) : (
+              <YAxis
+                yAxisId="price"
+                tick={{ fill: colors.axis, fontSize: 11 }}
+                tickFormatter={(v: number) => rub(v)}
+                domain={['auto', 'auto']}
+                width={view.pennyScale ? 74 : 58}
+                stroke={colors.grid}
+              />
+            )}
             {overlay && (
               <YAxis
                 yAxisId="mult"
-                orientation="right"
+                orientation={isPhone ? 'left' : 'right'}
+                mirror={isPhone}
                 tick={{ fill: colors.line4, fontSize: 11 }}
                 tickFormatter={(v: number) => ru(v, v < 10 ? 1 : 0)}
                 domain={view.overlayBounds ?? ['auto', 'auto']}
@@ -798,9 +859,9 @@ export default function PriceChart({ companyId, oil = false }: { companyId: numb
               fill={colors.line1}
               stroke={colors.dotStroke}
               strokeWidth={2}
-              label={{ value: edgeLabel(view.last.price), position: priceOnTop ? 'top' : 'bottom', fill: colors.textPrimary, fontSize: 11, fontWeight: 600 }}
+              label={isPhone ? undefined : { value: edgeLabel(view.last.price), position: priceOnTop ? 'top' : 'bottom', fill: colors.textPrimary, fontSize: 11, fontWeight: 600 }}
             />
-            {hasLevels && lastReference !== null && (
+            {!isPhone && hasLevels && lastReference !== null && (
               <ReferenceDot
                 yAxisId="price"
                 x={view.last.date}

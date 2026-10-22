@@ -1682,7 +1682,7 @@
 }
 .cd-stat:first-child { border-left: 0; padding-left: 0; }
 .cd-stat:hover .cd-stat-value { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 4px; }
-.cd-stat-label { font-size: 0.82rem; color: var(--color-text-tertiary); }
+.cd-stat-label { font-size: 0.82rem; color: var(--color-text-tertiary); overflow: hidden; text-overflow: ellipsis; }
 .cd-stat-value {
   font-family: 'IBM Plex Serif', Georgia, serif;
   font-size: 1.7rem;
@@ -1745,6 +1745,9 @@
   .cd-stat { padding: 10px 10px 12px; }
   .cd-stat-value { font-size: 1.3rem; }
   .cd-stat-sub { display: none; }
+  /* «Запас прочности» в колонку шириной в треть экрана не помещается —
+     на телефоне просто «Запас», значение рядом говорит само за себя. */
+  .cd-stat-label-tail { display: none; }
   .cd-section-title { font-size: 1.25rem; }
   .cd-mobile-tabs { margin-top: 18px; }
 
@@ -1832,6 +1835,21 @@
     transition: height 0.2s ease, opacity 0.2s ease;
   }
   .cd-mobile-bar.is-compact .cd-mobile-title { height: 42px; opacity: 1; }
+  .cd-mobile-back {
+    flex: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    margin-left: -8px;
+    border: 0;
+    border-radius: 50%;
+    background: none;
+    color: var(--color-text-primary);
+    cursor: pointer;
+  }
+  .cd-mobile-back:active { background: var(--color-bg-hover); }
   .cd-mobile-title-logo { width: 22px; height: 22px; border-radius: 50%; flex: none; object-fit: cover; }
   .cd-mobile-title-name { flex: 1; min-width: 0; font-weight: 600; font-size: 0.98rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .cd-mobile-title-price { flex: none; font-family: var(--font-mono); font-size: 0.95rem; color: var(--color-text-primary); }

@@ -2,86 +2,77 @@ import React, { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { getCompanies } from '../services';
-import { fetchMarketScreen, type MarketScreenOut } from '../services/screen.api';
+import { fetchMarketScreen, type MarketRow, type MarketScreenOut } from '../services/screen.api';
 import { fetchMarketOverview } from '../services/market.api';
 import type { Company } from '../types';
 import { CompanySearch } from '../components/SiteHeader';
+import { formatPerShare } from '../utils/perShare';
 import './HomePage.css';
 
 /**
- * Главная: куда человек попал, во что здесь верят и куда идти.
+ * Главная: что это за сайт — одной фразой, рынок сегодня — тремя числами,
+ * суть метода — на живых компаниях, и что здесь ещё есть.
  *
  * Раньше адрес сайта сразу перебрасывал в список компаний — человек из
- * ссылки в Telegram видел тикеры и не понимал, что с ними делать. Здесь
- * — суть одной фразой и картинкой (стоимость, цена и разрыв между ними),
- * рынок сегодня в трёх числах, идеи Грэма своими словами и входы в разделы.
+ * ссылки в Telegram видел тикеры и не понимал, что с ними делать. Потом здесь
+ * был рекламный первый экран с плитками идей; он рассказывал о методе, а не
+ * показывал его. Теперь вместо пересказа — таблица: цена известных компаний
+ * против их опорной стоимости. Это и есть то, что сайт считает.
  *
- * Без рекомендаций: числа — расчёт по методу, а «кто проходит требования» —
- * результат проверки, не совет покупать.
+ * Без рекомендаций: числа — расчёт по методу, «проходит отбор» — результат
+ * проверки, не совет покупать.
  */
 
-/** Быстрые кнопки: самые известные бумаги, чтобы было с чего начать. */
+/** Знакомые имена: с них проще всего понять, что показывает сайт. */
 const POPULAR = ['SBER', 'LKOH', 'YDEX', 'GAZP', 'T', 'GMKN'];
+/** Строк в таблице «цена против опорной». */
+const SAMPLE_SIZE = 7;
 
 const ru = (n: number, digits = 1) => n.toLocaleString('ru-RU', { maximumFractionDigits: digits });
+const rub = (n: number) => (Math.abs(n) >= 100 ? ru(n, 0) : formatPerShare(n));
 
-/** Идеи «Разумного инвестора» — пересказ, а не цитаты, и где они на сайте. */
-const IDEAS: { title: string; text: string; to: string; link: string }[] = [
-  {
-    title: 'Запас прочности',
-    text: 'Покупать заметно дешевле стоимости. Разница защищает от собственных ошибок в оценке и от невезения.',
-    to: '/valuation',
-    link: 'Как считается стоимость',
-  },
-  {
-    title: 'Мистер Рынок',
-    text: 'Рынок каждый день предлагает цену. Её можно принять или проигнорировать — но не стоит ей подчиняться.',
-    to: '/market',
-    link: 'Рынок целиком',
-  },
-  {
-    title: 'Средняя прибыль, а не рекорд',
-    text: 'Оценивать по прибыли за много лет: один удачный год говорит о бизнесе меньше, чем семь обычных.',
-    to: '/valuation',
-    link: 'Почему средняя',
-  },
-  {
-    title: 'Привычка платить',
-    text: 'Дивиденды год за годом — признак того, что прибыль настоящая, а не только на бумаге.',
-    to: '/screen',
-    link: 'Кто платит подряд',
-  },
-  {
-    title: 'Облигация как мерило',
-    text: 'Акция должна зарабатывать больше надёжной облигации — иначе риск ничем не оплачен.',
-    to: '/market',
-    link: 'Акции против ОФЗ',
-  },
-  {
-    title: 'Скромные ожидания',
-    text: 'Консервативный инвестор не ищет «иксы». Ему достаточно не потерять и получать разумный доход.',
-    to: '/screen',
-    link: 'Требования защитного инвестора',
-  },
-];
+/**
+ * Положение цены на шкале, где середина — опорная стоимость. Шкала
+ * логарифмическая: вдвое дешевле — левый край, вдвое дороже — правый, и
+ * «на 30% дешевле» не выглядит меньше, чем «на 30% дороже».
+ */
+/** «дешевле на 23%», «дороже на 19%», а от двух раз — «дороже в 5,3 раза». */
+const gapText = (price: number, reference: number) => {
+  if (price >= reference * 2) return `дороже в ${ru(price / reference)} раза`;
+  const pct = Math.round(Math.abs(price / reference - 1) * 100);
+  return `${price < reference ? 'дешевле' : 'дороже'} на ${pct}%`;
+};
 
-/** Метод в одной картинке: стоимость, цена ниже неё и разрыв — запас. */
-function MethodPicture() {
+const scaleX = (price: number, reference: number) => {
+  const r = Math.log2(price / reference);
+  return 50 + Math.max(-1, Math.min(1, r)) * 50;
+};
+
+function ValueRow({ row }: { row: MarketRow }) {
+  const s = row.safety!;
+  const price = s.price as number;
+  const reference = s.reference as number;
+  const x = scaleX(price, reference);
+  const below = price < reference;
+  const from = Math.min(x, 50);
+  const width = Math.abs(x - 50);
   return (
-    <figure className="hp-pic" aria-label="Опорная стоимость выше цены, разница — запас прочности">
-      <div className="hp-pic-row">
-        <span className="hp-pic-label">Опорная стоимость</span>
-        <span className="hp-pic-bar hp-pic-bar--value" />
-      </div>
-      <div className="hp-pic-row">
-        <span className="hp-pic-label">Цена на бирже</span>
-        <span className="hp-pic-track">
-          <span className="hp-pic-bar hp-pic-bar--price" />
-          <span className="hp-pic-gap">запас прочности</span>
-        </span>
-      </div>
-      <figcaption>Чем шире зелёный разрыв, тем больше права на ошибку.</figcaption>
-    </figure>
+    <li className="hp-vr">
+      <Link to={`/company/${row.id}`} className="hp-vr-name">
+        <b>{row.name}</b>
+        {row.clears && <span className="hp-vr-tag">проходит отбор</span>}
+      </Link>
+      <span className="hp-vr-num">{rub(price)}</span>
+      <span className="hp-vr-num hp-vr-ref">{rub(reference)}</span>
+      <span className="hp-vr-scale" aria-hidden>
+        <span className="hp-vr-axis" />
+        <span className={`hp-vr-gap${below ? ' is-below' : ''}`} style={{ left: `${from}%`, width: `${width}%` }} />
+        <span className={`hp-vr-dot${below ? ' is-below' : ''}`} style={{ left: `${x}%` }} />
+      </span>
+      <span className={`hp-vr-margin${below ? ' is-below' : ''}`}>
+        {gapText(price, reference)}
+      </span>
+    </li>
   );
 }
 
@@ -109,130 +100,120 @@ export default function HomePage() {
     return POPULAR.map((t) => byTicker.get(t)).filter((c): c is Company => Boolean(c?.id));
   }, [companies]);
 
-  const cleared = screen ? screen.rows.filter((r) => r.clears) : null;
+  // Сначала те, кто проходит отбор, потом знакомые имена — только с оценкой.
+  const sample = useMemo(() => {
+    const rows = (screen?.rows ?? []).filter((r) => r.safety?.price && r.safety?.reference);
+    const picked = [
+      ...rows.filter((r) => r.clears),
+      ...POPULAR.map((t) => rows.find((r) => r.ticker === t)).filter((r): r is MarketRow => Boolean(r)),
+    ];
+    return picked.filter((r, i) => picked.findIndex((p) => p.id === r.id) === i).slice(0, SAMPLE_SIZE);
+  }, [screen]);
+
+  const cleared = screen ? screen.rows.filter((r) => r.clears).length : null;
   const now = market?.valuation.find((y) => y.year === 'now') ?? null;
 
   return (
     <div className="hp">
-      <section className="hp-hero">
-        <div className="hp-hero-text">
-          <p className="hp-eyebrow">Метод Бенджамина Грэма — для Мосбиржи</p>
-          <h1>Сколько стоят российские акции — по&nbsp;Грэму</h1>
-          <p className="hp-lede">
-            Считаем опорную стоимость {companies ? companies.length : 'российских'} компаний из отчётов МСФО:
-            по средней прибыли за годы, балансу и ставке ОФЗ. Без прогнозов и без рекомендаций.
+      <section className="hp-intro">
+        <h1>Цена и стоимость российских акций</h1>
+        <p className="hp-lede">
+          Сайт считает, сколько стоит компания по методу Бенджамина Грэма — из отчётов МСФО за много
+          лет, — и сравнивает это с ценой на бирже. {companies ? `${companies.length} компаний` : 'Компании Мосбиржи'},
+          без прогнозов и без рекомендаций.
+        </p>
+        <div className="hp-search"><CompanySearch /></div>
+        {popular.length > 0 && (
+          <p className="hp-popular">
+            <span>Например:</span>{' '}
+            {popular.map((c, i) => (
+              <React.Fragment key={c.id}>
+                {i > 0 && <span className="hp-sep" aria-hidden> · </span>}
+                <Link to={`/company/${c.id}`}>{c.name}</Link>
+              </React.Fragment>
+            ))}
           </p>
-          <div className="hp-search"><CompanySearch /></div>
-          {popular.length > 0 && (
-            <div className="hp-popular" aria-label="Популярные компании">
-              {popular.map((c) => (
-                <Link key={c.id} to={`/company/${c.id}`} className="hp-chip">{c.name}</Link>
-              ))}
-            </div>
-          )}
-        </div>
-        <MethodPicture />
+        )}
       </section>
 
-      <section className="hp-section" aria-labelledby="hp-today">
-        <div className="hp-section-head">
-          <h2 id="hp-today" className="hp-kicker">Рынок сегодня</h2>
-          <Link to="/market" className="hp-section-link">Подробнее →</Link>
-        </div>
-        <div className="hp-stats">
-          <Link to="/market" className="hp-stat">
-            <span className="hp-stat-num">{now ? ru(now.pe) : '…'}</span>
-            <span className="hp-stat-label">P/E рынка</span>
-            <small>за рубль прибыли платят столько рублей цены</small>
-          </Link>
-          <Link to="/market" className="hp-stat">
-            <span className="hp-stat-num">
-              {now ? `${ru(now.earnings_yield)}%` : '…'}
-              {now?.ofz10 != null && <i> против {ru(now.ofz10)}%</i>}
-            </span>
-            <span className="hp-stat-label">акции зарабатывают против ОФЗ</span>
-            <small>
-              {now?.premium != null
-                ? `премия за риск ${now.premium >= 0 ? '+' : '−'}${ru(Math.abs(now.premium))} п.п.`
-                : 'доходность по прибыли и десятилетних облигаций'}
-            </small>
-          </Link>
-          <Link to="/screen" className="hp-stat hp-stat--accent">
-            <span className="hp-stat-num">
-              {cleared && screen ? <>{cleared.length}<i> из {screen.rows.length}</i></> : '…'}
-            </span>
-            <span className="hp-stat-label">проходят все требования защитного инвестора</span>
-            <small>
-              {cleared && cleared.length > 0
-                ? cleared.slice(0, 3).map((r) => r.name).join(', ')
-                : 'семь проверок из главы 14'}
-            </small>
-          </Link>
-        </div>
+      <section className="hp-today" aria-label="Рынок сегодня">
+        <Link to="/market" className="hp-fig">
+          <span className="hp-fig-label">P/E рынка</span>
+          <span className="hp-fig-num">{now ? ru(now.pe) : '…'}</span>
+          <span className="hp-fig-sub">столько рублей цены за рубль прибыли</span>
+        </Link>
+        <Link to="/market" className="hp-fig">
+          <span className="hp-fig-label">Доходность акций</span>
+          <span className="hp-fig-num">
+            {now ? `${ru(now.earnings_yield)}%` : '…'}
+          </span>
+          <span className="hp-fig-sub">
+            {now?.ofz10 != null ? `против ${ru(now.ofz10)}% у десятилетних ОФЗ` : 'прибыль к цене'}
+          </span>
+        </Link>
+        <Link to="/screen" className="hp-fig">
+          <span className="hp-fig-label">Проходят отбор Грэма</span>
+          <span className="hp-fig-num">
+            {cleared !== null && screen ? <>{cleared}<small> из {screen.rows.length}</small></> : '…'}
+          </span>
+          <span className="hp-fig-sub">все семь требований защитного инвестора</span>
+        </Link>
       </section>
 
-      <section className="hp-section" aria-labelledby="hp-ideas">
-        <h2 id="hp-ideas" className="hp-kicker">Идеи Грэма, на которых всё построено</h2>
-        <ol className="hp-ideas">
-          {IDEAS.map((idea, i) => (
-            <li key={idea.title} className="hp-idea">
-              <span className="hp-idea-num">{String(i + 1).padStart(2, '0')}</span>
-              <h3>{idea.title}</h3>
-              <p>{idea.text}</p>
-              <Link to={idea.to}>{idea.link} →</Link>
-            </li>
-          ))}
-        </ol>
-        <blockquote className="hp-motto">
-          Рынок голосует, весы взвешивают: в короткую цену решает настроение, в долгую — прибыль.
-        </blockquote>
-      </section>
+      {sample.length > 0 && (
+        <section className="hp-block" aria-labelledby="hp-values">
+          <div className="hp-block-head">
+            <h2 id="hp-values">Цена против опорной стоимости</h2>
+            <Link to="/companies">Все компании →</Link>
+          </div>
+          <p className="hp-note">
+            Опорная — расчётная стоимость акции по средней прибыли за годы и балансу. Грэм советовал
+            покупать заметно ниже неё: разница — запас прочности на случай ошибки в оценке.
+          </p>
+          <div className="hp-vr-head" aria-hidden>
+            <span />
+            <span>Цена, ₽</span>
+            <span>Опорная, ₽</span>
+            <span className="hp-vr-head-scale"><i>дешевле</i><i>дороже</i></span>
+            <span />
+          </div>
+          <ul className="hp-vr-list">
+            {sample.map((r) => <ValueRow key={r.id} row={r} />)}
+          </ul>
+        </section>
+      )}
 
-      <section className="hp-section" aria-labelledby="hp-start">
-        <h2 id="hp-start" className="hp-kicker">С чего начать</h2>
-        <div className="hp-go">
-          <Link to="/screen" className="hp-card hp-card--screen">
-            <span className="hp-card-text">
-              <b>Скринер</b>
-              <small>Кто проходит требования защитного и активного инвестора</small>
-            </span>
-            <span className="hp-card-num">
-              {cleared && screen ? <>{cleared.length}<i> из {screen.rows.length}</i></> : '→'}
-            </span>
+      <section className="hp-block" aria-labelledby="hp-inside">
+        <div className="hp-block-head">
+          <h2 id="hp-inside">Что здесь есть</h2>
+        </div>
+        <div className="hp-index">
+          <Link to="/screen" className="hp-index-item">
+            <b>Скринер</b>
+            <span>Требования Грэма к защитному и активному инвестору: кто проходит и чего не хватило остальным.</span>
           </Link>
-          <Link to="/companies" className="hp-card hp-card--companies">
-            <span className="hp-card-text">
-              <b>Все компании</b>
-              <small>Цена, опорная стоимость и запас прочности по каждой</small>
-            </span>
-            <span className="hp-card-num">{companies ? companies.length : '→'}</span>
+          <Link to="/companies" className="hp-index-item">
+            <b>Карточка компании</b>
+            <span>Отчётность за годы, опорная стоимость, график цены против неё, дивиденды и мультипликаторы.</span>
           </Link>
-          <Link to="/valuation" className="hp-card hp-card--method">
-            <span className="hp-card-text">
-              <b>Как считается стоимость</b>
-              <small>Метод Грэма и Додда — коротко и по шагам</small>
-            </span>
-            <span className="hp-card-num">→</span>
+          <Link to="/market" className="hp-index-item">
+            <b>Рынок</b>
+            <span>P/E всего рынка за двадцать лет и сколько акции зарабатывают против облигаций.</span>
           </Link>
+          <Link to="/calendar" className="hp-index-item">
+            <b>Календарь отчётности</b>
+            <span>Когда компании публикуют МСФО и чьи цифры уже обновились.</span>
+          </Link>
+          <Link to="/valuation" className="hp-index-item">
+            <b>Как считается стоимость</b>
+            <span>Метод Грэма и Додда по шагам: от средней прибыли до запаса прочности.</span>
+          </Link>
+          <a href="https://t.me/graham_analyzer" target="_blank" rel="noreferrer" className="hp-index-item">
+            <b>Telegram</b>
+            <span>Разборы новых отчётов и что изменилось в скринере — @graham_analyzer.</span>
+          </a>
         </div>
       </section>
-
-      <section className="hp-section" aria-labelledby="hp-how">
-        <h2 id="hp-how" className="hp-kicker">Как считаем</h2>
-        <ol className="hp-steps">
-          <li><b>Отчёты МСФО</b><span>за много лет — в скринер идут только проверенные</span></li>
-          <li><b>Средняя прибыль и баланс</b><span>без разовых статей, по долям акционеров</span></li>
-          <li><b>Опорная стоимость</b><span>и запас прочности к сегодняшней цене</span></li>
-        </ol>
-      </section>
-
-      <a className="hp-tg" href="https://t.me/graham_analyzer" target="_blank" rel="noreferrer">
-        <span>
-          <b>Разборы компаний — в Telegram</b>
-          <small>Новые отчёты, компании недели и что изменилось в скринере</small>
-        </span>
-        <span className="hp-tg-handle">@graham_analyzer →</span>
-      </a>
     </div>
   );
 }

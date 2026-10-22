@@ -103,7 +103,7 @@
 .hl-bar.is-neg .hl-bar-fill { background: color-mix(in srgb, var(--color-error) 50%, transparent); }
 .hl-bar.is-current .hl-bar-fill { background: var(--color-primary); }
 .hl-bar.is-neg.is-current .hl-bar-fill { background: var(--color-error); }
-.hl-bar.is-picked .hl-bar-fill { box-shadow: 0 0 0 2px var(--color-text-primary); }
+.hl-bar.is-picked .hl-bar-fill { box-shadow: 0 0 0 1.5px var(--color-text-primary); }
 .hl-bar-label {
   position: absolute;
   left: 50%;

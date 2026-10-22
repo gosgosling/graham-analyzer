@@ -312,9 +312,11 @@ function SieveView({ data, standard }: { data: MarketScreenOut; standard: string
               {groups.passed.map(({ row }) => (
                 <li key={row.ticker} className="sc-row sc-row--pass">
                   <Ident row={row} />
-                  <span className="sc-num">{value(row, 'pe_average')}</span>
-                  <span className="sc-num">{value(row, pbMetric)}</span>
-                  <span className="sc-num">{value(row, 'streak')}</span>
+                  {/* Подписи — для телефона: там числа уходят второй строкой
+                      под название, и шапки колонок над ними нет. */}
+                  <span className="sc-num" data-label="P/E 3 г.">{value(row, 'pe_average')}</span>
+                  <span className="sc-num" data-label="P/B">{value(row, pbMetric)}</span>
+                  <span className="sc-num" data-label="Дивиденды подряд">{value(row, 'streak')}</span>
                   <SafetyMargin safety={row.safety} />
                 </li>
               ))}
