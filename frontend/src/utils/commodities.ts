@@ -5,7 +5,7 @@
  * алмазы АЛРОСА, и никель Норникеля, и по сектору их не развести. Ряды
  * приходят с бэкенда (/market/commodity/<ключ>), помесячно.
  */
-export type CommodityKey = 'gas_eu' | 'lng_asia' | 'urea' | 'dap' | 'potash' | 'gold' | 'diamonds';
+export type CommodityKey = 'gas_eu' | 'lng_asia' | 'urea' | 'dap' | 'potash' | 'gold' | 'palladium' | 'nickel' | 'copper' | 'diamonds';
 
 /** Подпись кнопки под графиком — короткая, рядом с «P/E» и «Нефть». */
 export const COMMODITY_BUTTON: Record<CommodityKey, string> = {
@@ -15,6 +15,9 @@ export const COMMODITY_BUTTON: Record<CommodityKey, string> = {
   dap: 'DAP',
   potash: 'Калий',
   gold: 'Золото',
+  palladium: 'Палладий',
+  nickel: 'Никель',
+  copper: 'Медь',
   diamonds: 'Алмазы',
 };
 
@@ -28,6 +31,8 @@ export const COMMODITIES_BY_TICKER: Record<string, CommodityKey[]> = {
   PLZL: ['gold'],
   UGLD: ['gold'],
   SELG: ['gold'],
+  // Норникель: палладий — первый по выручке, никель и медь — следом.
+  GMKN: ['palladium', 'nickel', 'copper'],
 };
 
 export const isCommodity = (key: string | null | undefined): key is CommodityKey =>
