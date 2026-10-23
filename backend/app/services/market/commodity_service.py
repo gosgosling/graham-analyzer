@@ -5,7 +5,7 @@
 него:
 
 * дневные — закрытия ближних фьючерсов из Yahoo Finance: золото (COMEX
-  GC), палладий (NYMEX PA), газ в Европе (TTF), СПГ в Азии (JKM), карбамид
+  GC), палладий и платина (NYMEX PA, PL), газ в Европе (TTF), СПГ в Азии (JKM), карбамид
   (CBOT, US Gulf).
   Ряды начинаются в разные годы: TTF — с 2017-го, карбамид — с 2020-го;
 * никель и медь — официальные цены LME (cash-settlement) по дням с 2008
@@ -135,6 +135,9 @@ COMMODITIES: dict[str, Commodity] = {c.key: c for c in (
     # Палладия у Всемирного банка нет — только дневной ряд NYMEX.
     Commodity("palladium", "Палладий", "$/унц.", "NYMEX, палладий",
               yahoo="PA=F", daily_source="NYMEX (ближний фьючерс)"),
+    Commodity("platinum", "Платина", "$/унц.",
+              "Всемирный банк, Platinum, среднее за месяц", wb_column="Platinum",
+              yahoo="PL=F", daily_source="NYMEX (ближний фьючерс)"),
     Commodity("diamonds", "Алмазы, индекс цен", "индекс",
               "BLS, индекс импортных цен США на алмазы (FRED IP7102)",
               fred_id="IP7102", index=True),

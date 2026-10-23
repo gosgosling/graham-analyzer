@@ -26,7 +26,6 @@ from app.models.multiplier import Multiplier
 from app.services.analysis import multiplier_service, screen, screen_axes
 from app.services.analysis.market_snapshot import trustworthy_tickers
 from app.services.share_splits import company_splits, current_share_count, report_split_factor
-from app.utils.currency_converter import convert_to_rub
 
 MAX_PICK = 5
 
@@ -80,13 +79,6 @@ def _market_cap(db: Session, company: Company) -> Optional[float]:
     return float(row[0]) if row else None
 
 
-def _rub(value: Optional[float], report: Optional[FinancialReport]) -> Optional[float]:
-    if value is None or report is None:
-        return value
-    rate = float(report.exchange_rate) if report.exchange_rate else None
-    return convert_to_rub(float(value), report.currency or "RUB", rate)
-
-
 def _eps_by_year(db: Session, company: Company) -> dict[int, float]:
     """Прибыль на акцию по годовым отчётам — в сегодняшней шкале акций."""
     splits = company_splits(db, company)
@@ -115,8 +107,11 @@ def _axis_value(axes: list, axis: str, key: str) -> Optional[float]:
 
 def company_card(db: Session, company: Company, summary_fn) -> dict:
     """Все числа одной компании для таблицы сравнения."""
+    # Снимок «на сегодня» уже в рублях: LTM, капитал и чистый долг переведены
+    # по курсу отчёта внутри calculate_current_multipliers. Переводить их здесь
+    # ещё раз нельзя — у Норникеля, отчитывающегося в долларах, выручка
+    # выходила 84 трлн ₽ вместо 1,08 трлн.
     current = multiplier_service.calculate_current_multipliers(db=db, company_id=company.id) or {}
-    balance = db.get(FinancialReport, current.get("balance_report_id")) if current.get("balance_report_id") else None
     axes = screen_axes.load(db, company)
     profile = screen.profile_for(db, company)
     result = screen.apply(axes, profile, "defensive", ticker=str(company.ticker))
@@ -135,7 +130,7 @@ def company_card(db: Session, company: Company, summary_fn) -> dict:
     eps = _eps_by_year(db, company)
     last_year = max(eps) if eps else None
     shares = current.get("shares_used")
-    equity = _rub(current.get("equity"), balance)
+    equity = current.get("equity")
     return {
         "id": company.id,
         "ticker": company.ticker,
@@ -145,11 +140,11 @@ def company_card(db: Session, company: Company, summary_fn) -> dict:
         "price": current.get("current_price"),
         "shares": shares,
         "market_cap": current.get("market_cap"),
-        "net_debt": _rub(current.get("net_debt"), balance),
+        "net_debt": current.get("net_debt"),
         "book_per_share": (equity * 1e6 / shares) if equity and shares else None,
-        "revenue": _rub(current.get("ltm_revenue"), balance),
-        "net_income": _rub(current.get("ltm_net_income"), balance),
-        "fcf": _rub(current.get("ltm_fcf"), balance),
+        "revenue": current.get("ltm_revenue"),
+        "net_income": current.get("ltm_net_income"),
+        "fcf": current.get("ltm_fcf"),
         "eps": current.get("eps"),
         "eps_years": {str(y): eps.get(y) for y in ([last_year, last_year - 5, last_year - 10] if last_year else [])},
         "dividend": current.get("ltm_dividends_per_share"),
