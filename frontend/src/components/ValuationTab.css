@@ -335,3 +335,24 @@
   .vt-ws-value--edit { width: 170px !important; }
   .vt-slider input[type='range'] { width: 90px; }
 }
+
+/* ── Телефон: сначала график прибыли, потом расчётный лист ─────────────
+   Боковая колонка «растворяется» (display: contents), и её блоки встают в
+   общий столбец по порядку: график — первым, ставка — после листа. */
+@media (max-width: 760px) {
+  .vt-grid { display: flex; flex-direction: column; gap: 28px; }
+  .vt-side { display: contents; }
+  .vt-block--earnings { order: -1; }
+  .vt-block--rates { order: 1; padding-top: 22px; border-top: 1px solid var(--color-border-default); }
+  .vt-side .vt-block + .vt-block { padding-top: 22px; }
+
+  /* Три меры прибыли — одной строкой: «Прибыль владельца» переносилась
+     на вторую. */
+  .vt-block--earnings .vt-block-head { flex-direction: column; align-items: flex-start; gap: 8px; }
+  .vt .vt-block--earnings .vt-pills { flex-wrap: nowrap; gap: 14px; max-width: 100%; }
+  .vt .vt-block--earnings .vt-pills button { white-space: nowrap; font-size: 0.86rem; }
+
+  /* Расчёт в «Трёх мерилах» — мельче и в одну строку; итог справа — как был. */
+  .vt-mini--measures td.vt-measure-calc { font-size: 0.78rem; white-space: nowrap; }
+  .vt-mini--measures td { white-space: nowrap; }
+}

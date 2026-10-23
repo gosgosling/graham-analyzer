@@ -331,4 +331,22 @@
 @media (max-width: 760px) {
   .pc-canvas { touch-action: pan-y; }
 }
-.pc-span-hint { margin: 6px 0 0; font-size: 0.78rem; color: var(--color-text-quaternary); }
+
+/* Свод по отрезку: изменение — крупно, даты — мелко под ним. */
+.pc-span-change { display: inline-flex; align-items: baseline; gap: 10px; }
+.pc-span-change b { font-size: 1.05rem; }
+.pc-span-dates { font-size: 0.78rem; color: var(--color-text-tertiary); }
+.pc-span-dates .pc-span-arrow { color: var(--color-text-quaternary); }
+@media (max-width: 760px) {
+  .pc-span { flex-direction: column; align-items: flex-start; gap: 2px; }
+  .pc-span-change b { font-size: 1.2rem; }
+  /* Дни и коридор цен в отрезке — для компьютера; на телефоне главное
+     — насколько изменилась цена. */
+  .pc-span-aside { display: none; }
+}
+
+/* Отрезок выделен двумя пальцами — подсказка по дню, курсор и точка на
+   линии прячутся (см. useTwoFingerSpan). */
+.has-span .recharts-tooltip-wrapper,
+.has-span .recharts-tooltip-cursor,
+.has-span .recharts-active-dot { visibility: hidden; }

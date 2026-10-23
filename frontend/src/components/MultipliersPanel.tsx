@@ -2315,7 +2315,9 @@ const HistList: React.FC<{
         // Плоское имя, а не подпись столбца: в подписи бывают кнопки-переключатели
         // (P/FCF ↔ доходность), а строка списка сама кнопка.
         label: c.name,
-        tip: c.tip,
+        // «Наведите на значение…» — про таблицу на компьютере; на телефоне
+        // наводить нечем, и фраза только сбивала.
+        tip: c.tip?.replace(/\s*Наведите[^.]*\./g, '').trim() || undefined,
         cell: (col) => {
           const p = periods.find((x) => x.id === col.key);
           const cell = p?.cells[c.key];
@@ -3074,6 +3076,9 @@ const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company, reports })
 
   const onSheetClick = (e: React.MouseEvent) => {
     if (typeof window === 'undefined' || !window.matchMedia?.('(hover: none)').matches) return;
+    // Телефонный список (PeriodChipList) пояснения показывает сам, в
+    // раскрытой строке; панель снизу ему не нужна.
+    if ((e.target as HTMLElement).closest('.hl')) return;
     const target = (e.target as HTMLElement).closest('[title]') as HTMLElement | null;
     if (!target || !e.currentTarget.contains(target)) return;
     const body = target.getAttribute('title');

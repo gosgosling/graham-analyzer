@@ -701,7 +701,7 @@ def profitability(points, mults: dict, reports: dict, is_lender: bool,
         ))
         metrics.append(Metric(
             key="cost_to_income_average",
-            label=f"То же в среднем за {LEVEL_WINDOW} лет", unit="%",
+            label=f"Издержки к доходам в среднем за {LEVEL_WINDOW} лет", unit="%",
             value=_mean(cir), series=cir,
             note="По средней и судим: показатель описывает поведение, а не запас",
         ))
@@ -850,7 +850,7 @@ def stability(points, is_lender: bool, reports: Optional[dict] = None,
         ),
         Metric(
             key="profitable_years_short",
-            label=f"То же за последние {STABILITY_SPAN_SHORT} лет", unit="лет",
+            label=f"Годы без убытка за последние {STABILITY_SPAN_SHORT} лет", unit="лет",
             value=None if short_free is None else float(short_free),
             of=short_of, flagged=short_losses,
             tone=_tone_full(short_free, short_of),
@@ -1110,7 +1110,7 @@ def growth(points, is_lender: bool, live=None) -> Axis:
             suspect=_growth_suspect(short_found, cash=True), failed=_loss_verdict(short_found),
             note=_join_notes(
                 _growth_notes(short_found, GROWTH_SPAN_SHORT),
-                "То же окно, что и у короткого теста по прибыли" if cash_run is not None
+                f"Окно {GROWTH_YEARS_BACK_SHORT} лет — как у прироста прибыли на акцию" if cash_run is not None
                 else "Десяти лет потока в базе нет — проверяется только этот отрезок",
                 ltm_note),
         ))

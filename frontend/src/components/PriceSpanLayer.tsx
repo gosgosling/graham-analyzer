@@ -50,33 +50,33 @@ export const SpanBand: React.FC<{ store: SpanStore; top: number; bottom: number 
   );
 };
 
-/** Строка свода под графиком. */
-export const SpanSummary: React.FC<{
-  store: SpanStore;
-  points: readonly SpanPoint[];
-  /** Как выделить отрезок — пока он не выделен (на телефоне жест неочевиден). */
-  hint?: string;
-}> = (
-  { store, points, hint },
+/**
+ * Свод под графиком: сначала — на сколько изменилась цена, крупно; ниже —
+ * между какими датами и ценами, мелко. Глаз ищет результат, а не даты.
+ */
+export const SpanSummary: React.FC<{ store: SpanStore; points: readonly SpanPoint[] }> = (
+  { store, points },
 ) => {
   const live = useSpan(store);
   const span = live ? priceSpan(points, live.fromDate, live.toDate) : null;
-  if (!span) return hint ? <p className="pc-span-hint">{hint}</p> : null;
+  if (!span) return null;
 
   const up = span.delta >= 0;
+  const sign = up ? '+' : '−';
   return (
     <div className="pc-span">
-      <span>{humanDate(span.from.date)} <b>{rub(span.from.price)} ₽</b></span>
-      <span className="pc-span-arrow">→</span>
-      <span>{humanDate(span.to.date)} <b>{rub(span.to.price)} ₽</b></span>
-      <span className={up ? 'pc-up' : 'pc-down'}>
-        <b>
-          {up ? '+' : '−'}{rub(Math.abs(span.delta))} ₽
-          {span.change !== null && ` · ${up ? '+' : '−'}${
-            (Math.abs(span.change) * 100).toLocaleString('ru-RU', {
-              minimumFractionDigits: 2, maximumFractionDigits: 2,
-            })}%`}
-        </b>
+      <span className={`pc-span-change ${up ? 'pc-up' : 'pc-down'}`}>
+        <b>{sign}{rub(Math.abs(span.delta))} ₽</b>
+        {span.change !== null && (
+          <b>{sign}{(Math.abs(span.change) * 100).toLocaleString('ru-RU', {
+            minimumFractionDigits: 2, maximumFractionDigits: 2,
+          })}%</b>
+        )}
+      </span>
+      <span className="pc-span-dates">
+        {humanDate(span.from.date)} · {rub(span.from.price)} ₽
+        <span className="pc-span-arrow"> → </span>
+        {humanDate(span.to.date)} · {rub(span.to.price)} ₽
       </span>
       <span className="pc-span-aside">
         {span.days} торг. дн. · в отрезке {rub(span.min)} — {rub(span.max)} ₽

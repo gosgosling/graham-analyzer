@@ -326,20 +326,20 @@ function SieveView({ data, standard }: { data: MarketScreenOut; standard: string
 
         {groups.one.length > 0 && (
           <section className="sc-sec">
-            <h2>Не хватило одного <span>— {groups.one.length}</span></h2>
+            <h2>Не прошли одно требование <span>— {groups.one.length}</span></h2>
             <ul className="sc-list">{groups.one.map(missRow)}</ul>
           </section>
         )}
 
         {groups.two.length > 0 && (
           <section className="sc-sec">
-            <h2>Не хватило двух <span>— {groups.two.length}</span></h2>
+            <h2>Не прошли два требования <span>— {groups.two.length}</span></h2>
             <ul className="sc-list">{groups.two.map(missRow)}</ul>
           </section>
         )}
 
         <section className="sc-sec">
-          <h2>Не хватило трёх и больше <span>— {groups.rest.length}</span></h2>
+          <h2>Не прошли три требования и больше <span>— {groups.rest.length}</span></h2>
           <p className="sc-empty">
             Все компании по всем требованиям — в <Link to="?view=table">полной таблице</Link>.
           </p>
