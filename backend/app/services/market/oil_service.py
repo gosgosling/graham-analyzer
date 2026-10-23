@@ -83,21 +83,27 @@ def refresh(db: Session) -> int:
     return total
 
 
-def oil_series(db: Session, since: Optional[date] = None) -> list[tuple[date, float, Optional[float]]]:
-    """(дата, Brent $, курс ₽/$) по дням Brent. Курс — последний известный
-    на эту дату: ЦБ по выходным не устанавливает, а Brent в праздники РФ есть."""
-    def load(code):
-        q = db.query(MarketIndexValue.date, MarketIndexValue.close).filter(MarketIndexValue.code == code)
+def priced_series(db: Session, code: str, since: Optional[date] = None) -> list[tuple[date, float, Optional[float]]]:
+    """(дата, значение в $, курс ₽/$) по дням ряда `code`. Курс — последний
+    известный на эту дату: ЦБ по выходным не устанавливает, а Brent в
+    праздники РФ есть. Тем же путём идёт и месячное сырьё (commodity_service)."""
+    def load(code_):
+        q = db.query(MarketIndexValue.date, MarketIndexValue.close).filter(MarketIndexValue.code == code_)
         if since is not None:
-            # Курс берём с запасом назад, чтобы у первого дня Brent он был.
-            q = q.filter(MarketIndexValue.date >= (since - timedelta(days=14) if code == USDRUB else since))
+            # Курс берём с запасом назад, чтобы у первого дня ряда он был.
+            q = q.filter(MarketIndexValue.date >= (since - timedelta(days=14) if code_ == USDRUB else since))
         return [(d, float(v)) for d, v in q.order_by(MarketIndexValue.date)]
 
-    brent, fx = load(BRENT), load(USDRUB)
+    values, fx = load(code), load(USDRUB)
     out, j, rate = [], 0, None
-    for day, price in brent:
+    for day, price in values:
         while j < len(fx) and fx[j][0] <= day:
             rate = fx[j][1]
             j += 1
         out.append((day, price, rate))
     return out
+
+
+def oil_series(db: Session, since: Optional[date] = None) -> list[tuple[date, float, Optional[float]]]:
+    """(дата, Brent $, курс ₽/$) по дням Brent."""
+    return priced_series(db, BRENT, since)

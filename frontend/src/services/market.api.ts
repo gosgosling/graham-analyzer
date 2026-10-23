@@ -208,3 +208,22 @@ export interface OilOut {
 
 export const fetchOil = async (): Promise<OilOut> =>
   (await api.get<OilOut>('/market/oil')).data;
+
+/** Сырьё для графика цены: ключи — в utils/commodities. */
+export interface CommodityOut {
+  key: string;
+  label: string;
+  /** «$/т», «$/унц.», «индекс». */
+  unit: string;
+  /** Индекс, а не цена: в рубли не переводится. */
+  index: boolean;
+  source: string;
+  /** Месячный ряд: [первое число месяца, значение в $, курс ₽/$]. */
+  points: [string, number, number | null][];
+  /** Дневной биржевой ряд [день, значение в $, курс ₽/$]; пустой, если его нет. */
+  daily: [string, number, number | null][];
+  daily_source: string | null;
+}
+
+export const fetchCommodity = async (key: string): Promise<CommodityOut> =>
+  (await api.get<CommodityOut>(`/market/commodity/${key}`)).data;

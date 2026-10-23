@@ -84,6 +84,12 @@ def _daily_price_update() -> None:
 
         logger.info("Нефть и курс обновлены: %d строк", refresh_oil(db))
 
+        # Газ, СПГ, удобрения, золото, алмазы — помесячно, для графика
+        # сырьевых компаний.
+        from app.services.market.commodity_service import refresh as refresh_commodities
+
+        logger.info("Сырьё обновлено: %d строк", refresh_commodities(db))
+
         # Логотипы — свои копии вместо CDN Т-Банка; качаются только недостающие.
         from app.models.company import Company
         from app.services.companies import logo_cache

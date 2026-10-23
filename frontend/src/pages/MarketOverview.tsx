@@ -11,7 +11,7 @@ import { createSpanStore, type SpanStore } from '../components/priceSpanStore';
 import '../components/PriceChart.css';
 import PeriodChipList from '../components/PeriodChipList';
 import { PHONE_QUERY, useMediaQuery } from '../hooks/useMediaQuery';
-import { useTwoFingerSpan } from '../hooks/useTwoFingerSpan';
+import { useSpanMark, useTwoFingerSpan } from '../hooks/useTwoFingerSpan';
 import './MarketOverview.css';
 
 /**
@@ -202,6 +202,7 @@ function IndexChart({ data, range }: { data: Overview; range: string }) {
     return () => cancelAnimationFrame(frame);
   }, [measure, view, scale, spanStore]);
   useTwoFingerSpan(canvas, view?.points, spanStore, isPhone, measure);
+  useSpanMark(canvas, spanStore, view);
 
   if (!view) return <div className="mo-state">Истории индексов нет.</div>;
   const long = years === null || years >= 5;

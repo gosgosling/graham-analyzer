@@ -11,7 +11,10 @@ import type { SpanStore } from '../components/priceSpanStore';
  * положение SVG.
  */
 export function plotArea(box: HTMLElement): { left: number; top: number; width: number; height: number } | null {
-  const svg = box.querySelector('svg.recharts-surface');
+  // Основной график — прямой потомок обёртки; у слоя наложения (если он
+  // есть) своё поле той же формы, но мерить надо основное.
+  const svg = box.querySelector(':scope > .recharts-responsive-container svg.recharts-surface')
+    ?? box.querySelector('svg.recharts-surface');
   const rect = svg?.querySelector('clipPath rect');
   if (!svg || !rect) return null;
   const num = (name: string) => Number(rect.getAttribute(name)) || 0;
@@ -77,20 +80,34 @@ export function useTwoFingerSpan(
       onBegin?.();
       onTwo(e);
     };
-    // Пока отрезок выделен, подсказка по дню прячется: два пальца на
-    // графике — это вопрос «сколько между», а не «сколько в этот день», и
-    // плашка поверх только заслоняла бы отрезок. Класс ставится на обёртку
-    // напрямую — перерисовывать ради него график незачем.
-    const mark = () => box.classList.toggle('has-span', store.get() !== null);
-    const unsubscribe = store.subscribe(mark);
-    mark();
     box.addEventListener('touchstart', onStart, { passive: false });
     box.addEventListener('touchmove', onTwo, { passive: false });
     return () => {
-      unsubscribe();
-      box.classList.remove('has-span');
       box.removeEventListener('touchstart', onStart);
       box.removeEventListener('touchmove', onTwo);
     };
   }, [canvas, points, store, enabled, onBegin]);
+}
+
+/**
+ * Класс `has-span` на обёртке графика, пока выделен отрезок — пальцами или
+ * мышью. По нему CSS прячет подсказку по дню: выделение — вопрос «сколько
+ * между», а не «сколько в этот день», и окно цены поверх только заслоняло
+ * отрезок. Подсказка нужна для одной точки — она вернётся, как только
+ * выделение снимут. Класс ставится на обёртку напрямую: перерисовывать ради
+ * него график незачем.
+ */
+export function useSpanMark(canvas: RefObject<HTMLDivElement | null>, store: SpanStore, ready: unknown) {
+  useEffect(() => {
+    const box = canvas.current;
+    if (!box) return undefined;
+    const mark = () => box.classList.toggle('has-span', store.get() !== null);
+    const unsubscribe = store.subscribe(mark);
+    mark();
+    return () => {
+      unsubscribe();
+      box.classList.remove('has-span');
+    };
+    // ready — обёртка появляется только после загрузки данных графика.
+  }, [canvas, store, ready]);
 }
