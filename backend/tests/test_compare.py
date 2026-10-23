@@ -36,3 +36,28 @@ def test_свод_и_оценка():
 
 def test_одной_компании_сравнивать_не_с_чем():
     assert comment([card("А", pe=5)]) == []
+
+
+def test_снимок_уже_в_рублях_и_второй_раз_не_переводится(monkeypatch):
+    """Норникель отчитывается в долларах. Снимок «на сегодня» приходит уже в
+    рублях, и раньше сравнение умножало его на курс ещё раз — выручка
+    выходила 84 трлн ₽ вместо 1,08 трлн."""
+    from types import SimpleNamespace
+
+    from app.services.analysis import compare, multiplier_service, screen, screen_axes
+
+    snapshot = {"ltm_revenue": 1_076_634.0, "ltm_net_income": 152_307.0, "ltm_fcf": 136_818.0,
+                "equity": 885_213.0, "net_debt": 683_467.0, "shares_used": 15_286_339_700,
+                "balance_report_id": 1393}
+    monkeypatch.setattr(multiplier_service, "calculate_current_multipliers", lambda **_: snapshot)
+    monkeypatch.setattr(screen_axes, "load", lambda db, c: [])
+    monkeypatch.setattr(screen, "profile_for", lambda db, c: SimpleNamespace(key="default"))
+    monkeypatch.setattr(screen, "apply", lambda *a, **k: SimpleNamespace(verdicts=[]))
+    monkeypatch.setattr(compare, "_eps_by_year", lambda db, c: {})
+    company = SimpleNamespace(id=80, ticker="GMKN", name="Норникель", brand_logo_url=None)
+
+    row = compare.company_card(db=None, company=company, summary_fn=lambda _id: {})
+
+    assert row["revenue"] == 1_076_634.0
+    assert row["net_debt"] == 683_467.0
+    assert round(row["book_per_share"], 1) == 57.9   # 885 млрд ₽ на 15,3 млрд акций
