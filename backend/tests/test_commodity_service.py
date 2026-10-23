@@ -75,3 +75,14 @@ def test_daily_series_converted_by_last_known_rate():
     fx = [(date(2024, 1, 2), 1.1), (date(2024, 1, 4), 1.2)]
     # 1 января курса ещё нет — день пропущен; 5-го берётся курс 4-го.
     assert _with_fx(rows, fx) == [(date(2024, 1, 2), 31.0 * 1.1), (date(2024, 1, 5), 32.0 * 1.2)]
+
+
+def test_westmetall_table_parsed_cash_settlement_first_column():
+    from app.services.market.commodity_service import parse_westmetall
+
+    html = """<table><tr><th>date</th><th>LME Nickel Cash-Settlement</th><th>3-month</th></tr>
+    <tr><td>22. October 2026</td><td>15,935.00</td><td>16,135.00</td></tr>
+    <tr><td>21. October 2026</td><td>-</td><td>16,040.00</td></tr>
+    <tr><td>02. January 2026</td><td>16,765.00</td><td>16,915.00</td></tr></table>"""
+    # Строка без цены пропущена, порядок — по дате.
+    assert parse_westmetall(html) == [(date(2026, 1, 2), 16765.0), (date(2026, 10, 22), 15935.0)]

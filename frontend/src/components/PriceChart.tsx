@@ -176,6 +176,11 @@ const rub = (value: number) => formatPerShare(value);
 /** Подпись у края поля: у дорогой бумаги копейки — шум. */
 const edgeLabel = (value: number) => (Math.abs(value) >= 100 ? ru(value) : rub(value));
 
+/** Изменение в процентах: «+12,3%», «−4%», «0%». */
+const pctText = (v: number) => (Math.abs(v) < 0.05
+  ? '0%'
+  : `${v > 0 ? '+' : '−'}${ru(Math.abs(v), Math.abs(v) < 10 ? 1 : 0)}%`);
+
 /** Дата точки, над которой курсор. `null`, пока recharts её не определил. */
 const pointAt = (e: unknown): string | null => {
   const at = (e as { activeLabel?: string | number } | null)?.activeLabel;
@@ -293,10 +298,11 @@ const pillWidth = (text: string) => Math.round(text.length * 6.6 + 12);
 function PhonePriceTick(props: {
   x?: number; y?: number; payload?: { value: number };
   current: number; colors: ReturnType<typeof useChartColors>;
+  format?: (v: number) => string;
 }) {
-  const { x = 0, y = 0, payload, current, colors } = props;
+  const { x = 0, y = 0, payload, current, colors, format = edgeLabel } = props;
   if (!payload) return null;
-  const text = edgeLabel(payload.value);
+  const text = format(payload.value);
   if (payload.value !== current) {
     return (
       <text x={x + 6} y={y} dy={4} textAnchor="start" fill={colors.axis} fontSize={11}>{text}</text>
@@ -644,10 +650,12 @@ function buildLayer(
  * график, а значение наложения он берёт из layerRef.
  */
 const OverlayLayer = React.memo(function OverlayLayer({
-  points, bounds, colors, isPhone, leftWidth, rightWidth, format,
+  points, bounds, colors, isPhone, leftWidth, rightWidth, format, shared = false,
 }: {
   points: LayerPoint[];
   bounds: [number, number] | null;
+  /** Режим «в %»: шкала общая с ценой, свои подписи не нужны. */
+  shared?: boolean;
   colors: ReturnType<typeof useChartColors>;
   isPhone: boolean;
   leftWidth: number;
@@ -671,7 +679,7 @@ const OverlayLayer = React.memo(function OverlayLayer({
             mirror
             axisLine={false}
             tickLine={false}
-            tick={{ fill: colors.line4, fontSize: 11 }}
+            tick={shared ? false : { fill: colors.line4, fontSize: 11 }}
             tickFormatter={format}
             domain={bounds ?? ['auto', 'auto']}
             allowDataOverflow
@@ -696,7 +704,80 @@ const OverlayLayer = React.memo(function OverlayLayer({
 });
 
 /** Ширина правой оси цены на телефоне — под плашку текущей цены. */
-const phoneAxisWidth = (view: ChartView) => Math.max(...phoneTicksOf(view).map((v) => pillWidth(edgeLabel(v)))) + 6;
+const phoneAxisWidth = (view: ChartView, format: (v: number) => string = edgeLabel) =>
+  Math.max(...phoneTicksOf(view).map((v) => pillWidth(format(v)))) + 6;
+
+/**
+ * Режим «в %»: цена (и уровни) — изменение от первого дня окна, как
+ * процентная шкала в TradingView. Так цена акции и цена сырья встают на одну
+ * шкалу и сравниваются ходом, а не рублями против долларов.
+ */
+function toPctView(view: ChartView): ChartView {
+  const base = view.points[0]?.price;
+  if (!base) return view;
+  const pc = (v: unknown) => (typeof v === 'number' ? (v / base - 1) * 100 : v);
+  const points = view.points.map((p) => {
+    const raw = p as unknown as Record<string, unknown>;
+    const below = raw.below as [number, number] | null | undefined;
+    return {
+      ...p,
+      price: pc(p.price) as number,
+      price_abs: p.price,
+      reference: pc(raw.reference),
+      fair: pc(raw.fair),
+      below: below ? [pc(below[0]), pc(below[1])] : below,
+    } as unknown as PricePoint;
+  });
+  return {
+    ...view,
+    points,
+    average: pc(view.average) as number,
+    min: pc(view.min) as number,
+    max: pc(view.max) as number,
+    first: points[0],
+    last: points[points.length - 1],
+  };
+}
+
+/** Слой в режиме «в %»: от первого дня окна, где у ряда есть значение. */
+function toPctLayer(layer: Layer): Layer {
+  const base = layer.points.find((p) => p.v !== undefined)?.v;
+  if (!base) return layer;
+  const pc = (v: number) => (v / base - 1) * 100;
+  const values = new Map<string, number>();
+  layer.values.forEach((v, d) => values.set(d, pc(v)));
+  return {
+    ...layer,
+    points: layer.points.map((p) => (p.v === undefined ? p : { date: p.date, v: pc(p.v) })),
+    values,
+    bounds: null,
+    axisFormat: pctText,
+  };
+}
+
+/** Круглые засечки процентной шкалы: шаг 5, 10, 20, 25, 50… и всегда ноль. */
+function pctTicks([lo, hi]: [number, number]): number[] {
+  const raw = (hi - lo) / 5;
+  const mag = 10 ** Math.floor(Math.log10(raw || 1));
+  const step = [1, 2, 2.5, 5, 10].map((k) => k * mag).find((x) => x >= raw) ?? 10 * mag;
+  const out: number[] = [];
+  for (let v = Math.ceil(lo / step) * step; v <= hi; v += step) out.push(Math.round(v * 100) / 100);
+  return out;
+}
+
+/** Общая шкала цены и слоя в режиме «в %» — по всем видимым линиям, с полями. */
+function sharedDomain(view: ChartView, layer: Layer, keys: string[]): [number, number] {
+  const all: number[] = [];
+  view.points.forEach((p) => {
+    const raw = p as unknown as Record<string, unknown>;
+    keys.forEach((k) => { if (typeof raw[k] === 'number') all.push(raw[k] as number); });
+  });
+  layer.points.forEach((p) => { if (p.v !== undefined) all.push(p.v); });
+  const lo = Math.min(...all);
+  const hi = Math.max(...all);
+  const pad = (hi - lo) * 0.05 || 1;
+  return [Math.floor(lo - pad), Math.ceil(hi + pad)];
+}
 
 /**
  * На телефоне на оси цены две подписи — минимум окна и текущая, как у
@@ -719,9 +800,12 @@ const phoneTicksOf = (view: ChartView) => (Math.abs(view.last.price - view.min) 
  */
 const MainChart = React.memo(function MainChart({
   view, colors, isPhone, hasLevels, events,
-  spanStore, measureBand, drag, canvasLeft, layerRef, hiddenRef,
+  spanStore, measureBand, drag, canvasLeft, layerRef, hiddenRef, pct = false, domain,
 }: {
   view: ChartView;
+  /** Режим «в %»: цена — изменение от начала окна, шкала общая со слоем. */
+  pct?: boolean;
+  domain?: [number, number];
   colors: ReturnType<typeof useChartColors>;
   isPhone: boolean;
   hasLevels: boolean;
@@ -750,6 +834,7 @@ const MainChart = React.memo(function MainChart({
   const phoneDateTicks = (view.ticks.length > 5 ? view.ticks.filter((_, i) => i % 2 === 1) : view.ticks)
     .filter((d) => view.points.findIndex((p) => p.date === d) >= edge);
   const phoneTicks = phoneTicksOf(view);
+  const fmt = pct ? pctText : edgeLabel;
   return (
         <ResponsiveContainer width="100%" height={isPhone ? 300 : 320}>
           <ComposedChart
@@ -817,27 +902,32 @@ const MainChart = React.memo(function MainChart({
               <YAxis
                 yAxisId="price"
                 orientation="right"
-                width={Math.max(...phoneTicks.map((v) => pillWidth(edgeLabel(v)))) + 6}
+                width={Math.max(...phoneTicks.map((v) => pillWidth(fmt(v)))) + 6}
                 axisLine={false}
                 tickLine={false}
                 tickSize={0}
                 tickMargin={4}
                 ticks={phoneTicks}
                 interval={0}
-                tick={<PhonePriceTick current={view.last.price} colors={colors} />}
-                domain={['auto', 'auto']}
+                tick={<PhonePriceTick current={view.last.price} colors={colors} format={fmt} />}
+                domain={domain ?? ['auto', 'auto']}
+                allowDataOverflow={!!domain}
               />
             ) : (
               <YAxis
                 yAxisId="price"
                 tick={{ fill: colors.axis, fontSize: 11 }}
-                tickFormatter={(v: number) => rub(v)}
-                domain={['auto', 'auto']}
+                tickFormatter={(v: number) => (pct ? pctText(v) : rub(v))}
+                ticks={pct && domain ? pctTicks(domain) : undefined}
+                domain={domain ?? ['auto', 'auto']}
+                allowDataOverflow={!!domain}
                 width={view.pennyScale ? 74 : 58}
                 stroke={colors.grid}
               />
             )}
 
+            {/* Ноль — день, от которого считаются проценты. */}
+            {pct && <ReferenceLine yAxisId="price" y={0} stroke={colors.axis} strokeDasharray="3 3" />}
             {view.traps.map(([from, till]) => (
               <ReferenceArea
                 key={from}
@@ -927,7 +1017,7 @@ const MainChart = React.memo(function MainChart({
               fill={colors.line1}
               stroke={colors.dotStroke}
               strokeWidth={2}
-              label={isPhone ? undefined : { value: edgeLabel(view.last.price), position: priceOnTop ? 'top' : 'bottom', fill: colors.textPrimary, fontSize: 11, fontWeight: 600 }}
+              label={isPhone ? undefined : { value: fmt(view.last.price), position: priceOnTop ? 'top' : 'bottom', fill: colors.textPrimary, fontSize: 11, fontWeight: 600 }}
             />
             {!isPhone && hasLevels && lastReference !== null && (
               <ReferenceDot
@@ -936,7 +1026,7 @@ const MainChart = React.memo(function MainChart({
                 x={view.last.date}
                 y={lastReference}
                 r={0}
-                label={{ value: edgeLabel(lastReference), position: priceOnTop ? 'bottom' : 'top', fill: colors.refLine, fontSize: 11, fontWeight: 600, className: 'pc-s-ref' }}
+                label={{ value: fmt(lastReference), position: priceOnTop ? 'bottom' : 'top', fill: colors.refLine, fontSize: 11, fontWeight: 600, className: 'pc-s-ref' }}
               />
             )}
 
@@ -965,7 +1055,7 @@ const MainChart = React.memo(function MainChart({
                     payload={visibleRows(withLayerRow(props.payload, props.label, layerRef.current, colors))}
                     colors={colors}
                     format={(v, name) => (name === 'Цена' || name === 'Опорная' || name === 'Справедливая'
-                      ? `${edgeLabel(v)} ₽`
+                      ? (pct ? pctText(v) : `${edgeLabel(v)} ₽`)
                       : name === layerRef.current?.label
                         ? layerRef.current.format(v)
                         : ru(v, 2))}
@@ -991,7 +1081,12 @@ const MainChart = React.memo(function MainChart({
                 const label = String(name ?? '');
                 const num = typeof value === 'number' ? value : null;
                 if (num === null) return ['—', label];
-                if (label === 'Цена') return [`${rub(num)} ₽`, label];
+                if (label === 'Цена') {
+                  if (!pct) return [`${rub(num)} ₽`, label];
+                  const abs = (item?.payload as { price_abs?: number } | undefined)?.price_abs;
+                  return [`${pctText(num)}${abs !== undefined ? ` (${rub(abs)} ₽)` : ''}`, label];
+                }
+                if (pct && (label === 'Справедливая' || label === 'Опорная')) return [pctText(num), label];
                 if (label === 'Справедливая' || label === 'Опорная') {
                   const payload = item?.payload as
                     { basis_label?: string; basis_rate?: number; basis_rate_source?: string } | undefined;
@@ -1040,6 +1135,8 @@ export default function PriceChart({ companyId, oil = false, commodities = [] }:
   const [overlay, setOverlay] = useState<Overlay | null>(null);
   // Нефть и сырьё: в долларах или рублях; Urals — Brent минус дисконт.
   const [oilRub, setOilRub] = useState(false);
+  // Сравнение цены акции и сырья в процентах от начала окна.
+  const [pct, setPct] = useState(false);
   const [urals, setUrals] = useState(false);
   const [discount, setDiscount] = useState<number>(readDiscount);
   const [shown, setShown] = useState<Set<ValueKey>>(new Set<ValueKey>(['reference']));
@@ -1140,6 +1237,16 @@ export default function PriceChart({ companyId, oil = false, commodities = [] }:
       discount: overlay === 'oil' && urals ? discount : 0,
     })
     : null), [view, overlay, oilData, commodityData, oilRub, urals, discount]);
+  // «В %» имеет смысл только для цены сырья: множитель в процентах от
+  // начала окна ничего не говорит.
+  const pctOn = pct && (overlay === 'oil' || isCommodity(overlay)) && layer !== null;
+  const shownLayer = useMemo(() => (pctOn && layer ? toPctLayer(layer) : layer), [pctOn, layer]);
+  const shownView = useMemo(() => (pctOn && view ? toPctView(view) : view), [pctOn, view]);
+  const domainKeys = ['price', ...(shown.has('reference') ? ['reference'] : []), ...(shown.has('fair') ? ['fair'] : [])].join(',');
+  const domain = useMemo(
+    () => (pctOn && shownView && shownLayer ? sharedDomain(shownView, shownLayer, domainKeys.split(',')) : undefined),
+    [pctOn, shownView, shownLayer, domainKeys],
+  );
   const layerRef = useRef<LayerInfo | null>(null);
   const hiddenRef = useRef<Set<string>>(new Set());
 
@@ -1184,9 +1291,9 @@ export default function PriceChart({ companyId, oil = false, commodities = [] }:
   // свойство: основной график при смене наложения не перерисовывается, а
   // подсказка читает ref в момент показа.
   const mult = overlay === 'pe' || overlay === 'pb' ? overlay : null;
-  layerRef.current = overlay && layer ? {
+  layerRef.current = overlay && layer && shownLayer ? {
     label: overlayLabel ?? '',
-    values: layer.values,
+    values: shownLayer.values,
     format: mult
       ? (v, point) => {
         const off = layer.bounds && v > layer.bounds[1] ? ' — за шкалой' : '';
@@ -1194,7 +1301,7 @@ export default function PriceChart({ companyId, oil = false, commodities = [] }:
         // читается как сбой данных, а не как выход отчётности.
         return `${ru(v, 2)}${point?.basis_year ? ` (по отчёту ${point.basis_year})` : ''}${off}`;
       }
-      : priceText,
+      : pctOn ? pctText : priceText,
     gapOf: mult ? (p) => (p[mult] === null ? (mult === 'pe' ? p.pe_gap : p.pb_gap) ?? null : null) : undefined,
   } : null;
   // Уровни, которые есть чем нарисовать. Сегодняшняя величина берётся из
@@ -1291,19 +1398,22 @@ export default function PriceChart({ companyId, oil = false, commodities = [] }:
         <SpanBand store={spanStore} top={band.top} bottom={band.bottom} />
         {/* Наложение — под основным графиком, своим слоем: включение P/E или
             цены сырья не трогает основной график (см. OverlayLayer). */}
-        {overlay && layer && (
+        {overlay && shownLayer && shownView && (
           <OverlayLayer
-            points={layer.points}
-            bounds={layer.bounds}
+            points={shownLayer.points}
+            bounds={domain ?? shownLayer.bounds}
+            shared={pctOn}
             colors={colors}
             isPhone={isPhone}
             leftWidth={view.pennyScale ? 74 : 58}
-            rightWidth={phoneAxisWidth(view)}
-            format={layer.axisFormat}
+            rightWidth={phoneAxisWidth(shownView, pctOn ? pctText : edgeLabel)}
+            format={shownLayer.axisFormat}
           />
         )}
         <MainChart
-          view={view}
+          view={shownView ?? view}
+          pct={pctOn}
+          domain={domain}
           colors={colors}
           isPhone={isPhone}
           hasLevels={hasLevels}
@@ -1412,8 +1522,22 @@ export default function PriceChart({ companyId, oil = false, commodities = [] }:
       {overlay && (
         <div className="pc-oil" role="group" aria-label="Наложение на графике">
           <span className="pc-key pc-layer-key">
-            <i className="pc-key-line" style={{ background: colors.line4 }} />{overlayLabel} — шкала слева внутри поля
+            <i className="pc-key-line" style={{ background: colors.line4 }} />
+            {overlayLabel}{pctOn ? ' и цена акции — в % от начала окна' : ' — шкала слева внутри поля'}
           </span>
+          {/* Переключатель «в %» — здесь, в строке наложения: он нужен только
+              при включённом сырье, и над графиком места ему не отнимаем. */}
+          {(overlay === 'oil' || isCommodity(overlay)) && (
+            <button
+              type="button"
+              className={`pc-btn pc-btn--small${pct ? ' is-on' : ''}`}
+              aria-pressed={pct}
+              onClick={() => setPct((v) => !v)}
+              title="Цена акции и сырья — изменение в процентах от первого дня окна, на одной шкале"
+            >
+              Сравнить в %
+            </button>
+          )}
           {(overlay === 'oil' || (commodityData && !commodityData.index)) && (
           <span className="pc-oil-seg">
             <button type="button" className={`pc-btn pc-btn--small${!oilRub ? ' is-on' : ''}`} onClick={() => setOilRub(false)}>в долларах</button>
@@ -1454,7 +1578,9 @@ export default function PriceChart({ companyId, oil = false, commodities = [] }:
       {commodityKey && commodityData && !isPhone && (
         <p className="pc-note">
           {commodityData.daily?.length
-            ? <>Дневные закрытия: {commodityData.daily_source}, с {humanDate(commodityData.daily[0][0])}; раньше — месячные средние Всемирного банка.</>
+            ? <>Дневные закрытия: {commodityData.daily_source}, с {humanDate(commodityData.daily[0][0])}
+              {commodityData.points.length > 0 && commodityData.daily[0][0].slice(0, 7) > commodityData.points[0][0].slice(0, 7)
+                ? '; раньше — месячные средние Всемирного банка.' : '.'}</>
             : <>{commodityData.source} — дневного биржевого ряда в открытом доступе нет.</>}
           {' '}В рублях — по курсу ЦБ.
         </p>

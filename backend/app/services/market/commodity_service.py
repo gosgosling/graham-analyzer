@@ -5,8 +5,12 @@
 него:
 
 * дневные — закрытия ближних фьючерсов из Yahoo Finance: золото (COMEX
-  GC), газ в Европе (TTF), СПГ в Азии (JKM), карбамид (CBOT, US Gulf).
+  GC), палладий (NYMEX PA), газ в Европе (TTF), СПГ в Азии (JKM), карбамид
+  (CBOT, US Gulf).
   Ряды начинаются в разные годы: TTF — с 2017-го, карбамид — с 2020-го;
+* никель и медь — официальные цены LME (cash-settlement) по дням с 2008
+  года, из публичных годовых таблиц Westmetall: у Yahoo никеля нет, а LME
+  — ориентир, по которому продаёт Норникель;
 * месячные — «Pink Sheet» Всемирного банка (CMO-Historical-Data-Monthly.xlsx):
   средние цены за месяц. Для DAP и хлористого калия бесплатного дневного
   ряда нет — у них только месячный;
@@ -30,6 +34,7 @@ import csv
 import io
 import logging
 import re
+import time
 import xml.etree.ElementTree as ET
 import zipfile
 from dataclasses import dataclass
@@ -49,6 +54,7 @@ logger = logging.getLogger(__name__)
 _WB_PAGE = "https://www.worldbank.org/en/research/commodity-markets"
 _FRED = "https://fred.stlouisfed.org/graph/fredgraph.csv"
 _YAHOO = "https://query1.finance.yahoo.com/v8/finance/chart/"
+_WESTMETALL = "https://www.westmetall.com/en/markdaten.php"
 _UA = {"User-Agent": "Mozilla/5.0 (graham-analyzer)"}
 FIRST_MONTH = date(2013, 1, 1)
 
@@ -79,6 +85,8 @@ class Commodity:
     yahoo: Optional[str] = None
     #: Множитель к дневному значению (перевод единиц).
     daily_scale: float = 1.0
+    #: Дневной ряд LME в таблицах Westmetall — поле вида LME_Ni_cash.
+    westmetall: Optional[str] = None
     #: Валютный ряд Yahoo, на который умножить дневное значение (€ → $).
     daily_fx: Optional[str] = None
     daily_source: Optional[str] = None
@@ -86,6 +94,10 @@ class Commodity:
     @property
     def code(self) -> str:
         return f"CMD_{self.key.upper()}"
+
+    @property
+    def has_daily(self) -> bool:
+        return bool(self.yahoo or self.westmetall)
 
     @property
     def daily_code(self) -> str:
@@ -114,6 +126,15 @@ COMMODITIES: dict[str, Commodity] = {c.key: c for c in (
     Commodity("gold", "Золото", "$/унц.",
               "Всемирный банк, Gold, среднее за месяц", wb_column="Gold",
               yahoo="GC=F", daily_source="COMEX (ближний фьючерс)"),
+    Commodity("nickel", "Никель", "$/т",
+              "Всемирный банк, Nickel, среднее за месяц", wb_column="Nickel",
+              westmetall="LME_Ni_cash", daily_source="LME, никель cash-settlement"),
+    Commodity("copper", "Медь", "$/т",
+              "Всемирный банк, Copper, среднее за месяц", wb_column="Copper",
+              westmetall="LME_Cu_cash", daily_source="LME, медь cash-settlement"),
+    # Палладия у Всемирного банка нет — только дневной ряд NYMEX.
+    Commodity("palladium", "Палладий", "$/унц.", "NYMEX, палладий",
+              yahoo="PA=F", daily_source="NYMEX (ближний фьючерс)"),
     Commodity("diamonds", "Алмазы, индекс цен", "индекс",
               "BLS, индекс импортных цен США на алмазы (FRED IP7102)",
               fred_id="IP7102", index=True),
@@ -251,6 +272,51 @@ def fetch_yahoo(symbol: str, since: date) -> list[tuple[date, float]]:
     return sorted(by_day.items())
 
 
+_MONTHS_EN = {m: i for i, m in enumerate(
+    ("January", "February", "March", "April", "May", "June", "July",
+     "August", "September", "October", "November", "December"), start=1)}
+
+
+def parse_westmetall(html: str) -> list[tuple[date, float]]:
+    """Строки годовой таблицы: «22. October 2026 | 15,935.00 | …» → (день,
+    первая цена — cash-settlement). Строки без цены («-») пропускаются."""
+    rows = []
+    for row in re.findall(r"<tr[^>]*>(.*?)</tr>", html, re.S):
+        cells = [re.sub(r"<[^>]+>", "", c).strip() for c in re.findall(r"<td[^>]*>(.*?)</td>", row, re.S)]
+        if len(cells) < 2:
+            continue
+        when = re.fullmatch(r"(\d{1,2})\.\s+([A-Za-z]+)\s+(\d{4})", cells[0])
+        if not when or when.group(2) not in _MONTHS_EN:
+            continue
+        try:
+            value = float(cells[1].replace(",", ""))
+        except ValueError:
+            continue
+        rows.append((date(int(when.group(3)), _MONTHS_EN[when.group(2)], int(when.group(1))), value))
+    return sorted(rows)
+
+
+def fetch_westmetall(field: str, since: date) -> list[tuple[date, float]]:
+    """Годовые таблицы LME с года `since` по текущий. Таблица за текущий год
+    — без параметра year; прошлые — по одной странице на год."""
+    rows: list[tuple[date, float]] = []
+    this_year = date.today().year
+    for year in range(max(since.year, 2008), this_year + 1):
+        params = {"action": "table", "field": field}
+        if year != this_year:
+            params["year"] = str(year)
+        try:
+            response = _moex_get(_WESTMETALL, headers=_UA, params=params, timeout=40)
+            response.raise_for_status()
+        except Exception as exc:  # noqa: BLE001 — сеть
+            logger.warning("Westmetall %s за %d не загрузился: %s", field, year, exc)
+            continue
+        rows += [r for r in parse_westmetall(response.text) if r[0] >= since]
+        if year != this_year:
+            time.sleep(1)  # по странице в секунду — чужой сайт, не нагружаем
+    return rows
+
+
 def _with_fx(rows: list[tuple[date, float]], fx: list[tuple[date, float]]) -> list[tuple[date, float]]:
     """Значение × последний известный на дату курс; без курса — пропуск."""
     out, j, rate = [], 0, None
@@ -289,11 +355,11 @@ def refresh_daily(db: Session) -> int:
     задним числом уточняют закрытие)."""
     total = 0
     for item in COMMODITIES.values():
-        if not item.yahoo:
+        if not item.has_daily:
             continue
         last = db.query(func.max(MarketIndexValue.date)).filter(MarketIndexValue.code == item.daily_code).scalar()
         since = FIRST_MONTH if last is None else last - timedelta(days=7)
-        rows = fetch_yahoo(item.yahoo, since)
+        rows = fetch_westmetall(item.westmetall, since) if item.westmetall else fetch_yahoo(item.yahoo, since)
         if item.daily_fx:
             # Курс — с запасом назад, чтобы у первого дня он был.
             rows = _with_fx(rows, fetch_yahoo(item.daily_fx, since - timedelta(days=14)))
@@ -309,4 +375,4 @@ def series(db: Session, key: str, since: Optional[date] = None) -> list[tuple[da
 def daily_series(db: Session, key: str, since: Optional[date] = None) -> list[tuple[date, float, Optional[float]]]:
     """Дневной биржевой ряд: (день, значение, курс ₽/$); пустой, если его нет."""
     item = COMMODITIES[key]
-    return priced_series(db, item.daily_code, since) if item.yahoo else []
+    return priced_series(db, item.daily_code, since) if item.has_daily else []
