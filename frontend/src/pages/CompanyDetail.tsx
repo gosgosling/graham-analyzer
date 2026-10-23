@@ -14,6 +14,7 @@ import {
 import { FinancialReport } from '../types';
 import MultipliersPanel from '../components/MultipliersPanel';
 import PriceChart from '../components/PriceChart';
+import { COMMODITIES_BY_TICKER } from '../utils/commodities';
 import ValuationTab from '../components/ValuationTab';
 import ConservativeCriteria from '../components/ConservativeCriteria';
 import StatementsSheet from '../components/StatementsSheet';
@@ -677,7 +678,8 @@ const CompanyDetail: React.FC = () => {
       <div className={`cd-overview ${tabbed('overview')}`}>
         <div className="cd-overview-main" ref={overviewMainRef}>
           {/* Нефть на графике — у энергетики: нефтяники, газовики, переработка. */}
-          <PriceChart companyId={company.id!} oil={company.sector === 'energy'} />
+          <PriceChart companyId={company.id!} oil={company.sector === 'energy'}
+            commodities={COMMODITIES_BY_TICKER[company.ticker ?? ''] ?? []} />
           {notesBelow && <AsideNotes verdict={verdict} oneOffs={oneOffs} wide />}
         </div>
         <aside className="ca" ref={asideRef}>

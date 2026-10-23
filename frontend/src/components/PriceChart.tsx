@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  Area, CartesianGrid, ComposedChart, Line, ReferenceArea, ReferenceDot, ReferenceLine,
-  ResponsiveContainer, Tooltip, XAxis, YAxis,
+  Area, CartesianGrid, ComposedChart, DefaultTooltipContent, Line, ReferenceArea, ReferenceDot, ReferenceLine,
+  ResponsiveContainer, Tooltip, XAxis, YAxis, type TooltipContentProps,
 } from 'recharts';
 import {
   fetchPriceHistory, LIVE_PRICE_REFRESH_MS, LIVE_PRICE_STALE_MS,
@@ -15,12 +15,13 @@ import {
   type ValuationSummaryOut,
 } from '../services/valuation.api';
 import { useChartColors } from '../contexts/ThemeContext';
-import { fetchOil, type OilOut } from '../services/market.api';
+import { fetchCommodity, fetchOil, type CommodityOut, type OilOut } from '../services/market.api';
+import { COMMODITY_BUTTON, isCommodity, type CommodityKey } from '../utils/commodities';
 import { formatPerShare } from '../utils/perShare';
 import { PHONE_QUERY, useMediaQuery } from '../hooks/useMediaQuery';
-import { plotArea, useTwoFingerSpan } from '../hooks/useTwoFingerSpan';
+import { plotArea, useSpanMark, useTwoFingerSpan } from '../hooks/useTwoFingerSpan';
 import { humanDate, SpanBand, SpanSummary } from './PriceSpanLayer';
-import { createSpanStore } from './priceSpanStore';
+import { createSpanStore, type SpanStore } from './priceSpanStore';
 import './PriceChart.css';
 
 /**
@@ -38,7 +39,7 @@ import './PriceChart.css';
  * значит нарисовать, что рынок знал её за год вперёд.
  */
 
-type Overlay = 'pe' | 'pb' | 'oil';
+type Overlay = 'pe' | 'pb' | 'oil' | CommodityKey;
 
 const OVERLAYS: { key: 'pe' | 'pb'; label: string; hint: string }[] = [
   { key: 'pe', label: 'P/E', hint: 'Цена к прибыли на акцию последнего опубликованного отчёта — без разовых статей, если аналитик их выделил' },
@@ -87,7 +88,9 @@ const RANGES: { key: string; label: string; years: number | null }[] = [
  * Прореживание идёт равномерным шагом и трогает только отрисовку — сводка,
  * средняя и границы считаются по всем точкам.
  */
-const MAX_POINTS = 1500;
+const MAX_POINTS = 1000;
+/** На телефоне поле в 360 пикселей — больше точек там глазу не различить. */
+const MAX_POINTS_PHONE = 450;
 
 /**
  * Во сколько раз шкала множителя может превышать его же медиану.
@@ -381,342 +384,379 @@ const readDiscount = (): number => {
   }
 };
 
-export default function PriceChart({ companyId, oil = false }: { companyId: number; oil?: boolean }) {
-  const colors = useChartColors();
-  const isPhone = useMediaQuery(PHONE_QUERY);
-  const [range, setRange] = useState('5y');
-  const [overlay, setOverlay] = useState<Overlay | null>(null);
-  // Нефть: в долларах или рублях; Urals — Brent минус дисконт.
-  const [oilRub, setOilRub] = useState(false);
-  const [urals, setUrals] = useState(false);
-  const [discount, setDiscount] = useState<number>(readDiscount);
-  const [shown, setShown] = useState<Set<ValueKey>>(new Set<ValueKey>(['reference']));
-  const [showEvents, setShowEvents] = useState(true);
-  // Протяжка держится в хранилище, а не в состоянии компонента: обновление
-  // сверху заставляет recharts пересчитать все серии, и на пяти линиях по
-  // тысяче точек это около 400 мс на движение мыши. Подписаны на хранилище
-  // только подсветка и строка свода — они и перерисовываются.
-  const spanStore = useRef(createSpanStore()).current;
-  const drag = useRef<{ pressed: boolean; fromX: number; fromDate: string } | null>(null);
-  // Вертикальные границы поля — чтобы подсветка не залезала на подписи оси.
-  const [band, setBand] = useState({ top: 8, bottom: 24 });
+/**
+ * Точки и сводка графика за выбранное окно. Наложения здесь нет — оно
+ * считается отдельно (buildLayer) и рисуется своим слоем, чтобы его
+ * включение не пересчитывало и не перерисовывало основной график.
+ */
+function buildView(
+  data: PriceHistoryOut | undefined,
+  history: ValuationHistoryOut | undefined,
+  range: string,
+  isPhone: boolean,
+) {
+  const raw = data?.points ?? [];
+  if (!raw.length) return null;
 
-  // Высота поля берётся из отрисованной сетки, а не из констант отступов:
-  // recharts считает место под подписи оси сам, и угадывать его значило бы
-  // промахиваться каждый раз, когда подпись станет длиннее.
-  const canvas = useRef<HTMLDivElement | null>(null);
-  const canvasLeft = useRef(0);
-  const measureBand = useCallback(() => {
-    const box = canvas.current;
-    const area = box && plotArea(box);
-    if (!box || !area) return;
-    canvasLeft.current = box.getBoundingClientRect().left;
-    const next = {
-      top: Math.max(0, Math.round(area.top)),
-      bottom: Math.max(0, Math.round(box.getBoundingClientRect().height - area.top - area.height)),
-    };
-    // Сравнение обязательно: без него каждое нажатие клало новый объект в
-    // состояние и перерисовывало весь график — ровно то, от чего уходим.
-    setBand((prev) => (prev.top === next.top && prev.bottom === next.bottom ? prev : next));
-  }, []);
-
-  // Оценка тянется отдельным запросом и графику не обязательна: без неё он
-  // рисуется как прежде, только без линий уровня.
-  const { data: valuation } = useQuery<ValuationSummaryOut>({
-    queryKey: ['valuation-summary', companyId],
-    queryFn: () => fetchValuationSummary(companyId),
-    staleTime: 10 * 60 * 1000,
-    enabled: Number.isFinite(companyId) && companyId > 0,
-  });
-
-  const { data: history } = useQuery<ValuationHistoryOut>({
-    queryKey: ['valuation-history', companyId],
-    queryFn: () => fetchValuationHistory(companyId),
-    staleTime: 30 * 60 * 1000,
-    enabled: Number.isFinite(companyId) && companyId > 0,
-  });
-
-  const { data: oilData } = useQuery<OilOut>({
-    queryKey: ['market-oil'],
-    queryFn: fetchOil,
-    staleTime: 60 * 60 * 1000,
-    enabled: oil && overlay === 'oil',
-  });
-
-  const { data, isLoading, error } = useQuery<PriceHistoryOut>({
-    queryKey: ['price-history', companyId],
-    queryFn: () => fetchPriceHistory(companyId),
-    staleTime: LIVE_PRICE_STALE_MS,
-    refetchInterval: LIVE_PRICE_REFRESH_MS,
-    enabled: Number.isFinite(companyId) && companyId > 0,
-  });
-
-  const view = useMemo(() => {
-    const raw = data?.points ?? [];
-    if (!raw.length) return null;
-
-    // Оценка приклеивается к дням цены. Отрезки идут подряд и не
-    // перекрываются, поэтому курсор просто едет вперёд вместе с датами — ровно
-    // так же, как множители считаются на бэкенде. День вне отрезков (раньше
-    // первого раскрытия или при отказе в оценке) остаётся без линии.
-    const marks = (history?.segments ?? [])
-      .filter((x) => !x.refused)
-      .sort((a, b) => a.from.localeCompare(b.from));
-    let cursor = -1;
-    const all = marks.length === 0 ? raw : raw.map((point) => {
-      while (cursor + 1 < marks.length && marks[cursor + 1].from <= point.date) {
-        cursor += 1;
-      }
-      const mark = cursor >= 0 && point.date < marks[cursor].till ? marks[cursor] : null;
-      const reference = mark?.reference ?? null;
-      return {
-        ...point,
-        fair: mark?.fair ?? null,
-        reference,
-        // Зона «цена ниже опорной» — пара [низ, верх] для заливки между
-        // линиями. Только при запасе от ZONE_MARGIN: мелкий запас окном
-        // входа не был, см. константу.
-        below: reference !== null && point.price <= reference * (1 - ZONE_MARGIN)
-          ? [point.price, reference] as [number, number]
-          : null,
-        basis_label: mark?.basis ?? null,
-        basis_rate: mark?.risk_free ?? null,
-        basis_rate_source: mark?.risk_free_source ?? null,
-      };
-    });
-
-    // Нефть приклеивается к дням цены так же — последним известным днём:
-    // Brent в праздники Мосбиржи торгуется, а в праздники Лондона — нет.
-    let base = all;
-    if (overlay === 'oil' && oilData?.points.length) {
-      const series = oilData.points;
-      let j = -1;
-      base = all.map((point) => {
-        while (j + 1 < series.length && series[j + 1][0] <= point.date) j += 1;
-        if (j < 0) return { ...point, oil: null };
-        const [, brent, rate] = series[j];
-        const usd = brent - (urals ? discount : 0);
-        return { ...point, oil: oilRub ? (rate ? usd * rate : null) : usd };
-      });
+  // Оценка приклеивается к дням цены. Отрезки идут подряд и не
+  // перекрываются, поэтому курсор просто едет вперёд вместе с датами — ровно
+  // так же, как множители считаются на бэкенде. День вне отрезков (раньше
+  // первого раскрытия или при отказе в оценке) остаётся без линии.
+  const marks = (history?.segments ?? [])
+    .filter((x) => !x.refused)
+    .sort((a, b) => a.from.localeCompare(b.from));
+  let cursor = -1;
+  const all = marks.length === 0 ? raw : raw.map((point) => {
+    while (cursor + 1 < marks.length && marks[cursor + 1].from <= point.date) {
+      cursor += 1;
     }
-
-    const years = RANGES.find((r) => r.key === range)?.years ?? null;
-    let slice = base;
-    if (years !== null) {
-      const edge = new Date(base[base.length - 1].date);
-      edge.setFullYear(edge.getFullYear() - years);
-      const iso = edge.toISOString().slice(0, 10);
-      const cut = base.filter((p) => p.date >= iso);
-      // Окно шире имеющейся истории — показываем то, что есть, а не пустоту.
-      if (cut.length > 1) slice = cut;
-    }
-
-    const prices = slice.map((p) => p.price);
-    const average = prices.reduce((a, b) => a + b, 0) / prices.length;
-
-    // Прореживание — только для отрисовки. Крайние точки сохраняются всегда:
-    // без них у линии срезается начало или конец окна.
-    const step = Math.ceil(slice.length / MAX_POINTS);
-    const thin = step > 1
-      ? slice.filter((_, i) => i % step === 0 || i === slice.length - 1)
-      : slice;
-
-    const overlayValues = overlay
-      ? slice.map((p) => (p as unknown as Record<string, number | null>)[overlay]).filter((v): v is number => v != null && v > 0)
-      : [];
-    // У нефти потолка нет: это цена, а не множитель с провалами прибыли.
-    const bounds: [number, number] | null = overlay === 'oil'
-      ? (overlayValues.length ? [Math.floor(Math.min(...overlayValues) * 0.9), Math.ceil(Math.max(...overlayValues) * 1.05)] : null)
-      : multipleBounds(overlayValues);
-
-    // Значения выше потолка вырезаются из отрисовки. Прижимать их к краю
-    // нельзя: recharts рисует к границе вертикальный отрезок, и провал
-    // прибыли превращается в жёлтый столб во всю высоту поля — ровно то,
-    // ради чего потолок и ставился. Обрыв линии честнее: он показывает, что
-    // величина ушла за пределы шкалы, а число остаётся в подсказке.
-    const points = (overlay && overlay !== 'oil' && bounds)
-      ? thin.map((p) => {
-        const value = p[overlay];
-        if (value === null || value <= bounds[1]) return p;
-        // Ключ удаляется, а не обнуляется. `null` здесь не работает:
-        // recharts с `connectNulls={false}` всё равно прочитал его как ноль и
-        // увёл линию на дно поля — вместо обрыва получился отвес до нуля при
-        // шкале, начинающейся с трёх. Отсутствующий ключ он понимает верно.
-        const { [overlay]: _dropped, ...rest } = p;
-        return { ...rest, off_scale: value } as unknown as PricePoint;
-      })
-      : thin;
-
-    // Причины пропусков множителя в видимом окне. Пропуск без причины читается
-    // как сбой данных; причин же ровно три, и все — про компанию: убыток,
-    // нераскрытый отчёт, первый отчёт ещё не вышел.
-    const gaps = overlay && overlay !== 'oil'
-      ? Array.from(new Set(
-        slice
-          .filter((p) => p[overlay] === null)
-          .map((p) => (overlay === 'pe' ? p.pe_gap : p.pb_gap))
-          .filter((reason): reason is string => !!reason),
-      ))
-      : [];
-
+    const mark = cursor >= 0 && point.date < marks[cursor].till ? marks[cursor] : null;
+    const reference = mark?.reference ?? null;
     return {
-      points,
-      gaps,
-      average,
-      min: Math.min(...prices),
-      max: Math.max(...prices),
-      // Подпись на оси у копеечной бумаги длиннее обычной: «0,004365» против
-      // «1 271». В прежнюю ширину она не помещается и обрезается.
-      pennyScale: Math.max(...prices.map(Math.abs)) < 1,
-      first: slice[0],
-      last: slice[slice.length - 1],
-      change: slice[0].price > 0
-        ? (slice[slice.length - 1].price - slice[0].price) / slice[0].price
+      ...point,
+      fair: mark?.fair ?? null,
+      reference,
+      // Зона «цена ниже опорной» — пара [низ, верх] для заливки между
+      // линиями. Только при запасе от ZONE_MARGIN: мелкий запас окном
+      // входа не был, см. константу.
+      below: reference !== null && point.price <= reference * (1 - ZONE_MARGIN)
+        ? [point.price, reference] as [number, number]
         : null,
-      ticks: periodTicks(points, (years ?? 99) >= 3),
-      // Затенение считается по прореженным точкам: границы отрезков должны
-      // совпадать с категориями оси, иначе recharts их не нарисует.
-      traps: trapRuns(points),
-      overlayBounds: bounds,
-      offScale: overlay && overlay !== 'oil' && bounds
-        ? overlayValues.filter((v) => v > bounds[1]).length
-        : 0,
-      longRange: (years ?? 99) >= 3,
-      thinned: step > 1,
+      basis_label: mark?.basis ?? null,
+      basis_rate: mark?.risk_free ?? null,
+      basis_rate_source: mark?.risk_free_source ?? null,
     };
-  }, [data, history, range, overlay, oilData, oilRub, urals, discount]);
+  });
 
-  // Замер делается заранее, а не при первом нажатии: он меняет состояние, а
-  // значит перерисовывает график — 173 мс, и приходились они ровно на начало
-  // первой протяжки. Кадр ожидания нужен потому, что ResponsiveContainer
-  // измеряет себя сам и сетки в момент монтирования ещё нет.
-  useEffect(() => {
-    const frame = requestAnimationFrame(measureBand);
-    return () => cancelAnimationFrame(frame);
-  }, [measureBand, view]);
+  const base = all;
 
-  // Телефон: отрезок — двумя пальцами (см. хук).
-  useTwoFingerSpan(canvas, view?.points, spanStore, isPhone, measureBand);
-
-
-  if (isLoading) return <div className="pc-state">Загружаем историю цены…</div>;
-  if (error) return <div className="pc-state pc-state--error">Не удалось загрузить историю цены</div>;
-  if (!view) {
-    return (
-      <div className="pc-state">
-        Истории цены нет. Она докачивается из Мосбиржи сама — при старте сервера
-        и ежедневно в 19:00 МСК, от даты первого отчёта компании.
-      </div>
-    );
+  const years = RANGES.find((r) => r.key === range)?.years ?? null;
+  let slice = base;
+  if (years !== null) {
+    const edge = new Date(base[base.length - 1].date);
+    edge.setFullYear(edge.getFullYear() - years);
+    const iso = edge.toISOString().slice(0, 10);
+    const cut = base.filter((p) => p.date >= iso);
+    // Окно шире имеющейся истории — показываем то, что есть, а не пустоту.
+    if (cut.length > 1) slice = cut;
   }
 
-  const overlaySpec = OVERLAYS.find((o) => o.key === overlay);
-  const overlayLabel = overlay === 'oil'
-    ? `${urals ? `Urals ≈ Brent − ${ru(discount, 0)} $` : 'Brent'}, ${oilRub ? '₽' : '$'}/барр.`
-    : overlaySpec?.label;
-  // Уровни, которые есть чем нарисовать. Сегодняшняя величина берётся из
-  // свода — её видно в подсказке кнопки, — а линия рисуется рядом по годам.
-  const levels = (history?.segments ?? []).some((x) => !x.refused)
-    ? VALUES.map((spec) => ({
-      ...spec,
-      value: spec.key === 'fair'
-        ? valuation?.windows?.find((w) => w.window === valuation.window)?.value ?? null
-        : valuation?.safety?.reference ?? null,
-    }))
-    : [];
+  const prices = slice.map((p) => p.price);
+  const average = prices.reduce((a, b) => a + b, 0) / prices.length;
 
+  // Прореживание — только для отрисовки. Крайние точки сохраняются всегда:
+  // без них у линии срезается начало или конец окна.
+  const step = Math.ceil(slice.length / (isPhone ? MAX_POINTS_PHONE : MAX_POINTS));
+  const thin = step > 1
+    ? slice.filter((_, i) => i % step === 0 || i === slice.length - 1)
+    : slice;
 
-  const hasLevels = levels.length > 0;
-  const marks = showEvents ? eventMarks(data?.events ?? [], view.points) : [];
-  // Дробление и консолидация — разные события, и в легенде их не путаем.
-  const splitKinds = new Set((data?.events ?? []).filter((e) => e.kind === 'split')
-    .map((e) => (e.label.startsWith('Консолидация') ? 'консолидация' : 'дробление')));
-  const splitWord = Array.from(splitKinds).sort((x, y) => (x === 'дробление' ? -1 : y === 'дробление' ? 1 : 0)).join(' / ') || 'дробление';
-  // Опорная рисуется всегда, когда есть чем: это главная линия графика, ради
-  // неё он и стоит на первом экране. Остальные уровни — по кнопкам под полем.
-  const extras = levels.filter((v) => v.key !== 'reference');
+  const points = thin;
+
+  return {
+    points,
+    average,
+    min: Math.min(...prices),
+    max: Math.max(...prices),
+    // Подпись на оси у копеечной бумаги длиннее обычной: «0,004365» против
+    // «1 271». В прежнюю ширину она не помещается и обрезается.
+    pennyScale: Math.max(...prices.map(Math.abs)) < 1,
+    first: slice[0],
+    last: slice[slice.length - 1],
+    change: slice[0].price > 0
+      ? (slice[slice.length - 1].price - slice[0].price) / slice[0].price
+      : null,
+    ticks: periodTicks(points, (years ?? 99) >= 3),
+    // Затенение считается по прореженным точкам: границы отрезков должны
+    // совпадать с категориями оси, иначе recharts их не нарисует.
+    traps: trapRuns(points),
+    longRange: (years ?? 99) >= 3,
+    thinned: step > 1,
+  };
+}
+
+type ChartView = NonNullable<ReturnType<typeof buildView>>;
+
+// ─── Наложение: P/E, P/B, нефть, сырьё ────────────────────────────────────
+
+/** Ключ строки наложения в подсказке основного графика. */
+const LAYER_KEY = '__layer';
+
+interface LayerPoint { date: string; v?: number }
+
+interface Layer {
+  /** Те же даты, что у основного графика; без `v` — линия обрывается. */
+  points: LayerPoint[];
+  bounds: [number, number] | null;
+  /** Точное значение на дату — для подсказки, включая ушедшие за шкалу. */
+  values: Map<string, number>;
+  /** Причины пропусков множителя в окне. */
+  gaps: string[];
+  /** Сколько дней множителя ушло за потолок шкалы. */
+  offScale: number;
+  axisFormat: (v: number) => string;
+}
+
+/** То, что подсказке основного графика надо знать о слое. */
+interface LayerInfo {
+  label: string;
+  values: Map<string, number>;
+  /** Значение для подсказки; точка основного графика — для года отчёта. */
+  format: (v: number, point?: PricePoint) => string;
+  gapOf?: (p: PricePoint) => string | null;
+}
+
+/** Подсказка основного графика + строка наложения на ту же дату. */
+function withLayerRow<T extends { name?: unknown; value?: unknown; color?: string }>(
+  payload: readonly T[] | undefined,
+  label: unknown,
+  layer: LayerInfo | null,
+  colors: ReturnType<typeof useChartColors>,
+): T[] {
+  const rows = payload ? [...payload] : [];
+  if (!layer || !rows.length) return rows;
+  const v = layer.values.get(String(label));
+  if (v === undefined) return rows;
+  return [...rows, { ...rows[0], name: layer.label, value: v, color: colors.line4, dataKey: LAYER_KEY, unit: undefined }];
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Месячный ряд — плавной линией по дням цены.
+ *
+ * Среднее за месяц ставится на его середину, между соседними месяцами —
+ * прямая. Раньше значение месяца держалось до следующего, и золото с газом
+ * рисовались прямоугольными ступеньками: глаз читал их как скачки в первый
+ * день месяца, которых не было. За последним месяцем линия доходит до его
+ * конца и обрывается — дальше данных ещё нет.
+ */
+function interpolateMonthly(dates: string[], series: [string, number | null][]): (number | undefined)[] {
+  const anchors = series
+    .filter((x): x is [string, number] => x[1] !== null)
+    .map(([d, v]) => ({ start: Date.parse(d), t: Date.parse(d) + 14 * DAY_MS, v }));
+  if (!anchors.length) return dates.map(() => undefined);
+  const last = anchors[anchors.length - 1];
+  const lastEnd = new Date(last.start);
+  lastEnd.setUTCMonth(lastEnd.getUTCMonth() + 1);
+  let k = -1;
+  return dates.map((d) => {
+    const t = Date.parse(d);
+    while (k + 1 < anchors.length && anchors[k + 1].t <= t) k += 1;
+    if (k < 0) return t >= anchors[0].start ? anchors[0].v : undefined;
+    if (k === anchors.length - 1) return t < lastEnd.getTime() ? last.v : undefined;
+    const a = anchors[k];
+    const b = anchors[k + 1];
+    return a.v + ((b.v - a.v) * (t - a.t)) / (b.t - a.t);
+  });
+}
+
+function buildLayer(
+  points: PricePoint[],
+  overlay: Overlay,
+  { oilPoints, commodity, rub: inRub, discount }: {
+    oilPoints?: OilOut['points'];
+    commodity?: CommodityOut;
+    rub: boolean;
+    discount: number;
+  },
+): Layer | null {
+  const dates = points.map((p) => p.date);
+  let raw: (number | undefined)[];
+  let gaps: string[] = [];
+  if (overlay === 'pe' || overlay === 'pb') {
+    raw = points.map((p) => p[overlay] ?? undefined);
+    // Пропуск без причины читается как сбой данных; причин же ровно три, и
+    // все — про компанию: убыток, нераскрытый отчёт, первый отчёт не вышел.
+    gaps = Array.from(new Set(points
+      .filter((p) => p[overlay] === null)
+      .map((p) => (overlay === 'pe' ? p.pe_gap : p.pb_gap))
+      .filter((reason): reason is string => !!reason)));
+  } else if (overlay === 'oil') {
+    if (!oilPoints?.length) return null;
+    // Нефть дневная — последним известным днём: Brent в праздники
+    // Мосбиржи торгуется, а в праздники Лондона — нет.
+    let j = -1;
+    raw = dates.map((d) => {
+      while (j + 1 < oilPoints.length && oilPoints[j + 1][0] <= d) j += 1;
+      if (j < 0) return undefined;
+      const [, brent, rate] = oilPoints[j];
+      const usd = brent - discount;
+      return inRub ? (rate ? usd * rate : undefined) : usd;
+    });
+  } else {
+    if (!commodity || commodity.key !== overlay || !(commodity.points.length || commodity.daily?.length)) return null;
+    const rub = inRub && !commodity.index;
+    const conv = (v: number, rate: number | null) => (rub ? (rate ? v * rate : undefined) : v);
+    // Дневной биржевой ряд — как нефть, последним известным днём. Месячный
+    // Всемирного банка — только для лет раньше начала дневного (у TTF это
+    // до 2017-го, у карбамида — до 2020-го) и для сырья без биржевого ряда.
+    const daily = commodity.daily ?? [];
+    const dailyStart = daily.length ? daily[0][0] : null;
+    const monthly = interpolateMonthly(dates, commodity.points.map(([d, v, rate]) => [d, conv(v, rate) ?? null]));
+    let j = -1;
+    raw = dates.map((d, i) => {
+      if (dailyStart === null || d < dailyStart) return monthly[i];
+      while (j + 1 < daily.length && daily[j + 1][0] <= d) j += 1;
+      if (j < 0) return undefined;
+      const [, v, rate] = daily[j];
+      return conv(v, rate);
+    });
+  }
+
+  const values = new Map<string, number>();
+  raw.forEach((v, i) => { if (v !== undefined) values.set(dates[i], v); });
+  const positive = raw.filter((v): v is number => v !== undefined && v > 0);
+  const isMult = overlay === 'pe' || overlay === 'pb';
+  // У цены потолка нет; у множителя — тройная медиана (multipleBounds).
+  const bounds: [number, number] | null = isMult
+    ? multipleBounds(positive)
+    : positive.length ? [Math.floor(Math.min(...positive) * 0.9), Math.ceil(Math.max(...positive) * 1.05)] : null;
+  // Значения выше потолка вырезаются из отрисовки. Прижимать их к краю
+  // нельзя: recharts рисует к границе отвес, и провал прибыли превращается
+  // в столб во всю высоту поля. Обрыв честнее, а число остаётся в подсказке.
+  // Ключ не пишется вовсе: `null` recharts читал как ноль и уводил линию
+  // на дно поля, отсутствующий ключ он понимает верно.
+  let offScale = 0;
+  const drawn = dates.map((date, i) => {
+    const v = raw[i];
+    if (v === undefined) return { date };
+    if (isMult && bounds && v > bounds[1]) { offScale += 1; return { date }; }
+    return { date, v };
+  });
+  return {
+    points: drawn,
+    bounds,
+    values,
+    gaps,
+    offScale,
+    axisFormat: (v: number) => ru(v, isMult && v < 10 ? 1 : 0),
+  };
+}
+
+/**
+ * Слой наложения: отдельный лёгкий график под основным.
+ *
+ * Поле у него ровно то же: те же отступы, а места осей основного графика
+ * заняты пустыми осями той же ширины. Своя шкала — подписями внутри поля
+ * слева, поэтому основной график при включении наложения не сужается и не
+ * сдвигается. Указатель слой не ловит — подсказку и протяжку ведёт основной
+ * график, а значение наложения он берёт из layerRef.
+ */
+const OverlayLayer = React.memo(function OverlayLayer({
+  points, bounds, colors, isPhone, leftWidth, rightWidth, format,
+}: {
+  points: LayerPoint[];
+  bounds: [number, number] | null;
+  colors: ReturnType<typeof useChartColors>;
+  isPhone: boolean;
+  leftWidth: number;
+  rightWidth: number;
+  format: (v: number) => string;
+}) {
+  return (
+    <div className="pc-layer" aria-hidden>
+      <ResponsiveContainer width="100%" height={isPhone ? 300 : 320}>
+        <ComposedChart
+          data={points}
+          margin={isPhone ? { top: 12, right: 0, bottom: 0, left: 0 } : { top: 16, right: 44, bottom: 4, left: 4 }}
+        >
+          <XAxis dataKey="date" height={30} tick={false} axisLine={false} tickLine={false} />
+          {isPhone
+            ? <YAxis yAxisId="spacer" orientation="right" width={rightWidth} tick={false} axisLine={false} tickLine={false} />
+            : <YAxis yAxisId="spacer" width={leftWidth} tick={false} axisLine={false} tickLine={false} />}
+          <YAxis
+            yAxisId="v"
+            orientation="left"
+            mirror
+            axisLine={false}
+            tickLine={false}
+            tick={{ fill: colors.line4, fontSize: 11 }}
+            tickFormatter={format}
+            domain={bounds ?? ['auto', 'auto']}
+            allowDataOverflow
+          />
+          <Line
+            yAxisId="v"
+            /* Ломаная, а не сглаженная: на пропуске в двести с лишним дней
+               монотонная кривая уходит в перелёт ниже поля, а прямой между
+               соседями перелетать нечем. */
+            type="linear"
+            dataKey="v"
+            stroke={colors.line4}
+            strokeWidth={1.5}
+            dot={false}
+            connectNulls={false}
+            isAnimationActive={false}
+          />
+        </ComposedChart>
+      </ResponsiveContainer>
+    </div>
+  );
+});
+
+/** Ширина правой оси цены на телефоне — под плашку текущей цены. */
+const phoneAxisWidth = (view: ChartView) => Math.max(...phoneTicksOf(view).map((v) => pillWidth(edgeLabel(v)))) + 6;
+
+/**
+ * На телефоне на оси цены две подписи — минимум окна и текущая, как у
+ * брокеров. Сетка из пяти чисел на узком поле читалась хуже, чем линия.
+ * Минимум рядом с текущей не подписываем — плашки легли бы друг на друга.
+ */
+const phoneTicksOf = (view: ChartView) => (Math.abs(view.last.price - view.min) > (view.max - view.min) * 0.08
+  ? [view.min, view.last.price]
+  : [view.last.price]);
+
+/**
+ * Основной график: цена, опорная, справедливая, события.
+ *
+ * Вынесен в отдельный компонент под React.memo ради одного: переключение
+ * наложения (P/E, нефть, золото…) его не перерисовывает. Перерисовка
+ * recharts с тысячей точек и пятью линиями стоила около 300 мс на
+ * компьютере и втрое больше на телефоне — каждое нажатие кнопки под
+ * графиком подвешивало страницу. Наложение живёт в своём слое
+ * (OverlayLayer), а в подсказку попадает через layerRef.
+ */
+const MainChart = React.memo(function MainChart({
+  view, colors, isPhone, hasLevels, events,
+  spanStore, measureBand, drag, canvasLeft, layerRef, hiddenRef,
+}: {
+  view: ChartView;
+  colors: ReturnType<typeof useChartColors>;
+  isPhone: boolean;
+  hasLevels: boolean;
+  events: PriceEvent[] | undefined;
+  spanStore: SpanStore;
+  measureBand: () => void;
+  drag: React.MutableRefObject<{ pressed: boolean; fromX: number; fromDate: string } | null>;
+  canvasLeft: React.MutableRefObject<number>;
+  layerRef: React.MutableRefObject<LayerInfo | null>;
+  /** Выключенные линии — их строки убираются из подсказки. */
+  hiddenRef: React.MutableRefObject<Set<string>>;
+}) {
+  // Опорная, справедливая и засечки событий рисуются всегда, а прячутся
+  // классом на обёртке (hide-reference и т. п., см. PriceChart.css). Иначе
+  // каждая кнопка под графиком перерисовывала его целиком — 250–350 мс.
+  // Заодно шкала не прыгает: она считается и по спрятанным линиям.
+  const marks = useMemo(() => eventMarks(events ?? [], view.points), [events, view.points]);
+  const visibleRows = <T extends { name?: unknown }>(rows: T[]) => rows.filter((r) => !hiddenRef.current.has(String(r.name)));
   const lastReference = (view.last as { reference?: number | null }).reference ?? null;
   // Подписи последних значений расходятся в разные стороны, чтобы не лечь
   // друг на друга: выше та, что выше на графике.
   const priceOnTop = lastReference === null || view.last.price >= lastReference;
-  // На телефоне на оси цены две подписи — минимум окна и текущая, как у
-  // брокеров. Сетка из пяти чисел на узком поле читалась хуже, чем линия.
-  // Минимум рядом с текущей не подписываем — плашки легли бы друг на друга.
   // Даты на телефоне — через одну, если их много, и не у самого левого края:
   // поле там начинается от края экрана, и подпись «2022» обрезалась пополам.
   const edge = view.points.length * 0.06;
   const phoneDateTicks = (view.ticks.length > 5 ? view.ticks.filter((_, i) => i % 2 === 1) : view.ticks)
     .filter((d) => view.points.findIndex((p) => p.date === d) >= edge);
-  const phoneTicks = Math.abs(view.last.price - view.min) > (view.max - view.min) * 0.08
-    ? [view.min, view.last.price]
-    : [view.last.price];
-  const toggleValue = (key: ValueKey) => setShown((prev) => {
-    const next = new Set(prev);
-    if (next.has(key)) next.delete(key); else next.add(key);
-    return next;
-  });
-
+  const phoneTicks = phoneTicksOf(view);
   return (
-    <section className="pc">
-      <header className="pc-head">
-        <div className="pc-title">
-          <h3>{hasLevels ? 'Цена и опорная стоимость' : 'Цена акции'}</h3>
-          <div className="pc-keys">
-            <span className="pc-key"><i className="pc-key-line" style={{ background: colors.line1 }} />Цена</span>
-            {hasLevels && (
-              <>
-                <span className="pc-key"><i className="pc-key-line" style={{ background: colors.refLine }} />Опорная</span>
-                <span className="pc-key" title="Запас прочности от 15%: мелкий запас на истории окном входа не был">
-                  <i className="pc-key-zone" style={{ background: colors.zoneBelow }} />Цена ниже опорной на 15%+
-                </span>
-              </>
-            )}
-            {shown.has('fair') && hasLevels && (
-              <span className="pc-key"><i className="pc-key-line pc-key-line--dash" style={{ borderColor: colors.line3 }} />Справедливая</span>
-            )}
-            {overlay && (
-              <span className="pc-key"><i className="pc-key-line" style={{ background: colors.line4 }} />{overlayLabel} — правая шкала</span>
-            )}
-            {showEvents && marks.length > 0 && (
-              <span className="pc-key pc-key--events" title="Наведите на метку у нижнего края графика">
-                <i className="pc-key-mark" style={{ background: colors.axis }} />отчёт
-                <i className="pc-key-mark pc-key-mark--round" style={{ background: colors.line3 }} />дивиденд
-                {marks.some((m) => m.kinds.includes('split')) && (
-                  <><i className="pc-key-mark pc-key-mark--diamond" style={{ background: colors.line2 }} />{splitWord}</>
-                )}
-              </span>
-            )}
-          </div>
-        </div>
-
-        <div className="pc-ranges" role="group" aria-label="Период">
-          {RANGES.map((r) => (
-            <button
-              key={r.key}
-              type="button"
-              className={`pc-btn${range === r.key ? ' is-on' : ''}`}
-              // Выделение снимается вместе с окном: отрезок, сделанный на
-              // пяти годах, при переходе на год обрезался бы по краю и
-              // молча показывал не тот период, который выбирали.
-              onClick={() => { setRange(r.key); spanStore.set(null); }}
-              aria-pressed={range === r.key}
-              title={r.key === range ? `${view.first.date} — ${view.last.date}` : undefined}
-            >
-              {r.label}
-            </button>
-          ))}
-        </div>
-      </header>
-
-
-      <div className="pc-canvas" ref={canvas}>
-        <SpanBand store={spanStore} top={band.top} bottom={band.bottom} />
         <ResponsiveContainer width="100%" height={isPhone ? 300 : 320}>
           <ComposedChart
             data={view.points}
             margin={isPhone
               ? { top: 12, right: 0, bottom: 0, left: 0 }
-              : { top: 16, right: overlay ? 56 : 44, bottom: 4, left: 4 }}
+              : { top: 16, right: 44, bottom: 4, left: 4 }}
             // Выделение одной левой кнопкой: нажали, провели, отпустили.
             // Нажатие само по себе снимает прежнее — щелчок по пустому месту
             // очищает график, и отдельная кнопка «сбросить» не нужна.
@@ -797,19 +837,6 @@ export default function PriceChart({ companyId, oil = false }: { companyId: numb
                 stroke={colors.grid}
               />
             )}
-            {overlay && (
-              <YAxis
-                yAxisId="mult"
-                orientation={isPhone ? 'left' : 'right'}
-                mirror={isPhone}
-                tick={{ fill: colors.line4, fontSize: 11 }}
-                tickFormatter={(v: number) => ru(v, v < 10 ? 1 : 0)}
-                domain={view.overlayBounds ?? ['auto', 'auto']}
-                allowDataOverflow
-                width={46}
-                stroke={colors.grid}
-              />
-            )}
 
             {view.traps.map(([from, till]) => (
               <ReferenceArea
@@ -829,6 +856,7 @@ export default function PriceChart({ companyId, oil = false }: { companyId: numb
                 а подсветка того, что уже видно по двум линиям. */}
             {hasLevels && (
               <Area
+                className="pc-s-ref"
                 yAxisId="price"
                 type="linear"
                 dataKey="below"
@@ -844,6 +872,10 @@ export default function PriceChart({ companyId, oil = false }: { companyId: numb
 
             {hasLevels && (
               <Line
+                className="pc-s-ref"
+                // Точка при наведении — с тем же классом, что линия: иначе у
+                // выключенной опорной она всё равно появлялась под курсором.
+                activeDot={{ r: 3, className: 'pc-s-ref' }}
                 yAxisId="price"
                 type="stepAfter"
                 dataKey="reference"
@@ -855,8 +887,10 @@ export default function PriceChart({ companyId, oil = false }: { companyId: numb
                 isAnimationActive={false}
               />
             )}
-            {shown.has('fair') && (
+            {hasLevels && (
               <Line
+                className="pc-s-fair"
+                activeDot={{ r: 3, className: 'pc-s-fair' }}
                 yAxisId="price"
                 type="stepAfter"
                 dataKey="fair"
@@ -897,32 +931,15 @@ export default function PriceChart({ companyId, oil = false }: { companyId: numb
             />
             {!isPhone && hasLevels && lastReference !== null && (
               <ReferenceDot
+                className="pc-s-ref"
                 yAxisId="price"
                 x={view.last.date}
                 y={lastReference}
                 r={0}
-                label={{ value: edgeLabel(lastReference), position: priceOnTop ? 'bottom' : 'top', fill: colors.refLine, fontSize: 11, fontWeight: 600 }}
+                label={{ value: edgeLabel(lastReference), position: priceOnTop ? 'bottom' : 'top', fill: colors.refLine, fontSize: 11, fontWeight: 600, className: 'pc-s-ref' }}
               />
             )}
 
-            {overlay && (
-              <Line
-                yAxisId="mult"
-                /* Ломаная, а не сглаженная. Сглаживание здесь не косметика:
-                   на пропуске в двести с лишним дней монотонная кривая уходит
-                   в перелёт — контрольные точки улетают втрое ниже поля, и
-                   получается отвес вместо обрыва. Ломаная между соседями
-                   прямая по определению и перелетать ей нечем. */
-                type="linear"
-                dataKey={overlay}
-                stroke={colors.line4}
-                strokeWidth={1.4}
-                dot={false}
-                connectNulls={false}
-                name={overlayLabel}
-                isAnimationActive={false}
-              />
-            )}
 
             {/* Засечки событий — у нижнего края поля, без вертикальных
                 линий: на десяти годах их полсотни, и линии превратили бы
@@ -939,19 +956,30 @@ export default function PriceChart({ companyId, oil = false }: { companyId: numb
             ))}
 
             <Tooltip
+              // Строка наложения дописывается к подсказке из слоя: сам
+              // основной график про наложение ничего не знает.
               {...(isPhone ? {
-                content: (
+                content: (props: TooltipContentProps) => (
                   <PhoneTip
+                    {...props}
+                    payload={visibleRows(withLayerRow(props.payload, props.label, layerRef.current, colors))}
                     colors={colors}
                     format={(v, name) => (name === 'Цена' || name === 'Опорная' || name === 'Справедливая'
                       ? `${edgeLabel(v)} ₽`
-                      : overlay === 'oil' && name === overlayLabel
-                        ? `${ru(v, oilRub ? 0 : 2)} ${oilRub ? '₽' : '$'}`
+                      : name === layerRef.current?.label
+                        ? layerRef.current.format(v)
                         : ru(v, 2))}
                   />
                 ),
                 position: { y: 0 },
-              } : {})}
+              } : {
+                content: (props: TooltipContentProps) => (
+                  <DefaultTooltipContent
+                    {...props}
+                    payload={visibleRows(withLayerRow(props.payload, props.label, layerRef.current, colors))}
+                  />
+                ),
+              })}
               contentStyle={{
                 background: colors.tooltipBg,
                 border: `1px solid ${colors.tooltipBorder}`,
@@ -977,8 +1005,8 @@ export default function PriceChart({ companyId, oil = false }: { companyId: numb
                   const why = [payload?.basis_label, rate].filter(Boolean).join(', ');
                   return [`${rub(num)} ₽${why ? ` (${why})` : ''}`, label];
                 }
-                if (overlay === 'oil' && label === overlayLabel) {
-                  return [`${ru(num, oilRub ? 0 : 2)} ${oilRub ? '₽' : '$'}`, label];
+                if ((item as { dataKey?: unknown } | undefined)?.dataKey === LAYER_KEY && layerRef.current) {
+                  return [layerRef.current.format(num, item?.payload as PricePoint | undefined), label];
                 }
                 // Год отчёта едет вместе с множителем: без него ступенька на
                 // кривой читается как сбой данных, а не как выход отчётности.
@@ -990,17 +1018,303 @@ export default function PriceChart({ companyId, oil = false }: { companyId: numb
               // спрятать её значило бы сделать вид, что в эти дни множителя не
               // было, тогда как он был, и рекордный.
               labelFormatter={(value, payload) => {
-                const point = payload?.[0]?.payload as (PricePoint & { off_scale?: number }) | undefined;
-                const off = point?.off_scale;
-                if (off) return `${String(value)} · за шкалой: ${ru(off, 1)}`;
-                const gap = overlay && overlay !== 'oil' && point
-                  ? (overlay === 'pe' ? point.pe_gap : point.pb_gap)
-                  : null;
-                return gap ? `${String(value)} · ${overlaySpec?.label}: ${gap}` : String(value);
+                const point = payload?.[0]?.payload as PricePoint | undefined;
+                const gap = point && layerRef.current?.gapOf?.(point);
+                return gap ? `${String(value)} · ${layerRef.current?.label}: ${gap}` : String(value);
               }}
             />
           </ComposedChart>
         </ResponsiveContainer>
+  );
+});
+
+export default function PriceChart({ companyId, oil = false, commodities = [] }: {
+  companyId: number;
+  oil?: boolean;
+  /** Сырьё компании для наложения (utils/commodities): газ, золото, удобрения… */
+  commodities?: CommodityKey[];
+}) {
+  const colors = useChartColors();
+  const isPhone = useMediaQuery(PHONE_QUERY);
+  const [range, setRange] = useState('5y');
+  const [overlay, setOverlay] = useState<Overlay | null>(null);
+  // Нефть и сырьё: в долларах или рублях; Urals — Brent минус дисконт.
+  const [oilRub, setOilRub] = useState(false);
+  const [urals, setUrals] = useState(false);
+  const [discount, setDiscount] = useState<number>(readDiscount);
+  const [shown, setShown] = useState<Set<ValueKey>>(new Set<ValueKey>(['reference']));
+  const [showEvents, setShowEvents] = useState(true);
+  // Протяжка держится в хранилище, а не в состоянии компонента: обновление
+  // сверху заставляет recharts пересчитать все серии, и на пяти линиях по
+  // тысяче точек это около 400 мс на движение мыши. Подписаны на хранилище
+  // только подсветка и строка свода — они и перерисовываются.
+  const spanStore = useRef(createSpanStore()).current;
+  const drag = useRef<{ pressed: boolean; fromX: number; fromDate: string } | null>(null);
+  // Вертикальные границы поля — чтобы подсветка не залезала на подписи оси.
+  const [band, setBand] = useState({ top: 8, bottom: 24 });
+
+  // Высота поля берётся из отрисованной сетки, а не из констант отступов:
+  // recharts считает место под подписи оси сам, и угадывать его значило бы
+  // промахиваться каждый раз, когда подпись станет длиннее.
+  const canvas = useRef<HTMLDivElement | null>(null);
+  const canvasLeft = useRef(0);
+  const measureBand = useCallback(() => {
+    const box = canvas.current;
+    const area = box && plotArea(box);
+    if (!box || !area) return;
+    canvasLeft.current = box.getBoundingClientRect().left;
+    const next = {
+      top: Math.max(0, Math.round(area.top)),
+      bottom: Math.max(0, Math.round(box.getBoundingClientRect().height - area.top - area.height)),
+    };
+    // Сравнение обязательно: без него каждое нажатие клало новый объект в
+    // состояние и перерисовывало весь график — ровно то, от чего уходим.
+    setBand((prev) => (prev.top === next.top && prev.bottom === next.bottom ? prev : next));
+  }, []);
+
+  // Оценка тянется отдельным запросом и графику не обязательна: без неё он
+  // рисуется как прежде, только без линий уровня.
+  const { data: valuation } = useQuery<ValuationSummaryOut>({
+    queryKey: ['valuation-summary', companyId],
+    queryFn: () => fetchValuationSummary(companyId),
+    staleTime: 10 * 60 * 1000,
+    enabled: Number.isFinite(companyId) && companyId > 0,
+  });
+
+  const { data: history } = useQuery<ValuationHistoryOut>({
+    queryKey: ['valuation-history', companyId],
+    queryFn: () => fetchValuationHistory(companyId),
+    staleTime: 30 * 60 * 1000,
+    enabled: Number.isFinite(companyId) && companyId > 0,
+  });
+
+  const { data: oilData } = useQuery<OilOut>({
+    queryKey: ['market-oil'],
+    queryFn: fetchOil,
+    staleTime: 60 * 60 * 1000,
+    enabled: oil && overlay === 'oil',
+  });
+
+  // Сырьё — помесячно. Ряды короткие (≈160 точек), и их подтягиваем
+  // заранее, через пару секунд после графика: тогда первое нажатие на
+  // «Золото» сразу рисует линию, а не ждёт ответа сервера.
+  const queryClient = useQueryClient();
+  const commodityList = commodities.join(',');
+  useEffect(() => {
+    if (!commodityList) return undefined;
+    const timer = window.setTimeout(() => {
+      commodityList.split(',').forEach((key) => {
+        queryClient.prefetchQuery({
+          queryKey: ['market-commodity', key],
+          queryFn: () => fetchCommodity(key),
+          staleTime: 6 * 60 * 60 * 1000,
+        });
+      });
+    }, 2000);
+    return () => window.clearTimeout(timer);
+  }, [commodityList, queryClient]);
+  const commodityKey = isCommodity(overlay) ? overlay : null;
+  const { data: commodityData } = useQuery<CommodityOut>({
+    queryKey: ['market-commodity', commodityKey],
+    queryFn: () => fetchCommodity(commodityKey as CommodityKey),
+    staleTime: 6 * 60 * 60 * 1000,
+    enabled: commodityKey !== null,
+  });
+
+  const { data, isLoading, error } = useQuery<PriceHistoryOut>({
+    queryKey: ['price-history', companyId],
+    queryFn: () => fetchPriceHistory(companyId),
+    staleTime: LIVE_PRICE_STALE_MS,
+    refetchInterval: LIVE_PRICE_REFRESH_MS,
+    enabled: Number.isFinite(companyId) && companyId > 0,
+  });
+
+  const view = useMemo(() => buildView(data, history, range, isPhone), [data, history, range, isPhone]);
+  // Наложение — отдельно от основного графика: его включение пересчитывает
+  // только слой (см. OverlayLayer и MainChart).
+  const layer = useMemo(() => (view && overlay
+    ? buildLayer(view.points, overlay, {
+      oilPoints: oilData?.points,
+      commodity: commodityData,
+      rub: oilRub,
+      discount: overlay === 'oil' && urals ? discount : 0,
+    })
+    : null), [view, overlay, oilData, commodityData, oilRub, urals, discount]);
+  const layerRef = useRef<LayerInfo | null>(null);
+  const hiddenRef = useRef<Set<string>>(new Set());
+
+  // Замер делается заранее, а не при первом нажатии: он меняет состояние, а
+  // значит перерисовывает график — 173 мс, и приходились они ровно на начало
+  // первой протяжки. Кадр ожидания нужен потому, что ResponsiveContainer
+  // измеряет себя сам и сетки в момент монтирования ещё нет.
+  useEffect(() => {
+    const frame = requestAnimationFrame(measureBand);
+    return () => cancelAnimationFrame(frame);
+  }, [measureBand, view]);
+
+  // Телефон: отрезок — двумя пальцами (см. хук).
+  useTwoFingerSpan(canvas, view?.points, spanStore, isPhone, measureBand);
+  useSpanMark(canvas, spanStore, view);
+
+
+  if (isLoading) return <div className="pc-state">Загружаем историю цены…</div>;
+  if (error) return <div className="pc-state pc-state--error">Не удалось загрузить историю цены</div>;
+  if (!view) {
+    return (
+      <div className="pc-state">
+        Истории цены нет. Она докачивается из Мосбиржи сама — при старте сервера
+        и ежедневно в 19:00 МСК, от даты первого отчёта компании.
+      </div>
+    );
+  }
+
+  const overlaySpec = OVERLAYS.find((o) => o.key === overlay);
+  const overlayLabel = overlay === 'oil'
+    ? `${urals ? `Urals ≈ Brent − ${ru(discount, 0)} $` : 'Brent'}, ${oilRub ? '₽' : '$'}/барр.`
+    : commodityKey
+      ? commodityData
+        ? `${commodityData.label}, ${oilRub && !commodityData.index ? commodityData.unit.replace('$', '₽') : commodityData.unit}`
+        : COMMODITY_BUTTON[commodityKey]
+      : overlaySpec?.label;
+  // Значение сырья в подсказке: индекс — числом, цена — с валютой.
+  const priceText = (v: number) => (commodityData?.index && commodityKey
+    ? ru(v, 1)
+    : oilRub ? `${ru(v, 0)} ₽` : `${ru(v, v < 100 ? 2 : 0)} $`);
+  // Что подсказке основного графика знать о наложении. Ссылка, а не
+  // свойство: основной график при смене наложения не перерисовывается, а
+  // подсказка читает ref в момент показа.
+  const mult = overlay === 'pe' || overlay === 'pb' ? overlay : null;
+  layerRef.current = overlay && layer ? {
+    label: overlayLabel ?? '',
+    values: layer.values,
+    format: mult
+      ? (v, point) => {
+        const off = layer.bounds && v > layer.bounds[1] ? ' — за шкалой' : '';
+        // Год отчёта едет вместе с множителем: без него ступенька на кривой
+        // читается как сбой данных, а не как выход отчётности.
+        return `${ru(v, 2)}${point?.basis_year ? ` (по отчёту ${point.basis_year})` : ''}${off}`;
+      }
+      : priceText,
+    gapOf: mult ? (p) => (p[mult] === null ? (mult === 'pe' ? p.pe_gap : p.pb_gap) ?? null : null) : undefined,
+  } : null;
+  // Уровни, которые есть чем нарисовать. Сегодняшняя величина берётся из
+  // свода — её видно в подсказке кнопки, — а линия рисуется рядом по годам.
+  const levels = (history?.segments ?? []).some((x) => !x.refused)
+    ? VALUES.map((spec) => ({
+      ...spec,
+      value: spec.key === 'fair'
+        ? valuation?.windows?.find((w) => w.window === valuation.window)?.value ?? null
+        : valuation?.safety?.reference ?? null,
+    }))
+    : [];
+
+
+  const hasLevels = levels.length > 0;
+  const marks = showEvents ? eventMarks(data?.events ?? [], view.points) : [];
+  // Дробление и консолидация — разные события, и в легенде их не путаем.
+  const splitKinds = new Set((data?.events ?? []).filter((e) => e.kind === 'split')
+    .map((e) => (e.label.startsWith('Консолидация') ? 'консолидация' : 'дробление')));
+  const splitWord = Array.from(splitKinds).sort((x, y) => (x === 'дробление' ? -1 : y === 'дробление' ? 1 : 0)).join(' / ') || 'дробление';
+  // Опорная — главная линия графика, ради неё он и стоит на первом экране;
+  // она включена сразу, но её можно убрать, как и остальные уровни.
+  const extras = levels;
+  hiddenRef.current = new Set([
+    ...(shown.has('reference') ? [] : ['Опорная']),
+    ...(shown.has('fair') ? [] : ['Справедливая']),
+  ]);
+  const toggleValue = (key: ValueKey) => setShown((prev) => {
+    const next = new Set(prev);
+    if (next.has(key)) next.delete(key); else next.add(key);
+    return next;
+  });
+
+  return (
+    <section className="pc">
+      <header className="pc-head">
+        <div className="pc-title">
+          <h3>{hasLevels ? 'Цена и опорная стоимость' : 'Цена акции'}</h3>
+          <div className="pc-keys">
+            <span className="pc-key"><i className="pc-key-line" style={{ background: colors.line1 }} />Цена</span>
+            {/* Легенда над графиком не меняется от кнопок под ним: строка,
+                выросшая на «P/E — правая шкала», переносилась и сдвигала
+                график вниз. Выключенная опорная — бледнее, а не исчезает;
+                что включено из остального — видно по цвету кнопок. */}
+            {hasLevels && (
+              <span className={`pc-key-group${shown.has('reference') ? '' : ' is-off'}`}>
+                <span className="pc-key"><i className="pc-key-line" style={{ background: colors.refLine }} />Опорная</span>
+                <span className="pc-key" title="Запас прочности от 15%: мелкий запас на истории окном входа не был">
+                  <i className="pc-key-zone" style={{ background: colors.zoneBelow }} />Цена ниже опорной на 15%+
+                </span>
+              </span>
+            )}
+            {showEvents && marks.length > 0 && (
+              <span className="pc-key pc-key--events" title="Наведите на метку у нижнего края графика">
+                <i className="pc-key-mark" style={{ background: colors.axis }} />отчёт
+                <i className="pc-key-mark pc-key-mark--round" style={{ background: colors.line3 }} />дивиденд
+                {marks.some((m) => m.kinds.includes('split')) && (
+                  <><i className="pc-key-mark pc-key-mark--diamond" style={{ background: colors.line2 }} />{splitWord}</>
+                )}
+              </span>
+            )}
+          </div>
+        </div>
+
+        <div className="pc-ranges" role="group" aria-label="Период">
+          {RANGES.map((r) => (
+            <button
+              key={r.key}
+              type="button"
+              className={`pc-btn${range === r.key ? ' is-on' : ''}`}
+              // Выделение снимается вместе с окном: отрезок, сделанный на
+              // пяти годах, при переходе на год обрезался бы по краю и
+              // молча показывал не тот период, который выбирали.
+              onClick={() => { setRange(r.key); spanStore.set(null); }}
+              aria-pressed={range === r.key}
+              title={r.key === range ? `${view.first.date} — ${view.last.date}` : undefined}
+            >
+              {r.label}
+            </button>
+          ))}
+        </div>
+      </header>
+
+
+      <div
+        className={[
+          'pc-canvas',
+          shown.has('reference') ? '' : 'hide-reference',
+          shown.has('fair') ? '' : 'hide-fair',
+          showEvents ? '' : 'hide-events',
+        ].filter(Boolean).join(' ')}
+        ref={canvas}
+      >
+        <SpanBand store={spanStore} top={band.top} bottom={band.bottom} />
+        {/* Наложение — под основным графиком, своим слоем: включение P/E или
+            цены сырья не трогает основной график (см. OverlayLayer). */}
+        {overlay && layer && (
+          <OverlayLayer
+            points={layer.points}
+            bounds={layer.bounds}
+            colors={colors}
+            isPhone={isPhone}
+            leftWidth={view.pennyScale ? 74 : 58}
+            rightWidth={phoneAxisWidth(view)}
+            format={layer.axisFormat}
+          />
+        )}
+        <MainChart
+          view={view}
+          colors={colors}
+          isPhone={isPhone}
+          hasLevels={hasLevels}
+          events={data?.events}
+          hiddenRef={hiddenRef}
+          spanStore={spanStore}
+          measureBand={measureBand}
+          drag={drag}
+          canvasLeft={canvasLeft}
+          layerRef={layerRef}
+        />
       </div>
 
       {/* Свод по отрезку. Не заменяет статистику периода: смысл выделения в
@@ -1023,19 +1337,9 @@ export default function PriceChart({ companyId, oil = false }: { companyId: numb
       )}
 
       <div className="pc-foot">
-        {/* На телефоне под графиком — только то, без чего его прочитать
-            нельзя: что значит серое и почему цена прыгает на дроблении. */}
-        {hasLevels && !isPhone ? (
-          <p
-            className="pc-disclaimer"
-            title="Параметры модели подобраны на этой же истории, а в выборке лишь компании, которые торгуются сегодня, — поэтому прошлое на графике выглядит надёжнее, чем выглядело бы в моменте."
-          >
-            Опорная на каждую дату посчитана только по отчётам, опубликованным к этой дате.
-            {data?.split_note && <> {data.split_note}</>}
-          </p>
-        ) : isPhone && data?.split_note ? (
-          <p className="pc-disclaimer">{data.split_note}</p>
-        ) : <span />}
+        {/* Под графиком — только то, без чего его не прочитать: почему цена
+            прыгает на дроблении. */}
+        {data?.split_note ? <p className="pc-disclaimer">{data.split_note}</p> : <span />}
         <div className="pc-more" role="group" aria-label="Ещё на графике">
           <span className="pc-more-label">Ещё на графике:</span>
           {extras.map((v) => (
@@ -1047,6 +1351,10 @@ export default function PriceChart({ companyId, oil = false }: { companyId: numb
               title={v.value !== null ? `${v.hint}. Сегодня — ${rub(v.value)} ₽` : v.hint}
               aria-pressed={shown.has(v.key)}
             >
+              {shown.has(v.key) && (
+                <i className={`pc-btn-swatch${v.key === 'fair' ? ' pc-btn-swatch--dash' : ''}`}
+                  style={v.key === 'fair' ? { borderColor: colors.line3 } : { background: colors.refLine }} />
+              )}
               {v.label}
             </button>
           ))}
@@ -1068,6 +1376,7 @@ export default function PriceChart({ companyId, oil = false }: { companyId: numb
               title={o.hint}
               aria-pressed={overlay === o.key}
             >
+              {overlay === o.key && <i className="pc-btn-swatch" style={{ background: colors.line4 }} />}
               {o.label}
             </button>
           ))}
@@ -1079,18 +1388,39 @@ export default function PriceChart({ companyId, oil = false }: { companyId: numb
               title="Цена нефти Brent на правой шкале — в долларах или рублях"
               aria-pressed={overlay === 'oil'}
             >
+              {overlay === 'oil' && <i className="pc-btn-swatch" style={{ background: colors.line4 }} />}
               Нефть
             </button>
           )}
+          {commodities.map((key) => (
+            <button
+              key={key}
+              type="button"
+              className={`pc-btn pc-btn--small${overlay === key ? ' is-on' : ''}`}
+              onClick={() => setOverlay(overlay === key ? null : key)}
+              aria-pressed={overlay === key}
+            >
+              {overlay === key && <i className="pc-btn-swatch" style={{ background: colors.line4 }} />}
+              {COMMODITY_BUTTON[key]}
+            </button>
+          ))}
         </div>
       </div>
 
-      {overlay === 'oil' && (
-        <div className="pc-oil" role="group" aria-label="Нефть на графике">
+      {/* Что за линия наложения и её настройки — под графиком: появляясь
+          над ним, строка сдвигала бы поле. */}
+      {overlay && (
+        <div className="pc-oil" role="group" aria-label="Наложение на графике">
+          <span className="pc-key pc-layer-key">
+            <i className="pc-key-line" style={{ background: colors.line4 }} />{overlayLabel} — шкала слева внутри поля
+          </span>
+          {(overlay === 'oil' || (commodityData && !commodityData.index)) && (
           <span className="pc-oil-seg">
             <button type="button" className={`pc-btn pc-btn--small${!oilRub ? ' is-on' : ''}`} onClick={() => setOilRub(false)}>в долларах</button>
             <button type="button" className={`pc-btn pc-btn--small${oilRub ? ' is-on' : ''}`} onClick={() => setOilRub(true)}>в рублях</button>
           </span>
+          )}
+          {overlay === 'oil' && (
           <label className="pc-oil-urals">
             <input type="checkbox" checked={urals} onChange={(e) => setUrals(e.target.checked)} />
             Urals: дисконт к Brent
@@ -1110,6 +1440,7 @@ export default function PriceChart({ companyId, oil = false }: { companyId: numb
             />
             $
           </label>
+          )}
         </div>
       )}
 
@@ -1120,16 +1451,22 @@ export default function PriceChart({ companyId, oil = false }: { companyId: numb
           сильно менялся (в 2022–2023 годах доходил до 30 $).
         </p>
       )}
-      {overlay && overlay !== 'oil' && !isPhone && (
+      {commodityKey && commodityData && !isPhone && (
+        <p className="pc-note">
+          {commodityData.daily?.length
+            ? <>Дневные закрытия: {commodityData.daily_source}, с {humanDate(commodityData.daily[0][0])}; раньше — месячные средние Всемирного банка.</>
+            : <>{commodityData.source} — дневного биржевого ряда в открытом доступе нет.</>}
+          {' '}В рублях — по курсу ЦБ.
+        </p>
+      )}
+      {mult && layer && !isPhone && (
         <p className="pc-note">
           {overlaySpec?.hint}. Шкала ограничена тройной медианой: провал прибыли
           поднимает множитель до сотен, и без ограничения весь остальной ряд сжался бы
           в полоску у нуля.
-          {view.gaps.length > 0 && (
-            <> Пропуски: {view.gaps.join('; ')}.</>
-          )}
-          {view.offScale > 0 && (
-            <> За шкалу ушло {view.offScale} {view.offScale % 10 === 1 && view.offScale % 100 !== 11
+          {layer.gaps.length > 0 && <> Пропуски: {layer.gaps.join('; ')}.</>}
+          {layer.offScale > 0 && (
+            <> За шкалу ушло {layer.offScale} {layer.offScale % 10 === 1 && layer.offScale % 100 !== 11
               ? 'значение' : 'значений'}: эти дни не нарисованы, и линия проходит
               через них напрямую. Сама величина остаётся в подсказке.</>
           )}

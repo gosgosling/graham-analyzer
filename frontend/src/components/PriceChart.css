@@ -334,19 +334,48 @@
 
 /* Свод по отрезку: изменение — крупно, даты — мелко под ним. */
 .pc-span-change { display: inline-flex; align-items: baseline; gap: 10px; }
-.pc-span-change b { font-size: 1.05rem; }
+.pc-span-change b { font-size: 0.92rem; }
 .pc-span-dates { font-size: 0.78rem; color: var(--color-text-tertiary); }
 .pc-span-dates .pc-span-arrow { color: var(--color-text-quaternary); }
 @media (max-width: 760px) {
   .pc-span { flex-direction: column; align-items: flex-start; gap: 2px; }
-  .pc-span-change b { font-size: 1.2rem; }
+  .pc-span-change b { font-size: 0.98rem; }
   /* Дни и коридор цен в отрезке — для компьютера; на телефоне главное
      — насколько изменилась цена. */
   .pc-span-aside { display: none; }
 }
 
-/* Отрезок выделен двумя пальцами — подсказка по дню, курсор и точка на
-   линии прячутся (см. useTwoFingerSpan). */
+/* Отрезок выделен — подсказка по дню, курсор и точка на линии прячутся
+   (см. useSpanMark). !important — потому что recharts ставит обёртке
+   подсказки visibility прямо в атрибут style, и обычное правило его не
+   перебивало: окно цены оставалось поверх выделения. */
 .has-span .recharts-tooltip-wrapper,
 .has-span .recharts-tooltip-cursor,
-.has-span .recharts-active-dot { visibility: hidden; }
+.has-span .recharts-active-dot { visibility: hidden !important; }
+
+/* Слой наложения — под основным графиком, по тому же полю (OverlayLayer).
+   Указатель не ловит: подсказку и протяжку ведёт основной график. */
+.pc-layer { position: absolute; inset: 0; pointer-events: none; }
+.pc-canvas > .recharts-responsive-container { position: relative; }
+
+/* Выключенная опорная в легенде — бледнее, но на месте. */
+.pc-key-group { display: inline-flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); transition: opacity 0.15s; }
+.pc-key-group.is-off { opacity: 0.4; }
+
+/* Цвет линии на включённой кнопке — вместо отдельной строки легенды. */
+.pc-btn-swatch {
+  display: inline-block;
+  width: 12px;
+  height: 2px;
+  margin-right: 6px;
+  vertical-align: 3px;
+  border-radius: 1px;
+}
+.pc-btn-swatch--dash { height: 0; border-top: 2px dashed; }
+.pc-layer-key { font-size: 0.8rem; color: var(--color-text-secondary); }
+
+/* Выключенные кнопками линии: рисуются всегда, прячутся классом — см.
+   MainChart. Перерисовка графика ради одной линии подвешивала страницу. */
+.hide-reference .pc-s-ref,
+.hide-fair .pc-s-fair,
+.hide-events .pc-event { display: none; }

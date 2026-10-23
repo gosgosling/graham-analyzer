@@ -505,3 +505,29 @@ def oil(since: Optional[date_type] = Query(None, description="с какой да
         "source": "Brent — FRED (DCOILBRENTEU), курс доллара — ЦБ РФ",
         "points": [[d.isoformat(), round(p, 2), round(r, 4) if r else None] for d, p, r in oil_series(db, since)],
     }
+
+
+@router.get(
+    "/commodity/{key}",
+    summary="Сырьё помесячно ($ и курс доллара) — для графика цены сырьевых компаний",
+)
+def commodity(key: str, db: Session = Depends(get_db)) -> dict:
+    """Дневные биржевые ряды (Yahoo Finance) и месячные — Всемирный банк,
+    алмазы — индекс BLS. Ключи — в `commodity_service.COMMODITIES`."""
+    from app.services.market.commodity_service import COMMODITIES, daily_series, series
+
+    item = COMMODITIES.get(key)
+    if item is None:
+        raise HTTPException(status_code=404, detail=f"Нет такого сырья: {key}")
+    return {
+        "key": item.key,
+        "label": item.label,
+        "unit": item.unit,
+        "index": item.index,
+        "source": item.source,
+        "points": [[d.isoformat(), round(v, 2), round(r, 4) if r else None] for d, v, r in series(db, key)],
+        # Дневной биржевой ряд, если он есть; месячный тогда — только для лет
+        # раньше его начала.
+        "daily": [[d.isoformat(), round(v, 2), round(r, 4) if r else None] for d, v, r in daily_series(db, key)],
+        "daily_source": item.daily_source,
+    }
