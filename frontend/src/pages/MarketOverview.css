@@ -114,7 +114,7 @@
 [data-theme='dark'] .mo-span .mo-down { color: var(--color-error-text); }
 .mo-span-dates { color: var(--color-text-tertiary); }
 .mo-hint { margin: 6px 0 0; font-size: 0.8rem; color: var(--color-text-tertiary); }
-@media (hover: none) { .mo-hint:not(.mo-hint--touch) { display: none; } }
+@media (hover: none) { .mo-hint { display: none; } }
 
 .mo-note { margin: 12px 0 0; font-size: 0.86rem; line-height: 1.6; color: var(--color-text-tertiary); max-width: 980px; }
 

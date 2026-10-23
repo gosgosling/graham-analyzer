@@ -289,9 +289,9 @@ function IndexChart({ data, range }: { data: Overview; range: string }) {
         </ResponsiveContainer>
       </div>
       <IndexSpanSummary store={spanStore} points={view.points} />
-      {isPhone
-        ? <p className="mo-hint mo-hint--touch">Коснитесь графика двумя пальцами — покажем изменение за отрезок.</p>
-        : <p className="mo-hint">Зажмите кнопку мыши и проведите по графику — покажет изменение за отрезок.</p>}
+      {/* На телефоне подсказки нет: жест двумя пальцами — привычный по
+          приложениям брокеров, а строка текста под графиком — лишняя. */}
+      {!isPhone && <p className="mo-hint">Зажмите кнопку мыши и проведите по графику — покажет изменение за отрезок.</p>}
     </>
   );
 }
@@ -582,9 +582,6 @@ export default function MarketOverview() {
           <Ranges value={range} onChange={setRange} />
         </div>
         <IndexChart data={data} range={range} />
-        <p className="mo-note">
-          MCFTR — с реинвестированными дивидендами, без налога. Разрыв между линиями — дивиденды за период.
-        </p>
       </section>
 
       <div className="mo-pair">

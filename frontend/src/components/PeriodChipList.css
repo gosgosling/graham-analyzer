@@ -115,6 +115,10 @@
   color: var(--color-text-tertiary);
 }
 .hl-bar.is-current .hl-bar-label { color: var(--color-text-primary); font-weight: 600; }
+/* Крайние подписи — от края поля внутрь: по центру столбика «12 мес.»
+   вылезала за правый край. */
+button.hl-bar:first-of-type .hl-bar-label { left: 0; transform: none; }
+button.hl-bar:last-of-type .hl-bar-label { left: auto; right: 0; transform: none; }
 
 .hl-readout {
   display: flex;
@@ -145,3 +149,31 @@
 .hl-history-list .is-current dt { color: var(--color-text-primary); font-weight: 600; }
 
 .hl-item--sub .hl-name { padding-left: 12px; color: var(--color-text-secondary); }
+
+/* Знак пояснения у названия и само пояснение в раскрытой строке —
+   так же, как в «Критериях». */
+.hl-more {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  margin-left: 6px;
+  border-radius: 50%;
+  border: 1px solid var(--color-border-strong);
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--color-text-tertiary);
+  vertical-align: 1px;
+}
+.hl-note {
+  margin: 0 0 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--color-bg-overlay);
+  font-size: 0.85rem;
+  line-height: 1.45;
+  color: var(--color-text-secondary);
+}

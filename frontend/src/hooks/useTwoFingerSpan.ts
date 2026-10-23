@@ -77,9 +77,18 @@ export function useTwoFingerSpan(
       onBegin?.();
       onTwo(e);
     };
+    // Пока отрезок выделен, подсказка по дню прячется: два пальца на
+    // графике — это вопрос «сколько между», а не «сколько в этот день», и
+    // плашка поверх только заслоняла бы отрезок. Класс ставится на обёртку
+    // напрямую — перерисовывать ради него график незачем.
+    const mark = () => box.classList.toggle('has-span', store.get() !== null);
+    const unsubscribe = store.subscribe(mark);
+    mark();
     box.addEventListener('touchstart', onStart, { passive: false });
     box.addEventListener('touchmove', onTwo, { passive: false });
     return () => {
+      unsubscribe();
+      box.classList.remove('has-span');
       box.removeEventListener('touchstart', onStart);
       box.removeEventListener('touchmove', onTwo);
     };

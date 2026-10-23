@@ -12,6 +12,7 @@ import {
 } from '../services/valuation.api';
 import { formatPerShare } from '../utils/perShare';
 import { sandboxMultiple, type Sandbox } from '../utils/sandboxValuation';
+import InfoTip from './InfoTip';
 import './ValuationTab.css';
 
 /**
@@ -718,9 +719,20 @@ export default function ValuationTab({ companyId }: { companyId: number }) {
 
         <div className="vt-side">
           {/* ── Откуда прибыль ─────────────────────────────────────────── */}
-          <div className="vt-block">
+          <div className="vt-block vt-block--earnings">
             <div className="vt-block-head">
-              <h3>Откуда {rub(normal)}</h3>
+              <h3>
+                Откуда {rub(normal)}
+                <InfoTip label="Как получена прибыль на акцию">
+                  {band.basis === 'trend'
+                    ? `${measure.title} по отчётам. Берём тренд, а не среднюю${measureAverage !== null ? ` (${rub(measureAverage)})` : ''}: у растущей компании средняя занижена.`
+                    : `${measure.title} по отчётам, средняя за окно — тренда не набралось.`}
+                  {measureTrend?.capped && ' Тренд не выше лучшего года.'}
+                  {series?.years?.some((y) => y.ltm_label) && ` Последний столбик — ${series.years[series.years.length - 1].ltm_label}.`}
+                  {measure.ladder === 'прибыль' && ' Прибыль с разовыми статьями.'}
+                  {cash ? ' В годах с чистой кассой из ряда вычтены проценты на депозиты: их доход заменён самой кассой в итоге.' : null}
+                </InfoTip>
+              </h3>
               {measures.length > 1 && (
                 <div className="vt-pills" role="group" aria-label="Мера прибыли">
                   {measures.map((m) => (
@@ -733,15 +745,6 @@ export default function ValuationTab({ companyId }: { companyId: number }) {
                 </div>
               )}
             </div>
-            <p className="vt-text">
-              {band.basis === 'trend'
-                ? `${measure.title} по отчётам. Берём тренд, а не среднюю${measureAverage !== null ? ` (${rub(measureAverage)})` : ''}: у растущей компании средняя занижена.`
-                : `${measure.title} по отчётам, средняя за окно — тренда не набралось.`}
-              {measureTrend?.capped && ' Тренд не выше лучшего года.'}
-              {series?.years?.some((y) => y.ltm_label) && ` Последний столбик — ${series.years[series.years.length - 1].ltm_label}.`}
-              {measure.ladder === 'прибыль' && ' Прибыль с разовыми статьями.'}
-              {cash ? ' В годах с чистой кассой из ряда вычтены проценты на депозиты: их доход заменён самой кассой в итоге.' : null}
-            </p>
             {series?.years?.length ? (
               <EarningsChart
                 points={series.years}
@@ -762,8 +765,14 @@ export default function ValuationTab({ companyId }: { companyId: number }) {
           </div>
 
           {/* ── Ставка — под графиком, на месте пустого поля ─────────────── */}
-          <div className="vt-block">
-            <h3>Если ставка ОФЗ будет другой</h3>
+          <div className="vt-block vt-block--rates">
+            <h3>
+              Если ставка ОФЗ будет другой
+              <InfoTip label="Что показывает таблица">
+                Прибыль та же, меняется множитель{cash ? ', касса прибавлена к опорной' : ''}. Зелёным — запас от трети, как требует Грэм.
+                {rateCapped && ' Ниже множитель упирается в потолок — дальше стоимость не растёт.'}
+              </InfoTip>
+            </h3>
             <table className="vt-mini">
               <thead>
                 <tr><th>ОФЗ</th><th>множ.</th><th>опорная</th><th>запас</th></tr>
@@ -784,10 +793,6 @@ export default function ValuationTab({ companyId }: { companyId: number }) {
                 })}
               </tbody>
             </table>
-            <p className="vt-note">
-              Прибыль та же, меняется множитель{cash ? ', касса прибавлена к опорной' : ''}. Зелёным — запас от трети, как требует Грэм.
-              {rateCapped && ' Ниже множитель упирается в потолок — дальше стоимость не растёт.'}
-            </p>
           </div>
         </div>
       </div>
@@ -795,7 +800,18 @@ export default function ValuationTab({ companyId }: { companyId: number }) {
       <div className="vt-bottom">
         {/* ── Три мерила ────────────────────────────────────────────────── */}
         <div className="vt-block">
-          <h3>Три мерила заработка</h3>
+          <h3>
+            Три мерила заработка
+            <InfoTip label="Что такое три мерила">
+              {band.low !== null && band.high !== null && <>Полоса оценки {rub(band.low)} – {rub(band.high)}. </>}
+              В опорную идёт {ladderMeasure.label.toLowerCase()}.
+              {band.net_cash ? (
+                <> Касса отдельно от бизнеса: заработок в лестницах — без процентов на депозиты,
+                  а чистая касса {rub(band.net_cash)} на акцию прибавлена рубль за рубль.</>
+              ) : null}
+              {band.asset_lift !== null && band.asset_lift !== 1 && ' К оценке по потоку добавлена треть избыточных активов (гл. 34).'}
+            </InfoTip>
+          </h3>
           <table className="vt-mini vt-mini--measures">
             <tbody>
               {band.ladders.map((l) => {
@@ -803,7 +819,7 @@ export default function ValuationTab({ companyId }: { companyId: number }) {
                 return (
                   <tr key={l.name} className={l.name === ladderName ? 'is-now' : undefined}>
                     <td>{m?.label ?? l.name}</td>
-                    <td title={`средняя за ${years(window)} — ${rub(detail.averages?.[l.name] ?? null)}`}>
+                    <td className="vt-measure-calc" title={`средняя за ${years(window)} — ${rub(detail.averages?.[l.name] ?? null)}`}>
                       {rub(l.normal_per_share)} × {ru(l.multiple, 2)}
                       {band.net_cash ? <> + {rub(band.net_cash)}</> : null}
                     </td>
@@ -813,15 +829,6 @@ export default function ValuationTab({ companyId }: { companyId: number }) {
               })}
             </tbody>
           </table>
-          <p className="vt-note">
-            {band.low !== null && band.high !== null && <>Полоса оценки {rub(band.low)} – {rub(band.high)}. </>}
-            В опорную идёт {ladderMeasure.label.toLowerCase()}.
-            {band.net_cash ? (
-              <> Касса отдельно от бизнеса: заработок в лестницах — без процентов на депозиты,
-                а чистая касса {rub(band.net_cash)} на акцию прибавлена рубль за рубль.</>
-            ) : null}
-            {band.asset_lift !== null && band.asset_lift !== 1 && ' К оценке по потоку добавлена треть избыточных активов (гл. 34).'}
-          </p>
         </div>
 
         {/* ── Проверки ──────────────────────────────────────────────────── */}

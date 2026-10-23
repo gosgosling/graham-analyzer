@@ -60,6 +60,31 @@ const shortLabel = (label: React.ReactNode): React.ReactNode =>
   (typeof label === 'string' && /^\d{4}$/.test(label) ? `’${label.slice(2)}` : label);
 
 /**
+ * Какие столбики подписать. Сначала — выбранный, последний и первый;
+ * остальные — примерно через равный шаг, но только если подпись не налезет
+ * на уже поставленные. Ширина подписи считается по числу знаков: «12 мес.»
+ * вдвое шире «’25», и при равном шаге они ложились друг на друга.
+ */
+function labelled(labels: string[], current: number, width = 320): Set<number> {
+  const n = labels.length;
+  const slot = width / Math.max(n, 1);
+  // Крайние подписи прижаты к краю поля (см. CSS) и всей шириной уходят
+  // внутрь — считаем их вдвое «шире» с этой стороны.
+  const half = (i: number) => (labels[i].length * 6 + 4) / (i === 0 || i === n - 1 ? 1 : 2);
+  const chosen = new Set<number>();
+  const add = (i: number) => {
+    if (i < 0 || i >= n || chosen.has(i)) return;
+    if (Array.from(chosen).every((j) => Math.abs(i - j) * slot >= half(i) + half(j))) chosen.add(i);
+  };
+  add(current);
+  add(n - 1);
+  add(0);
+  const every = Math.max(1, Math.ceil(n / 6));
+  for (let i = n - 1 - every; i > 0; i -= every) add(i);
+  return chosen;
+}
+
+/**
  * История строки по нажатию: столбики, если значения числовые, иначе список.
  *
  * Столбики — по времени слева направо, выбранная колонка подсвечена;
@@ -100,7 +125,13 @@ function History({ columns, row, current, chart }: {
   const AREA = 80;
   const zero = (maxPos / span) * AREA;
   // Подписи оси — не у каждого года: на двадцати столбиках они слиплись бы.
-  const every = Math.max(1, Math.ceil(points.length / 6));
+  const shown = labelled(
+    points.map((p) => {
+      const l = shortLabel(p.column.label);
+      return typeof l === 'string' ? l : '';
+    }),
+    points.findIndex((p) => p.column.key === current),
+  );
 
   return (
     <div className="hl-history">
@@ -118,8 +149,7 @@ function History({ columns, row, current, chart }: {
               aria-label={typeof p.column.label === 'string' ? p.column.label : undefined}>
               <span className="hl-bar-fill" style={neg ? { top: zero, height: h } : { top: zero - h, height: h }} />
               <span className="hl-bar-label">
-                {i === 0 || i === points.length - 1 || i % every === 0 || p.column.key === current
-                  ? shortLabel(p.column.label) : ''}
+                {shown.has(i) ? shortLabel(p.column.label) : ''}
               </span>
             </button>
           );
@@ -172,7 +202,9 @@ export default function PeriodChipList({ columns, groups, compareWith = 'next', 
                 <li key={r.key} className={`hl-item${isOpen ? ' is-open' : ''}${r.sub ? ' hl-item--sub' : ''}`}>
                   <button type="button" className="hl-row" aria-expanded={isOpen}
                     onClick={() => setOpen(isOpen ? null : `${g.key}/${r.key}`)}>
-                    <span className="hl-name" title={r.tip}>{r.label}</span>
+                    <span className="hl-name">
+                      {r.label}{r.tip && <i className="hl-more" aria-hidden>?</i>}
+                    </span>
                     <span className="hl-values">
                       <span className={['hl-value', cell?.className].filter(Boolean).join(' ')}>{show(cell)}</span>
                       {other && (
@@ -180,6 +212,9 @@ export default function PeriodChipList({ columns, groups, compareWith = 'next', 
                       )}
                     </span>
                   </button>
+                  {/* Пояснение — здесь же, в раскрытой строке, как в «Критериях»:
+                      панель снизу экрана закрывала то, к чему относилась. */}
+                  {isOpen && r.tip && <p className="hl-note">{r.tip}</p>}
                   {isOpen && <History columns={columns} row={r} current={current.key} chart={chart} />}
                 </li>
               );

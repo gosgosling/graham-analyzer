@@ -1009,8 +1009,7 @@ export default function PriceChart({ companyId, oil = false }: { companyId: numb
 
           Стоит под графиком, а не над ним: появляясь сверху, полоса сдвигала
           поле вниз прямо во время протяжки, и график уезжал из-под курсора. */}
-      <SpanSummary store={spanStore} points={view.points}
-        hint={isPhone ? 'Коснитесь графика двумя пальцами — покажем, как изменилась цена между датами.' : undefined} />
+      <SpanSummary store={spanStore} points={view.points} />
 
       {view.traps.length > 0 && (
         <p
@@ -1024,7 +1023,9 @@ export default function PriceChart({ companyId, oil = false }: { companyId: numb
       )}
 
       <div className="pc-foot">
-        {hasLevels ? (
+        {/* На телефоне под графиком — только то, без чего его прочитать
+            нельзя: что значит серое и почему цена прыгает на дроблении. */}
+        {hasLevels && !isPhone ? (
           <p
             className="pc-disclaimer"
             title="Параметры модели подобраны на этой же истории, а в выборке лишь компании, которые торгуются сегодня, — поэтому прошлое на графике выглядит надёжнее, чем выглядело бы в моменте."
@@ -1032,6 +1033,8 @@ export default function PriceChart({ companyId, oil = false }: { companyId: numb
             Опорная на каждую дату посчитана только по отчётам, опубликованным к этой дате.
             {data?.split_note && <> {data.split_note}</>}
           </p>
+        ) : isPhone && data?.split_note ? (
+          <p className="pc-disclaimer">{data.split_note}</p>
         ) : <span />}
         <div className="pc-more" role="group" aria-label="Ещё на графике">
           <span className="pc-more-label">Ещё на графике:</span>
@@ -1110,14 +1113,14 @@ export default function PriceChart({ companyId, oil = false }: { companyId: numb
         </div>
       )}
 
-      {overlay === 'oil' && (
+      {overlay === 'oil' && !isPhone && (
         <p className="pc-note">
           Brent — дневная цена (FRED), в рублях — по курсу ЦБ на тот же день. Urals — Brent минус
           дисконт, который вы задали: официальной дневной цены Urals в открытом доступе нет, а дисконт
           сильно менялся (в 2022–2023 годах доходил до 30 $).
         </p>
       )}
-      {overlay && overlay !== 'oil' && (
+      {overlay && overlay !== 'oil' && !isPhone && (
         <p className="pc-note">
           {overlaySpec?.hint}. Шкала ограничена тройной медианой: провал прибыли
           поднимает множитель до сотен, и без ограничения весь остальной ряд сжался бы
