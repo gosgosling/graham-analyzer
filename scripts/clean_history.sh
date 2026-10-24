@@ -7,9 +7,10 @@
 #   1. .env — локальные настройки с токеном T-Invest;
 #   2. токены вида «t.…» (T-Invest) и ключи Alibaba (LTAI…) в любых файлах —
 #      заменяются заглушкой (старый токен попадал и в env.example);
-#   3. дампы базы, в которых есть строки таблиц users / user_sessions /
-#      auth_tokens (хэши паролей, e-mail, сессии). Дампы без данных аккаунтов
-#      остаются — бэкапы в git нужны;
+#   3. все дампы базы (*.dump, каталог backups/postgres/). Раньше убирались
+#      только дампы с данными аккаунтов; с 24.10.2026 — все: в них вся
+#      собранная и проверенная отчётность, и раздавать её архивом незачем.
+#      Бэкапы живут на сервере (~/graham-backups) и локально, не в git;
 #   4. документация, планы, гайды и материалы к конференции (PRIVATE_PATHS) —
 #      они живут только локально и перечислены в .gitignore;
 #   5. подписи соавторов-ассистентов в сообщениях коммитов («Co-Authored-By:
@@ -30,20 +31,15 @@
 #   ./scripts/clean_history.sh [папка-назначения]
 #   (по умолчанию ../graham-analyzer-clean рядом с репозиторием)
 #
-# Нужны: git filter-repo (apt install git-filter-repo или pipx install
-# git-filter-repo) и запущенный контейнер Postgres (для pg_restore — проверка
-# дампов). Имя контейнера — PG_CONTAINER, по умолчанию graham_postgres.
+# Нужен git filter-repo (apt install git-filter-repo или pipx install
+# git-filter-repo).
 set -euo pipefail
 
 SRC="$(git -C "$(dirname "${BASH_SOURCE[0]}")/.." rev-parse --show-toplevel)"
 DEST="${1:-$(dirname "$SRC")/graham-analyzer-clean}"
-PG_CONTAINER="${PG_CONTAINER:-graham_postgres}"
 AUTHOR_NAME="${AUTHOR_NAME:-gosgosling}"
 AUTHOR_EMAIL="${AUTHOR_EMAIL:-198343943+gosgosling@users.noreply.github.com}"
 PRIVATE_PATHS=(docs/ plans/ "ROADMAP GA.md" conference-2026/ .claude/ .cursor/rules/)
-
-source "$SRC/scripts/pg_docker.sh"
-pg_docker_init
 
 if ! git filter-repo --version >/dev/null 2>&1; then
   echo "Нет git filter-repo: apt install git-filter-repo (или pipx install git-filter-repo)" >&2
@@ -58,22 +54,11 @@ WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 umask 077
 
-# ── Дампы с данными аккаунтов ────────────────────────────────────────────────
-echo "Проверка дампов в истории…"
+# ── Дампы базы ───────────────────────────────────────────────────────────────
+dumps=$(git -C "$SRC" rev-list --all --objects | awk '$2 ~ /\.dump$/' | sort -k2 -u | wc -l)
+echo "Дампов в истории: $dumps — все будут удалены"
 : > "$WORK/paths.txt"
-total=0
-while read -r sha path; do
-  total=$((total + 1))
-  rows=$(git -C "$SRC" cat-file blob "$sha" \
-    | pg_docker exec -i "$PG_CONTAINER" pg_restore -a -t users -t user_sessions -t auth_tokens -f - 2>/dev/null \
-    | awk '/^COPY /{c=1;next} /^\\\.$/{c=0;next} c{n++} END{print n+0}' || true)
-  # Не удалось прочитать дамп — считаем, что аккаунты в нём есть: лишний
-  # удалённый бэкап лучше утёкших хэшей.
-  if [[ -z "$rows" || "$rows" -gt 0 ]]; then
-    printf '%s\n' "$path" >> "$WORK/paths.txt"
-  fi
-done < <(git -C "$SRC" rev-list --all --objects | awk '$2 ~ /\.dump$/' | sort -k2 -u)
-echo "Дампов в истории: $total, с данными аккаунтов: $(wc -l < "$WORK/paths.txt")"
+printf '%s\n' "backups/postgres/" "glob:*.dump" >> "$WORK/paths.txt"
 
 printf '%s\n' ".env" "${PRIVATE_PATHS[@]}" >> "$WORK/paths.txt"
 
