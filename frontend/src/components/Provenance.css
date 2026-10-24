@@ -1,0 +1,34 @@
+/* Окошко происхождения числа (Provenance). Оформление — как у «?» (InfoTip). */
+.pv-bubble { max-width: min(360px, calc(100vw - 24px)); }
+.pv-title { font-weight: 600; color: var(--color-text-primary); margin-bottom: 4px; }
+.pv-explain {
+  margin: 0 0 8px;
+  white-space: pre-line;
+  color: var(--color-text-secondary);
+}
+.pv-rows {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 3px 10px;
+  margin: 0;
+  padding-top: 8px;
+  border-top: 1px solid var(--color-border-default);
+}
+.pv-rows dt { color: var(--color-text-tertiary); }
+.pv-rows dd { margin: 0; color: var(--color-text-primary); }
+.pv-open {
+  margin-top: 8px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--color-text-link);
+  cursor: pointer;
+}
+
+/* Клетка таблицы «По годам» — нажимается: число раскрывает, откуда оно. */
+.hist-table td[data-period] { cursor: pointer; }
+.hist-table td[data-period].is-provenance { outline: 2px solid var(--color-border-accent); outline-offset: -2px; }
+
+/* Строка источника в телефонном списке. */
+.hl-source { margin: 0 0 8px; font-size: 0.78rem; color: var(--color-text-tertiary); }

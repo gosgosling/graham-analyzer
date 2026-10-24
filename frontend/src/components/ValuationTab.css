@@ -359,3 +359,43 @@
   .vt-mini--measures td.vt-measure-calc { font-size: 0.78rem; white-space: nowrap; }
   .vt-mini--measures td { white-space: nowrap; }
 }
+
+/* Шкала под таблицей ставок (RateScale): полоса трёх мерил, засечки опорной
+   при каждой ставке, опорная и справедливая сейчас, точка цены. */
+.vt-scale { margin-top: 14px; }
+.vt-scale-field { position: relative; height: 40px; margin: 0 4px; }
+.vt-scale-band {
+  position: absolute; top: 20px; height: 8px; border-radius: 4px;
+  background: color-mix(in srgb, var(--screen-pass-text) 22%, transparent);
+}
+.vt-scale-tick {
+  position: absolute; top: 16px; width: 1.5px; height: 16px; margin-left: -0.75px;
+  background: color-mix(in srgb, var(--color-chart-ref-line) 70%, transparent);
+}
+.vt-scale-rate {
+  position: absolute; top: 0; transform: translateX(-50%);
+  font-size: 0.72rem; color: var(--color-chart-ref-line); white-space: nowrap;
+}
+.vt-scale-mark { position: absolute; top: 12px; width: 3px; height: 24px; margin-left: -1.5px; border-radius: 1px; }
+.vt-scale-mark--ref { background: var(--color-chart-ref-line); }
+.vt-scale-mark--fair { background: var(--color-text-tertiary); }
+.vt-scale-price {
+  position: absolute; top: 16px; width: 16px; height: 16px; margin-left: -8px; border-radius: 50%;
+  background: var(--color-chart-line-1); box-shadow: 0 0 0 2px var(--color-bg-surface);
+}
+.vt-scale-labels { position: relative; margin: 2px 4px 0; }
+.vt-scale-lab {
+  position: absolute; top: 0; transform: translateX(-50%);
+  font-size: 0.78rem; white-space: nowrap; font-variant-numeric: tabular-nums;
+}
+.vt-scale-lab--ref { color: var(--color-chart-ref-line); }
+.vt-scale-lab--fair { color: var(--color-text-tertiary); }
+.vt-scale-lab--price { color: var(--color-text-primary); font-weight: 600; }
+.vt-scale-ends { display: flex; justify-content: space-between; font-size: 0.72rem; color: var(--color-text-quaternary); margin: 0 4px; }
+
+/* Суммы в «Трёх мерилах» не переносятся: «5 513» и «₽» на разных строках
+   читались как два числа. Расчёт в средней колонке — мельче. */
+.vt-mini--measures td:nth-child(n + 2) { white-space: nowrap; }
+@media (min-width: 761px) {
+  .vt-mini--measures td.vt-measure-calc { font-size: 0.84rem; }
+}

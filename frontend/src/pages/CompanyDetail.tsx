@@ -713,7 +713,7 @@ const CompanyDetail: React.FC = () => {
           <h2 className="cd-section-title">Показатели по годам</h2>
           <span className="cd-section-sub">МСФО · годовые отчёты и последние 12 месяцев</span>
         </div>
-        <MultipliersPanel company={company} reports={reports} />
+        <MultipliersPanel company={company} reports={reports} onOpenReport={setSelectedReport} />
       </section>
 
       {/* Холдинг: стоимость складывается из долей, а не из консолидированной

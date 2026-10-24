@@ -53,6 +53,8 @@ interface Props {
   className?: string;
   /** История строки графиком (по умолчанию). false — только списком. */
   chart?: boolean;
+  /** Откуда числа выбранной колонки — строкой в раскрытой строке. */
+  source?: (columnKey: string) => React.ReactNode;
 }
 
 /** Подпись на оси: у периодов «2025» → «’25», чтобы двадцать лет помещались. */
@@ -169,7 +171,7 @@ function History({ columns, row, current, chart }: {
   );
 }
 
-export default function PeriodChipList({ columns, groups, compareWith = 'next', ariaLabel = 'Период', className, chart = true }: Props) {
+export default function PeriodChipList({ columns, groups, compareWith = 'next', ariaLabel = 'Период', className, chart = true, source }: Props) {
   const [selected, setSelected] = useState<string | undefined>(columns[0]?.key);
   const [open, setOpen] = useState<string | null>(null);
   const index = Math.max(0, columns.findIndex((c) => c.key === selected));
@@ -215,6 +217,10 @@ export default function PeriodChipList({ columns, groups, compareWith = 'next', 
                   {/* Пояснение — здесь же, в раскрытой строке, как в «Критериях»:
                       панель снизу экрана закрывала то, к чему относилась. */}
                   {isOpen && r.tip && <p className="hl-note">{r.tip}</p>}
+                  {isOpen && source && (() => {
+                    const text = source(current.key);
+                    return text ? <p className="hl-source">{text}</p> : null;
+                  })()}
                   {isOpen && <History columns={columns} row={r} current={current.key} chart={chart} />}
                 </li>
               );

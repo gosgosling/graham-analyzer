@@ -57,6 +57,7 @@ import {
   type ValuationSummaryOut,
 } from '../services/valuation.api';
 import { useAdmin } from '../hooks/useAdmin';
+import { ltmProvenance, provenanceLine, ProvenancePopover, reportProvenance } from './Provenance';
 import { PHONE_QUERY, useMediaQuery } from '../hooks/useMediaQuery';
 import PeriodChipList from './PeriodChipList';
 import { LIVE_PRICE_REFRESH_MS, LIVE_PRICE_STALE_MS } from '../services/prices.api';
@@ -2195,6 +2196,8 @@ interface HistTableProps {
   orientation?: SheetOrientation;
   /** Скрытые читателем показатели. */
   hidden?: ReadonlySet<HistColKey>;
+  /** Короткая строка «откуда» для периода — в телефонном списке. */
+  sourceOf?: (periodId: string) => string | null;
   /** Опорная стоимость по годам отчёта и на сегодня. Без них столбцов оценки нет. */
   referenceByYear?: Map<number, number | null>;
   ltmReference?: number | null;
@@ -2306,8 +2309,10 @@ const HistList: React.FC<{
     numbers?: Partial<Record<HistColKey, number | null>>;
   }[];
   groupRuns: { group: HistGroup; columns: HistColumn[] }[];
-}> = ({ periods, groupRuns }) => (
+  sourceOf?: (periodId: string) => string | null;
+}> = ({ periods, groupRuns, sourceOf }) => (
   <PeriodChipList
+    source={sourceOf}
     columns={periods.map((p) => ({ key: p.id, label: p.isLtm ? '12 мес.' : p.label }))}
     groups={groupRuns.map((run) => ({
       key: run.group,
@@ -2350,6 +2355,7 @@ const HistTable: React.FC<HistTableProps> = ({
   earlierShown = false,
   onColumns,
   asList = false,
+  sourceOf,
 }) => {
   const [pfcfColMode, setPfcfColMode] = React.useState<PfcfColMode>('pfcf');
   // Прибыль или деньги: ROE и «на акцию» переключаются на свободный поток.
@@ -2562,7 +2568,7 @@ const HistTable: React.FC<HistTableProps> = ({
   });
 
   if (asList) {
-    return <HistList periods={periods} groupRuns={groupRuns} />;
+    return <HistList periods={periods} groupRuns={groupRuns} sourceOf={sourceOf} />;
   }
 
   if (orientation === 'cols') {
@@ -2604,7 +2610,8 @@ const HistTable: React.FC<HistTableProps> = ({
                     {ordered.map((p) => {
                       const cell = p.cells[c.key];
                       return (
-                        <td key={p.id} className={[cell?.className, p.isLtm ? 'cell-ltm' : ''].filter(Boolean).join(' ') || undefined}>
+                        <td key={p.id} data-period={p.id} data-col={c.key}
+                          className={[cell?.className, p.isLtm ? 'cell-ltm' : ''].filter(Boolean).join(' ') || undefined}>
                           {cell?.node ?? '—'}
                         </td>
                       );
@@ -2648,7 +2655,8 @@ const HistTable: React.FC<HistTableProps> = ({
                 const cell = p.cells[c.key];
                 const start = groupRuns.some((g) => g.columns[0].key === c.key);
                 return (
-                  <td key={c.key} className={[cell?.className, start ? 'col-group-start' : ''].filter(Boolean).join(' ') || undefined}>
+                  <td key={c.key} data-period={p.id} data-col={c.key}
+                    className={[cell?.className, start ? 'col-group-start' : ''].filter(Boolean).join(' ') || undefined}>
                     {cell?.node ?? '—'}
                   </td>
                 );
@@ -2722,6 +2730,8 @@ interface MultipliersPanelProps {
    * в кэше мультипликаторов. Панель работает и без них: у небанков колонок нет.
    */
   reports?: FinancialReport[];
+  /** Открыть окно отчёта — из окошка «откуда это число». */
+  onOpenReport?: (report: FinancialReport) => void;
 }
 
 /** Сколько лет видно в листе, когда годы идут колонками, — пока ширина
@@ -2855,7 +2865,7 @@ const TouchTip: React.FC<{ tip: { head: string; body: string } | null; onClose: 
   );
 };
 
-const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company, reports }) => {
+const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company, reports, onOpenReport }) => {
   // На телефоне лист — список по периодам (HistList), таблицы нет вовсе.
   const isPhone = useMediaQuery(PHONE_QUERY);
   const { isAdmin } = useAdmin();
@@ -3076,21 +3086,75 @@ const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company, reports })
     ? (earlierShown || colsHidden === 0 ? rows : rows.filter((r) => Number(String(r.date).slice(0, 4)) >= colsCut))
     : histRows;
 
+  // ── Происхождение числа ──
+  // Нажатие на клетку таблицы открывает окошко у числа: пояснение из
+  // подсказки (то же, что видно при наведении) и откуда число — отчёт, дата
+  // публикации, валюта, как внесено и сверено. Подсказки при наведении
+  // остаются как были.
+  const [provenance, setProvenance] = React.useState<{
+    anchor: HTMLElement; periodId: string; title: string; explain: string | null;
+  } | null>(null);
+  const reportOfPeriod = React.useCallback((periodId: string): FinancialReport | null => {
+    if (periodId === 'ltm') {
+      return (reports ?? []).find((r) => r.id === currentData?.balance_report_id) ?? null;
+    }
+    const record = (histData ?? []).find((r) => String(r.id) === periodId);
+    return record?.report_id != null ? (reports ?? []).find((r) => r.id === record.report_id) ?? null : null;
+  }, [reports, currentData, histData]);
+  const provenanceRows = React.useCallback((periodId: string) => {
+    if (periodId === 'ltm') return currentData ? ltmProvenance(currentData, reports ?? []) : [];
+    const report = reportOfPeriod(periodId);
+    return report ? reportProvenance(report) : [];
+  }, [currentData, reports, reportOfPeriod]);
+  const sourceOf = React.useCallback((periodId: string) => {
+    const rows = provenanceRows(periodId);
+    return rows.length ? provenanceLine(rows) : null;
+  }, [provenanceRows]);
+  React.useEffect(() => {
+    if (!provenance) return undefined;
+    provenance.anchor.classList.add('is-provenance');
+    return () => provenance.anchor.classList.remove('is-provenance');
+  }, [provenance]);
+
   const onSheetClick = (e: React.MouseEvent) => {
-    if (typeof window === 'undefined' || !window.matchMedia?.('(hover: none)').matches) return;
-    // Телефонный список (PeriodChipList) пояснения показывает сам, в
-    // раскрытой строке; панель снизу ему не нужна.
-    if ((e.target as HTMLElement).closest('.hl')) return;
-    const target = (e.target as HTMLElement).closest('[title]') as HTMLElement | null;
-    if (!target || !e.currentTarget.contains(target)) return;
-    const body = target.getAttribute('title');
-    if (!body) return;
     const textOf = (el: Element | null | undefined) => {
       if (!el) return '';
       const copy = el.cloneNode(true) as HTMLElement;
       copy.querySelectorAll('button').forEach((btn) => btn.remove());
       return copy.textContent?.replace(/\s+/g, ' ').trim() ?? '';
     };
+    const clicked = e.target as HTMLElement;
+    // Клетка с числом — окошко происхождения, на любом устройстве. Кнопки в
+    // ячейках (переключатели) работают как раньше.
+    const valueCell = clicked.closest('td[data-period]') as HTMLTableCellElement | null;
+    if (valueCell && e.currentTarget.contains(valueCell) && !clicked.closest('button, a')) {
+      const tip = (clicked.closest('[title]') as HTMLElement | null)?.getAttribute('title')
+        ?? valueCell.querySelector('[title]')?.getAttribute('title') ?? null;
+      const row = valueCell.parentElement;
+      const rowLabel = textOf(row?.querySelector('th.col-label'));
+      const periodLabel = textOf(row?.querySelector('td.col-year'));
+      const table = valueCell.closest('table');
+      const headRow = table?.tHead?.rows[table.tHead.rows.length - 1];
+      const headCell = headRow?.cells[valueCell.cellIndex];
+      const name = rowLabel || textOf(headCell);
+      const period = periodLabel || (rowLabel ? textOf(headCell) : '');
+      const value = textOf(valueCell);
+      setProvenance({
+        anchor: valueCell,
+        periodId: valueCell.dataset.period ?? '',
+        title: [name, period, value].filter(Boolean).join(' · '),
+        explain: tip,
+      });
+      return;
+    }
+    if (typeof window === 'undefined' || !window.matchMedia?.('(hover: none)').matches) return;
+    // Телефонный список (PeriodChipList) пояснения показывает сам, в
+    // раскрытой строке; панель снизу ему не нужна.
+    if (clicked.closest('.hl')) return;
+    const target = clicked.closest('[title]') as HTMLElement | null;
+    if (!target || !e.currentTarget.contains(target)) return;
+    const body = target.getAttribute('title');
+    if (!body) return;
     const cell = target.closest('td, th') as HTMLTableCellElement | null;
     const row = cell?.parentElement;
     // Годы колонками: подпись строки — показатель. Годы строками: показатель
@@ -3192,6 +3256,7 @@ const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company, reports })
             earlierShown={earlierShown}
             onToggleEarlier={() => setEarlierShown((v) => !v)}
             onColumns={setSheetColumns}
+            sourceOf={sourceOf}
           />
           {!isPhone && orientation === 'rows' && histHidden > 0 && (
             <button
@@ -3277,6 +3342,18 @@ const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company, reports })
         </div>}
       </div>
       <TouchTip tip={touchTip} onClose={() => setTouchTip(null)} />
+      {provenance && (
+        <ProvenancePopover
+          anchor={provenance.anchor}
+          title={provenance.title}
+          explain={provenance.explain}
+          rows={provenanceRows(provenance.periodId)}
+          onOpenReport={onOpenReport && reportOfPeriod(provenance.periodId)
+            ? () => onOpenReport(reportOfPeriod(provenance.periodId) as FinancialReport)
+            : undefined}
+          onClose={() => setProvenance(null)}
+        />
+      )}
     </div>
   );
 };

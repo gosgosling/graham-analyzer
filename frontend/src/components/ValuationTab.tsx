@@ -332,6 +332,104 @@ function SandboxSlider({ label, value, base, min, max, step, fmt, onChange }: {
 
 // ─── Вкладка ──────────────────────────────────────────────────────────────
 
+/**
+ * Шкала под таблицей ставок: где цена среди оценок.
+ *
+ * Зелёная полоса — три мерила заработка (от низшего к высшему), засечки —
+ * опорная при каждой ставке из таблицы над ней, отдельно — опорная сейчас и
+ * справедливая, точка — цена. Без пояснения: таблица над шкалой и есть
+ * легенда, а шкала отвечает на один вопрос — при какой ставке цена окажется
+ * ниже опорной.
+ */
+function RateScale({ low, high, price, reference, fair, rates }: {
+  low: number | null;
+  high: number | null;
+  price: number | null;
+  reference: number | null;
+  fair: number | null;
+  rates: { rate: number; reference: number; now: boolean }[];
+}) {
+  // Ширина шкалы — чтобы разводить подписи по строкам по их настоящей ширине.
+  const box = React.useRef<HTMLDivElement | null>(null);
+  // Пока вкладка скрыта (телефон), ширина нулевая — тогда берём оценку по
+  // экрану: шкала идёт почти во всю его ширину.
+  const guess = () => (typeof window !== 'undefined' && window.innerWidth < 761 ? window.innerWidth - 60 : 600);
+  const [width, setWidth] = React.useState(guess);
+  React.useLayoutEffect(() => {
+    const el = box.current;
+    if (!el) return undefined;
+    const measure = () => setWidth(el.clientWidth || guess());
+    measure();
+    if (typeof ResizeObserver === 'undefined') return undefined;
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+  const values = [low, high, price, reference, fair, ...rates.map((r) => r.reference)]
+    .filter((v): v is number => v !== null && Number.isFinite(v) && v > 0);
+  if (values.length < 2 || price === null) return null;
+  const min = Math.min(...values) * 0.97;
+  const max = Math.max(...values) * 1.03;
+  const at = (v: number) => ((v - min) / (max - min)) * 100;
+
+  // Подписи под шкалой: опорная, справедливая, цена. Близкие — во вторую
+  // строку, иначе «5 079» и «5 513» ложатся друг на друга.
+  const below = [
+    reference !== null && { key: 'ref', x: at(reference), text: `опорная ${rub(reference)}`, cls: 'vt-scale-lab--ref' },
+    fair !== null && { key: 'fair', x: at(fair), text: `справедливая ${rub(fair)}`, cls: 'vt-scale-lab--fair' },
+    { key: 'price', x: at(price), text: `цена ${rub(price)}`, cls: 'vt-scale-lab--price' },
+  ].filter(Boolean) as { key: string; x: number; text: string; cls: string }[];
+  below.sort((a, b) => a.x - b.x);
+  // Каждая подпись — в первую строку, где она не налезает на соседку слева.
+  // Центр сначала прижимается к полю (подпись не вылезает за край), и уже по
+  // нему считается, где она начинается и кончается.
+  const half = (text: string) => ((text.length * 7.4 + 8) / 2 / width) * 100;
+  // Строк до трёх: на телефоне все три подписи бывают рядом.
+  const rightEdge = [-100, -100, -100];
+  const placed = below.map((l) => {
+    const h = half(l.text);
+    const x = Math.min(100 - h, Math.max(h, l.x));
+    const free = rightEdge.findIndex((edge) => x - h >= edge);
+    const row = free >= 0 ? free : rightEdge.indexOf(Math.min(...rightEdge));
+    rightEdge[row] = x + h;
+    return { ...l, x, row };
+  });
+  const rowsUsed = Math.max(...placed.map((l) => l.row)) + 1;
+
+  return (
+    <div className="vt-scale" aria-label="Цена на шкале оценок" ref={box}>
+      <div className="vt-scale-field">
+        {low !== null && high !== null && (
+          <span className="vt-scale-band" style={{ left: `${at(low)}%`, width: `${at(high) - at(low)}%` }} />
+        )}
+        {rates.filter((r) => !r.now).map((r) => (
+          <React.Fragment key={r.rate}>
+            <span className="vt-scale-tick" style={{ left: `${at(r.reference)}%` }} />
+            <span className="vt-scale-rate" style={{ left: `${at(r.reference)}%` }}>{rate(r.rate)}%</span>
+          </React.Fragment>
+        ))}
+        {fair !== null && <span className="vt-scale-mark vt-scale-mark--fair" style={{ left: `${at(fair)}%` }} />}
+        {reference !== null && <span className="vt-scale-mark vt-scale-mark--ref" style={{ left: `${at(reference)}%` }} />}
+        <span className="vt-scale-price" style={{ left: `${at(price)}%` }} />
+      </div>
+      <div className="vt-scale-labels" style={{ height: rowsUsed * 17 + 2 }}>
+        {placed.map((l) => (
+          <span key={l.key} className={`vt-scale-lab ${l.cls}`} style={{ left: `${l.x}%`, top: l.row * 17 }}>
+            {l.text}
+          </span>
+        ))}
+      </div>
+      {low !== null && high !== null && (
+        <div className="vt-scale-ends">
+          <span>{rub(low)}</span>
+          <span>три мерила заработка</span>
+          <span>{rub(high)}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function ValuationTab({ companyId }: { companyId: number }) {
   const [window, setWindow] = useState(7);
   const [measureKey, setMeasureKey] = useState<Measure['ladder'] | null>(null);
@@ -793,6 +891,18 @@ export default function ValuationTab({ companyId }: { companyId: number }) {
                 })}
               </tbody>
             </table>
+            <RateScale
+              low={band.low}
+              high={band.high}
+              price={price}
+              reference={reference}
+              fair={fair}
+              rates={rates.filter((r) => !r.refused && r.reference !== null).map((r) => ({
+                rate: r.risk_free_rate,
+                reference: r.reference as number,
+                now: nowRate !== null && Math.abs(r.risk_free_rate - nowRate) < 0.01,
+              }))}
+            />
           </div>
         </div>
       </div>
