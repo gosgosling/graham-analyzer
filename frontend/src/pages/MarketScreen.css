@@ -711,3 +711,7 @@
   .ms-filter-search, .ms-filter-industry { flex: none; width: 100%; max-width: none; box-sizing: border-box; }
   .ms-filter-search, .ms-filter-industry.ss-field { height: 42px; border-radius: 10px; font-size: 0.95rem; }
 }
+
+/* Книжный порог рядом с действующим — когда они различаются. */
+.sc-book { color: var(--color-text-quaternary); }
+.ms-col-book { display: block; font-size: 11px; font-weight: 400; color: var(--color-text-quaternary); white-space: nowrap; }

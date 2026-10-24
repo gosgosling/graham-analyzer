@@ -120,7 +120,7 @@ export default function HomePage() {
         <p className="hp-lede">
           Сайт считает, сколько стоит компания по методу Бенджамина Грэма — из отчётов МСФО за много
           лет, — и сравнивает это с ценой на бирже. {companies ? `${companies.length} компаний` : 'Компании Мосбиржи'},
-          без прогнозов и без рекомендаций.
+          без прогнозов аналитиков и без рекомендаций.
         </p>
         <div className="hp-search"><CompanySearch /></div>
         {popular.length > 0 && (
@@ -156,7 +156,7 @@ export default function HomePage() {
           <span className="hp-fig-num">
             {cleared !== null && screen ? <>{cleared}<small> из {screen.rows.length}</small></> : '…'}
           </span>
-          <span className="hp-fig-sub">все семь требований защитного инвестора</span>
+          <span className="hp-fig-sub">требования Грэма и наши проверки денежного потока</span>
         </Link>
       </section>
 

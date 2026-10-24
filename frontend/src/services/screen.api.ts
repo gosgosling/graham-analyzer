@@ -143,6 +143,8 @@ export interface MarketColumn {
   axis_label: string;
   book: number | null;
   book_text: string;
+  /** Действующий порог по всем компаниям: «≥ 10» или диапазон «≥ 1–2». */
+  applied_text?: string;
   source: string;
   ours: boolean;
 }

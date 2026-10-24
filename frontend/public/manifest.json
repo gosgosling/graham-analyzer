@@ -1,7 +1,7 @@
 {
   "short_name": "Graham Analyzer",
   "name": "Graham Analyzer — стоимость акций по Грэму",
-  "description": "Стоимость российских акций по методу Грэма и Додда — из отчётов МСФО, без прогнозов.",
+  "description": "Стоимость российских акций по методу Грэма и Додда — из отчётов МСФО, без прогнозов аналитиков.",
   "lang": "ru",
   "icons": [
     { "src": "favicon.svg", "type": "image/svg+xml", "sizes": "any" },

@@ -126,6 +126,10 @@ class Rule:
     source: str
     ours: bool = False       # порог наш, а не книжный
     note: Optional[str] = None
+    # Число из книги, когда наш порог от него отличается намеренно. Без него
+    # колонка «в книге» показывала наш порог: у дивидендов «≥ 10», хотя у
+    # Грэма 20 лет. Порог проверки остаётся нашим, книга — книгой.
+    book_threshold: Optional[float] = None
     # Запасная величина той же оси: если основная не прошла, а эта прошла,
     # критерий засчитывается, и в вердикте сказано, что вытянула она. Нужна
     # там, где прибыль и деньги расходятся: у Лукойла отчётная прибыль за
@@ -190,6 +194,20 @@ class Rule:
             # полосой, и сказать это надо прямо.
             return "по профилю" if self.ours else "—"
         return f"{'≥' if self.mode == 'min' else '≤'} {_readable(limit)}"
+
+
+def applied_text(rule: Rule, values: list) -> str:
+    """Действующий порог по всем компаниям: одно число или диапазон.
+
+    Заголовок столбца с книжным «≥ 2» при галочке у ЛУКОЙЛа с 1,18 читался
+    как ошибка: у нефтегаза порог отраслевой, ≥ 1. Диапазон «≥ 1–2» говорит
+    правду о столбце целиком."""
+    nums = sorted({round(float(v), 4) for v in values if v is not None})
+    if rule.mode in ("all", "most") or not nums:
+        return rule.text(nums[0] if nums else None)
+    if len(nums) == 1:
+        return rule.text(nums[0])
+    return f"{'≥' if rule.mode == 'min' else '≤'} {_readable(nums[0])}–{_readable(nums[-1])}"
 
 
 def _readable(value: float) -> str:
@@ -265,7 +283,7 @@ DEFENSIVE = (
     Rule("growth", "earnings_growth", "min", GROWTH_THRESHOLD,
          "гл. 14, критерий 5"),
     Rule("dividends", "streak", "min", float(DIVIDEND_YEARS),
-         "гл. 14, критерий 3", ours=True,
+         "гл. 14, критерий 3", ours=True, book_threshold=20.0,
          note="У Грэма 20 лет; столько истории на российском рынке нет"),
     Rule("price", "pe_average", "max", 15.0,
          "гл. 14, критерий 6"),
@@ -375,9 +393,13 @@ class Verdict:
 
     @property
     def adjusted(self) -> bool:
-        """Сдвинут ли порог отраслью относительно книжного."""
+        """Сдвинут ли порог отраслью относительно книжного.
+
+        Намеренное отступление от книги для всех сразу (дивиденды: 10 лет
+        вместо 20) — не отраслевая поправка: о нём сказано в заголовке
+        столбца, а в карточке каждой компании оно было бы шумом."""
         return (self.applied is not None and self.book is not None
-                and self.applied != self.book)
+                and self.applied != self.book and self.rule.book_threshold is None)
 
     @property
     def counts(self) -> bool:
@@ -591,6 +613,8 @@ def _judge(rule: Rule, axes: dict, profile: SectorProfile) -> Verdict:
     axis = axes.get(rule.axis)
     metric = None if axis is None else axis.metric(rule.metric)
     applied, book, blocked = _threshold(rule, profile)
+    if rule.book_threshold is not None:
+        book = rule.book_threshold
 
     value = None if metric is None else metric.value
     of = None if metric is None else metric.of

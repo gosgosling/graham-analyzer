@@ -139,13 +139,22 @@ def market_screen(
 
     columns: list = []
     seen: set = set()
+    # Действующие пороги столбца по всем компаниям: книжный порог в заголовке
+    # без них обещал одно, а галочки ставились по отраслевому.
+    applied_by_metric: dict = {}
+    for result in results:
+        for verdict in result.verdicts:
+            if verdict.status != screen.NOT_APPLICABLE:
+                applied_by_metric.setdefault(verdict.metric, (verdict.rule, []))[1].append(verdict.applied)
     for result in results:
         for verdict in result.verdicts:
             if verdict.metric in lender_metrics:
                 continue
             if verdict.metric not in seen:
                 seen.add(verdict.metric)
+                rule, applied = applied_by_metric.get(verdict.metric, (verdict.rule, []))
                 columns.append({
+                    "applied_text": screen.applied_text(rule, applied),
                     "metric": verdict.metric,
                     "label": verdict.metric_label,
                     "axis": verdict.axis,

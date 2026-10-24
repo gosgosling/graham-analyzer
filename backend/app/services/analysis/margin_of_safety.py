@@ -162,7 +162,7 @@ LABELS = {
     ACCEPTABLE: "приемлемая",
     FAIR: "около стоимости",
     EXPENSIVE: "выше стоимости",
-    BOND_BETTER: "облигация выгоднее",
+    BOND_BETTER: "доходность ниже ОФЗ",
     DANGEROUS: "опасная",
     NO_SIGNAL: "сигнала нет",
 }
@@ -460,9 +460,8 @@ def assess_safety(
     if safety.yield_spread is not None and safety.yield_spread < YIELD_SPREAD_THIN:
         safety.signal = BOND_BETTER
         safety.reason = (
-            f"отдача {safety.earnings_yield:.1f}% ниже безрисковых "
-            f"{float(risk_free_rate):.1f}% — облигация даёт больше и без "
-            f"неопределённости"
+            f"компания зарабатывает {safety.earnings_yield:.1f}% на рубль цены — "
+            f"меньше безрисковых {float(risk_free_rate):.1f}%"
         )
         return safety
 

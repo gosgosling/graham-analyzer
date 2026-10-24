@@ -22,7 +22,7 @@ export const SIGNAL_SHORT: Record<RowSafety['signal'], string> = {
   acceptable: 'умеренно',
   fair: 'вровень',
   expensive: 'дорого',
-  bond_better: 'ОФЗ выгоднее',
+  bond_better: 'ниже ОФЗ',
   dangerous: 'опасная',
 };
 

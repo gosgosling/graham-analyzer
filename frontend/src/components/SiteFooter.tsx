@@ -24,7 +24,7 @@ export default function SiteFooter() {
         <div className="site-footer-top">
           <div className="site-footer-about">
             <span className="site-footer-name">Graham Analyzer</span>
-            <p>Стоимость российских акций по методу Грэма и Додда — из отчётов МСФО, без прогнозов.</p>
+            <p>Стоимость российских акций по методу Грэма и Додда — из отчётов МСФО, без прогнозов аналитиков.</p>
           </div>
 
           <nav className="site-footer-links" aria-label="Ссылки в подвале">

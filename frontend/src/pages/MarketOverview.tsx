@@ -352,7 +352,7 @@ function RatesChart({ data, range }: { data: Overview; range: string }) {
   );
 }
 
-// ─── Премия акций к облигациям ─────────────────────────────────────────────
+// ─── Разрыв E/P и ОФЗ ──────────────────────────────────────────────────────
 
 function PremiumChart({ years }: { years: MarketYear[] }) {
   const colors = useChartColors();
@@ -376,7 +376,7 @@ function PremiumChart({ years }: { years: MarketYear[] }) {
           contentStyle={{ background: colors.tooltipBg, border: `1px solid ${colors.tooltipBorder}`, borderRadius: 6, fontSize: 12 }}
             labelStyle={{ color: colors.textPrimary, marginBottom: 2 }}
             itemStyle={{ color: colors.textPrimary }}
-          formatter={(v) => [`${signed(Number(v))} п.п.`, 'премия к ОФЗ']}
+          formatter={(v) => [`${signed(Number(v))} п.п.`, 'E/P минус ОФЗ']}
           cursor={{ fill: colors.grid }}
           {...(isPhone ? PHONE_TIP : {})}
         />
@@ -418,8 +418,8 @@ const ROWS: { group: string; rows: Row[] }[] = [
       { label: 'Доходность прибыли, %', tip: 'Прибыль ÷ капитализация — обратная к P/E', value: (y) => pct(y.earnings_yield) },
       { label: 'ОФЗ 10 лет, %', tip: 'Средняя за год; «сейчас» — средняя за месяц', value: (y) => pct(y.ofz10, 2) },
       {
-        label: 'Премия акций, п.п.',
-        tip: 'Доходность прибыли минус ОФЗ. Ниже нуля — облигация платит больше, чем акции зарабатывают на рубль цены',
+        label: 'E/P минус ОФЗ, п.п.',
+        tip: 'Доходность прибыли минус ОФЗ — грубый ориентир, а не ожидаемая доходность акций. Ниже нуля — облигация платит больше, чем акции зарабатывают на рубль цены',
         value: (y) => (y.premium === null ? '—' : signed(y.premium)),
         tone: (y) => (y.premium === null ? '' : y.premium >= 5 ? 'mo-good' : y.premium >= 0 ? 'mo-warn' : 'mo-bad'),
       },
@@ -532,10 +532,13 @@ export default function MarketOverview() {
   // Одна фраза о том, что видно в цифрах ниже, — без советов.
   const lede = now && now.premium !== null && now.ofz10 !== null
     ? `Акции рынка зарабатывают ${ru(now.earnings_yield, 1)}% на рубль цены, десятилетние ОФЗ платят ${ru(now.ofz10, 1)}%: `
+      // Разница E/P и ОФЗ — грубый ориентир, а не премия за риск: прибыль не
+      // обязательно выплачивается и меняется, и ожидаемую полную доходность
+      // акций этот спред не измеряет.
       + (now.premium >= 5
-        ? `премия за риск акций ${signed(now.premium)} п.п. — широкая.`
+        ? `разрыв ${signed(now.premium)} п.п. — широкий.`
         : now.premium >= 0
-          ? `премия за риск акций ${signed(now.premium)} п.п. — узкая.`
+          ? `разрыв ${signed(now.premium)} п.п. — узкий.`
           : `облигации платят больше на ${ru(Math.abs(now.premium), 1)} п.п.`)
     : null;
 
@@ -599,12 +602,12 @@ export default function MarketOverview() {
         </section>
         <section className="mo-card">
           <div className="mo-card-head">
-            <h2>Премия акций к ОФЗ</h2>
+            <h2>Разрыв E/P и ОФЗ</h2>
             <span className="mo-card-sub">доходность прибыли рынка минус ОФЗ 10 лет, п.п.</span>
           </div>
           <PremiumChart years={data.valuation} />
           <p className="mo-note">
-            Зелёный — от 5 п.п., жёлтый — до 5, красный — облигации выгоднее.
+            Зелёный — от 5 п.п., жёлтый — до 5, красный — ниже нуля.
           </p>
         </section>
       </div>

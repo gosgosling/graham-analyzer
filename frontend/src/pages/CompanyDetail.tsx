@@ -978,7 +978,9 @@ const CompanyDetail: React.FC = () => {
                 О компании
               </h2>
               <div className="company-description-actions">
-                {company.business_description_source && !editingDescription && (
+                {/* Откуда описание («вручную», «из отчёта») — служебное: видно
+                    только админу, посетителю оно ничего не говорит. */}
+                {isAdmin && company.business_description_source && !editingDescription && (
                   <span
                     className={`company-description-source company-description-source--${company.business_description_source}`}
                     title={
@@ -1052,10 +1054,14 @@ const CompanyDetail: React.FC = () => {
           <section className="info-card">
             <h2 className="card-title">Биржевые данные</h2>
             <div className="info-grid">
-              <div className="info-item">
-                <span className="info-label">FIGI</span>
-                <span className="info-value">{company.figi}</span>
-              </div>
+              {/* FIGI и доступность торговли через API брокера — служебные
+                  поля: они нужны админу для синхронизации, не инвестору. */}
+              {isAdmin && (
+                <div className="info-item">
+                  <span className="info-label">FIGI</span>
+                  <span className="info-value">{company.figi}</span>
+                </div>
+              )}
               <div className="info-item">
                 <span className="info-label">ISIN</span>
                 <span className="info-value">{company.isin || '—'}</span>
@@ -1072,12 +1078,14 @@ const CompanyDetail: React.FC = () => {
                 <span className="info-label">Размер лота</span>
                 <span className="info-value">{company.lot}</span>
               </div>
-              <div className="info-item">
-                <span className="info-label">Торговля через API</span>
-                <span className={`info-badge ${company.api_trade_available_flag ? 'active' : 'inactive'}`}>
-                  {company.api_trade_available_flag ? 'доступна' : 'недоступна'}
-                </span>
-              </div>
+              {isAdmin && (
+                <div className="info-item">
+                  <span className="info-label">Торговля через API</span>
+                  <span className={`info-badge ${company.api_trade_available_flag ? 'active' : 'inactive'}`}>
+                    {company.api_trade_available_flag ? 'доступна' : 'недоступна'}
+                  </span>
+                </div>
+              )}
             </div>
           </section>
 

@@ -231,7 +231,7 @@ const CompaniesList: React.FC = () => {
   return (
     <div className="securities-container">
       <h1 className="securities-title">
-        <span className="cmp-title-full">Российские компании и компании Мосбиржи (T Invest API)</span>
+        <span className="cmp-title-full">Российские компании Мосбиржи</span>
         <span className="cmp-title-short">Компании</span>
       </h1>
       <div className="companies-toolbar">
@@ -316,14 +316,14 @@ const CompaniesList: React.FC = () => {
               <th>Сектор</th>
               <th>Валюта</th>
               <th>Лот</th>
-              <th>Доступно для API</th>
+              {isAdmin && <th>Доступно для API</th>}
             </tr>
           </thead>
           <tbody>
             {companies && companies.length > 0 ? (
               visibleCompanies.length === 0 ? (
                 <tr>
-                  <td colSpan={8} style={{ textAlign: 'center', padding: '20px' }}>
+                  <td colSpan={isAdmin ? 8 : 7} style={{ textAlign: 'center', padding: '20px' }}>
                     По заданным фильтрам компаний не найдено. Измените поиск или фильтры.
                   </td>
                 </tr>
@@ -381,19 +381,23 @@ const CompaniesList: React.FC = () => {
                       </span>
                     </td>
                     <td className="isin-cell">{company.isin || '-'}</td>
-                    <td>{company.sector || '-'}</td>
+                    <td>{sectorRu(company.sector) ?? company.sector ?? '-'}</td>
                     <td className="currency-cell">{company.currency}</td>
                     <td className="lot-cell">{company.lot}</td>
-                    <td className="status-cell">
-                      <span className={`status-badge ${company.api_trade_available_flag ? 'active' : 'inactive'}`}>
-                        {company.api_trade_available_flag ? 'Да' : 'Нет'}
-                      </span>
-                    </td>
+                    {/* Доступность торговли через API брокера — служебный флаг для
+                        синхронизации; инвестору он ничего не говорит. */}
+                    {isAdmin && (
+                      <td className="status-cell">
+                        <span className={`status-badge ${company.api_trade_available_flag ? 'active' : 'inactive'}`}>
+                          {company.api_trade_available_flag ? 'Да' : 'Нет'}
+                        </span>
+                      </td>
+                    )}
                   </tr>
                   
                   {company.id && expandedCompanies.includes(company.id) && (
                     <tr className="expanded-row">
-                      <td colSpan={8}>
+                      <td colSpan={isAdmin ? 8 : 7}>
                         <CompanyReportsSection
                           company={company}
                           onAddReport={handleAddReport}
@@ -408,7 +412,7 @@ const CompaniesList: React.FC = () => {
               )
             ) : (
               <tr>
-                <td colSpan={8} style={{ textAlign: 'center', padding: '20px' }}>
+                <td colSpan={isAdmin ? 8 : 7} style={{ textAlign: 'center', padding: '20px' }}>
                   Нет данных. Проверьте настройку TINKOFF_TOKEN в .env файле.
                 </td>
               </tr>

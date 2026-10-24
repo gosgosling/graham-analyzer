@@ -5,6 +5,7 @@ import {
   type MarketMultipleOut,
   type PayoutRung,
 } from '../services/valuation.api';
+import { useAdmin } from '../hooks/useAdmin';
 import './MarketMultiple.css';
 
 /**
@@ -239,11 +240,17 @@ function PayoutSwitch({
         </div>
       ) : (
         ratioToFull !== null &&
-        rung.payout < 100 && (
+        rung.payout < 100 && Math.abs(ratioToFull - 1) > 0.005 && (
+          // Выплата всей бухгалтерской прибыли не значит «без капекса»:
+          // амортизация уже вычтена из прибыли, и на замену активов деньги
+          // остаются. Выше множитель у такой компании только тогда, когда
+          // отдача на капитал ниже требуемой доходности.
           <p className="mm-small mm-switch-foot">
-            Компания, раздающая всё, заслуживает множителя в{' '}
-            <b>{ratioToFull.toFixed(2)} раза</b> выше. Она не растёт — зато и не
-            тратит на капекс, окупаемость которого владельцу не доказана.
+            Компания, раздающая всю прибыль, заслуживает множителя в{' '}
+            <b>{(ratioToFull > 1 ? ratioToFull : 1 / ratioToFull).toFixed(2).replace('.', ',')} раза</b>{' '}
+            {ratioToFull > 1
+              ? 'выше: отдача на капитал здесь ниже требуемой доходности, и удержанная прибыль владельцу меньше прибавляет, чем выплаченная.'
+              : 'ниже: отдача на капитал выше требуемой доходности, и удержанная прибыль владельцу выгоднее выплаты.'}
           </p>
         )
       )}
@@ -252,6 +259,7 @@ function PayoutSwitch({
 }
 
 function Content({ data }: { data: MarketMultipleOut }) {
+  const { isAdmin } = useAdmin();
   const { assumption: a, snapshot: s, current, normalized, implied, reference } = data;
   const spread = current?.spread ?? null;
 
@@ -419,7 +427,10 @@ function Content({ data }: { data: MarketMultipleOut }) {
                 подставлен рост {fmt(a.dividend_growth, 2, '%')} — таким он был,
                 когда допущения записывали за {a.year} год. Сейчас данные дают{' '}
                 {fmt(s.sustainable_growth, 2, '%')}: набор проверенных компаний с тех
-                пор изменился. Пересчитать: <code>scripts.set_market_assumption</code>.
+                пор изменился.
+                {/* Команда обслуживания — только админу: посетителю она ничего
+                    не даёт, а читается как недоделка. */}
+                {isAdmin && <> Пересчитать: <code>scripts.set_market_assumption</code>.</>}
               </div>
             )}
           <p className="mm-small">
@@ -726,11 +737,17 @@ function Content({ data }: { data: MarketMultipleOut }) {
             <strong>Приписка к допущениям за {a.year} год.</strong> {a.note}
           </div>
         )}
-        <p className="mm-small">
-          Величины хранятся по годам и меняются командой{' '}
-          <code>python -m scripts.set_market_assumption</code>. Умолчаний у неё нет:
-          пока суждения не названы явно, она отказывается считать.
-        </p>
+        {isAdmin ? (
+          <p className="mm-small">
+            Величины хранятся по годам и меняются командой{' '}
+            <code>python -m scripts.set_market_assumption</code>. Умолчаний у неё нет:
+            пока суждения не названы явно, она отказывается считать.
+          </p>
+        ) : (
+          <p className="mm-small">
+            Величины записываются по годам; суждения в них названы явно, умолчаний нет.
+          </p>
+        )}
         <div className="mm-note mm-note--warn">
           <strong>Осторожно с обобщением.</strong> {companies(s.companies)} — не
           «российский рынок». В этой выборке доминируют нефтегаз и металлурги, и
@@ -752,8 +769,7 @@ export default function MarketMultiple() {
   if (error || !data) {
     return (
       <div className="mm-state mm-state--error">
-        Допущений об уровне рынка нет. Задайте их командой{' '}
-        <code>python -m scripts.set_market_assumption</code>
+        Допущений об уровне рынка пока нет.
       </div>
     );
   }

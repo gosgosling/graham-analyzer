@@ -158,10 +158,23 @@ const cellTitle = (v: Verdict | null): string => {
   return parts.join('\n');
 };
 
-/** Порог столбца так, как он написан в книге (выручка — в миллиардах). */
+const decimal = (t: string) => t.replace(/(\d)\.(\d)/g, '$1,$2');
+
+/**
+ * Действующий порог столбца — по нему и ставятся отметки (выручка — в
+ * миллиардах). Раньше здесь стоял книжный: заголовок обещал ликвидность
+ * ≥ 2, а ЛУКОЙЛ с 1,18 проходил по отраслевому ≥ 1, и это читалось как ошибка.
+ */
 const thresholdText = (c: MarketColumn): string => (c.metric === 'revenue' && c.book !== null
   ? `≥ ${Math.round(c.book / 1000)} млрд`
-  : c.book_text.replace(/(\d)\.(\d)/g, '$1,$2'));
+  : decimal(c.applied_text ?? c.book_text));
+
+/** Книжный порог, если он отличается от действующего, — «у Грэма ≥ 2». */
+const bookText = (c: MarketColumn): string | null => {
+  if (c.metric === 'revenue' || !c.applied_text || c.applied_text === c.book_text) return null;
+  if (c.book_text === '—' || c.book_text === 'по профилю') return null;
+  return `у Грэма ${decimal(c.book_text)}`;
+};
 
 /**
  * Ячейка сигнала о цене.
@@ -219,7 +232,10 @@ function Sieve({ data, steps, afterGraham, cleared }: {
       <span className="sc-n">{String(n).padStart(2, '0')}</span>
       <span className="sc-req">
         <b>{s.column.label}</b>
-        <small>{thresholdText(s.column)}{s.column.ours && <i title="Порог отличается от книжного">*</i>}</small>
+        <small>
+          {thresholdText(s.column)}
+          {bookText(s.column) && <span className="sc-book"> · {bookText(s.column)}</span>}
+        </small>
       </span>
       <span className="sc-left">
         {s.remaining}
@@ -243,7 +259,7 @@ function Sieve({ data, steps, afterGraham, cleared }: {
       )}
       <li className="sc-step sc-step--end">
         <span className="sc-n" />
-        <span className="sc-req"><b>Прошли все требования</b></span>
+        <span className="sc-req"><b>Прошли и требования Грэма, и наши проверки</b></span>
         <span className="sc-left">{cleared}</span>
       </li>
     </ol>
@@ -296,7 +312,9 @@ function SieveView({ data, standard }: { data: MarketScreenOut; standard: string
       </aside>
       <div className="sc-main">
         <section className="sc-sec">
-          <h2>{standard === 'defensive' ? 'Прошли все семь требований' : 'Прошли все требования'}
+          {/* «Прошли все семь требований» смешивало этапы: в итоге учтены и
+              наши проверки отдачи и денежного потока, которых у Грэма нет. */}
+          <h2>Прошли требования Грэма и наши проверки
             {' '}<span>— {groups.passed.length}</span></h2>
           {groups.passed.length === 0 ? (
             <p className="sc-empty">Ни одна компания не проходит всё — это результат, а не сбой.</p>
@@ -516,10 +534,8 @@ function FullTable({ data }: { data: MarketScreenOut }) {
               {data.columns.map((c) => (
                 <th key={c.metric} title={`${c.label}\n${c.axis_label} · ${c.source}\nкнижный порог ${c.book_text}`}>
                   <span className="ms-col">{SHORT_HEAD[c.metric] ?? c.label}</span>
-                  <span className="ms-col-thr">
-                    {thresholdText(c)}
-                    {c.ours && <i title="Порог отличается от книжного">*</i>}
-                  </span>
+                  <span className="ms-col-thr">{thresholdText(c)}</span>
+                  {bookText(c) && <span className="ms-col-book">{bookText(c)}</span>}
                 </th>
               ))}
               <th
@@ -605,8 +621,8 @@ function FullTable({ data }: { data: MarketScreenOut }) {
 }
 
 const LEDE: Record<string, string> = {
-  defensive: 'семь требований защитного инвестора — гл. 14 «Разумного инвестора»',
-  enterprising: 'требования активного инвестора — гл. 15 «Разумного инвестора»',
+  defensive: 'семь требований защитного инвестора из гл. 14 «Разумного инвестора» с отраслевыми порогами и наши проверки отдачи и денежного потока',
+  enterprising: 'требования активного инвестора из гл. 15 «Разумного инвестора» с отраслевыми порогами и наши проверки отдачи и денежного потока',
 };
 
 export default function MarketScreen() {

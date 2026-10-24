@@ -750,3 +750,21 @@ def test_enterprising_pb_loosening_sectors_unchanged():
     axes = healthy()
     v = verdict(screened(axes, profile=RETAIL_GROCERY, standard="enterprising"), "pb_tangible")
     assert v.applied == 2.4
+
+
+def test_дивиденды_проверяются_по_десяти_годам_а_в_книге_двадцать():
+    """Порог проверки — наш (10 лет), колонка «в книге» — книжный (20).
+    Это отступление для всех компаний сразу, а не отраслевая поправка."""
+    from app.services.analysis.screen import DEFENSIVE
+
+    rule = next(r for r in DEFENSIVE if r.metric == "streak")
+    assert rule.threshold == 10.0 and rule.book_threshold == 20.0
+    assert rule.text(rule.book_threshold) == "≥ 20"
+
+
+def test_действующий_порог_столбца_одним_числом_или_диапазоном():
+    from app.services.analysis.screen import DEFENSIVE, applied_text
+
+    current = next(r for r in DEFENSIVE if r.metric == "current_ratio")
+    assert applied_text(current, [2.0, 2.0, None]) == "≥ 2"
+    assert applied_text(current, [1.0, 2.0, 1.5]) == "≥ 1–2"
