@@ -396,16 +396,37 @@ function RateScale({ low, high, price, reference, fair, rates }: {
   });
   const rowsUsed = Math.max(...placed.map((l) => l.row)) + 1;
 
+  // Засечки ставок. Ниже какой-то ставки множитель упирается в потолок, и
+  // оценки при 13, 10 и 8% совпадают: три засечки в одной точке с подписями
+  // друг на друге. Совпадающие сливаются в одну — «≤ 13%». Подпись, которая
+  // налезла бы на соседнюю, не ставится — засечка остаётся.
+  const scenarios: { x: number; label: string; first: number; ref: number }[] = [];
+  [...rates].filter((r) => !r.now).sort((a, b) => b.rate - a.rate).forEach((r) => {
+    const prev = scenarios[scenarios.length - 1];
+    if (prev && Math.abs(r.reference - prev.ref) <= prev.ref * 0.005) {
+      prev.label = `≤ ${rate(prev.first)}%`;
+      return;
+    }
+    scenarios.push({ x: at(r.reference), label: `${rate(r.rate)}%`, first: r.rate, ref: r.reference });
+  });
+  let lastRateEdge = -100;
+  const ticks = scenarios.sort((a, b) => a.x - b.x).map((t) => {
+    const h = half(t.label);
+    const show = t.x - h >= lastRateEdge;
+    if (show) lastRateEdge = t.x + h;
+    return { ...t, show };
+  });
+
   return (
     <div className="vt-scale" aria-label="Цена на шкале оценок" ref={box}>
       <div className="vt-scale-field">
         {low !== null && high !== null && (
           <span className="vt-scale-band" style={{ left: `${at(low)}%`, width: `${at(high) - at(low)}%` }} />
         )}
-        {rates.filter((r) => !r.now).map((r) => (
-          <React.Fragment key={r.rate}>
-            <span className="vt-scale-tick" style={{ left: `${at(r.reference)}%` }} />
-            <span className="vt-scale-rate" style={{ left: `${at(r.reference)}%` }}>{rate(r.rate)}%</span>
+        {ticks.map((t) => (
+          <React.Fragment key={t.label}>
+            <span className="vt-scale-tick" style={{ left: `${t.x}%` }} />
+            {t.show && <span className="vt-scale-rate" style={{ left: `${t.x}%` }}>{t.label}</span>}
           </React.Fragment>
         ))}
         {fair !== null && <span className="vt-scale-mark vt-scale-mark--fair" style={{ left: `${at(fair)}%` }} />}
