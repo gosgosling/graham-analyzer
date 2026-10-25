@@ -603,8 +603,36 @@
     font-size: 12px;
     color: var(--color-text-tertiary);
   }
-  .smb-legend .smb-dot { margin-left: 6px; }
-  .smb-legend .smb-dot:first-child { margin-left: 0; }
+  .smb-legend .smb-key { display: inline-block; width: 11px; height: 11px; border-radius: 3px; margin-left: 6px; box-sizing: border-box; }
+  .smb-legend .smb-key:first-child { margin-left: 0; }
+
+  /* Сортировка — кнопками: шапки колонок на телефоне нет. Ряд листается вбок. */
+  .smb-sorts {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 2px -16px 10px 0;
+    padding-right: 16px;
+    overflow-x: auto;
+    white-space: nowrap;
+    scrollbar-width: none;
+    font-size: 0.82rem;
+    color: var(--color-text-tertiary);
+  }
+  .smb-sorts::-webkit-scrollbar { display: none; }
+  .smb-sort {
+    flex: none;
+    height: 32px;
+    padding: 0 12px;
+    border: 1px solid var(--color-border-default);
+    border-radius: 16px;
+    background: var(--color-bg-surface);
+    color: var(--color-text-secondary);
+    font: inherit;
+    font-size: 0.85rem;
+    cursor: pointer;
+  }
+  .smb-sort.is-on { background: var(--color-text-primary); border-color: var(--color-text-primary); color: var(--color-bg-surface); }
 
   .smb-list { list-style: none; margin: 0; padding: 0; }
   .smb-item { border-bottom: 1px solid var(--color-border-default); }
@@ -616,7 +644,7 @@
     font: inherit;
     color: inherit;
     text-align: left;
-    padding: 11px 0 10px;
+    padding: 12px 0 8px;
     cursor: pointer;
   }
   .smb-head { display: flex; align-items: center; gap: 8px; }
@@ -626,14 +654,42 @@
   .smb-count { flex: none; font-family: var(--font-mono); font-size: 0.88rem; color: var(--color-text-secondary); }
   .smb-count.is-clear { color: var(--screen-pass-text); font-family: inherit; font-weight: 600; }
 
-  .smb-bar { display: flex; gap: 3px; margin-top: 7px; }
-  .smb-bar .smb-dot { flex: 1; }
-  .smb-dot { display: inline-block; width: 14px; height: 6px; border-radius: 2px; }
-  .smb-dot--pass { background: var(--color-success); }
-  .smb-dot--near { background: var(--color-warning); }
-  .smb-dot--fail { background: var(--color-error); }
-  .smb-dot--unknown { background: var(--color-border-strong); }
-  .smb-dot--na { background: var(--color-border-default); }
+  /* Лента плиток: строка компании на месте, вбок листаются только плитки.
+     Правый край уходит под край экрана — видно, что лента продолжается. */
+  .smb-tiles {
+    display: flex;
+    gap: 5px;
+    margin-right: -16px;
+    padding: 0 16px 12px 0;
+    overflow-x: auto;
+    scroll-snap-type: x proximity;
+    scrollbar-width: none;
+  }
+  .smb-tiles::-webkit-scrollbar { display: none; }
+  .smb-tile {
+    flex: none;
+    min-width: 70px;
+    box-sizing: border-box;
+    padding: 5px 8px 6px;
+    border-radius: 7px;
+    border: 1px solid transparent;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    scroll-snap-align: start;
+  }
+  .smb-tile small { font-size: 10.5px; line-height: 1.2; opacity: 0.85; white-space: nowrap; }
+  .smb-tile b { font-family: var(--font-mono); font-size: 13px; font-weight: 500; white-space: nowrap; }
+  .smb-tile--pass { background: var(--color-success-soft); color: var(--screen-pass-text); border-color: var(--color-success-border); }
+  .smb-tile--near { background: var(--screen-miss-near); color: var(--screen-miss-near-text); border-color: var(--color-warning-border); }
+  .smb-tile--fail { background: var(--color-error-soft); color: var(--color-error-text); border-color: var(--color-error-border); }
+  .smb-tile--unknown,
+  .smb-tile--na { background: var(--color-bg-subtle); color: var(--color-text-tertiary); border: 1px dashed var(--color-border-strong); }
+  /* Запас прочности — первая плитка, цвет сигнала как в колонке таблицы. */
+  .smb-tile--safety { background: var(--color-bg-subtle); border-color: var(--color-border-default); }
+  .smb-tile--safety.ms-safety--favourable { background: var(--color-success-soft); }
+  .smb-tile--safety.ms-safety--bond_better,
+  .smb-tile--safety.ms-safety--dangerous { background: var(--color-error-soft); }
 
   .smb-detail {
     margin: 0 0 12px;
@@ -711,6 +767,51 @@
   .ms-filter-search, .ms-filter-industry { flex: none; width: 100%; max-width: none; box-sizing: border-box; }
   .ms-filter-search, .ms-filter-industry.ss-field { height: 42px; border-radius: 10px; font-size: 0.95rem; }
 }
+
+/* ── Сортировка по колонкам ─────────────────────────────────────────────
+   Заголовок — кнопка во всю ячейку. Стрелка маленькая, в правом верхнем
+   углу, поверх: текст заголовка остаётся по центру и не сдвигается.
+   Бледная двойная — колонку можно сортировать; при наведении темнее;
+   одинарная цветная и линия под заголовком — по ней отсортировано. */
+.ms-table { --ms-sort-accent: #b07a0e; }
+[data-theme='dark'] .ms-table { --ms-sort-accent: #e7b84a; }
+.ms-table thead th.ms-sortable { padding: 0; cursor: pointer; }
+/* Кнопка без своего позиционирования: стрелка встаёт в угол ячейки
+   (у неё position: sticky), и у коротких заголовков — на той же высоте. */
+.ms-sort-btn {
+  display: block;
+  width: 100%;
+  min-height: 100%;
+  box-sizing: border-box;
+  /* Те же отступы, что у обычной ячейки: шире — и слова в узких колонках
+     начинали рваться («Выручк-а»). Стрелка лежит в углу поверх отступа. */
+  padding: 10px 7px;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: inherit;
+  cursor: pointer;
+}
+.ms-table thead th.ms-sortable:hover { background: var(--color-bg-hover); }
+.ms-sort-btn:focus-visible { outline: 2px solid var(--ms-sort-accent); outline-offset: -2px; }
+.ms-sort {
+  position: absolute;
+  top: 6px;
+  right: 3px;
+  fill: none;
+  stroke: var(--color-text-tertiary);
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.35;
+  transition: opacity 0.15s;
+  pointer-events: none;
+}
+.ms-sortable:hover .ms-sort { opacity: 0.9; stroke: var(--color-text-secondary); }
+.ms-sort.is-on,
+.ms-sortable:hover .ms-sort.is-on { opacity: 1; stroke: var(--ms-sort-accent); stroke-width: 1.8; }
+.ms-table thead th.is-sorted { box-shadow: inset 0 -2px 0 var(--ms-sort-accent); }
 
 /* Книжный порог рядом с действующим — когда они различаются. */
 .sc-book { color: var(--color-text-quaternary); }

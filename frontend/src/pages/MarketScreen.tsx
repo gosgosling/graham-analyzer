@@ -14,6 +14,7 @@ import SelectSheet from '../components/SelectSheet';
 import { marginText, SafetyMargin, SIGNAL_SHORT } from '../components/SafetyMargin';
 import { groupRows, sieve, type SieveStep } from '../utils/screenSieve';
 import { filterRows, industries } from '../utils/screenTableFilter';
+import { metricKey, nextSort, parseSort, sortRows, type SortDir, type SortState } from '../utils/screenSort';
 import CompareView from '../components/CompareView';
 import './MarketScreen.css';
 
@@ -367,7 +368,7 @@ function SieveView({ data, standard }: { data: MarketScreenOut; standard: string
   );
 }
 
-/** Тон отрезка полоски: пройдено, чуть не дотянула, не пройдено, нет числа. */
+/** Тон плитки: пройдено, чуть не дотянула, не пройдено, нет числа. */
 const dotTone = (cell: Verdict | null): string => {
   if (!cell || cell.status === 'n/a') return 'na';
   if (cell.status === 'unknown') return 'unknown';
@@ -376,28 +377,89 @@ const dotTone = (cell: Verdict | null): string => {
   return !negative && cell.shortfall != null && cell.shortfall <= NEAR_MISS ? 'near' : 'fail';
 };
 
+/** Подписи плиток на телефоне — в плитку шириной в палец влезает слово. */
+const TILE_LABEL: Record<string, string> = {
+  roe: 'ROE',
+  revenue: 'Выручка',
+  current_ratio: 'Ликвидн.',
+  profitable_years: 'Без убытка',
+  profitable_years_short: 'Без уб. 5 л.',
+  earnings_growth: 'Рост EPS',
+  earnings_growth_short: 'EPS 5 л.',
+  streak: 'Дивиденды',
+  pe_average: 'P/E 3 г.',
+  pb: 'P/B',
+  pb_tangible: 'P/B мат.',
+  pe_pb: 'P/E×P/B',
+  cash_positive_years: 'FCF > 0',
+  cash_growth: 'FCF 10 л.',
+  cash_growth_short: 'FCF 5 л.',
+};
+
+/** Кнопки сортировки на телефоне — шапки колонок там нет. */
+const MOBILE_SORTS: { key: string; label: string }[] = [
+  { key: 'safety', label: 'Запас прочности' },
+  { key: 'total', label: 'Пройдено' },
+  { key: metricKey('pe_average'), label: 'P/E' },
+  { key: metricKey('pb'), label: 'P/B' },
+  { key: metricKey('streak'), label: 'Дивиденды' },
+  { key: metricKey('roe'), label: 'ROE' },
+];
+
+/** Стрелка сортировки: бледная двойная — можно, одинарная цветная — отсортировано. */
+function SortArrow({ dir }: { dir: SortDir | null }) {
+  return (
+    <svg className={`ms-sort${dir ? ' is-on' : ''}`} width="9" height="9" viewBox="0 0 10 10" aria-hidden="true">
+      {dir === 'desc' && <path d="M2 3.5 5 7l3-3.5" />}
+      {dir === 'asc' && <path d="M2 6.5 5 3l3 3.5" />}
+      {!dir && <path d="M2 3.5 5 1l3 2.5M2 6.5 5 9l3-2.5" />}
+    </svg>
+  );
+}
+
 /**
- * Полная таблица на телефоне: компания — строка, требования — полоска.
+ * Полная таблица на телефоне: компания — строка, требования — плитки.
  *
  * Пятнадцать колонок на экране в 375 пикселей читались только прокруткой
- * вбок, и через две колонки терялось, чья это строка. Здесь каждое требование
- * — отрезок полоски в его цвет, а по нажатию раскрывается то, ради чего
- * таблицу и открывают: что именно не прошло, на сколько и при каком пороге.
+ * всей таблицы вбок, и через две колонки терялось, чья это строка. Здесь
+ * строка компании стоит на месте, а вбок листается только её лента плиток:
+ * у каждой подпись, число и цвет — пройдено, чуть не дотянула, не пройдено.
+ * Первая плитка — запас прочности. Нажатие на название раскрывает то, ради
+ * чего таблицу и открывают: что не прошло, на сколько и при каком пороге.
  */
-function ScreenMobileList({ data, rows }: { data: MarketScreenOut; rows: MarketScreenOut['rows'] }) {
+function ScreenMobileList({ data, rows, sort, onSort }: {
+  data: MarketScreenOut;
+  rows: MarketScreenOut['rows'];
+  sort: SortState | null;
+  onSort: (key: string) => void;
+}) {
   const [open, setOpen] = useState<number | null>(null);
-  const sorted = useMemo(() => [...rows].sort((a, b) => (b.passed - a.passed)
-    || ((b.safety?.value_margin ?? -Infinity) - (a.safety?.value_margin ?? -Infinity))), [rows]);
+  // Без выбранной сортировки — сначала прошедшие больше требований.
+  const ordered = useMemo(() => (sort ? rows : [...rows].sort((a, b) => (b.passed - a.passed)
+    || ((b.safety?.value_margin ?? -Infinity) - (a.safety?.value_margin ?? -Infinity)))), [rows, sort]);
+  const sorts = MOBILE_SORTS.filter((o) => !o.key.startsWith('m:') || data.columns.some((c) => metricKey(c.metric) === o.key));
   return (
     <div className="smb">
+      <div className="smb-sorts" role="group" aria-label="Сортировка">
+        <span>Сортировка:</span>
+        {sorts.map((o) => {
+          const on = sort?.key === o.key;
+          return (
+            <button key={o.key} type="button" className={`smb-sort${on ? ' is-on' : ''}`} aria-pressed={on}
+              onClick={() => onSort(o.key)}>
+              {o.label}{on && (sort!.dir === 'desc' ? ' ↓' : ' ↑')}
+            </button>
+          );
+        })}
+      </div>
       <p className="smb-legend" aria-hidden>
-        <i className="smb-dot smb-dot--pass" /> пройдено
-        <i className="smb-dot smb-dot--near" /> чуть не дотянула
-        <i className="smb-dot smb-dot--fail" /> не пройдено
-        <i className="smb-dot smb-dot--unknown" /> нет данных
+        <i className="smb-key smb-tile--pass" /> пройдено
+        <i className="smb-key smb-tile--near" /> чуть не дотянула
+        <i className="smb-key smb-tile--fail" /> не пройдено
+        <i className="smb-key smb-tile--unknown" /> нет данных
       </p>
       <ul className="smb-list">
-        {sorted.map((row) => {
+        {ordered.map((row) => {
           const isOpen = open === row.id;
           const misses = row.cells.filter((c): c is Verdict => c != null && (c.status === 'fail' || c.status === 'unknown'));
           return (
@@ -411,13 +473,24 @@ function ScreenMobileList({ data, rows }: { data: MarketScreenOut; rows: MarketS
                     {row.clears ? 'прошла все' : `${row.passed} из ${row.checked}`}
                   </span>
                 </span>
-                <span className="smb-bar" aria-label={`Пройдено ${row.passed} требований из ${row.checked}`}>
-                  {row.cells.map((cell, i) => (
-                    <i key={data.columns[i].metric} className={`smb-dot smb-dot--${dotTone(cell)}`}
-                      title={`${data.columns[i].label}: ${TITLE[cell?.status ?? 'n/a']}`} />
-                  ))}
-                </span>
               </button>
+              <div className="smb-tiles" aria-label={`Пройдено ${row.passed} требований из ${row.checked}`}>
+                <span className={`smb-tile smb-tile--safety ms-safety--${row.safety?.signal ?? 'none'}`}>
+                  <small>Запас</small>
+                  <b>{row.safety ? marginText(row.safety.value_margin) : '—'}</b>
+                </span>
+                {row.cells.map((cell, i) => {
+                  const column = data.columns[i];
+                  const swapped = cell != null && cell.metric !== column.metric;
+                  const label = swapped ? (SWAP_LABEL[cell!.metric] ?? cell!.metric_label) : (TILE_LABEL[column.metric] ?? column.label);
+                  return (
+                    <span key={column.metric} className={`smb-tile smb-tile--${dotTone(cell)}`} title={cellTitle(cell)}>
+                      <small>{label}</small>
+                      <b>{cell && cell.status !== 'n/a' && cell.status !== 'unknown' ? cellValue(cell) || '—' : '—'}</b>
+                    </span>
+                  );
+                })}
+              </div>
               {isOpen && (
                 <div className="smb-detail">
                   {misses.length === 0 ? (
@@ -478,9 +551,20 @@ function FullTable({ data }: { data: MarketScreenOut }) {
     if (value) next.set(key, value); else next.delete(key);
     setParams(next, { replace: true });
   };
+  // Сортировка тоже в адресе: отсортированную таблицу можно отправить ссылкой.
+  const sort = parseSort(params.get('sort'), params.get('dir'));
+  const onSort = (key: string) => {
+    const next = nextSort(sort, key, data.columns);
+    const p = new URLSearchParams(params);
+    if (next) { p.set('sort', next.key); p.set('dir', next.dir); } else { p.delete('sort'); p.delete('dir'); }
+    setParams(p, { replace: true });
+  };
+  const dirOf = (key: string): SortDir | null => (sort?.key === key ? sort.dir : null);
+  const ariaSort = (key: string) => (sort?.key === key ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none');
   const options = useMemo(() => industries(data.rows), [data.rows]);
-  const rows = useMemo(() => filterRows(data.rows, query, industry), [data.rows, query, industry]);
-  const narrowed = rows.length !== data.rows.length;
+  const filtered = useMemo(() => filterRows(data.rows, query, industry), [data.rows, query, industry]);
+  const rows = useMemo(() => sortRows(filtered, sort, data.columns), [filtered, sort, data.columns]);
+  const narrowed = filtered.length !== data.rows.length;
 
   return (
     <>
@@ -515,7 +599,7 @@ function FullTable({ data }: { data: MarketScreenOut }) {
           </>
         )}
       </div>
-      <ScreenMobileList data={data} rows={rows} />
+      <ScreenMobileList data={data} rows={rows} sort={sort} onSort={onSort} />
       <div className="ms-scroll ms-scroll--wide">
         <table className="ms-table">
           {/* Ширины задаёт colgroup, а не содержимое: иначе колонку
@@ -530,23 +614,42 @@ function FullTable({ data }: { data: MarketScreenOut }) {
           </colgroup>
           <thead>
             <tr>
-              <th className="ms-sticky">Компания</th>
-              {data.columns.map((c) => (
-                <th key={c.metric} title={`${c.label}\n${c.axis_label} · ${c.source}\nкнижный порог ${c.book_text}`}>
-                  <span className="ms-col">{SHORT_HEAD[c.metric] ?? c.label}</span>
-                  <span className="ms-col-thr">{thresholdText(c)}</span>
-                  {bookText(c) && <span className="ms-col-book">{bookText(c)}</span>}
-                </th>
-              ))}
+              <th className={`ms-sticky ms-sortable${dirOf('company') ? ' is-sorted' : ''}`} aria-sort={ariaSort('company')}>
+                <button type="button" className="ms-sort-btn" onClick={() => onSort('company')}>
+                  Компания<SortArrow dir={dirOf('company')} />
+                </button>
+              </th>
+              {data.columns.map((c) => {
+                const key = metricKey(c.metric);
+                return (
+                  <th key={c.metric} className={`ms-sortable${dirOf(key) ? ' is-sorted' : ''}`} aria-sort={ariaSort(key)}
+                    title={`${c.label}\n${c.axis_label} · ${c.source}\nкнижный порог ${c.book_text}`}>
+                    <button type="button" className="ms-sort-btn" onClick={() => onSort(key)}>
+                      <span className="ms-col">{SHORT_HEAD[c.metric] ?? c.label}</span>
+                      <span className="ms-col-thr">{thresholdText(c)}</span>
+                      {bookText(c) && <span className="ms-col-book">{bookText(c)}</span>}
+                      <SortArrow dir={dirOf(key)} />
+                    </button>
+                  </th>
+                );
+              })}
               <th
-                className="ms-safety"
+                className={`ms-safety ms-sortable${dirOf('safety') ? ' is-sorted' : ''}`}
+                aria-sort={ariaSort('safety')}
                 title={'Запас прочности: опорная оценка против цены.\n'
                   + 'Отдельный вопрос от свода — свод про компанию, сигнал про цену.'}
               >
-                <span className="ms-col">Запас прочности</span>
-                <span className="ms-col-thr">≥ ⅓</span>
+                <button type="button" className="ms-sort-btn" onClick={() => onSort('safety')}>
+                  <span className="ms-col">Запас прочности</span>
+                  <span className="ms-col-thr">≥ ⅓</span>
+                  <SortArrow dir={dirOf('safety')} />
+                </button>
               </th>
-              <th className="ms-total">Итог</th>
+              <th className={`ms-total ms-sortable${dirOf('total') ? ' is-sorted' : ''}`} aria-sort={ariaSort('total')}>
+                <button type="button" className="ms-sort-btn" onClick={() => onSort('total')}>
+                  Итог<SortArrow dir={dirOf('total')} />
+                </button>
+              </th>
             </tr>
           </thead>
           <tbody>
