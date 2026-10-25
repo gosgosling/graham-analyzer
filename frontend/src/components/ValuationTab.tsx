@@ -335,12 +335,16 @@ function SandboxSlider({ label, value, base, min, max, step, fmt, onChange }: {
 /**
  * Шкала под таблицей ставок: где цена среди оценок.
  *
- * Зелёная полоса — три мерила заработка (от низшего к высшему), засечки —
- * опорная при каждой ставке из таблицы над ней, отдельно — опорная сейчас,
- * точка — цена. Справедливой здесь нет: она часто выходит за полосу и
- * растягивает шкалу ради числа, которое не про запас прочности. Без пояснения: таблица над шкалой и есть
- * легенда, а шкала отвечает на один вопрос — при какой ставке цена окажется
+ * Одна ось, на ней: зелёная полоса — три мерила заработка (от низшего к
+ * высшему), серые засечки — опорная при других ставках из таблицы над шкалой,
+ * оранжевая черта — опорная сейчас, точка — цена. Справедливой здесь нет: она
+ * часто выходит за полосу и растягивает шкалу ради числа, которое не про запас
+ * прочности. Шкала отвечает на один вопрос — при какой ставке цена окажется
  * ниже опорной.
+ *
+ * Все подписи под осью — опорная, цена и края полосы — раскладываются одним
+ * проходом по строкам, чтобы ни одна не легла на другую; засечки ставок
+ * подписаны над осью серым, отдельно от оранжевой опорной.
  */
 function RateScale({ low, high, price, reference, rates }: {
   low: number | null;
@@ -368,37 +372,19 @@ function RateScale({ low, high, price, reference, rates }: {
   const values = [low, high, price, reference, ...rates.map((r) => r.reference)]
     .filter((v): v is number => v !== null && Number.isFinite(v) && v > 0);
   if (values.length < 2 || price === null) return null;
-  const min = Math.min(...values) * 0.97;
-  const max = Math.max(...values) * 1.03;
-  const at = (v: number) => ((v - min) / (max - min)) * 100;
-
-  // Подписи под шкалой: опорная и цена. Близкие — во вторую
-  // строку, иначе подписи ложатся друг на друга.
-  const below = [
-    reference !== null && { key: 'ref', x: at(reference), text: `опорная ${rub(reference)}`, cls: 'vt-scale-lab--ref' },
-    { key: 'price', x: at(price), text: `цена ${rub(price)}`, cls: 'vt-scale-lab--price' },
-  ].filter(Boolean) as { key: string; x: number; text: string; cls: string }[];
-  below.sort((a, b) => a.x - b.x);
-  // Каждая подпись — в первую строку, где она не налезает на соседку слева.
-  // Центр сначала прижимается к полю (подпись не вылезает за край), и уже по
-  // нему считается, где она начинается и кончается.
-  const half = (text: string) => ((text.length * 7.4 + 8) / 2 / width) * 100;
-  // Строк до трёх: на телефоне все три подписи бывают рядом.
-  const rightEdge = [-100, -100, -100];
-  const placed = below.map((l) => {
-    const h = half(l.text);
-    const x = Math.min(100 - h, Math.max(h, l.x));
-    const free = rightEdge.findIndex((edge) => x - h >= edge);
-    const row = free >= 0 ? free : rightEdge.indexOf(Math.min(...rightEdge));
-    rightEdge[row] = x + h;
-    return { ...l, x, row };
-  });
-  const rowsUsed = Math.max(...placed.map((l) => l.row)) + 1;
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  // Поля по краям — под половину подписи, чтобы крайняя метка не прилипала к
+  // краю, а её подпись не вылезала за него.
+  const pad = 4;
+  const at = (v: number) => pad + ((v - min) / (max - min || 1)) * (100 - 2 * pad);
+  const half = (text: string, px = 7.2) => ((text.length * px + 10) / 2 / width) * 100;
 
   // Засечки ставок. Ниже какой-то ставки множитель упирается в потолок, и
-  // оценки при 13, 10 и 8% совпадают: три засечки в одной точке с подписями
-  // друг на друге. Совпадающие сливаются в одну — «≤ 13%». Подпись, которая
-  // налезла бы на соседнюю, не ставится — засечка остаётся.
+  // оценки при 13, 10 и 8% совпадают — такие сливаются в одну «≤ 13%».
+  // Засечка, почти совпавшая с опорной сейчас (16% при нынешних 16,7%), не
+  // рисуется: две черты рядом читались как одна жирная с подписью «16%».
+  const refX = reference === null ? null : at(reference);
   const scenarios: { x: number; label: string; first: number; ref: number }[] = [];
   [...rates].filter((r) => !r.now).sort((a, b) => b.rate - a.rate).forEach((r) => {
     const prev = scenarios[scenarios.length - 1];
@@ -409,44 +395,73 @@ function RateScale({ low, high, price, reference, rates }: {
     scenarios.push({ x: at(r.reference), label: `${rate(r.rate)}%`, first: r.rate, ref: r.reference });
   });
   let lastRateEdge = -100;
-  const ticks = scenarios.sort((a, b) => a.x - b.x).map((t) => {
-    const h = half(t.label);
-    const show = t.x - h >= lastRateEdge;
-    if (show) lastRateEdge = t.x + h;
-    return { ...t, show };
+  const ticks = scenarios
+    .filter((t) => refX === null || Math.abs(t.x - refX) * width / 100 >= 18)
+    .sort((a, b) => a.x - b.x)
+    .map((t) => {
+      const h = half(t.label, 6.6);
+      const show = t.x - h >= lastRateEdge;
+      if (show) lastRateEdge = t.x + h;
+      return { ...t, show };
+    });
+
+  // Подписи под осью. Порядок — по важности: опорная, потом цена, края
+  // полосы — что останется. Каждая — в первую строку, где она
+  // не пересекается ни с одной уже положенной.
+  // Края полосы — второстепенные: их числа есть в таблице «Три мерила», так
+  // что край, которому нет места в первой строке, просто не подписывается.
+  type Label = { key: string; x: number; text: string; cls: string; minor?: boolean };
+  const wanted: Label[] = [];
+  if (reference !== null) {
+    wanted.push({ key: 'ref', x: at(reference), text: `опорная ${rub(reference)}`, cls: 'vt-scale-lab--ref' });
+  }
+  wanted.push({ key: 'price', x: at(price), text: `цена ${rub(price)}`, cls: 'vt-scale-lab--price' });
+  if (low !== null && high !== null) {
+    wanted.push({ key: 'low', x: at(low), text: rub(low), cls: 'vt-scale-lab--band', minor: true });
+    wanted.push({ key: 'high', x: at(high), text: rub(high), cls: 'vt-scale-lab--band', minor: true });
+  }
+  const rows: [number, number][][] = [[], [], []];
+  const placed = wanted.flatMap((l) => {
+    const h = half(l.text);
+    const x = Math.min(100 - h, Math.max(h, l.x));
+    const span: [number, number] = [x - h, x + h];
+    const row = rows.findIndex((taken) => taken.every(([a, b]) => span[1] <= a || span[0] >= b));
+    if (row < 0 || (l.minor && row > 0)) return [];
+    rows[row].push(span);
+    return [{ ...l, x, row }];
   });
+  const rowsUsed = Math.max(1, ...placed.map((l) => l.row + 1));
 
   return (
     <div className="vt-scale" aria-label="Цена на шкале оценок" ref={box}>
+      <div className="vt-scale-rates">
+        {ticks.filter((t) => t.show).map((t) => (
+          <span key={t.label} className="vt-scale-rate" style={{ left: `${t.x}%` }}>{t.label}</span>
+        ))}
+      </div>
       <div className="vt-scale-field">
+        <span className="vt-scale-track" />
         {low !== null && high !== null && (
           <span className="vt-scale-band" style={{ left: `${at(low)}%`, width: `${at(high) - at(low)}%` }} />
         )}
         {ticks.map((t) => (
-          <React.Fragment key={t.label}>
-            <span className="vt-scale-tick" style={{ left: `${t.x}%` }} />
-            {t.show && <span className="vt-scale-rate" style={{ left: `${t.x}%` }}>{t.label}</span>}
-          </React.Fragment>
+          <span key={t.label} className="vt-scale-tick" style={{ left: `${t.x}%` }}
+            title={`При ОФЗ ${t.label} опорная ${rub(t.ref)}`} />
         ))}
-        {reference !== null && <span className="vt-scale-mark vt-scale-mark--ref" style={{ left: `${at(reference)}%` }} />}
+        {refX !== null && <span className="vt-scale-mark--ref" style={{ left: `${refX}%` }} />}
         <span className="vt-scale-price" style={{ left: `${at(price)}%` }} />
       </div>
-      <div className="vt-scale-labels" style={{ height: rowsUsed * 17 + 2 }}>
+      <div className="vt-scale-labels" style={{ height: rowsUsed * 17 }}>
         {placed.map((l) => (
           <span key={l.key} className={`vt-scale-lab ${l.cls}`} style={{ left: `${l.x}%`, top: l.row * 17 }}>
             {l.text}
           </span>
         ))}
       </div>
-      {/* Края полосы подписаны у самих краёв, а не по краям шкалы: засечка
-          ставки бывает правее полосы, и «1 292 ₽» оказывался под ней. */}
-      {low !== null && high !== null && (
-        <div className="vt-scale-ends">
-          <span style={{ left: `${at(low)}%` }}>{rub(low)}</span>
-          <span className="vt-scale-ends-mid" style={{ left: `${(at(low) + at(high)) / 2}%` }}>три мерила заработка</span>
-          <span style={{ left: `${at(high)}%` }}>{rub(high)}</span>
-        </div>
-      )}
+      <div className="vt-scale-legend">
+        {low !== null && high !== null && <span><i className="vt-scale-key vt-scale-key--band" />три мерила заработка</span>}
+        {ticks.length > 0 && <span><i className="vt-scale-key vt-scale-key--tick" />опорная при другой ставке ОФЗ</span>}
+      </div>
     </div>
   );
 }
