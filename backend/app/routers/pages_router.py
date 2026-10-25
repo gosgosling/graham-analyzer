@@ -60,10 +60,10 @@ _index: tuple[float, str] | None = None
 
 # Разделы, которые показываются всем и стоят в карте сайта.
 PUBLIC = {
-    "": ("Цена и стоимость российских акций", DEFAULT_DESCRIPTION),
-    "companies": ("Компании", "Российские компании с отчётностью МСФО за много лет: цена, опорная стоимость по Грэму, дивиденды и мультипликаторы."),
-    "screen": ("Скринер Грэма", "Требования Грэма к защитному и активному инвестору: какие российские компании проходят отбор и чего не хватило остальным."),
-    "market": ("Рынок", "P/E российского рынка за двадцать лет и сколько акции зарабатывают против облигаций."),
+    "": ("Оценка российских акций по Грэму", DEFAULT_DESCRIPTION),
+    "companies": ("Российские акции: оценка по отчётам МСФО", "Российские компании с отчётностью МСФО за много лет: цена, опорная стоимость по Грэму, дивиденды и мультипликаторы."),
+    "screen": ("Скринер акций по Грэму", "Требования Грэма к защитному и активному инвестору: какие российские компании проходят отбор и чего не хватило остальным."),
+    "market": ("Рынок акций РФ: P/E и доходность против ОФЗ", "P/E российского рынка за двадцать лет и сколько акции зарабатывают против облигаций."),
     "economy": ("Экономика", "Бюджет, госдолг, ФНБ, инфляция, ставка, курс и настроения людей — и снимок на любую дату: что было с рынком и компаниями тогда."),
     "calendar": ("Календарь отчётности", "Когда российские компании публикуют МСФО и чьи цифры уже обновились."),
     "valuation": ("Как считается стоимость", "Метод Грэма и Додда по шагам: от средней прибыли до запаса прочности."),
@@ -151,15 +151,56 @@ def _company_page(db: Session, company: Company) -> Page:
             lines.append("Проходит отбор Грэма для защитного инвестора.")
     elif price:
         lines.append(f"Цена {_price(price)} ₽.")
+    figures = _multipliers(db, company)
+    if figures:
+        lines.append(figures)
     lines.append("Отчётность МСФО за много лет, оценка по методу Грэма и Додда, дивиденды и мультипликаторы.")
-    description = " ".join(lines)
+    # Описание для превью — короче: цена против опорной и мультипликаторы.
+    description = " ".join(lines[:3]) if len(lines) > 2 else " ".join(lines)
+    peers = _peers(db, company)
     return Page(
-        title=f"{name} ({company.ticker}) — стоимость по Грэму",
+        title=f"{name} ({company.ticker}): оценка по Грэму, P/E, дивиденды",
         description=description,
         heading=f"{name} ({company.ticker})",
         lines=lines,
-        links=[("/companies", "Все компании"), ("/screen", "Скринер Грэма")],
+        links=peers + [("/companies", "Все компании"), ("/screen", "Скринер акций по Грэму")],
     )
+
+
+def _multipliers(db: Session, company: Company) -> Optional[str]:
+    """«P/E 3,3, P/B 0,72, дивидендная доходность 13,1%, ROE 21,9%» — последние
+    текущие мультипликаторы, те же, что в столбце «12 мес.» карточки."""
+    from app.models.multiplier import Multiplier
+
+    row = (db.query(Multiplier)
+           .filter(Multiplier.company_id == company.id, Multiplier.type == "current")
+           .order_by(Multiplier.date.desc()).first())
+    if row is None:
+        return None
+    parts = []
+    if row.pe_ratio is not None and float(row.pe_ratio) > 0:
+        parts.append(f"P/E {_ru(float(row.pe_ratio), 1)}")
+    if row.pb_ratio is not None and float(row.pb_ratio) > 0:
+        parts.append(f"P/B {_ru(float(row.pb_ratio), 2)}")
+    if row.dividend_yield is not None and float(row.dividend_yield) > 0:
+        parts.append(f"дивидендная доходность {_ru(float(row.dividend_yield), 1)}%")
+    if row.roe is not None:
+        parts.append(f"ROE {_ru(float(row.roe), 1)}%")
+    if row.market_cap:
+        parts.append(f"капитализация {_ru(float(row.market_cap) / 1e6, 2)} трлн ₽"
+                     if float(row.market_cap) >= 1e6 else f"капитализация {_ru(float(row.market_cap) / 1e3, 0)} млрд ₽")
+    return (", ".join(parts)[:1].upper() + ", ".join(parts)[1:] + ".") if parts else None
+
+
+def _peers(db: Session, company: Company) -> list[tuple[str, str]]:
+    """До пяти компаний той же отрасли — перелинковка для поисковика."""
+    try:
+        from app.routers.compare_router import company_peers
+
+        others = [c for c in company_peers(company_id=company.id, db=db)["companies"] if c["id"] != company.id]
+    except Exception:  # noqa: BLE001
+        return []
+    return [(f"/company/{c['id']}", f"{c['name']} ({c['ticker']})") for c in others[:5]]
 
 
 def _market_page(db: Session) -> Page:

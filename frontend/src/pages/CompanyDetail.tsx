@@ -275,7 +275,7 @@ const CompanyDetail: React.FC = () => {
     enabled: !!companyId,
   });
 
-  usePageTitle(company ? `${company.name} (${company.ticker}) — стоимость по Грэму` : null);
+  usePageTitle(company ? `${company.name} (${company.ticker}): оценка по Грэму, P/E, дивиденды` : null);
   const { data: reports, isLoading: reportsLoading } = useQuery({
     queryKey: ['reports', companyId],
     queryFn: () => getCompanyReports(Number(companyId)),

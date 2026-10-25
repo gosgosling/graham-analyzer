@@ -14,10 +14,10 @@ import { useLocation } from 'react-router-dom';
 const SITE = 'Graham Analyzer';
 
 const SECTIONS: Record<string, string> = {
-  '/': 'Цена и стоимость российских акций',
-  '/companies': 'Компании',
-  '/screen': 'Скринер Грэма',
-  '/market': 'Рынок',
+  '/': 'Оценка российских акций по Грэму',
+  '/companies': 'Российские акции: оценка по отчётам МСФО',
+  '/screen': 'Скринер акций по Грэму',
+  '/market': 'Рынок акций РФ: P/E и доходность против ОФЗ',
   '/economy': 'Экономика России: бюджет, долг, инфляция',
   '/calendar': 'Календарь отчётности',
   '/valuation': 'Как считается стоимость',

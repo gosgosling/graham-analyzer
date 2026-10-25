@@ -23,6 +23,7 @@ import './pages/AdminPage.css';
 import MarketOverview from './pages/MarketOverview';
 import EconomyPage from './pages/EconomyPage';
 import { RouteTitle } from './hooks/usePageTitle';
+import Metrika from './components/Metrika';
 import CompareView from './components/CompareView';
 import AccountPage from './pages/AccountPage';
 import { ForgotPage, LoginPage, RegisterPage, ResetPage, VerifyEmailChangePage, VerifyPage } from './pages/AuthPages';
@@ -103,6 +104,7 @@ function App() {
       <Router>
         <ScrollToTop />
         <RouteTitle />
+        <Metrika />
         <Chrome>
           <Routes>
             {/* Главная — что это за сайт и куда идти; справочник бумаг
