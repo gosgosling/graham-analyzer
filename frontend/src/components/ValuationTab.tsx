@@ -336,17 +336,17 @@ function SandboxSlider({ label, value, base, min, max, step, fmt, onChange }: {
  * Шкала под таблицей ставок: где цена среди оценок.
  *
  * Зелёная полоса — три мерила заработка (от низшего к высшему), засечки —
- * опорная при каждой ставке из таблицы над ней, отдельно — опорная сейчас и
- * справедливая, точка — цена. Без пояснения: таблица над шкалой и есть
+ * опорная при каждой ставке из таблицы над ней, отдельно — опорная сейчас,
+ * точка — цена. Справедливой здесь нет: она часто выходит за полосу и
+ * растягивает шкалу ради числа, которое не про запас прочности. Без пояснения: таблица над шкалой и есть
  * легенда, а шкала отвечает на один вопрос — при какой ставке цена окажется
  * ниже опорной.
  */
-function RateScale({ low, high, price, reference, fair, rates }: {
+function RateScale({ low, high, price, reference, rates }: {
   low: number | null;
   high: number | null;
   price: number | null;
   reference: number | null;
-  fair: number | null;
   rates: { rate: number; reference: number; now: boolean }[];
 }) {
   // Ширина шкалы — чтобы разводить подписи по строкам по их настоящей ширине.
@@ -365,18 +365,17 @@ function RateScale({ low, high, price, reference, fair, rates }: {
     observer.observe(el);
     return () => observer.disconnect();
   }, []);
-  const values = [low, high, price, reference, fair, ...rates.map((r) => r.reference)]
+  const values = [low, high, price, reference, ...rates.map((r) => r.reference)]
     .filter((v): v is number => v !== null && Number.isFinite(v) && v > 0);
   if (values.length < 2 || price === null) return null;
   const min = Math.min(...values) * 0.97;
   const max = Math.max(...values) * 1.03;
   const at = (v: number) => ((v - min) / (max - min)) * 100;
 
-  // Подписи под шкалой: опорная, справедливая, цена. Близкие — во вторую
-  // строку, иначе «5 079» и «5 513» ложатся друг на друга.
+  // Подписи под шкалой: опорная и цена. Близкие — во вторую
+  // строку, иначе подписи ложатся друг на друга.
   const below = [
     reference !== null && { key: 'ref', x: at(reference), text: `опорная ${rub(reference)}`, cls: 'vt-scale-lab--ref' },
-    fair !== null && { key: 'fair', x: at(fair), text: `справедливая ${rub(fair)}`, cls: 'vt-scale-lab--fair' },
     { key: 'price', x: at(price), text: `цена ${rub(price)}`, cls: 'vt-scale-lab--price' },
   ].filter(Boolean) as { key: string; x: number; text: string; cls: string }[];
   below.sort((a, b) => a.x - b.x);
@@ -429,7 +428,6 @@ function RateScale({ low, high, price, reference, fair, rates }: {
             {t.show && <span className="vt-scale-rate" style={{ left: `${t.x}%` }}>{t.label}</span>}
           </React.Fragment>
         ))}
-        {fair !== null && <span className="vt-scale-mark vt-scale-mark--fair" style={{ left: `${at(fair)}%` }} />}
         {reference !== null && <span className="vt-scale-mark vt-scale-mark--ref" style={{ left: `${at(reference)}%` }} />}
         <span className="vt-scale-price" style={{ left: `${at(price)}%` }} />
       </div>
@@ -440,11 +438,13 @@ function RateScale({ low, high, price, reference, fair, rates }: {
           </span>
         ))}
       </div>
+      {/* Края полосы подписаны у самих краёв, а не по краям шкалы: засечка
+          ставки бывает правее полосы, и «1 292 ₽» оказывался под ней. */}
       {low !== null && high !== null && (
         <div className="vt-scale-ends">
-          <span>{rub(low)}</span>
-          <span>три мерила заработка</span>
-          <span>{rub(high)}</span>
+          <span style={{ left: `${at(low)}%` }}>{rub(low)}</span>
+          <span className="vt-scale-ends-mid" style={{ left: `${(at(low) + at(high)) / 2}%` }}>три мерила заработка</span>
+          <span style={{ left: `${at(high)}%` }}>{rub(high)}</span>
         </div>
       )}
     </div>
@@ -917,7 +917,6 @@ export default function ValuationTab({ companyId }: { companyId: number }) {
               high={band.high}
               price={price}
               reference={reference}
-              fair={fair}
               rates={rates.filter((r) => !r.refused && r.reference !== null).map((r) => ({
                 rate: r.risk_free_rate,
                 reference: r.reference as number,

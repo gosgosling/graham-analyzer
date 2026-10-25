@@ -378,7 +378,6 @@
 }
 .vt-scale-mark { position: absolute; top: 12px; width: 3px; height: 24px; margin-left: -1.5px; border-radius: 1px; }
 .vt-scale-mark--ref { background: var(--color-chart-ref-line); }
-.vt-scale-mark--fair { background: var(--color-text-tertiary); }
 .vt-scale-price {
   position: absolute; top: 16px; width: 16px; height: 16px; margin-left: -8px; border-radius: 50%;
   background: var(--color-chart-line-1); box-shadow: 0 0 0 2px var(--color-bg-surface);
@@ -389,9 +388,11 @@
   font-size: 0.78rem; white-space: nowrap; font-variant-numeric: tabular-nums;
 }
 .vt-scale-lab--ref { color: var(--color-chart-ref-line); }
-.vt-scale-lab--fair { color: var(--color-text-tertiary); }
 .vt-scale-lab--price { color: var(--color-text-primary); font-weight: 600; }
-.vt-scale-ends { display: flex; justify-content: space-between; font-size: 0.72rem; color: var(--color-text-quaternary); margin: 0 4px; }
+.vt-scale-ends { position: relative; height: 16px; font-size: 0.72rem; color: var(--color-text-quaternary); margin: 0 4px; }
+.vt-scale-ends span { position: absolute; top: 0; transform: translateX(-50%); white-space: nowrap; }
+.vt-scale-ends span:first-child { transform: none; }
+.vt-scale-ends span:last-child { transform: translateX(-100%); }
 
 /* Суммы в «Трёх мерилах» не переносятся: «5 513» и «₽» на разных строках
    читались как два числа. Расчёт в средней колонке — мельче. */
