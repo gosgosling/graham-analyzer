@@ -5,8 +5,11 @@ COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci --no-audit --no-fund
 COPY frontend/ ./
 # Страница и API — один домен: запросы идут на /api того же сайта.
+# REACT_APP_YM_ID — номер счётчика Яндекс Метрики (не секрет: он виден в коде
+# любой страницы). Пустой — Метрика не грузится.
 ENV REACT_APP_API_URL=/api \
-    GENERATE_SOURCEMAP=false
+    GENERATE_SOURCEMAP=false \
+    REACT_APP_YM_ID=113786824
 RUN npm run build
 
 FROM caddy:2-alpine

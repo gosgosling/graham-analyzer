@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { LEGAL_DATE, MAIL_PROCESSOR, OPERATOR, missing } from '../legal/operator';
+import { LEGAL_DATE, MAIL_PROCESSOR, OPERATOR, POLICY_DATE, missing } from '../legal/operator';
 import { YM_ID } from '../components/Metrika';
 import './Legal.css';
 
@@ -55,12 +55,12 @@ export function ConsentText() {
   );
 }
 
-function LegalShell({ title, children }: { title: string; children: React.ReactNode }) {
+function LegalShell({ title, date = LEGAL_DATE, children }: { title: string; date?: string; children: React.ReactNode }) {
   return (
     <div className="legal-page">
       <article className="legal-doc">
         <h1>{title}</h1>
-        <p className="legal-meta">Редакция от {LEGAL_DATE}</p>
+        <p className="legal-meta">Редакция от {date}</p>
         {children}
       </article>
     </div>
@@ -81,7 +81,7 @@ export function ConsentPage() {
 
 export function PrivacyPage() {
   return (
-    <LegalShell title="Политика обработки персональных данных">
+    <LegalShell title="Политика обработки персональных данных" date={YM_ID ? POLICY_DATE : LEGAL_DATE}>
       <h2>1. Кто обрабатывает</h2>
       <p>
         Оператор — {missing(OPERATOR.name)}, {missing(OPERATOR.region)}. Почта для обращений по персональным
@@ -93,7 +93,9 @@ export function PrivacyPage() {
       <p>
         Читать сайт можно без регистрации. Веб-сервер, как любой сервер, записывает в журнал IP-адрес, время
         и адрес открытой страницы — чтобы отбивать атаки и разбирать сбои (ст. 6 ч. 1 п. 7 закона: законный
-        интерес оператора). Журналы хранятся не дольше 30 дней. Счётчиков посещаемости и рекламы на сайте нет.
+        интерес оператора). Журналы хранятся не дольше 30 дней. {YM_ID
+          ? 'Рекламы на сайте нет; для статистики посещений работает Яндекс Метрика — о ней в разделе 4.'
+          : 'Счётчиков посещаемости и рекламы на сайте нет.'}
       </p>
 
       <h2>3. Если вы зарегистрировались</h2>
