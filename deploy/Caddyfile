@@ -22,11 +22,22 @@
 		# в нём ссылки на свежую сборку.
 		@hashed path /static/*
 		header @hashed Cache-Control "public, max-age=31536000, immutable"
-		@page not path /static/*
-		header @page Cache-Control "no-cache"
-		# Адреса приложения (/company/171, /screen) отдаёт index.html.
-		try_files {path} /index.html
-		file_server
+		# Файлы сборки (static, иконки, robots.txt) — как есть.
+		@asset {
+			file
+			not path /
+		}
+		handle @asset {
+			file_server
+		}
+		# Адреса приложения (/company/171, /screen, /sitemap.xml) — бэкенду:
+		# он берёт index.html этой же сборки и дописывает под адрес заголовок,
+		# описание, превью ссылки и текст с цифрами для тех, кто не выполняет
+		# скрипт (поисковики, Telegram). См. backend/app/routers/pages_router.py.
+		handle {
+			rewrite * /_page{path}
+			reverse_proxy backend:8000
+		}
 	}
 
 	header {
@@ -40,4 +51,11 @@
 		output stdout
 		format console
 	}
+}
+
+# Внутренний адрес сборки: отсюда бэкенд берёт index.html (WEB_INDEX_URL).
+# Порт наружу не открыт — только во внутренней сети compose.
+http://:8080 {
+	root * /srv
+	file_server
 }

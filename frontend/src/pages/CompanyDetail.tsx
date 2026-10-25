@@ -42,6 +42,7 @@ import { useAdmin } from '../hooks/useAdmin';
 import SharesCapHover from '../components/SharesCapHover';
 import { getCompanyLogoCandidates } from '../utils/companyLogo';
 import { isMisclassifiedAsPreferred } from '../utils/companyShareClass';
+import { usePageTitle } from '../hooks/usePageTitle';
 import './CompanyDetail.css';
 
 type ReportPeriodFilter = 'all' | 'annual' | 'quarterly' | 'semi_annual';
@@ -274,6 +275,7 @@ const CompanyDetail: React.FC = () => {
     enabled: !!companyId,
   });
 
+  usePageTitle(company ? `${company.name} (${company.ticker}) — стоимость по Грэму` : null);
   const { data: reports, isLoading: reportsLoading } = useQuery({
     queryKey: ['reports', companyId],
     queryFn: () => getCompanyReports(Number(companyId)),
