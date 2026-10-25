@@ -1,50 +1,84 @@
-/* Главная. Вёрстка — та же газетная, что у карточки компании: засечки в
-   заголовках, тонкие линейки вместо плашек, цвет только там, где он что-то
-   значит (цена — цвет линии цены, опорная — цвет опорной на графике). */
+/* Главная — приветственная страница. Вёрстка та же газетная, что у карточки
+   компании и «Рынка»: засечки в заголовках, жирная линейка над разделом,
+   цвет только там, где он что-то значит (дешевле — зелёный, дороже — красный).
+
+   Одна разметка, две раскладки: .hp-desk видно только на компьютере,
+   .hp-mob — только на телефоне. На телефоне длинное прячется, а порядок
+   разделов меняется: примеры поднимаются над шагами. */
 .hp {
   --hp-rule: var(--color-text-primary);
-  --hp-price: var(--color-chart-line-1);
-  --hp-ref: var(--color-chart-ref-line);
-  --hp-below: var(--screen-pass-text);
-  --hp-above: var(--color-text-tertiary);
+  --hp-accent: #9a6a0c;
+  --hp-below: var(--color-success-strong);
+  --hp-above: var(--color-error-strong);
+  --hp-card: var(--color-bg-subtle);
   box-sizing: border-box;
-  max-width: 980px;
+  max-width: 1120px;
   margin: 0 auto;
-  padding: 48px var(--space-5) 64px;
-}
-
-/* ── Первый экран ─────────────────────────────────────────────────────── */
-.hp-intro { max-width: 700px; }
-.hp-intro h1 {
-  margin: 0;
-  font-family: 'IBM Plex Serif', Georgia, serif;
-  font-weight: 500;
-  font-size: 46px;
-  line-height: 1.1;
-  letter-spacing: -0.01em;
+  padding: 56px var(--space-5) 72px;
+  display: flex;
+  flex-direction: column;
   color: var(--color-text-primary);
 }
+[data-theme='dark'] .hp {
+  --hp-accent: #e7b84a;
+  --hp-below: var(--color-success-text);
+  --hp-above: var(--color-error-text);
+}
+
+.hp-mob { display: none; }
+
+/* ── Первый экран ─────────────────────────────────────────────────────── */
+.hp-kicker {
+  margin: 0 0 14px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--hp-accent);
+}
+.hp-hero h1 {
+  margin: 0;
+  max-width: 880px;
+  font-family: 'IBM Plex Serif', Georgia, serif;
+  font-weight: 500;
+  font-size: clamp(36px, 5vw, 58px);
+  line-height: 1.08;
+  letter-spacing: -0.01em;
+}
 .hp-lede {
-  margin: 18px 0 24px;
-  font-size: 18px;
+  margin: 20px 0 28px;
+  max-width: 760px;
+  font-family: 'IBM Plex Serif', Georgia, serif;
+  font-size: 1.25rem;
   line-height: 1.55;
   color: var(--color-text-secondary);
 }
 
-/* Поиск из шапки — здесь он во всю ширину колонки. */
+/* Поиск из шапки — здесь он крупнее и во всю ширину колонки. */
+.hp-search { max-width: 680px; }
 .hp-search .sh-search { max-width: none; width: 100%; margin: 0; }
-.hp-search .sh-search-input { height: 46px; border-radius: 10px; font-size: 1rem; background: var(--color-bg-surface); }
+.hp-search .sh-search-input { height: 52px; border-radius: 0; font-size: 1.05rem; border-color: var(--color-text-primary); background: var(--color-bg-surface); }
 
-.hp-popular { margin: 12px 0 0; font-size: 0.95rem; line-height: 1.7; color: var(--color-text-tertiary); }
-.hp-popular a { color: var(--color-text-link); text-decoration: none; white-space: nowrap; }
-.hp-popular a:hover { text-decoration: underline; }
-.hp-sep { color: var(--color-text-quaternary); }
+.hp-checks {
+  list-style: none;
+  margin: 20px 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  font-size: 1rem;
+  color: var(--color-text-secondary);
+}
+.hp-checks li { display: flex; align-items: center; gap: 8px; }
+.hp-checks svg { color: var(--hp-below); }
+.hp-first { margin: 16px 0 0; font-size: 1rem; }
+.hp-first a { color: var(--hp-accent); }
 
-/* ── Рынок сегодня: три числа под жирной линейкой, как в карточке ───── */
+/* ── Рынок сегодня: четыре числа под жирной линейкой ─────────────────── */
 .hp-today {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  margin-top: 48px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-top: 56px;
   border-top: 2px solid var(--hp-rule);
   border-bottom: 1px solid var(--color-border-strong);
 }
@@ -53,7 +87,7 @@
   flex-direction: column;
   gap: 2px;
   min-width: 0;
-  padding: 14px 18px 16px;
+  padding: 18px 18px 18px;
   border-left: 1px solid var(--color-border-default);
   color: inherit;
   text-decoration: none;
@@ -62,163 +96,271 @@
 .hp-fig-label { font-size: 0.85rem; color: var(--color-text-tertiary); }
 .hp-fig-num {
   font-family: 'IBM Plex Serif', Georgia, serif;
-  font-size: 2rem;
+  font-size: 2.3rem;
   font-weight: 500;
   line-height: 1.2;
   font-variant-numeric: tabular-nums;
-  color: var(--color-text-primary);
 }
-.hp-fig-num small { font-size: 1.05rem; color: var(--color-text-tertiary); }
+.hp-fig-num small { font-size: 1.1rem; color: var(--color-text-tertiary); }
 .hp-fig-sub { font-size: 0.85rem; line-height: 1.4; color: var(--color-text-tertiary); }
 .hp-fig:hover .hp-fig-num { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 5px; }
 
-/* ── Блоки ────────────────────────────────────────────────────────────── */
-.hp-block { margin-top: 56px; }
+/* ── Разделы страницы ─────────────────────────────────────────────────── */
+.hp-block { margin-top: 64px; }
 .hp-block-head {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
   gap: 12px;
-  padding-bottom: 10px;
-  border-bottom: 2px solid var(--hp-rule);
+  padding-top: 18px;
+  border-top: 2px solid var(--hp-rule);
+  margin-bottom: 18px;
 }
-.hp-block-head h2 {
+.hp-block h2 {
   margin: 0;
   font-family: 'IBM Plex Serif', Georgia, serif;
   font-weight: 500;
-  font-size: 1.5rem;
-  color: var(--color-text-primary);
+  font-size: 2rem;
 }
-.hp-block-head a { font-size: 0.92rem; color: var(--color-text-link); text-decoration: none; white-space: nowrap; }
-.hp-block-head a:hover { text-decoration: underline; }
-.hp-note { max-width: 680px; margin: 12px 0 6px; font-size: 0.95rem; line-height: 1.55; color: var(--color-text-secondary); }
+.hp-note { margin: -6px 0 22px; font-size: 1rem; color: var(--color-text-tertiary); }
 
-/* Цена против опорной: строка — компания, два числа и шкала, где середина —
-   опорная стоимость, а точка — цена. */
-.hp-vr-head,
-.hp-vr {
+/* Шаги */
+.hp-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1.5fr) 88px 88px minmax(0, 1.6fr) 150px;
-  align-items: center;
-  gap: 16px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px;
 }
-.hp-vr-head { padding: 12px 0 6px; font-size: 0.8rem; color: var(--color-text-tertiary); }
-.hp-vr-head > span:nth-child(2),
-.hp-vr-head > span:nth-child(3) { text-align: right; }
-.hp-vr-head-scale { display: flex; justify-content: space-between; }
-.hp-vr-head-scale i { font-style: normal; }
-.hp-vr-list { list-style: none; margin: 0; padding: 0; }
-.hp-vr { padding: 12px 0; border-top: 1px solid var(--color-border-default); }
-.hp-vr-name { min-width: 0; display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 10px; color: inherit; text-decoration: none; }
-.hp-vr-name b { font-weight: 600; color: var(--color-text-primary); }
-.hp-vr-name:hover b { text-decoration: underline; text-underline-offset: 3px; }
-.hp-vr-tag { font-size: 0.78rem; color: var(--hp-below); white-space: nowrap; }
-.hp-vr-num { font-family: var(--font-mono); font-size: 0.95rem; text-align: right; color: var(--hp-price); white-space: nowrap; }
-.hp-vr-num.hp-vr-ref { color: var(--hp-ref); }
-.hp-vr-scale { position: relative; height: 20px; }
-.hp-vr-axis {
-  position: absolute;
-  left: 50%;
-  top: 0;
-  bottom: 0;
-  width: 2px;
-  margin-left: -1px;
-  border-radius: 1px;
-  background: var(--hp-ref);
-}
-.hp-vr-scale::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 50%;
-  border-top: 1px dashed var(--color-border-strong);
-}
-.hp-vr-gap {
-  position: absolute;
-  top: 50%;
-  height: 4px;
-  margin-top: -2px;
-  background: color-mix(in srgb, var(--hp-above) 45%, transparent);
-}
-.hp-vr-gap.is-below { background: color-mix(in srgb, var(--hp-below) 55%, transparent); }
-.hp-vr-dot {
-  position: absolute;
-  top: 50%;
-  width: 10px;
-  height: 10px;
-  margin: -5px 0 0 -5px;
+.hp-steps li { padding: 24px; background: var(--hp-card); border: 1px solid var(--color-border-default); }
+.hp-step-num {
+  flex: none;
+  width: 42px;
+  height: 42px;
   border-radius: 50%;
-  background: var(--hp-price);
-  box-shadow: 0 0 0 2px var(--color-bg-base);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-text-primary);
+  color: var(--color-bg-base);
+  font-family: 'IBM Plex Serif', Georgia, serif;
+  font-size: 1.3rem;
 }
-.hp-vr-margin { font-size: 0.9rem; text-align: right; color: var(--color-text-secondary); white-space: nowrap; }
-.hp-vr-margin.is-below { color: var(--hp-below); font-weight: 600; }
+.hp-steps h3 { margin: 16px 0 6px; font-size: 1.2rem; font-weight: 600; }
+.hp-steps p { margin: 0; color: var(--color-text-secondary); line-height: 1.55; }
 
-/* Что здесь есть: оглавление в две колонки, без плашек. */
-.hp-index {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  column-gap: 40px;
+/* Примеры ответа */
+.hp-examples { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+.hp-ex { padding: 24px; background: var(--hp-card); border: 1px solid var(--color-border-default); min-width: 0; }
+.hp-ex-head { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px; }
+.hp-ex-name { font-family: 'IBM Plex Serif', Georgia, serif; font-size: 1.5rem; font-weight: 500; color: inherit; text-decoration: none; }
+.hp-ex-name span { font-family: inherit; font-size: 0.9rem; color: var(--color-text-tertiary); }
+.hp-ex-name:hover { text-decoration: underline; text-underline-offset: 4px; text-decoration-thickness: 1px; }
+.hp-ex-tag { font-size: 0.8rem; padding: 2px 10px; border: 1px solid var(--hp-below); color: var(--hp-below); white-space: nowrap; }
+.hp-ex-nums { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 16px; }
+.hp-ex-nums > div { display: flex; flex-direction: column; }
+.hp-ex-label { font-size: 0.85rem; color: var(--color-text-tertiary); }
+.hp-ex-nums b { font-size: 1.7rem; font-weight: 500; font-variant-numeric: tabular-nums; }
+.hp-ex-scale { position: relative; height: 10px; margin: 24px 0 8px; background: var(--color-bg-active); }
+.hp-ex-axis { position: absolute; left: 50%; top: -6px; width: 2px; height: 22px; margin-left: -1px; background: var(--color-text-primary); }
+.hp-ex-gap { position: absolute; top: 0; height: 10px; background: var(--hp-above); }
+.hp-ex-gap.is-below { background: var(--hp-below); }
+.hp-ex-dot {
+  position: absolute;
+  top: 50%;
+  width: 18px;
+  height: 18px;
+  margin: -9px 0 0 -9px;
+  border-radius: 50%;
+  background: var(--hp-above);
+  box-shadow: 0 0 0 2px var(--hp-card);
 }
-.hp-index-item {
+.hp-ex-dot.is-below { background: var(--hp-below); }
+.hp-ex-ends { display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--color-text-tertiary); }
+.hp-ex-verdict { margin: 14px 0 0; line-height: 1.5; }
+.hp-ex-verdict .is-below { color: var(--hp-below); }
+.hp-ex-verdict .is-above { color: var(--hp-above); }
+.hp-warn {
+  margin: 20px 0 0;
+  padding: 16px 20px;
+  background: var(--color-warning-soft);
+  color: var(--color-warning-text);
+  border: 1px solid var(--color-warning-border);
+  line-height: 1.55;
+}
+
+/* Метод простыми словами */
+.hp-plain {
+  margin: 0;
+  max-width: 820px;
+  font-family: 'IBM Plex Serif', Georgia, serif;
+  font-size: 1.2rem;
+  line-height: 1.6;
+  color: var(--color-text-secondary);
+}
+.hp-method {
+  list-style: none;
+  margin: 28px 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 32px;
+}
+.hp-method-num { font-family: 'IBM Plex Serif', Georgia, serif; font-size: 2.4rem; line-height: 1; color: var(--hp-accent); }
+.hp-method h3 { margin: 10px 0 6px; font-size: 1.1rem; font-weight: 600; }
+.hp-method p { margin: 0; font-size: 1rem; line-height: 1.55; color: var(--color-text-secondary); }
+.hp-more { margin: 22px 0 0; }
+.hp-more a, .hp-where-ask { color: var(--hp-accent); }
+
+/* Куда пойти дальше: плитки через тонкие линии. */
+.hp-where {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  background: var(--color-border-default);
+  border: 1px solid var(--color-border-default);
+}
+.hp-where-item {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  padding: 16px 0 18px;
-  border-bottom: 1px solid var(--color-border-default);
+  padding: 22px;
+  background: var(--color-bg-base);
   color: inherit;
   text-decoration: none;
 }
-.hp-index-item b {
-  font-family: 'IBM Plex Serif', Georgia, serif;
-  font-weight: 500;
-  font-size: 1.2rem;
-  color: var(--color-text-primary);
+.hp-where-ask { font-size: 0.85rem; font-weight: 600; }
+.hp-where-item b { font-family: 'IBM Plex Serif', Georgia, serif; font-weight: 500; font-size: 1.35rem; }
+.hp-where-text { font-size: 0.95rem; line-height: 1.5; color: var(--color-text-secondary); }
+.hp-where-item:hover { background: var(--color-bg-hover); }
+.hp-where-item:hover b { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 4px; }
+
+/* Что важно знать */
+.hp-know { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
+.hp-know > div { padding: 24px; background: var(--hp-card); border: 1px solid var(--color-border-default); }
+.hp-know h3 { margin: 0 0 12px; font-size: 1.15rem; }
+.hp-know ul { margin: 0; padding-left: 20px; color: var(--color-text-secondary); line-height: 1.55; }
+.hp-know li + li { margin-top: 8px; }
+
+/* Словарь */
+.hp-words { margin: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 24px 32px; }
+.hp-words dt { font-weight: 600; }
+.hp-words dd { margin: 6px 0 0; font-size: 0.95rem; line-height: 1.5; color: var(--color-text-secondary); }
+
+/* Вопросы */
+.hp-faq details { padding: 14px 0; border-bottom: 1px solid var(--color-border-default); }
+.hp-faq summary { cursor: pointer; font-weight: 600; }
+.hp-faq p { margin: 10px 0 0; max-width: 820px; line-height: 1.55; color: var(--color-text-secondary); }
+
+/* Последний призыв */
+.hp-cta {
+  margin-top: 64px;
+  padding: 32px 36px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 20px;
+  background: var(--color-text-primary);
+  color: var(--color-bg-base);
 }
-.hp-index-item span { font-size: 0.95rem; line-height: 1.5; color: var(--color-text-secondary); }
-.hp-index-item:hover b { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 4px; }
+.hp-cta > div { flex: 1 1 360px; display: flex; flex-direction: column; gap: 6px; }
+.hp-cta b { font-family: 'IBM Plex Serif', Georgia, serif; font-weight: 500; font-size: 1.6rem; }
+.hp-cta span { opacity: 0.8; }
+.hp-cta a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 50px;
+  padding: 0 26px;
+  background: var(--color-bg-base);
+  color: var(--color-text-primary);
+  font-weight: 600;
+  text-decoration: none;
+}
 
-/* ── Телефон ──────────────────────────────────────────────────────────── */
+/* ── Средний экран ────────────────────────────────────────────────────── */
+@media (max-width: 1000px) {
+  .hp-today { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .hp-fig:nth-child(3) { border-left: 0; padding-left: 0; }
+  .hp-fig:nth-child(n + 3) { border-top: 1px solid var(--color-border-default); }
+  .hp-where { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .hp-words { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .hp-steps, .hp-method { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* ── Телефон: короткая раскладка ──────────────────────────────────────── */
 @media (max-width: 760px) {
-  .hp { padding: 24px 16px 40px; }
-  .hp-intro h1 { font-size: 32px; }
-  .hp-lede { font-size: 16px; margin: 12px 0 18px; }
+  .hp-desk { display: none !important; }
+  .hp-mob { display: inline; }
+  p.hp-mob, .hp-where-icon.hp-mob { display: block; }
 
-  .hp-today { grid-template-columns: minmax(0, 1fr); margin-top: 32px; }
-  /* Числа в строку с подписью: три колонки в 343 пикселя не помещались. */
-  .hp-fig {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: baseline;
-    column-gap: 12px;
-    padding: 12px 0;
-    border-left: 0;
-    border-top: 1px solid var(--color-border-default);
+  .hp { padding: 28px 16px 36px; }
+  .hp-hero h1 { font-size: 34px; line-height: 1.12; }
+  .hp-lede { margin: 12px 0 20px; font-family: inherit; font-size: 1.05rem; }
+  .hp-search .sh-search-input { height: 52px; font-size: 1rem; }
+  .hp-checks-short { margin: 12px 0 0; font-size: 0.88rem; text-align: center; color: var(--color-text-tertiary); }
+
+  /* Числа — плитками 2×2, без подписей. */
+  .hp-today {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    margin-top: 24px;
+    border: 0;
   }
-  .hp-fig:first-child { border-top: 0; }
-  .hp-fig-label { grid-column: 1; grid-row: 1; font-size: 0.95rem; color: var(--color-text-primary); }
-  .hp-fig-num { grid-column: 2; grid-row: 1 / 3; font-size: 1.6rem; text-align: right; }
-  .hp-fig-sub { grid-column: 1; grid-row: 2; font-size: 0.82rem; }
-
-  .hp-block { margin-top: 40px; }
-  .hp-block-head h2 { font-size: 1.3rem; }
-
-  /* Строка компании: имя и вывод — первой строкой, шкала с ценами — второй. */
-  .hp-vr-head { display: none; }
-  .hp-vr {
-    grid-template-columns: auto minmax(0, 1fr) auto;
-    gap: 8px 12px;
+  .hp-fig,
+  .hp-fig:first-child,
+  .hp-fig:nth-child(3) {
+    padding: 12px 14px;
+    border: 1px solid var(--color-border-default);
+    background: var(--hp-card);
   }
-  .hp-vr-name { grid-column: 1 / 3; grid-row: 1; }
-  .hp-vr-margin { grid-column: 3; grid-row: 1; }
-  .hp-vr-num { grid-row: 2; font-size: 0.85rem; }
-  .hp-vr-num:not(.hp-vr-ref) { grid-column: 1; text-align: left; }
-  .hp-vr-scale { grid-column: 2; grid-row: 2; }
-  .hp-vr-num.hp-vr-ref { grid-column: 3; }
+  .hp-fig-label { font-size: 0.8rem; }
+  .hp-fig-num { font-size: 1.7rem; }
+  .hp-fig-sub { display: none; }
 
-  .hp-index { grid-template-columns: minmax(0, 1fr); }
-  .hp-index-item { padding: 14px 0; }
-  .hp-index-item b { font-size: 1.1rem; }
-  .hp-index-item span { font-size: 0.9rem; }
+  /* Порядок на телефоне: примеры выше шагов. */
+  .hp-hero { order: 0; }
+  .hp-today { order: 1; }
+  .hp-examples-block { order: 2; }
+  .hp-steps-block { order: 3; }
+  .hp-where-block { order: 4; }
+  .hp-mob-links { order: 5; }
+
+  .hp-block { margin-top: 36px; }
+  .hp-block-head { padding-top: 0; border-top: 0; margin-bottom: 12px; }
+  .hp-block h2 { font-size: 1.5rem; }
+  .hp-swipe { font-size: 0.82rem; color: var(--color-text-tertiary); }
+
+  /* Примеры листаются вбок, следующий выглядывает из-за края. */
+  .hp-examples {
+    display: flex;
+    gap: 12px;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    margin: 0 -16px;
+    padding: 0 16px 4px;
+  }
+  .hp-ex { flex: none; width: 80%; max-width: 320px; padding: 18px; scroll-snap-align: start; }
+  .hp-ex-name { font-size: 1.25rem; }
+  .hp-ex-tag { display: none; }
+  .hp-ex-nums b { font-size: 1.3rem; }
+  .hp-ex-scale { margin-top: 18px; height: 8px; }
+  .hp-ex-gap { height: 8px; }
+  .hp-warn { margin-top: 12px; padding: 12px 14px; font-size: 0.92rem; }
+
+  /* Шаги — строкой: номер и короткая фраза. */
+  .hp-steps { gap: 12px; }
+  .hp-steps li { display: flex; align-items: center; gap: 12px; padding: 0; background: none; border: 0; }
+  .hp-step-num { width: 36px; height: 36px; font-size: 1.05rem; }
+  .hp-steps h3 { margin: 0; font-size: 1rem; font-weight: 400; }
+
+  /* Разделы — плитки 2×2 с иконками. */
+  .hp-where { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; background: none; border: 0; }
+  .hp-where-item { min-height: 104px; padding: 14px; gap: 6px; background: var(--hp-card); border: 1px solid var(--color-border-default); }
+  .hp-where-icon { color: var(--hp-accent); }
+  .hp-where-item b { font-family: inherit; font-weight: 600; font-size: 1rem; }
+  .hp-where-text { font-size: 0.8rem; color: var(--color-text-tertiary); }
+
+  .hp-mob-links { margin: 28px 0 0; font-size: 0.92rem; text-align: center; color: var(--color-text-tertiary); }
+  .hp-mob-links a { color: var(--hp-accent); }
 }
