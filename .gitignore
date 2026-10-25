@@ -38,3 +38,14 @@ backups/postgres/
 /conference-2026/
 /.claude/
 /.cursor/rules/
+
+# Журналы, инструкции, планы и шпаргалки — только локально, где бы ни лежали
+# (основное — в /docs/, /plans/, /conference-2026/ выше).
+**/*ШПАРГАЛКА*
+**/*шпаргалка*
+**/JOURNAL*.md
+**/*-LOG.md
+**/*-GUIDE.md
+**/PROMOTION*.md
+/CLAUDE.md
+/AGENTS.md
