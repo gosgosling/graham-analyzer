@@ -219,7 +219,7 @@ function TimeSpanSummary({ store, rows, lines, fmt, fmtR, delta, monthly }: {
  * считается по положению, а не по номеру точки: точки рядов разной частоты
  * стоят неравномерно.
  */
-function TimeChart({ lines, from, till, snap, fmt, fmtR, height = 240, zero, monthly = true, legend = true, delta = 'pct' }: {
+function TimeChart({ lines: rawLines, from, till, snap, fmt: rawFmt, fmtR: rawFmtR, height = 240, zero, monthly = true, legend = true, delta: rawDelta = 'pct', rebase = false }: {
   lines: LineSpec[];
   from: string | null;
   /** Правый край: дата снимка, если смотрим «как было тогда». */
@@ -233,8 +233,17 @@ function TimeChart({ lines, from, till, snap, fmt, fmtR, height = 240, zero, mon
   monthly?: boolean;
   legend?: boolean;
   delta?: DeltaKind;
+  /** Каждый ряд — в процентах от своего значения в начале периода: так
+   * доллар, евро и юань, нефть в долларах и в рублях сравниваются на одной
+   * шкале, хотя в абсолюте различаются в разы. */
+  rebase?: boolean;
 }) {
   const colors = useChartColors();
+  // При пересчёте в проценты все ряды ложатся на одну шкалу — правая не нужна.
+  const lines = useMemo(() => (rebase ? rawLines.map((l) => ({ ...l, axis: 'l' as const })) : rawLines), [rawLines, rebase]);
+  const fmt = rebase ? ((v: number) => `${signed(v, 0)}%`) : rawFmt;
+  const fmtR = rebase ? undefined : rawFmtR;
+  const delta: DeltaKind = rebase ? 'pp' : rawDelta;
   const isPhone = useMediaQuery(PHONE_QUERY);
   const rows = useMemo(() => {
     const grid = new Map<string, Row>();
@@ -253,8 +262,18 @@ function TimeChart({ lines, from, till, snap, fmt, fmtR, height = 240, zero, mon
         if (p) row[l.key] = p[1];
       });
     });
+    if (rebase) {
+      lines.forEach((l) => {
+        const first = out.find((row) => typeof row[l.key] === 'number');
+        const base = first ? (first[l.key] as number) : null;
+        if (!base) return;
+        out.forEach((row) => {
+          if (typeof row[l.key] === 'number') row[l.key] = ((row[l.key] as number) / base - 1) * 100;
+        });
+      });
+    }
     return out;
-  }, [lines, from, till]);
+  }, [lines, from, till, rebase]);
 
   const store = useRef(createSpanStore()).current;
   const canvas = useRef<HTMLDivElement | null>(null);
@@ -844,6 +863,60 @@ function MarketThen({ market, on, isToday }: { market: MarketOverview; on: strin
 
 // ─── Страница ──────────────────────────────────────────────────────────────
 
+type Window = { from: string | null; fromYear: number; rel: boolean };
+
+/**
+ * Карточка графика со своими переключателями: период и единицы стоят прямо
+ * у графика. Раньше они были одни на всю страницу, наверху, — чтобы сменить
+ * период у курса валют, приходилось листать мимо пяти графиков вверх и
+ * обратно. Каждая карточка помнит свой выбор сама.
+ *
+ * `units` — подписи «как есть / относительно» (трлн ₽ / % ВВП, ₽ / % от
+ * начала); нет — у ряда, который и так в процентах, переключать нечего.
+ */
+function EcCard({ title, sub, end, units, defaultRange = '10y', className, children }: {
+  title: string;
+  sub: (rel: boolean) => string;
+  /** Правый край графиков: дата снимка или сегодня. */
+  end: string;
+  units?: [string, string];
+  defaultRange?: RangeKey;
+  className?: string;
+  children: (w: Window) => React.ReactNode;
+}) {
+  const [range, setRange] = useState<RangeKey>(defaultRange);
+  const [rel, setRel] = useState(false);
+  const years = RANGES.find((r) => r.key === range)?.years ?? null;
+  const from = years === null ? null : `${Number(end.slice(0, 4)) - years}${end.slice(4, 7)}-01`;
+  return (
+    <section className={`mo-card ec-card${className ? ` ${className}` : ''}`}>
+      <div className="mo-card-head ec-card-head">
+        <div>
+          <h2>{title}</h2>
+          <span className="mo-card-sub">{sub(rel)}</span>
+        </div>
+        <div className="ec-ctrl">
+          <span className="seg" role="radiogroup" aria-label={`Период: ${title}`}>
+            {RANGES.map((r) => (
+              <button key={r.key} type="button" role="radio" aria-checked={range === r.key}
+                className={range === r.key ? 'seg-btn is-on' : 'seg-btn'} onClick={() => setRange(r.key)}>{r.label}</button>
+            ))}
+          </span>
+          {units && (
+            <span className="seg" role="radiogroup" aria-label={`Единицы: ${title}`}>
+              {([false, true] as const).map((value, i) => (
+                <button key={String(value)} type="button" role="radio" aria-checked={rel === value}
+                  className={rel === value ? 'seg-btn is-on' : 'seg-btn'} onClick={() => setRel(value)}>{units[i]}</button>
+              ))}
+            </span>
+          )}
+        </div>
+      </div>
+      {children({ from, fromYear: from ? Number(from.slice(0, 4)) : 0, rel })}
+    </section>
+  );
+}
+
 function Source({ children }: { children: React.ReactNode }) {
   return <p className="ec-source">{children}</p>;
 }
@@ -851,11 +924,9 @@ function Source({ children }: { children: React.ReactNode }) {
 export default function EconomyPage() {
   const colors = useChartColors();
   const [params, setParams] = useSearchParams();
-  const [range, setRange] = useState<RangeKey>('10y');
   // «Как было тогда» — графики обрываются на дате снимка; «и что было потом» —
   // идут до сегодня, а дата отмечена чертой.
   const [after, setAfter] = useState(false);
-  const [unit, setUnit] = useState<'rub' | 'gdp'>('rub');
   const today = todayIso();
   const onParam = params.get('on');
   const on = onParam && /^\d{4}-\d{2}-\d{2}$/.test(onParam) && onParam < today ? onParam : today;
@@ -869,11 +940,8 @@ export default function EconomyPage() {
   const { data: macro, isLoading, error } = useQuery({ queryKey: ['macro'], queryFn: fetchMacro, staleTime: 30 * 60 * 1000 });
   const { data: market } = useQuery({ queryKey: ['market-overview'], queryFn: fetchMarketOverview, staleTime: 30 * 60 * 1000 });
 
-  const years = RANGES.find((r) => r.key === range)?.years ?? null;
   const till = isToday || after ? null : on;
   const end = till ?? today;
-  const from = years === null ? null : `${Number(end.slice(0, 4)) - years}${end.slice(4, 7)}-01`;
-  const fromYear = from ? Number(from.slice(0, 4)) : 0;
   const snap = isToday ? null : on;
   // Последний месяц, закончившийся к дате снимка: по нему таблица бюджета и
   // столбцы финансирования. Квартал и год — так же, по их концу.
@@ -959,12 +1027,14 @@ export default function EconomyPage() {
 
   const s = macro.series;
   const gdpW = gdpWindow(s.M_GDP);
-  const inGdp = unit === 'gdp';
-  const u = (series: SeriesPoint[]) => (inGdp ? toGdp(series, gdpW) : series);
+  // Бюджет и долг — в трлн ₽ или в % ВВП, у каждой карточки свой выбор.
+  const u = (series: SeriesPoint[], inGdp: boolean) => (inGdp ? toGdp(series, gdpW) : series);
   const k = (bln: number) => ru(bln / 1000, Number.isInteger(Math.round(bln) / 1000) ? 0 : 1);
   const share = (v: number) => `${ru(v, Number.isInteger(v) ? 0 : 1)}%`;
-  const money_ = inGdp ? share : k;
-  const unitName = inGdp ? '% ВВП' : 'трлн ₽';
+  const money = (inGdp: boolean) => (inGdp ? share : k);
+  const unitName = (inGdp: boolean) => (inGdp ? '% ВВП' : 'трлн ₽');
+  const MONEY_UNITS: [string, string] = ['трлн ₽', '% ВВП'];
+  const REBASE_UNITS = (abs: string): [string, string] => [abs, '% от начала'];
   const showAll = isToday || after;
   const pctFmt = (v: number) => `${ru(v, 0)}%`;
   const snapYear = isToday ? null : on.slice(0, 4);
@@ -1041,369 +1111,358 @@ export default function EconomyPage() {
 
       {market && <MarketThen market={market} on={on} isToday={isToday} />}
 
-      <div className="ec-range">
-        <span className="ec-range-group">
-          <span>{isToday || after ? 'Графики за' : `Графики до ${dotDate(on)} за`}</span>
-          <span className="seg" role="radiogroup" aria-label="Период графиков">
-            {RANGES.map((r) => (
-              <button key={r.key} type="button" role="radio" aria-checked={range === r.key}
-                className={range === r.key ? 'seg-btn is-on' : 'seg-btn'} onClick={() => setRange(r.key)}>{r.label}</button>
-            ))}
-          </span>
-        </span>
-        <span className="ec-range-group">
-          <span>Бюджет и долг</span>
-          <span className="seg" role="radiogroup" aria-label="Единицы">
-            {([['rub', 'в трлн ₽'], ['gdp', 'в % ВВП']] as const).map(([key, label]) => (
-              <button key={key} type="button" role="radio" aria-checked={unit === key}
-                className={unit === key ? 'seg-btn is-on' : 'seg-btn'} onClick={() => setUnit(key)}>{label}</button>
-            ))}
-          </span>
-        </span>
-        {!isToday && (
+      {!isToday && (
+        <div className="ec-range">
           <label className="ec-after">
             <input type="checkbox" checked={after} onChange={(e) => setAfter(e.target.checked)} />
-            показать, что было потом
+            показать на графиках, что было после {dotDate(on)}
           </label>
-        )}
-      </div>
+        </div>
+      )}
       <p className="mo-hint ec-hint">
-        Зажмите кнопку мыши и проведите по графику — покажет, как изменился каждый ряд за отрезок.
+        Период и единицы меняются у каждого графика справа от заголовка. Зажмите кнопку мыши и проведите по
+        графику — покажет, как изменился каждый ряд за отрезок.
       </p>
 
-      <section className="mo-card">
-        <div className="mo-card-head">
-          <h2>Федеральный бюджет</h2>
-          <span className="mo-card-sub">за последние 12 месяцев на каждую дату, {unitName}</span>
-        </div>
-        <TimeChart from={from} till={till} snap={snap} fmt={money_} height={260} delta={inGdp ? 'pp' : 'pct'} lines={[
-          { key: 'rev', label: 'Доходы', color: colors.line3, data: u(views.rev), width: 2 },
-          { key: 'exp', label: 'Расходы', color: colors.refBad, data: u(views.exp), width: 2 },
-          { key: 'og', label: 'в т. ч. нефтегазовые доходы', color: colors.line4, data: u(views.revOg) },
-        ]} />
-        <div className="mo-pair ec-subpair">
-          <div className="mo-card">
-            <h3 className="ec-h3">Дефицит за 12 месяцев, {unitName}</h3>
-            <TimeChart from={from} till={till} snap={snap} fmt={money_} zero={false} height={200} delta={inGdp ? 'pp' : 'abs'} lines={[
-              { key: 'bal', label: 'Дефицит (−) / профицит (+)', color: colors.textPrimary, data: u(views.bal), width: 2 },
-              { key: 'nog', label: 'без нефти и газа', color: colors.axis, data: u(views.balNog), dash: '4 3' },
+      <EcCard title="Федеральный бюджет" end={end} units={MONEY_UNITS}
+        sub={(rel) => `за последние 12 месяцев на каждую дату, ${unitName(rel)}`}>
+        {({ from, rel }) => (
+          <>
+            <TimeChart from={from} till={till} snap={snap} fmt={money(rel)} height={260} delta={rel ? 'pp' : 'pct'} lines={[
+              { key: 'rev', label: 'Доходы', color: colors.line3, data: u(views.rev, rel), width: 2 },
+              { key: 'exp', label: 'Расходы', color: colors.refBad, data: u(views.exp, rel), width: 2 },
+              { key: 'og', label: 'в т. ч. нефтегазовые доходы', color: colors.line4, data: u(views.revOg, rel) },
             ]} />
-          </div>
-          <div className="mo-card">
-            <h3 className="ec-h3">Доля нефти и газа в доходах, %</h3>
-            <TimeChart from={from} till={till} snap={snap} fmt={pctFmt} zero height={200} legend={false} delta="pp" lines={[
-              { key: 'share', label: 'нефтегазовые доходы', color: colors.line4, data: views.ogShare, width: 2 },
-            ]} />
-          </div>
-        </div>
-        {ytdMonth && prevSame && (
-          <div className="ec-table-wrap">
-            <table className="ec-table ec-ytd">
-              <thead>
-                <tr>
-                  <th scope="col">С начала года, млрд ₽</th>
-                  <th scope="col">{ytdLabel}</th>
-                  <th scope="col">{prevLabel}</th>
-                  <th scope="col">Изменение</th>
-                  <th scope="col">{Number(ytdMonth.slice(0, 4)) - 1} целиком</th>
-                </tr>
-              </thead>
-              <tbody>
-                {ytdRows.map(([label, code, sub]) => {
-                  const now = valueAt(code, ytdMonth);
-                  const prev = valueAt(code, prevSame);
-                  const full = valueAt(code, prevYearEnd);
-                  const ch = now !== null && prev ? (now / prev - 1) * 100 : null;
-                  const isBal = code.startsWith('M_BUD_BAL');
-                  return (
-                    <tr key={code} className={sub ? 'ec-sub' : undefined}>
-                      <th scope="row">{label}</th>
-                      <td>{now !== null ? ru(now, 0) : '—'}</td>
-                      <td>{prev !== null ? ru(prev, 0) : '—'}</td>
-                      <td>{isBal && now !== null && prev !== null ? `${signed(now - prev, 0)} млрд` : ch !== null ? `${signed(ch, 1)}%` : '—'}</td>
-                      <td>{full !== null ? ru(full, 0) : '—'}</td>
+            <div className="mo-pair ec-subpair">
+              <div className="mo-card">
+                <h3 className="ec-h3">Дефицит за 12 месяцев, {unitName(rel)}</h3>
+                <TimeChart from={from} till={till} snap={snap} fmt={money(rel)} zero={false} height={200} delta={rel ? 'pp' : 'abs'} lines={[
+                  { key: 'bal', label: 'Дефицит (−) / профицит (+)', color: colors.textPrimary, data: u(views.bal, rel), width: 2 },
+                  { key: 'nog', label: 'без нефти и газа', color: colors.axis, data: u(views.balNog, rel), dash: '4 3' },
+                ]} />
+              </div>
+              <div className="mo-card">
+                <h3 className="ec-h3">Доля нефти и газа в доходах, %</h3>
+                <TimeChart from={from} till={till} snap={snap} fmt={pctFmt} zero height={200} legend={false} delta="pp" lines={[
+                  { key: 'share', label: 'нефтегазовые доходы', color: colors.line4, data: views.ogShare, width: 2 },
+                ]} />
+              </div>
+            </div>
+            {ytdMonth && prevSame && (
+              <div className="ec-table-wrap">
+                <table className="ec-table ec-ytd">
+                  <thead>
+                    <tr>
+                      <th scope="col">С начала года, млрд ₽</th>
+                      <th scope="col">{ytdLabel}</th>
+                      <th scope="col">{prevLabel}</th>
+                      <th scope="col">Изменение</th>
+                      <th scope="col">{Number(ytdMonth.slice(0, 4)) - 1} целиком</th>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                  </thead>
+                  <tbody>
+                    {ytdRows.map(([label, code, sub]) => {
+                      const now = valueAt(code, ytdMonth);
+                      const prev = valueAt(code, prevSame);
+                      const full = valueAt(code, prevYearEnd);
+                      const ch = now !== null && prev ? (now / prev - 1) * 100 : null;
+                      const isBal = code.startsWith('M_BUD_BAL');
+                      return (
+                        <tr key={code} className={sub ? 'ec-sub' : undefined}>
+                          <th scope="row">{label}</th>
+                          <td>{now !== null ? ru(now, 0) : '—'}</td>
+                          <td>{prev !== null ? ru(prev, 0) : '—'}</td>
+                          <td>{isBal && now !== null && prev !== null ? `${signed(now - prev, 0)} млрд` : ch !== null ? `${signed(ch, 1)}%` : '—'}</td>
+                          <td>{full !== null ? ru(full, 0) : '—'}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            {lawRows.length > 0 && (
+              <div className="ec-table-wrap">
+                <table className="ec-table ec-law">
+                  <thead>
+                    <tr>
+                      <th scope="col">План и факт, млрд ₽</th>
+                      <th scope="col">Доходы по закону</th>
+                      <th scope="col">факт</th>
+                      <th scope="col">Расходы по закону</th>
+                      <th scope="col">факт</th>
+                      <th scope="col">Дефицит по закону</th>
+                      <th scope="col">факт</th>
+                      <th scope="col">Расходы к закону</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {lawRows.map((r) => (
+                      <tr key={r.year} className={r.partial ? 'ec-partial' : undefined}>
+                        <th scope="row">{r.partial ? `${r.year}, янв–${MONTHS[r.month - 1]}` : r.year}</th>
+                        <td>{ru(r.law.revenue, 0)}</td>
+                        <td>{r.rev !== null ? ru(r.rev, 0) : '—'}</td>
+                        <td>{ru(r.law.expense, 0)}</td>
+                        <td>{r.exp !== null ? ru(r.exp, 0) : '—'}</td>
+                        <td>{ru(r.law.balance, 0)}</td>
+                        <td className={r.bal !== null && r.bal < r.law.balance ? 'ec-over' : undefined}>{r.bal !== null ? ru(r.bal, 0) : '—'}</td>
+                        <td className={!r.partial && r.exp !== null && r.exp > r.law.expense ? 'ec-over' : undefined}>
+                          {r.exp === null ? '—' : r.partial
+                            ? `${ru(r.exp / r.law.expense * 100, 0)}% годового`
+                            : `${signed((r.exp / r.law.expense - 1) * 100, 1)}%`}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            <Source>
+              План — закон о бюджете в первоначальной редакции, без поправок в течение года: так видно, насколько
+              исполнение ушло от того, что заложили в начале. Красным — дефицит больше заложенного и расходы сверх
+              закона. Для неполного года — исполнено с начала года к годовому плану.
+            </Source>
+            <Source>
+              Минфин, краткая информация об исполнении федерального бюджета; последний месяц — предварительная
+              оценка. Сумма за 12 месяцев — накопленное с начала года плюс прошлый год минус прошлый год по тот же
+              месяц. С 2022 года Минфин не публикует расходы по разделам (оборона, безопасность и другие) — в
+              файле они обрываются на 2021 годе, поэтому здесь только общий итог.
+            </Source>
+          </>
         )}
-        {lawRows.length > 0 && (
-          <div className="ec-table-wrap">
-            <table className="ec-table ec-law">
-              <thead>
-                <tr>
-                  <th scope="col">План и факт, млрд ₽</th>
-                  <th scope="col">Доходы по закону</th>
-                  <th scope="col">факт</th>
-                  <th scope="col">Расходы по закону</th>
-                  <th scope="col">факт</th>
-                  <th scope="col">Дефицит по закону</th>
-                  <th scope="col">факт</th>
-                  <th scope="col">Расходы к закону</th>
-                </tr>
-              </thead>
-              <tbody>
-                {lawRows.map((r) => (
-                  <tr key={r.year} className={r.partial ? 'ec-partial' : undefined}>
-                    <th scope="row">{r.partial ? `${r.year}, янв–${MONTHS[r.month - 1]}` : r.year}</th>
-                    <td>{ru(r.law.revenue, 0)}</td>
-                    <td>{r.rev !== null ? ru(r.rev, 0) : '—'}</td>
-                    <td>{ru(r.law.expense, 0)}</td>
-                    <td>{r.exp !== null ? ru(r.exp, 0) : '—'}</td>
-                    <td>{ru(r.law.balance, 0)}</td>
-                    <td className={r.bal !== null && r.bal < r.law.balance ? 'ec-over' : undefined}>{r.bal !== null ? ru(r.bal, 0) : '—'}</td>
-                    <td className={!r.partial && r.exp !== null && r.exp > r.law.expense ? 'ec-over' : undefined}>
-                      {r.exp === null ? '—' : r.partial
-                        ? `${ru(r.exp / r.law.expense * 100, 0)}% годового`
-                        : `${signed((r.exp / r.law.expense - 1) * 100, 1)}%`}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+      </EcCard>
+
+      <EcCard title="Чем закрывается дефицит" end={end} units={MONEY_UNITS}
+        sub={(rel) => `источники финансирования за год, ${unitName(rel)}`}>
+        {({ fromYear, rel }) => (
+          <>
+            <Legend items={[...views.fin.map((f) => ({ label: f.label, color: f.color })), { label: 'дефицит', color: colors.textPrimary }]} />
+            <PeriodBars
+              rows={views.finRows.filter((r) => (r.year as number) >= fromYear).map((r) => {
+                if (!rel) return r;
+                // Год целиком — к ВВП года; неполный — к ВВП за 12 месяцев по последний месяц.
+                const g = gdpW(`${r.year}-${r.label.endsWith('*') ? String(views.finMonths.get(r.year as number) ?? 12).padStart(2, '0') : '12'}-01`);
+                const out: BarRow = { ...r };
+                [...views.fin.map((f) => f.key), 'deficit'].forEach((key) => {
+                  out[key] = g && typeof r[key] === 'number' ? ((r[key] as number) / g) * 100 : null;
+                });
+                return out;
+              })}
+              bars={views.fin.map((f) => ({ ...f, stack: true }))}
+              lines={[{ key: 'deficit', label: 'Дефицит', color: colors.textPrimary }]}
+              snapLabel={showAll ? snapYear : null} fmt={rel ? share : k} height={280} />
+            <Source>
+              Выше нуля — откуда взяли деньги, ниже — куда отложили (в профицитные годы бюджет пополнял счета и
+              гасил долг). «Остатки на счетах» — это прежде всего траты ФНБ и других накоплений; курсовая разница —
+              переоценка валюты на этих счетах.
+              {views.finPartial && views.finPartial.month !== 12 && (cutoff && !after
+                ? ` * — январь–${MONTHS_FULL[views.finPartial.month - 1]}: последний месяц, закончившийся к дате снимка.`
+                : ` * — январь–${MONTHS_FULL[views.finPartial.month - 1]}: источники Минфин публикует на месяц позже доходов и расходов.`)}
+            </Source>
+          </>
         )}
-        <Source>
-          План — закон о бюджете в первоначальной редакции, без поправок в течение года: так видно, насколько
-          исполнение ушло от того, что заложили в начале. Красным — дефицит больше заложенного и расходы сверх
-          закона. Для неполного года — исполнено с начала года к годовому плану.
-        </Source>
-        <Source>
-          Минфин, краткая информация об исполнении федерального бюджета; последний месяц — предварительная
-          оценка. Сумма за 12 месяцев — накопленное с начала года плюс прошлый год минус прошлый год по тот же
-          месяц. С 2022 года Минфин не публикует расходы по разделам (оборона, безопасность и другие) — в
-          файле они обрываются на 2021 годе, поэтому здесь только общий итог.
-        </Source>
-      </section>
+      </EcCard>
 
-      <section className="mo-card">
-        <div className="mo-card-head">
-          <h2>Чем закрывается дефицит</h2>
-          <span className="mo-card-sub">источники финансирования за год, {unitName}</span>
-        </div>
-        <Legend items={[...views.fin.map((f) => ({ label: f.label, color: f.color })), { label: 'дефицит', color: colors.textPrimary }]} />
-        <PeriodBars
-          rows={views.finRows.filter((r) => (r.year as number) >= fromYear).map((r) => {
-            if (!inGdp) return r;
-            // Год целиком — к ВВП года; неполный — к ВВП за 12 месяцев по последний месяц.
-            const g = gdpW(`${r.year}-${r.label.endsWith('*') ? String(views.finMonths.get(r.year as number) ?? 12).padStart(2, '0') : '12'}-01`);
-            const out: BarRow = { ...r };
-            [...views.fin.map((f) => f.key), 'deficit'].forEach((key) => {
-              out[key] = g && typeof r[key] === 'number' ? ((r[key] as number) / g) * 100 : null;
-            });
-            return out;
-          })}
-          bars={views.fin.map((f) => ({ ...f, stack: true }))}
-          lines={[{ key: 'deficit', label: 'Дефицит', color: colors.textPrimary }]}
-          snapLabel={showAll ? snapYear : null} fmt={inGdp ? share : k} height={280} />
-        <Source>
-          Выше нуля — откуда взяли деньги, ниже — куда отложили (в профицитные годы бюджет пополнял счета и
-          гасил долг). «Остатки на счетах» — это прежде всего траты ФНБ и других накоплений; курсовая разница —
-          переоценка валюты на этих счетах.
-          {views.finPartial && views.finPartial.month !== 12 && (cutoff && !after
-            ? ` * — январь–${MONTHS_FULL[views.finPartial.month - 1]}: последний месяц, закончившийся к дате снимка.`
-            : ` * — январь–${MONTHS_FULL[views.finPartial.month - 1]}: источники Минфин публикует на месяц позже доходов и расходов.`)}
-        </Source>
-      </section>
-
-      <section className="mo-card">
-        <div className="mo-card-head">
-          <h2>Нефть и бюджетное правило</h2>
-          <span className="mo-card-sub">за месяц, млрд ₽</span>
-        </div>
-        <Legend items={[
-          { label: 'Нефтегазовые доходы сверх базовых (ниже нуля — недобор)', color: colors.line3 },
-          { label: 'Покупка (+) / продажа (−) валюты Минфином', color: colors.textPrimary },
-        ]} />
-        <PeriodBars
-          rows={(s.M_OG_EXTRA ?? [])
-            .filter(([d]) => (!from || d >= from) && (showAll || !cutoff || d <= cutoff))
-            .map(([d, v]) => ({ label: monthName(d), extra: v, fx: at(s.M_FX_OPS, d)?.[0] === d ? (at(s.M_FX_OPS, d) as SeriesPoint)[1] : null }))}
-          bars={[{ key: 'extra', label: 'Сверх базовых', color: colors.line3 }]}
-          lines={[{ key: 'fx', label: 'Покупка / продажа валюты', color: colors.textPrimary }]}
-          signColors={{ pos: colors.line3, neg: colors.refBad }}
-          snapLabel={showAll && !isToday ? monthName(closedMonth(on)) : null} fmt={(v) => ru(v, 0)} height={240} />
-        <Source>
-          Минфин. Бюджет считает «базовыми» нефтегазовые доходы при цене отсечения Urals (в 2026 году — $59 за
-          баррель); всё сверх неё — дополнительные доходы, их Минфин откладывает в ФНБ, покупая валюту и золото.
-          Недобор покрывается продажей из ФНБ — так бюджетное правило гасит колебания нефти для рубля и бюджета.
-          Цены Urals машиночитаемым рядом Минфин не публикует, поэтому вместо неё — то, что из неё следует для
-          бюджета. Покупка валюты идёт в следующем месяце по итогам предыдущего.
-        </Source>
-      </section>
-
-      <section className="mo-card">
-        <div className="mo-card-head">
-          <h2>Подушка и долг</h2>
-          <span className="mo-card-sub">ФНБ и госдолг в ОФЗ, {unitName}</span>
-        </div>
-        <TimeChart from={from} till={till} snap={snap} fmt={money_} zero height={260} delta={inGdp ? 'pp' : 'pct'} lines={[
-          { key: 'debt', label: 'Госдолг в ОФЗ', color: colors.refBad, data: u(s.M_DEBT_DOM ?? []), width: 2 },
-          { key: 'fnb', label: 'ФНБ всего', color: colors.line1, data: u(s.M_FNB ?? []) },
-          { key: 'liq', label: 'ФНБ ликвидный (на счетах в ЦБ)', color: colors.line3, data: u(views.fnbLiquid), width: 2 },
-        ]} />
-        <Source>
-          Минфин. Ликвидная часть ФНБ — средства на счетах в Банке России (юани и золото); остальное вложено в
-          акции, облигации и депозиты и быстро потратить его нельзя. Госдолг — внутренний, в ценных бумагах; до
-          текущего года — на 1 января, дальше — помесячно. Внешний госдолг меньше и здесь не показан.
-        </Source>
-      </section>
-
-      <section className="mo-card">
-        <div className="mo-card-head">
-          <h2>Инфляция и ставка</h2>
-          <span className="mo-card-sub">%, годовых</span>
-        </div>
-        {market && (
-          <TimeChart from={from} till={till} snap={snap} delta="pp" fmt={pctFmt} zero height={260} lines={[
-            { key: 'infl', label: 'Инфляция год к году', color: colors.refBad, data: s.M_INFL ?? [], width: 2 },
-            { key: 'key', label: 'Ключевая ставка', color: colors.textPrimary, data: market.series.key_rate, sample: true, step: true },
-            { key: 'ofz', label: 'ОФЗ 10 лет', color: colors.line1, data: market.series.ofz10, sample: true },
-            { key: 'target', label: 'Цель ЦБ', color: colors.line3, data: s.M_INFL_TARGET ?? [], dash: '5 4' },
-          ]} />
-        )}
-        <Source>ЦБ: инфляция — по данным Росстата, на конец месяца; ключевая ставка и кривая ОФЗ — Банк России.</Source>
-      </section>
-
-      <div className="mo-pair">
-        <section className="mo-card">
-          <div className="mo-card-head">
-            <h2>Что чувствуют люди</h2>
-            <span className="mo-card-sub">инфляция, %</span>
-          </div>
-          <TimeChart from={from} till={till} snap={snap} delta="pp" fmt={pctFmt} zero height={240} lines={[
-            { key: 'obs', label: 'Ощущаемая', color: colors.line6, data: s.M_INFL_OBS ?? [], width: 2 },
-            { key: 'exp', label: 'Ожидаемая через год', color: colors.line4, data: s.M_INFL_EXP ?? [] },
-            { key: 'infl', label: 'Официальная', color: colors.refBad, data: s.M_INFL ?? [], dash: '4 3' },
-          ]} />
-          <Source>ЦБ, опрос населения «инФОМ»: медианные оценки. Ожидания людей — то, на что смотрит ЦБ, решая о ставке.</Source>
-        </section>
-        <section className="mo-card">
-          <div className="mo-card-head">
-            <h2>Настроения</h2>
-            <span className="mo-card-sub">индекс потребительских настроений, пункты</span>
-          </div>
-          <TimeChart from={from} till={till} snap={snap} delta="abs" fmt={(v) => ru(v, 0)} height={240} legend={false} lines={[
-            { key: 'csi', label: 'Индекс настроений', color: colors.line1, data: s.M_CSI ?? [], width: 2 },
-          ]} />
-          <Source>ЦБ, «инФОМ»: оценка людьми своего положения, экономики и момента для крупных покупок. Выше — увереннее.</Source>
-        </section>
-      </div>
-
-      <div className="mo-pair">
-        <section className="mo-card">
-          <div className="mo-card-head">
-            <h2>Кредит и деньги</h2>
-            <span className="mo-card-sub">рост за год, %</span>
-          </div>
-          {market && (
-            <TimeChart from={from} till={till} snap={snap} fmt={pctFmt} height={240} delta="pp" lines={[
-              { key: 'corp', label: 'Кредиты компаниям', color: colors.line1, data: s.M_CREDIT_CORP ?? [], width: 2 },
-              { key: 'hh', label: 'Кредиты людям', color: colors.line6, data: s.M_CREDIT_HH ?? [], width: 2 },
-              { key: 'm2', label: 'Денежная масса М2', color: colors.line3, data: s.M_M2 ?? [] },
-              { key: 'key', label: 'Ключевая ставка', color: colors.textPrimary, data: market.series.key_rate, sample: true, step: true, dash: '4 3' },
+      <EcCard title="Нефть и бюджетное правило" end={end} sub={() => 'за месяц, млрд ₽'}>
+        {({ from }) => (
+          <>
+            <Legend items={[
+              { label: 'Нефтегазовые доходы сверх базовых (ниже нуля — недобор)', color: colors.line3 },
+              { label: 'Покупка (+) / продажа (−) валюты Минфином', color: colors.textPrimary },
             ]} />
+            <PeriodBars
+              rows={(s.M_OG_EXTRA ?? [])
+                .filter(([d]) => (!from || d >= from) && (showAll || !cutoff || d <= cutoff))
+                .map(([d, v]) => ({ label: monthName(d), extra: v, fx: at(s.M_FX_OPS, d)?.[0] === d ? (at(s.M_FX_OPS, d) as SeriesPoint)[1] : null }))}
+              bars={[{ key: 'extra', label: 'Сверх базовых', color: colors.line3 }]}
+              lines={[{ key: 'fx', label: 'Покупка / продажа валюты', color: colors.textPrimary }]}
+              signColors={{ pos: colors.line3, neg: colors.refBad }}
+              snapLabel={showAll && !isToday ? monthName(closedMonth(on)) : null} fmt={(v) => ru(v, 0)} height={240} />
+            <Source>
+              Минфин. Бюджет считает «базовыми» нефтегазовые доходы при цене отсечения Urals (в 2026 году — $59 за
+              баррель); всё сверх неё — дополнительные доходы, их Минфин откладывает в ФНБ, покупая валюту и золото.
+              Недобор покрывается продажей из ФНБ — так бюджетное правило гасит колебания нефти для рубля и бюджета.
+              Цены Urals машиночитаемым рядом Минфин не публикует, поэтому вместо неё — то, что из неё следует для
+              бюджета. Покупка валюты идёт в следующем месяце по итогам предыдущего.
+            </Source>
+          </>
+        )}
+      </EcCard>
+
+      <EcCard title="Подушка и долг" end={end} units={MONEY_UNITS} sub={(rel) => `ФНБ и госдолг в ОФЗ, ${unitName(rel)}`}>
+        {({ from, rel }) => (
+          <>
+            <TimeChart from={from} till={till} snap={snap} fmt={money(rel)} zero height={260} delta={rel ? 'pp' : 'pct'} lines={[
+              { key: 'debt', label: 'Госдолг в ОФЗ', color: colors.refBad, data: u(s.M_DEBT_DOM ?? [], rel), width: 2 },
+              { key: 'fnb', label: 'ФНБ всего', color: colors.line1, data: u(s.M_FNB ?? [], rel) },
+              { key: 'liq', label: 'ФНБ ликвидный (на счетах в ЦБ)', color: colors.line3, data: u(views.fnbLiquid, rel), width: 2 },
+            ]} />
+            <Source>
+              Минфин. Ликвидная часть ФНБ — средства на счетах в Банке России (юани и золото); остальное вложено в
+              акции, облигации и депозиты и быстро потратить его нельзя. Госдолг — внутренний, в ценных бумагах; до
+              текущего года — на 1 января, дальше — помесячно. Внешний госдолг меньше и здесь не показан.
+            </Source>
+          </>
+        )}
+      </EcCard>
+
+      <EcCard title="Инфляция и ставка" end={end} sub={() => '%, годовых'}>
+        {({ from }) => (
+          <>
+            {market && (
+              <TimeChart from={from} till={till} snap={snap} delta="pp" fmt={pctFmt} zero height={260} lines={[
+                { key: 'infl', label: 'Инфляция год к году', color: colors.refBad, data: s.M_INFL ?? [], width: 2 },
+                { key: 'key', label: 'Ключевая ставка', color: colors.textPrimary, data: market.series.key_rate, sample: true, step: true },
+                { key: 'ofz', label: 'ОФЗ 10 лет', color: colors.line1, data: market.series.ofz10, sample: true },
+                { key: 'target', label: 'Цель ЦБ', color: colors.line3, data: s.M_INFL_TARGET ?? [], dash: '5 4' },
+              ]} />
+            )}
+            <Source>ЦБ: инфляция — по данным Росстата, на конец месяца; ключевая ставка и кривая ОФЗ — Банк России.</Source>
+          </>
+        )}
+      </EcCard>
+
+      <div className="mo-pair">
+        <EcCard title="Что чувствуют люди" end={end} sub={() => 'инфляция, %'}>
+          {({ from }) => (
+            <>
+              <TimeChart from={from} till={till} snap={snap} delta="pp" fmt={pctFmt} zero height={240} lines={[
+                { key: 'obs', label: 'Ощущаемая', color: colors.line6, data: s.M_INFL_OBS ?? [], width: 2 },
+                { key: 'exp', label: 'Ожидаемая через год', color: colors.line4, data: s.M_INFL_EXP ?? [] },
+                { key: 'infl', label: 'Официальная', color: colors.refBad, data: s.M_INFL ?? [], dash: '4 3' },
+              ]} />
+              <Source>ЦБ, опрос населения «инФОМ»: медианные оценки. Ожидания людей — то, на что смотрит ЦБ, решая о ставке.</Source>
+            </>
           )}
-          <Source>
-            ЦБ. Кредит, растущий быстрее инфляции при высокой ставке, значит, что спрос на деньги не гаснет —
-            ЦБ это читает как довод держать ставку. Резкое торможение кредита компаниям — первый признак, что
-            ставка начала душить инвестиции.
-          </Source>
-        </section>
-        <section className="mo-card">
-          <div className="mo-card-head">
-            <h2>Доходы людей</h2>
-            <span className="mo-card-sub">рост за год, %</span>
-          </div>
-          <TimeChart from={from} till={till} snap={snap} fmt={pctFmt} height={240} delta="pp" lines={[
-            { key: 'inc', label: 'Медианный доход (опрос ЦБ)', color: colors.line3, data: views.incomeGrowth, width: 2 },
-            { key: 'infl', label: 'Инфляция', color: colors.refBad, data: s.M_INFL ?? [], dash: '4 3' },
-          ]} />
-          <Source>
-            ЦБ, «инФОМ»: медиана располагаемого дохода на человека, по ответам людей; сравниваются средние за
-            три месяца, иначе ряд прыгает. Зелёная выше красной — доходы обгоняют цены. Это не Росстат, а
-            самооценка — но она есть каждый месяц, а реальных зарплат Росстата с сервера не достать.
-          </Source>
-        </section>
+        </EcCard>
+        <EcCard title="Настроения" end={end} units={REBASE_UNITS('пункты')}
+          sub={(rel) => (rel ? 'индекс потребительских настроений, % от начала периода' : 'индекс потребительских настроений, пункты')}>
+          {({ from, rel }) => (
+            <>
+              <TimeChart from={from} till={till} snap={snap} delta="abs" fmt={(v) => ru(v, 0)} height={240} legend={false} rebase={rel} lines={[
+                { key: 'csi', label: 'Индекс настроений', color: colors.line1, data: s.M_CSI ?? [], width: 2 },
+              ]} />
+              <Source>ЦБ, «инФОМ»: оценка людьми своего положения, экономики и момента для крупных покупок. Выше — увереннее.</Source>
+            </>
+          )}
+        </EcCard>
       </div>
 
       <div className="mo-pair">
-        <section className="mo-card">
-          <div className="mo-card-head">
-            <h2>Курсы валют</h2>
-            <span className="mo-card-sub">₽, официальный курс ЦБ</span>
-          </div>
-          <TimeChart from={from} till={till} snap={snap} monthly={false} fmt={(v) => ru(v, 0)} fmtR={(v) => ru(v, 1)} height={240} lines={[
-            { key: 'usd', label: 'Доллар', color: colors.line3, data: s.USDRUB ?? [], width: 2 },
-            { key: 'eur', label: 'Евро', color: colors.line1, data: s.EURRUB ?? [] },
-            { key: 'cny', label: 'Юань (правая шкала)', color: colors.refBad, data: s.CNYRUB ?? [], axis: 'r' },
-          ]} />
-          <Source>ЦБ, курсы на конец недели.</Source>
-        </section>
-        <section className="mo-card">
-          <div className="mo-card-head">
-            <h2>Нефть Brent</h2>
-            <span className="mo-card-sub">за баррель</span>
-          </div>
-          <TimeChart from={from} till={till} snap={snap} monthly={false} fmt={(v) => `$${ru(v, 0)}`} fmtR={(v) => ru(v, 0)} height={240} lines={[
-            { key: 'brent', label: 'в долларах', color: colors.textPrimary, data: s.BRENT ?? [], width: 2 },
-            { key: 'rub', label: 'в рублях (правая шкала)', color: colors.line4, data: views.brentRub, axis: 'r' },
-          ]} />
-          <Source>FRED (Brent spot), курс ЦБ. Российская Urals дешевле на дисконт — бюджет считает налоги от неё.</Source>
-        </section>
+        <EcCard title="Кредит и деньги" end={end} sub={() => 'рост за год, %'}>
+          {({ from }) => (
+            <>
+              {market && (
+                <TimeChart from={from} till={till} snap={snap} fmt={pctFmt} height={240} delta="pp" lines={[
+                  { key: 'corp', label: 'Кредиты компаниям', color: colors.line1, data: s.M_CREDIT_CORP ?? [], width: 2 },
+                  { key: 'hh', label: 'Кредиты людям', color: colors.line6, data: s.M_CREDIT_HH ?? [], width: 2 },
+                  { key: 'm2', label: 'Денежная масса М2', color: colors.line3, data: s.M_M2 ?? [] },
+                  { key: 'key', label: 'Ключевая ставка', color: colors.textPrimary, data: market.series.key_rate, sample: true, step: true, dash: '4 3' },
+                ]} />
+              )}
+              <Source>
+                ЦБ. Кредит, растущий быстрее инфляции при высокой ставке, значит, что спрос на деньги не гаснет —
+                ЦБ это читает как довод держать ставку. Резкое торможение кредита компаниям — первый признак, что
+                ставка начала душить инвестиции.
+              </Source>
+            </>
+          )}
+        </EcCard>
+        <EcCard title="Доходы людей" end={end} sub={() => 'рост за год, %'}>
+          {({ from }) => (
+            <>
+              <TimeChart from={from} till={till} snap={snap} fmt={pctFmt} height={240} delta="pp" lines={[
+                { key: 'inc', label: 'Медианный доход (опрос ЦБ)', color: colors.line3, data: views.incomeGrowth, width: 2 },
+                { key: 'infl', label: 'Инфляция', color: colors.refBad, data: s.M_INFL ?? [], dash: '4 3' },
+              ]} />
+              <Source>
+                ЦБ, «инФОМ»: медиана располагаемого дохода на человека, по ответам людей; сравниваются средние за
+                три месяца, иначе ряд прыгает. Зелёная выше красной — доходы обгоняют цены. Это не Росстат, а
+                самооценка — но она есть каждый месяц, а реальных зарплат Росстата с сервера не достать.
+              </Source>
+            </>
+          )}
+        </EcCard>
       </div>
 
       <div className="mo-pair">
-        <section className="mo-card">
-          <div className="mo-card-head">
-            <h2>Платёжный баланс</h2>
-            <span className="mo-card-sub">за квартал, млрд $</span>
-          </div>
-          <Legend items={[
-            { label: 'Счёт текущих операций', color: colors.line3 },
-            { label: 'Экспорт товаров', color: colors.line1 },
-            { label: 'Импорт товаров', color: colors.refBad },
-          ]} />
-          <PeriodBars
-            rows={views.bopRows.filter((r) => (r.date as string) >= (from ?? '') && (showAll || !lastQuarter || (r.date as string) <= lastQuarter))}
-            bars={[{ key: 'ca', label: 'Счёт текущих операций', color: colors.line3 }]}
-            lines={[{ key: 'exp', label: 'Экспорт товаров', color: colors.line1 }, { key: 'imp', label: 'Импорт товаров', color: colors.refBad }]}
-            signColors={{ pos: colors.line3, neg: colors.refBad }}
-            snapLabel={showAll ? snapQuarter : null} fmt={(v) => ru(v, 0)} height={240} />
-          <Source>ЦБ. Счёт текущих операций — сколько валюты страна заработала за вычетом потраченной: экспорт минус импорт, доходы и переводы.</Source>
-        </section>
-        <section className="mo-card">
-          <div className="mo-card-head">
-            <h2>Международные резервы</h2>
-            <span className="mo-card-sub">на конец месяца, млрд $</span>
-          </div>
-          <TimeChart from={from} till={till} snap={snap} fmt={(v) => ru(v, 0)} zero height={240} lines={[
-            { key: 'res', label: 'Всего', color: colors.line1, data: s.M_RES ?? [], width: 2 },
-            { key: 'gold', label: 'в т. ч. золото', color: colors.line4, data: s.M_RES_GOLD ?? [] },
-          ]} />
-          <Source>ЦБ. Около 300 млрд $ из них с 2022 года заморожены за рубежом — в цифре они остаются.</Source>
-        </section>
+        <EcCard title="Курсы валют" end={end} units={REBASE_UNITS('₽')}
+          sub={(rel) => (rel ? 'изменение от начала периода, %' : '₽, официальный курс ЦБ')}>
+          {({ from, rel }) => (
+            <>
+              <TimeChart from={from} till={till} snap={snap} monthly={false} rebase={rel} fmt={(v) => ru(v, 0)} fmtR={(v) => ru(v, 1)} height={240} lines={[
+                { key: 'usd', label: 'Доллар', color: colors.line3, data: s.USDRUB ?? [], width: 2 },
+                { key: 'eur', label: 'Евро', color: colors.line1, data: s.EURRUB ?? [] },
+                { key: 'cny', label: rel ? 'Юань' : 'Юань (правая шкала)', color: colors.refBad, data: s.CNYRUB ?? [], axis: 'r' },
+              ]} />
+              <Source>ЦБ, курсы на конец недели.</Source>
+            </>
+          )}
+        </EcCard>
+        <EcCard title="Нефть Brent" end={end} units={REBASE_UNITS('$ и ₽')}
+          sub={(rel) => (rel ? 'изменение от начала периода, %' : 'за баррель')}>
+          {({ from, rel }) => (
+            <>
+              <TimeChart from={from} till={till} snap={snap} monthly={false} rebase={rel} fmt={(v) => `$${ru(v, 0)}`} fmtR={(v) => ru(v, 0)} height={240} lines={[
+                { key: 'brent', label: 'в долларах', color: colors.textPrimary, data: s.BRENT ?? [], width: 2 },
+                { key: 'rub', label: rel ? 'в рублях' : 'в рублях (правая шкала)', color: colors.line4, data: views.brentRub, axis: 'r' },
+              ]} />
+              <Source>FRED (Brent spot), курс ЦБ. Российская Urals дешевле на дисконт — бюджет считает налоги от неё.</Source>
+            </>
+          )}
+        </EcCard>
       </div>
 
-      <section className="mo-card">
-        <div className="mo-card-head">
-          <h2>Рост и занятость</h2>
-          <span className="mo-card-sub">по годам, %</span>
-        </div>
-        <Legend items={[{ label: 'Рост ВВП', color: colors.line3 }, { label: 'Безработица', color: colors.line1 }]} />
-        <PeriodBars
-          rows={views.gdpRows.filter((r) => (r.year as number) >= fromYear && (showAll || lastYear === null || (r.year as number) <= lastYear))}
-          bars={[{ key: 'growth', label: 'Рост ВВП', color: colors.line3 }]}
-          lines={[{ key: 'unemp', label: 'Безработица', color: colors.line1 }]}
-          signColors={{ pos: colors.line3, neg: colors.refBad }}
-          snapLabel={showAll ? snapYear : null} fmt={(v) => ru(v, 0)} height={240} />
-        <Source>
-          Всемирный банк (по данным Росстата), годовые. Квартальных рядов Росстата с нашего сервера не достать —
-          сайт его не отвечает; годовых для общей картины хватает.
-        </Source>
-      </section>
+      <div className="mo-pair">
+        <EcCard title="Платёжный баланс" end={end} sub={() => 'за квартал, млрд $'}>
+          {({ from }) => (
+            <>
+              <Legend items={[
+                { label: 'Счёт текущих операций', color: colors.line3 },
+                { label: 'Экспорт товаров', color: colors.line1 },
+                { label: 'Импорт товаров', color: colors.refBad },
+              ]} />
+              <PeriodBars
+                rows={views.bopRows.filter((r) => (r.date as string) >= (from ?? '') && (showAll || !lastQuarter || (r.date as string) <= lastQuarter))}
+                bars={[{ key: 'ca', label: 'Счёт текущих операций', color: colors.line3 }]}
+                lines={[{ key: 'exp', label: 'Экспорт товаров', color: colors.line1 }, { key: 'imp', label: 'Импорт товаров', color: colors.refBad }]}
+                signColors={{ pos: colors.line3, neg: colors.refBad }}
+                snapLabel={showAll ? snapQuarter : null} fmt={(v) => ru(v, 0)} height={240} />
+              <Source>ЦБ. Счёт текущих операций — сколько валюты страна заработала за вычетом потраченной: экспорт минус импорт, доходы и переводы.</Source>
+            </>
+          )}
+        </EcCard>
+        <EcCard title="Международные резервы" end={end} units={REBASE_UNITS('млрд $')}
+          sub={(rel) => (rel ? 'изменение от начала периода, %' : 'на конец месяца, млрд $')}>
+          {({ from, rel }) => (
+            <>
+              <TimeChart from={from} till={till} snap={snap} rebase={rel} fmt={(v) => ru(v, 0)} zero={rel ? undefined : true} height={240} lines={[
+                { key: 'res', label: 'Всего', color: colors.line1, data: s.M_RES ?? [], width: 2 },
+                { key: 'gold', label: 'в т. ч. золото', color: colors.line4, data: s.M_RES_GOLD ?? [] },
+              ]} />
+              <Source>ЦБ. Около 300 млрд $ из них с 2022 года заморожены за рубежом — в цифре они остаются.</Source>
+            </>
+          )}
+        </EcCard>
+      </div>
+
+      <EcCard title="Рост и занятость" end={end} defaultRange="all" sub={() => 'по годам, %'}>
+        {({ fromYear }) => (
+          <>
+            <Legend items={[{ label: 'Рост ВВП', color: colors.line3 }, { label: 'Безработица', color: colors.line1 }]} />
+            <PeriodBars
+              rows={views.gdpRows.filter((r) => (r.year as number) >= fromYear && (showAll || lastYear === null || (r.year as number) <= lastYear))}
+              bars={[{ key: 'growth', label: 'Рост ВВП', color: colors.line3 }]}
+              lines={[{ key: 'unemp', label: 'Безработица', color: colors.line1 }]}
+              signColors={{ pos: colors.line3, neg: colors.refBad }}
+              snapLabel={showAll ? snapYear : null} fmt={(v) => ru(v, 0)} height={240} />
+            <Source>
+              Всемирный банк (по данным Росстата), годовые. Квартальных рядов Росстата с нашего сервера не достать —
+              сайт его не отвечает; годовых для общей картины хватает.
+            </Source>
+          </>
+        )}
+      </EcCard>
     </div>
   );
 }

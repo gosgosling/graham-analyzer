@@ -424,8 +424,9 @@ function SortArrow({ dir }: { dir: SortDir | null }) {
  * всей таблицы вбок, и через две колонки терялось, чья это строка. Здесь
  * строка компании стоит на месте, а вбок листается только её лента плиток:
  * у каждой подпись, число и цвет — пройдено, чуть не дотянула, не пройдено.
- * Первая плитка — запас прочности. Нажатие на название раскрывает то, ради
- * чего таблицу и открывают: что не прошло, на сколько и при каком пороге.
+ * Первая плитка — запас прочности. Нажатие на компанию ведёт в её карточку:
+ * раньше под строкой раскрывалось окно с непройденными требованиями, но
+ * теперь всё это видно в плитках, и окно только повторяло их.
  */
 function ScreenMobileList({ data, rows, sort, onSort }: {
   data: MarketScreenOut;
@@ -433,7 +434,6 @@ function ScreenMobileList({ data, rows, sort, onSort }: {
   sort: SortState | null;
   onSort: (key: string) => void;
 }) {
-  const [open, setOpen] = useState<number | null>(null);
   // Без выбранной сортировки — сначала прошедшие больше требований.
   const ordered = useMemo(() => (sort ? rows : [...rows].sort((a, b) => (b.passed - a.passed)
     || ((b.safety?.value_margin ?? -Infinity) - (a.safety?.value_margin ?? -Infinity)))), [rows, sort]);
@@ -459,82 +459,36 @@ function ScreenMobileList({ data, rows, sort, onSort }: {
         <i className="smb-key smb-tile--unknown" /> нет данных
       </p>
       <ul className="smb-list">
-        {ordered.map((row) => {
-          const isOpen = open === row.id;
-          const misses = row.cells.filter((c): c is Verdict => c != null && (c.status === 'fail' || c.status === 'unknown'));
-          return (
-            <li key={row.ticker} className={`smb-item${isOpen ? ' is-open' : ''}`}>
-              <button type="button" className="smb-row" aria-expanded={isOpen}
-                onClick={() => setOpen(isOpen ? null : row.id)}>
-                <span className="smb-head">
-                  <CompanyLogo url={row.logo_url} ticker={row.ticker} alt="" className="smb-logo" />
-                  <span className="smb-name"><b>{row.ticker}</b> · {row.name}</span>
-                  <span className={`smb-count${row.clears ? ' is-clear' : ''}`}>
-                    {row.clears ? 'прошла все' : `${row.passed} из ${row.checked}`}
+        {ordered.map((row) => (
+          <li key={row.ticker} className="smb-item">
+            <Link className="smb-row" to={`/company/${row.id}`}>
+              <span className="smb-head">
+                <CompanyLogo url={row.logo_url} ticker={row.ticker} alt="" className="smb-logo" />
+                <span className="smb-name"><b>{row.ticker}</b> · {row.name}</span>
+                <span className={`smb-count${row.clears ? ' is-clear' : ''}`}>
+                  {row.clears ? 'прошла все' : `${row.passed} из ${row.checked}`}
+                </span>
+              </span>
+            </Link>
+            <div className="smb-tiles" aria-label={`Пройдено ${row.passed} требований из ${row.checked}`}>
+              <span className={`smb-tile smb-tile--safety ms-safety--${row.safety?.signal ?? 'none'}`}>
+                <small>Запас</small>
+                <b>{row.safety ? marginText(row.safety.value_margin) : '—'}</b>
+              </span>
+              {row.cells.map((cell, i) => {
+                const column = data.columns[i];
+                const swapped = cell != null && cell.metric !== column.metric;
+                const label = swapped ? (SWAP_LABEL[cell!.metric] ?? cell!.metric_label) : (TILE_LABEL[column.metric] ?? column.label);
+                return (
+                  <span key={column.metric} className={`smb-tile smb-tile--${dotTone(cell)}`} title={cellTitle(cell)}>
+                    <small>{label}</small>
+                    <b>{cell && cell.status !== 'n/a' && cell.status !== 'unknown' ? cellValue(cell) || '—' : '—'}</b>
                   </span>
-                </span>
-              </button>
-              <div className="smb-tiles" aria-label={`Пройдено ${row.passed} требований из ${row.checked}`}>
-                <span className={`smb-tile smb-tile--safety ms-safety--${row.safety?.signal ?? 'none'}`}>
-                  <small>Запас</small>
-                  <b>{row.safety ? marginText(row.safety.value_margin) : '—'}</b>
-                </span>
-                {row.cells.map((cell, i) => {
-                  const column = data.columns[i];
-                  const swapped = cell != null && cell.metric !== column.metric;
-                  const label = swapped ? (SWAP_LABEL[cell!.metric] ?? cell!.metric_label) : (TILE_LABEL[column.metric] ?? column.label);
-                  return (
-                    <span key={column.metric} className={`smb-tile smb-tile--${dotTone(cell)}`} title={cellTitle(cell)}>
-                      <small>{label}</small>
-                      <b>{cell && cell.status !== 'n/a' && cell.status !== 'unknown' ? cellValue(cell) || '—' : '—'}</b>
-                    </span>
-                  );
-                })}
-              </div>
-              {isOpen && (
-                <div className="smb-detail">
-                  {misses.length === 0 ? (
-                    <p className="smb-ok">Все требования пройдены.</p>
-                  ) : (
-                    <>
-                      <h5 className="smb-kicker">Не прошла</h5>
-                      <ul className="smb-misses">
-                        {misses.map((m) => {
-                          const tone = m.status === 'unknown' ? 'unknown' : dotTone(m);
-                          return (
-                            <li key={m.metric} className="smb-miss" title={cellTitle(m)}>
-                              <span className="smb-miss-name">{m.metric_label}</span>
-                              <span className="smb-miss-val">
-                                <b className={`smb-tone--${tone}`}>
-                                  {m.status === 'unknown' ? 'нет данных' : cellValue(m)}
-                                </b>
-                                {m.status !== 'unknown' && (
-                                  <small>порог {m.text.replace(/(\d)\.(\d)/g, '$1,$2')}</small>
-                                )}
-                              </span>
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    </>
-                  )}
-                  <div className="smb-miss smb-safety-row">
-                    <span className="smb-miss-name">Запас прочности</span>
-                    {row.safety ? (
-                      <span className={`smb-miss-val smb-signal ms-safety--${row.safety.signal}`}>
-                        <b>{marginText(row.safety.value_margin)}</b>
-                        <small>{SIGNAL_SHORT[row.safety.signal]}</small>
-                      </span>
-                    ) : (
-                      <span className="smb-miss-val"><b className="smb-tone--unknown">не посчитан</b></span>
-                    )}
-                  </div>
-                  <Link className="smb-open" to={`/company/${row.id}`}>Открыть карточку</Link>
-                </div>
-              )}
-            </li>
-          );
-        })}
+                );
+              })}
+            </div>
+          </li>
+        ))}
       </ul>
     </div>
   );
@@ -773,8 +727,8 @@ export default function MarketScreen() {
         : data && (view === 'table' ? <FullTable data={data} /> : <SieveView data={data} standard={standard} />)}
 
       <p className="ms-footnote">
-        * Порога в книге нет или он пересчитан для российского рынка. Не является
-        индивидуальной инвестиционной рекомендацией.
+        * Порога в книге нет или он пересчитан для российского рынка —{' '}
+        <Link to="/thresholds">почему и как</Link>. Не является индивидуальной инвестиционной рекомендацией.
       </p>
     </div>
   );

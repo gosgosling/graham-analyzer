@@ -210,7 +210,7 @@
 .hp-method-num { font-family: 'IBM Plex Serif', Georgia, serif; font-size: 2.4rem; line-height: 1; color: var(--hp-accent); }
 .hp-method h3 { margin: 10px 0 6px; font-size: 1.1rem; font-weight: 600; }
 .hp-method p { margin: 0; font-size: 1rem; line-height: 1.55; color: var(--color-text-secondary); }
-.hp-more { margin: 22px 0 0; }
+.hp-more { margin: 22px 0 0; display: flex; flex-wrap: wrap; gap: 6px 28px; }
 .hp-more a, .hp-where-ask { color: var(--hp-accent); }
 
 /* Куда пойти дальше: плитки через тонкие линии. */

@@ -37,7 +37,6 @@
 .ec-now { color: var(--color-text-secondary); }
 
 .ec-range { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px 32px; margin-top: 40px; font-size: 0.9rem; color: var(--color-text-tertiary); }
-.ec-range-group { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; }
 .ec-after { display: inline-flex; align-items: center; gap: 6px; color: var(--color-text-secondary); cursor: pointer; }
 .ec-after input { accent-color: var(--mo-accent); margin: 0; }
 .ec-hint { margin-top: 4px; }
@@ -124,4 +123,17 @@
   .ec-law { font-size: 0.8rem; }
   .ec-law th, .ec-law td { padding-left: 5px; }
   .ec-law thead th, .ec-law th[scope='row'] { white-space: normal; }
+}
+
+/* Переключатели у каждого графика: справа от заголовка, на узком экране —
+   строкой под ним. Период и единицы — двумя группами через пробел. */
+.ec-card-head { align-items: flex-end; }
+.ec-card-head h2 { margin: 0 0 2px; }
+.ec-ctrl { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 26px; font-size: 0.88rem; }
+.ec-ctrl .seg { gap: 14px; }
+.ec-ctrl .seg-btn { font-size: 0.86rem; }
+@media (max-width: 760px) {
+  .ec-card-head { flex-direction: column; align-items: flex-start; gap: 8px; }
+  .ec-ctrl { gap: 6px 20px; }
+  .ec-ctrl .seg { gap: 12px; }
 }

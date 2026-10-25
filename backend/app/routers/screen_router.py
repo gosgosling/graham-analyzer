@@ -46,6 +46,108 @@ def standards() -> dict:
     }
 
 
+# Подписи требований для раздела «Отраслевые пороги». Те же величины, что
+# в столбцах скринера, но словами для читателя, а не для заголовка колонки.
+THRESHOLD_LABELS = {
+    "revenue": "Выручка, млн ₽",
+    "current_ratio": "Текущая ликвидность",
+    "profitable_years": "Годы без убытка за 10 лет",
+    "profitable_years_short": "Годы без убытка за 5 лет",
+    "earnings_growth": "Прирост прибыли на акцию за 10 лет, %",
+    "earnings_growth_short": "Прибыль на акцию выше, чем 5 лет назад, %",
+    "streak": "Лет подряд с дивидендами",
+    "pe_average": "P/E по средней прибыли за 3 года",
+    "pb": "P/B",
+    "pb_tangible": "P/B по материальному капиталу",
+    "pe_pb": "Произведение P/E × P/B",
+    "cash_positive_years": "Годы без оттока по свободному потоку",
+    "cash_growth": "Прирост свободного потока за 10 лет, %",
+    "cash_growth_short": "Прирост свободного потока за 5 лет, %",
+    "roe": "Отдача на капитал (ROE), %",
+    "cost_to_income_average": "Издержки к доходам, в среднем за 7 лет, %",
+    "cost_of_risk_average": "Стоимость риска, в среднем за 7 лет, %",
+    "capital_core": "Достаточность основного капитала Н1.1, %",
+    "npl_ratio": "Проблемные кредиты, %",
+}
+LENDER_METRICS = {"cost_to_income_average", "cost_of_risk_average", "capital_core", "npl_ratio"}
+CASH_METRICS = {"cash_positive_years", "cash_growth", "cash_growth_short"}
+
+
+@router.get("/thresholds")
+def thresholds() -> dict:
+    """Отраслевые пороги: книжные требования, профили отраслей и порог,
+    который из них получается для каждой пары «требование × отрасль».
+
+    Считается тем же `_threshold`, что и скринер, — страница не может
+    разойтись с расчётом. Банковские требования показываются только у банков,
+    проверки денежного потока — у всех, кроме банков: остальным они
+    неприменимы по устройству отчётности, а не по порогу."""
+    from app.services.analysis.sector_profiles import ALL_PROFILES, GRAHAM_DEFAULT
+
+    def scope(metric: str, profile_key: str) -> bool:
+        if metric in LENDER_METRICS:
+            return profile_key == "bank"
+        if metric in CASH_METRICS:
+            return profile_key != "bank"
+        return True
+
+    standards = []
+    for key in screen.STANDARDS:
+        rules = []
+        for rule in list(screen.RULES[key]) + [screen.PROFITABILITY_RULE]:
+            book = rule.book_threshold if rule.book_threshold is not None else rule.threshold
+            applied = {}
+            for profile in ALL_PROFILES:
+                if not scope(rule.metric, profile.key):
+                    applied[profile.key] = {"text": "—", "status": "out"}
+                    continue
+                value, _book, not_applicable = screen._threshold(rule, profile)
+                if not_applicable:
+                    applied[profile.key] = {"text": "не применяется", "status": "na"}
+                else:
+                    text = rule.text(value)
+                    applied[profile.key] = {
+                        "text": text,
+                        "status": "same" if text == rule.text(rule.threshold) else "shifted",
+                    }
+            rules.append({
+                "metric": rule.metric,
+                "label": THRESHOLD_LABELS.get(rule.metric, rule.metric),
+                "book_text": rule.text(book),
+                "rule_text": rule.text(rule.threshold),
+                "source": rule.source,
+                "ours": rule.ours,
+                "note": rule.note,
+                "sector": screen.PROFILE_KEYS.get(rule.metric) is not None,
+                "bank_only": rule.metric in LENDER_METRICS,
+                "applied": applied,
+            })
+        standards.append({"key": key, "label": screen.STANDARD_LABELS[key], "rules": rules})
+
+    profiles = [{
+        "key": p.key,
+        "label": p.label,
+        "summary": p.summary,
+        "book_value_reliable": p.book_value_reliable,
+        "lease_heavy": p.lease_heavy,
+        "bands": {
+            k: {
+                "good": b.good, "warn": b.warn, "higher_is_better": b.higher_is_better,
+                "hint": b.hint, "applicable": b.applicable, "note": b.note,
+                "tooltip": list(b.tooltip_lines),
+            }
+            for k, b in p.bands.items()
+        },
+    } for p in ALL_PROFILES]
+    return {
+        "standards": standards,
+        "profiles": profiles,
+        "base_profile": GRAHAM_DEFAULT.key,
+        "min_revenue": screen.MIN_REVENUE,
+        "dividend_years": screen.DIVIDEND_YEARS,
+    }
+
+
 @router.get("/company/{company_id}")
 def company_passport(
     company_id: int,

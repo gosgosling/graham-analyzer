@@ -14,6 +14,7 @@ import MassParse from './pages/MassParse';
 import ReportCalendar from './pages/ReportCalendar';
 import DisclosureCoverage from './pages/DisclosureCoverage';
 import MarketMultiple from './pages/MarketMultiple';
+import ThresholdsPage from './pages/ThresholdsPage';
 import MarketScreen from './pages/MarketScreen';
 import SiteHeader from './components/SiteHeader';
 import SiteFooter from './components/SiteFooter';
@@ -120,6 +121,7 @@ function App() {
             <Route path="/disclosure" element={<AdminOnly><DisclosureCoverage /></AdminOnly>} />
             <Route path="/calendar" element={<ReportCalendar />} />
             <Route path="/valuation" element={<MarketMultiple />} />
+            <Route path="/thresholds" element={<ThresholdsPage />} />
             <Route path="/screen" element={<MarketScreen />} />
             <Route path="/admin" element={<AdminPage />} />
             <Route path="/market" element={<MarketOverview />} />

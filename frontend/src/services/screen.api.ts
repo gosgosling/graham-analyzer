@@ -220,3 +220,55 @@ export const fetchMarketScreen = async (
       params: { standard, all: allCompanies },
     })
   ).data;
+
+// ── Раздел «Отраслевые пороги» ───────────────────────────────────────────
+
+export interface ThresholdCell {
+  text: string;
+  /** same — как в книге; shifted — сдвинут отраслью; na — мерка не применяется; out — требование не для этой отрасли. */
+  status: 'same' | 'shifted' | 'na' | 'out';
+}
+
+export interface ThresholdRule {
+  metric: string;
+  label: string;
+  book_text: string;
+  rule_text: string;
+  source: string;
+  ours: boolean;
+  note: string | null;
+  /** Порог двигается отраслевым профилем. */
+  sector: boolean;
+  bank_only: boolean;
+  applied: Record<string, ThresholdCell>;
+}
+
+export interface ThresholdBand {
+  good: number | null;
+  warn: number | null;
+  higher_is_better: boolean;
+  hint: string;
+  applicable: boolean;
+  note: string | null;
+  tooltip: string[];
+}
+
+export interface ThresholdProfile {
+  key: string;
+  label: string;
+  summary: string;
+  book_value_reliable: boolean;
+  lease_heavy: boolean;
+  bands: Record<string, ThresholdBand>;
+}
+
+export interface ThresholdsOut {
+  standards: { key: string; label: string; rules: ThresholdRule[] }[];
+  profiles: ThresholdProfile[];
+  base_profile: string;
+  min_revenue: number;
+  dividend_years: number;
+}
+
+export const fetchThresholds = async (): Promise<ThresholdsOut> =>
+  (await api.get<ThresholdsOut>('/screen/thresholds')).data;

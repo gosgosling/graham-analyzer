@@ -276,7 +276,8 @@ export default function HomePage() {
             <p>Полоса оценки и осторожная опорная цена. Разница с биржевой ценой — запас прочности.</p>
           </li>
         </ol>
-        <p className="hp-more"><Link to="/valuation">Подробно, с формулами — «Как считается стоимость» →</Link></p>
+        <p className="hp-more"><Link to="/valuation">Подробно, с формулами — «Как считается стоимость» →</Link>{' '}
+          <Link to="/thresholds">Почему у отраслей свои пороги →</Link></p>
       </section>
 
       <section className="hp-block hp-where-block" aria-labelledby="hp-where">
@@ -383,7 +384,7 @@ export default function HomePage() {
       </section>
 
       <p className="hp-mob-links hp-mob">
-        <Link to="/valuation">Как считается</Link> · <Link to="/calendar">Календарь</Link> ·{' '}
+        <Link to="/valuation">Как считается</Link> · <Link to="/thresholds">Пороги</Link> · <Link to="/calendar">Календарь</Link> ·{' '}
         <a href="https://t.me/graham_analyzer" target="_blank" rel="noreferrer">Telegram</a>
       </p>
     </div>

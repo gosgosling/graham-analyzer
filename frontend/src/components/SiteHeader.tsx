@@ -19,7 +19,7 @@ import './SiteHeader.css';
  * отчётности — для всех: когда выйдет следующий отчёт, важно и читателю.
  */
 
-type Section = 'ideas' | 'companies' | 'market' | 'economy' | 'calendar' | 'method' | 'admin' | null;
+type Section = 'ideas' | 'companies' | 'market' | 'economy' | 'calendar' | 'method' | 'thresholds' | 'admin' | null;
 
 /** Служебные страницы — подсвечивают кнопку «Админ». */
 const ADMIN_PATHS = ['/admin', '/securities', '/bonds', '/bond/', '/mass-parse', '/disclosure'];
@@ -31,6 +31,7 @@ function sectionOf(pathname: string): Section {
   if (pathname.startsWith('/market')) return 'market';
   if (pathname.startsWith('/economy')) return 'economy';
   if (pathname.startsWith('/valuation')) return 'method';
+  if (pathname.startsWith('/thresholds')) return 'thresholds';
   if (pathname.startsWith('/compan')) return 'companies';
   return null;
 }
@@ -340,6 +341,7 @@ export default function SiteHeader() {
         {link('calendar', '/calendar', 'Календарь отчётности')}
         <span className="sh-tabs-gap" aria-hidden />
         {link('method', '/valuation', 'Как считается стоимость')}
+        {link('thresholds', '/thresholds', 'Отраслевые пороги')}
       </nav>
     </header>
   );

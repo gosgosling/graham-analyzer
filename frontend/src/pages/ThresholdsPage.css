@@ -1,0 +1,134 @@
+/* Отраслевые пороги — тот же «лист», что «Рынок»: текст, пример пересчёта,
+   матрица «требование × отрасль» и карточки отраслей. */
+
+.th-text { margin: 0 0 14px; max-width: 900px; line-height: 1.65; color: var(--color-text-secondary); }
+
+.th-why, .th-rules {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 32px;
+  max-width: 1200px;
+}
+.th-why li, .th-rules li { line-height: 1.6; color: var(--color-text-secondary); padding-left: 14px; border-left: 2px solid var(--color-border-default); }
+.th-why b, .th-rules b { color: var(--color-text-primary); font-weight: 600; }
+.th-rules { margin-top: 22px; }
+
+/* Пример пересчёта — четыре шага слева направо. */
+.th-example {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border-top: 1px solid var(--color-border-strong);
+  border-bottom: 1px solid var(--color-border-strong);
+  max-width: 1200px;
+}
+.th-example-step {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 12px 14px;
+  border-left: 1px solid var(--color-border-default);
+  min-width: 0;
+}
+.th-example-step:first-child { border-left: 0; padding-left: 0; }
+.th-example-step span { font-size: 0.82rem; color: var(--color-text-tertiary); }
+.th-example-step b { font-family: 'IBM Plex Serif', Georgia, serif; font-size: 1.25rem; font-weight: 500; }
+.th-example-step small { font-size: 0.8rem; color: var(--color-text-tertiary); }
+.th-example-step--result b { color: var(--mo-accent); }
+
+/* Отступления от книги. */
+.th-ours-list { margin: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 32px; max-width: 1200px; }
+.th-ours-list dt { font-weight: 600; }
+.th-ours-list dd { margin: 4px 0 0; line-height: 1.6; color: var(--color-text-secondary); }
+
+.th-ours {
+  margin-left: 6px;
+  padding: 0 5px;
+  border-radius: 3px;
+  font-size: 0.7rem;
+  font-weight: 500;
+  vertical-align: 1px;
+  color: var(--mo-accent);
+  border: 1px solid currentColor;
+}
+
+/* Матрица. */
+.th-matrix-wrap { overflow-x: auto; border-top: 1px solid var(--color-border-strong); }
+.th-matrix { border-collapse: collapse; font-size: 0.88rem; min-width: 100%; }
+.th-matrix th, .th-matrix td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--color-border-subtle);
+  text-align: center;
+  white-space: nowrap;
+}
+.th-matrix thead th {
+  font-weight: 500;
+  font-size: 0.8rem;
+  color: var(--color-text-tertiary);
+  white-space: normal;
+  min-width: 82px;
+  vertical-align: bottom;
+}
+.th-matrix tbody th { text-align: left; font-weight: 500; white-space: normal; min-width: 220px; }
+.th-sticky { position: sticky; left: 0; background: var(--color-bg-base); z-index: 1; }
+.th-matrix thead .th-sticky { text-align: left; }
+.th-book { color: var(--color-text-tertiary); }
+
+.th-cell--same { color: var(--color-text-primary); }
+.th-cell--shifted { color: var(--color-warning-text); background: var(--color-warning-soft); font-weight: 600; }
+.th-cell--na { color: var(--color-text-tertiary); font-style: italic; }
+.th-cell--out { color: var(--color-text-disabled, var(--color-text-tertiary)); opacity: 0.6; }
+.th-key { padding: 0 5px; border-radius: 3px; }
+
+/* Телефон: выбор отрасли и список. */
+.th-phone-pick { display: flex; flex-direction: column; gap: 4px; font-size: 0.82rem; color: var(--color-text-tertiary); }
+.th-phone-pick select {
+  height: 40px;
+  padding: 0 10px;
+  font: inherit;
+  font-size: 1rem;
+  color: var(--color-text-primary);
+  background: var(--color-bg-input, var(--color-bg-base));
+  border: 1px solid var(--color-border-default);
+  border-radius: 6px;
+}
+.th-phone-list { list-style: none; margin: 12px 0 0; padding: 0; }
+.th-phone-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+.th-phone-name { min-width: 0; line-height: 1.4; }
+.th-phone-val { flex: none; display: flex; flex-direction: column; align-items: flex-end; padding: 1px 6px; border-radius: 4px; text-align: right; }
+.th-phone-val small { font-size: 0.74rem; font-weight: 400; color: var(--color-text-tertiary); }
+
+/* Карточки отраслей. */
+.th-profiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 28px 32px; }
+.th-profile h3 { margin: 0; font-family: 'IBM Plex Serif', Georgia, serif; font-size: 1.15rem; font-weight: 500; }
+.th-profile-summary { margin: 6px 0 0; font-size: 0.92rem; line-height: 1.55; color: var(--color-text-secondary); }
+.th-flags { margin: 8px 0 0; display: flex; flex-direction: column; gap: 4px; font-size: 0.82rem; color: var(--color-warning-text); }
+.th-bands { width: 100%; margin-top: 10px; border-collapse: collapse; font-size: 0.86rem; }
+.th-bands th, .th-bands td { padding: 5px 6px; border-bottom: 1px solid var(--color-border-subtle); text-align: center; }
+.th-bands thead th { font-weight: 500; font-size: 0.78rem; color: var(--color-text-tertiary); }
+.th-bands tbody th { text-align: left; font-weight: 400; }
+.th-bands th:first-child { padding-left: 0; }
+.th-bands-book { color: var(--color-text-tertiary); }
+.th-bands tr.is-na td { color: var(--color-text-tertiary); font-style: italic; }
+.th-bands-note td { text-align: left; padding: 0 0 7px; font-size: 0.78rem; line-height: 1.45; color: var(--color-text-tertiary); }
+.th-bands tr:has(+ .th-bands-note) th, .th-bands tr:has(+ .th-bands-note) td { border-bottom: 0; }
+
+.th-links { display: flex; flex-wrap: wrap; gap: 8px 24px; margin: 0; }
+
+@media (max-width: 760px) {
+  .th-why, .th-rules, .th-ours-list { grid-template-columns: 1fr; }
+  .th-example { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .th-example-step:nth-child(3) { border-left: 0; padding-left: 0; }
+  .th-example-step:nth-child(n + 3) { border-top: 1px solid var(--color-border-default); }
+  .th-profiles { grid-template-columns: 1fr; }
+  .mo-card-head .seg { gap: 14px; }
+}
