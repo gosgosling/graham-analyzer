@@ -90,6 +90,12 @@ def _daily_price_update() -> None:
 
         logger.info("Сырьё обновлено: %d строк", refresh_commodities(db))
 
+        # Экономика: бюджет и ФНБ (Минфин), инфляция, опрос населения, резервы,
+        # платёжный баланс, курсы евро и юаня (ЦБ), ВВП (Всемирный банк).
+        from app.services.market.macro_service import refresh as refresh_macro
+
+        logger.info("Экономика обновлена: %d строк", refresh_macro(db))
+
         # Логотипы — свои копии вместо CDN Т-Банка; качаются только недостающие.
         from app.models.company import Company
         from app.services.companies import logo_cache

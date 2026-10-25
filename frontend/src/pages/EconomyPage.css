@@ -1,0 +1,127 @@
+/* Раздел «Экономика» — на основе листа «Рынка» (MarketOverview.css). */
+
+.ec-snap {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  margin-top: 22px;
+}
+.ec-snap-label { font-size: 0.9rem; color: var(--color-text-tertiary); }
+.ec-chip {
+  border: 1px solid var(--color-border-default);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font: inherit;
+  font-size: 0.88rem;
+  padding: 4px 11px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.ec-chip:hover { color: var(--color-text-primary); border-color: var(--color-border-strong); }
+.ec-chip.is-on { color: var(--color-text-primary); border-color: var(--mo-accent); box-shadow: inset 0 0 0 1px var(--mo-accent); font-weight: 500; }
+.ec-date {
+  font: inherit;
+  font-size: 0.88rem;
+  padding: 3px 8px;
+  border: 1px solid var(--color-border-default);
+  border-radius: 6px;
+  background: var(--color-bg-base);
+  color: var(--color-text-primary);
+}
+
+.ec-stats { grid-template-columns: repeat(6, minmax(0, 1fr)); margin-top: 14px; }
+.ec-stats .mo-stat:nth-child(7) { border-left: 0; padding-left: 0; }
+.ec-stats .mo-stat:nth-child(n + 7) { border-top: 1px solid var(--color-border-default); }
+.ec-stats .mo-stat-value { font-size: 1.5rem; }
+.ec-now { color: var(--color-text-secondary); }
+
+.ec-range { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px 32px; margin-top: 40px; font-size: 0.9rem; color: var(--color-text-tertiary); }
+.ec-range-group { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; }
+.ec-after { display: inline-flex; align-items: center; gap: 6px; color: var(--color-text-secondary); cursor: pointer; }
+.ec-after input { accent-color: var(--mo-accent); margin: 0; }
+.ec-hint { margin-top: 4px; }
+.ec-hint + .mo-card { margin-top: 14px; }
+
+.ec-h3 { margin: 0 0 6px; font-size: 1rem; font-weight: 500; }
+.ec-subpair { margin-top: 26px; padding-top: 0; border-top: 0; }
+
+.ec-source { margin: 10px 0 0; font-size: 0.82rem; line-height: 1.55; color: var(--color-text-tertiary); max-width: 980px; }
+
+/* Рынок на дату: три числа в строку. */
+.ec-then {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-bottom: 1px solid var(--color-border-strong);
+  margin-bottom: 14px;
+}
+.ec-then-fig { display: flex; flex-direction: column; gap: 2px; padding: 4px 14px 14px; border-left: 1px solid var(--color-border-default); min-width: 0; }
+.ec-then-fig:first-child { border-left: 0; padding-left: 0; }
+.ec-then-fig small { font-size: 0.9rem; color: var(--color-text-tertiary); font-family: inherit; }
+.ec-then-fig b { font-weight: 600; }
+
+.ec-table-wrap { overflow-x: auto; margin-top: 14px; }
+.ec-table { width: 100%; border-collapse: collapse; font-size: 0.93rem; }
+.ec-table th, .ec-table td { padding: 7px 0 7px 12px; text-align: right; border-bottom: 1px solid var(--color-border-subtle); white-space: nowrap; }
+.ec-table thead th { font-weight: 500; font-size: 0.82rem; color: var(--color-text-tertiary); border-bottom: 1px solid var(--color-border-strong); }
+.ec-table th[scope='row'], .ec-table thead th:first-child { text-align: left; padding-left: 0; }
+.ec-table th[scope='row'] { font-weight: 400; color: var(--color-text-primary); }
+.ec-table th[scope='row'] a { color: inherit; text-decoration: none; }
+.ec-table th[scope='row'] a:hover { text-decoration: underline; }
+.ec-table td { color: var(--color-text-secondary); }
+.ec-ticker { margin-left: 8px; font-size: 0.78rem; color: var(--color-text-tertiary); }
+.ec-table td.ec-cheap { color: var(--color-success-strong); font-weight: 500; }
+.ec-table td.ec-dear { color: var(--color-text-tertiary); }
+[data-theme='dark'] .ec-table td.ec-cheap { color: var(--color-success-text); }
+.ec-ytd { max-width: 900px; }
+.ec-law { max-width: 1100px; }
+.ec-law .ec-over { color: var(--color-error-strong); font-weight: 500; }
+[data-theme='dark'] .ec-law .ec-over { color: var(--color-error-text); }
+.ec-law .ec-partial td { color: var(--color-text-tertiary); }
+.ec-ytd .ec-sub th[scope='row'] { padding-left: 16px; color: var(--color-text-secondary); }
+.ec-more {
+  margin-top: 10px; padding: 0; border: 0; background: none; font: inherit; font-size: 0.9rem;
+  color: var(--color-text-link); cursor: pointer;
+}
+
+.ec-list { list-style: none; margin: 0; padding: 0; }
+.ec-list li { display: flex; flex-direction: column; gap: 2px; padding: 9px 0; border-bottom: 1px solid var(--color-border-subtle); }
+.ec-list-name { color: var(--color-text-primary); text-decoration: none; font-weight: 500; }
+.ec-list-line { font-size: 0.86rem; color: var(--color-text-secondary); }
+.ec-list .ec-cheap { color: var(--color-success-strong); font-weight: 600; }
+.ec-list .ec-dear { color: var(--color-text-tertiary); font-weight: 400; }
+[data-theme='dark'] .ec-list .ec-cheap { color: var(--color-success-text); }
+
+@media (max-width: 1280px) {
+  .ec-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .ec-stats .mo-stat { border-top: 0; border-left: 1px solid var(--color-border-default); padding-left: 14px; }
+  .ec-stats .mo-stat:nth-child(3n + 1) { border-left: 0; padding-left: 0; }
+  .ec-stats .mo-stat:nth-child(n + 4) { border-top: 1px solid var(--color-border-default); }
+}
+
+@media (max-width: 760px) {
+  .ec-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ec-stats .mo-stat { border-top: 0; border-left: 1px solid var(--color-border-default); padding-left: 10px; }
+  .ec-stats .mo-stat:nth-child(odd) { border-left: 0; padding-left: 0; }
+  .ec-stats .mo-stat:nth-child(n + 3) { border-top: 1px solid var(--color-border-default); }
+  .ec-stats .mo-stat-value { font-size: 1.2rem; }
+  .ec-then { grid-template-columns: minmax(0, 1fr); }
+  .ec-then-fig { border-left: 0; padding: 8px 0; border-top: 1px solid var(--color-border-default); }
+  .ec-then-fig:first-child { border-top: 0; }
+  .ec-range { margin-top: 28px; }
+  .ec-table { font-size: 0.86rem; }
+  .ec-ytd th, .ec-ytd td { padding-left: 8px; }
+  .ec-ytd thead th, .ec-ytd th[scope='row'] { white-space: normal; }
+  .ec-ytd th:nth-child(5), .ec-ytd td:nth-child(5) { display: none; }
+  .ec-ytd .ec-sub th[scope='row'] { padding-left: 8px; }
+  .ec-snap { gap: 6px; }
+}
+
+/* План и факт на телефоне: без доходов — главное в расходах и дефиците. */
+@media (max-width: 760px) {
+  .ec-law th:nth-child(2), .ec-law td:nth-child(2),
+  .ec-law th:nth-child(3), .ec-law td:nth-child(3) { display: none; }
+  .ec-law { font-size: 0.8rem; }
+  .ec-law th, .ec-law td { padding-left: 5px; }
+  .ec-law thead th, .ec-law th[scope='row'] { white-space: normal; }
+}

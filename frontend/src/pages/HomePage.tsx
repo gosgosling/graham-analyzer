@@ -200,6 +200,10 @@ export default function HomePage() {
             <b>Рынок</b>
             <span>P/E всего рынка за двадцать лет и сколько акции зарабатывают против облигаций.</span>
           </Link>
+          <Link to="/economy" className="hp-index-item">
+            <b>Экономика</b>
+            <span>Бюджет, долг, ФНБ, инфляция и курс — и снимок на любую дату: что было с рынком и компаниями тогда.</span>
+          </Link>
           <Link to="/calendar" className="hp-index-item">
             <b>Календарь отчётности</b>
             <span>Когда компании публикуют МСФО и чьи цифры уже обновились.</span>

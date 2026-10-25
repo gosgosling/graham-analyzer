@@ -19,7 +19,7 @@ import './SiteHeader.css';
  * отчётности — для всех: когда выйдет следующий отчёт, важно и читателю.
  */
 
-type Section = 'ideas' | 'companies' | 'market' | 'calendar' | 'method' | 'admin' | null;
+type Section = 'ideas' | 'companies' | 'market' | 'economy' | 'calendar' | 'method' | 'admin' | null;
 
 /** Служебные страницы — подсвечивают кнопку «Админ». */
 const ADMIN_PATHS = ['/admin', '/securities', '/bonds', '/bond/', '/mass-parse', '/disclosure'];
@@ -29,6 +29,7 @@ function sectionOf(pathname: string): Section {
   if (pathname.startsWith('/screen')) return 'ideas';
   if (pathname.startsWith('/calendar')) return 'calendar';
   if (pathname.startsWith('/market')) return 'market';
+  if (pathname.startsWith('/economy')) return 'economy';
   if (pathname.startsWith('/valuation')) return 'method';
   if (pathname.startsWith('/compan')) return 'companies';
   return null;
@@ -335,6 +336,7 @@ export default function SiteHeader() {
         {link('ideas', '/screen', 'Скринер')}
         {link('companies', '/companies', 'Компании')}
         {link('market', '/market', 'Рынок')}
+        {link('economy', '/economy', 'Экономика')}
         {link('calendar', '/calendar', 'Календарь отчётности')}
         <span className="sh-tabs-gap" aria-hidden />
         {link('method', '/valuation', 'Как считается стоимость')}

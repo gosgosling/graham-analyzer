@@ -21,6 +21,7 @@ import AdminPage from './pages/AdminPage';
 import AdminOnly from './components/AdminOnly';
 import './pages/AdminPage.css';
 import MarketOverview from './pages/MarketOverview';
+import EconomyPage from './pages/EconomyPage';
 import CompareView from './components/CompareView';
 import AccountPage from './pages/AccountPage';
 import { ForgotPage, LoginPage, RegisterPage, ResetPage, VerifyEmailChangePage, VerifyPage } from './pages/AuthPages';
@@ -118,6 +119,7 @@ function App() {
             <Route path="/screen" element={<MarketScreen />} />
             <Route path="/admin" element={<AdminPage />} />
             <Route path="/market" element={<MarketOverview />} />
+            <Route path="/economy" element={<EconomyPage />} />
             <Route path="/compare" element={<div className="cv-page"><CompareView /></div>} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />

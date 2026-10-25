@@ -227,3 +227,47 @@ export interface CommodityOut {
 
 export const fetchCommodity = async (key: string): Promise<CommodityOut> =>
   (await api.get<CommodityOut>(`/market/commodity/${key}`)).data;
+
+// ── Раздел «Экономика» ───────────────────────────────────────────────────
+
+export interface MacroMeta {
+  label: string;
+  unit: string;
+  freq: 'day' | 'month' | 'quarter' | 'year';
+  source: string;
+}
+
+export interface MacroOut {
+  meta: Record<string, MacroMeta>;
+  /** Ряды по кодам: M_* — экономика, USDRUB/EURRUB/CNYRUB/BRENT — по неделям. */
+  series: Record<string, SeriesPoint[]>;
+  /** Бюджет: за месяц и за последние 12 месяцев (из накопленного итога). */
+  budget: Record<string, { month: SeriesPoint[]; rolling: SeriesPoint[] }>;
+  /** Закон о бюджете в первоначальной редакции по годам, млрд ₽. */
+  budget_law: Record<string, { revenue: number; expense: number; balance: number }>;
+  as_of: string;
+}
+
+export const fetchMacro = async (): Promise<MacroOut> =>
+  (await api.get<MacroOut>('/market/macro')).data;
+
+export interface MacroCompany {
+  id: number;
+  ticker: string;
+  name: string;
+  /** Цена на дату, приведённая к сегодняшнему числу акций. */
+  price: number;
+  price_date: string;
+  /** Опорная стоимость, какой она считалась в тот день. */
+  reference: number;
+  low: number | null;
+  high: number | null;
+  basis: string | null;
+  risk_free: number | null;
+  price_now: number | null;
+  /** Изменение цены с той даты до сегодня, % (без дивидендов). */
+  change: number | null;
+}
+
+export const fetchMacroCompanies = async (on: string): Promise<{ on: string; rows: MacroCompany[] }> =>
+  (await api.get<{ on: string; rows: MacroCompany[] }>('/market/macro/companies', { params: { on } })).data;

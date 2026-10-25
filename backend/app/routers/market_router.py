@@ -531,3 +531,34 @@ def commodity(key: str, db: Session = Depends(get_db)) -> dict:
         "daily": [[d.isoformat(), round(v, 2), round(r, 4) if r else None] for d, v, r in daily_series(db, key)],
         "daily_source": item.daily_source,
     }
+
+
+@router.get(
+    "/macro",
+    summary="Экономика: бюджет, ФНБ, госдолг, инфляция, резервы, платёжный баланс, ВВП, курсы",
+)
+@cached_route("market.macro")
+def macro(db: Session = Depends(get_db)) -> dict:
+    """Ряды для раздела «Экономика». Ключевая ставка, ОФЗ и индексы — в
+    `/market/overview`. Источники каждого ряда — в `meta`."""
+    from app.services.analysis.macro_overview import macro as build
+
+    return build(db)
+
+
+@router.get(
+    "/macro/companies",
+    summary="Снимок на дату: компании дешевле всего относительно тогдашней опорной стоимости",
+)
+@cached_route("market.macro.companies", "on")
+def macro_companies(
+    on: date_type = Query(..., description="дата снимка"),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Опорная — та, что считалась бы в тот день: по отчётам, раскрытым к
+    нему, и ставке, известной к нему. Цена — к сегодняшнему числу акций."""
+    from app.services.analysis.macro_overview import companies_on
+
+    if on > date_type.today() or on < date_type(2014, 1, 1):
+        raise HTTPException(status_code=422, detail="Дата снимка — с 2014 года по сегодня")
+    return companies_on(db, on)
