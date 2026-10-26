@@ -17,6 +17,8 @@
 
     python -m scripts.sync_report_files                       # собрать локально
     python -m scripts.sync_report_files --push ubuntu@host:/opt/graham/report-files
+
+Для выкладки нужен ssh-доступ; rsync желателен, но не обязателен.
 """
 from __future__ import annotations
 
@@ -174,12 +176,41 @@ def main() -> int:
     build(stage, args.root)
 
     if args.push:
-        # Манифест — последним: пока файлы едут, сайт ссылается только на те,
-        # что уже лежат на сервере.
-        common = ["rsync", "-a", "--info=stats1", "--chmod=D755,F644"]
-        subprocess.run([*common, "--delete", f"--exclude={MANIFEST}", f"{stage}/", args.push], check=True)
-        subprocess.run([*common, str(stage / MANIFEST), f"{args.push.rstrip('/')}/{MANIFEST}"], check=True)
+        push(stage, args.push)
     return 0
+
+
+def push(stage: Path, target: str) -> None:
+    """Выложить хранилище на сервер. Манифест — последним: пока файлы едут,
+    сайт ссылается только на те, что уже лежат на сервере.
+
+    rsync, если он есть, — передаёт только изменившееся и удаляет лишнее.
+    Без него — tar через ssh: всё заново, зато ничего, кроме ssh, не нужно."""
+    if shutil.which("rsync"):
+        common = ["rsync", "-a", "--info=stats1", "--chmod=D755,F644"]
+        subprocess.run([*common, "--delete", f"--exclude={MANIFEST}", f"{stage}/", target], check=True)
+        subprocess.run([*common, str(stage / MANIFEST), f"{target.rstrip('/')}/{MANIFEST}"], check=True)
+        return
+    host, _, remote = target.partition(":")
+    remote = remote.rstrip("/")
+    pack = subprocess.Popen(
+        ["tar", "-C", str(stage), "--exclude", f"./{MANIFEST}", "-cf", "-", "."],
+        stdout=subprocess.PIPE,
+    )
+    # Распаковка на место, а не обмен каталогов переименованием: каталог
+    # смонтирован в контейнеры, и после переименования они смотрели бы в
+    # старый. Лишние файлы tar не удаляет — сайт на них и не ссылается.
+    subprocess.run(
+        ["ssh", host, f"mkdir -p {remote} && tar -C {remote} -xf - && chmod -R a+rX {remote}"],
+        stdin=pack.stdout, check=True,
+    )
+    pack.stdout.close()
+    if pack.wait() != 0:
+        raise RuntimeError("tar завершился с ошибкой")
+    with (stage / MANIFEST).open("rb") as manifest:
+        subprocess.run(["ssh", host, f"cat > {remote}/{MANIFEST}.tmp && chmod a+r {remote}/{MANIFEST}.tmp "
+                                     f"&& mv {remote}/{MANIFEST}.tmp {remote}/{MANIFEST}"],
+                       stdin=manifest, check=True)
 
 
 if __name__ == "__main__":
