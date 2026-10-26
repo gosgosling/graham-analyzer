@@ -739,6 +739,19 @@
   display: none;
 }
 
+/* Слово «нет» вместо крестика — только на телефоне. */
+.mult-div-none-word { display: none; }
+@media (max-width: 760px) {
+  .mult-div-none:not(.mult-div-none--card) { line-height: normal; }
+  .mult-div-none:not(.mult-div-none--card) .mult-div-none-box { display: none; }
+  .mult-div-none-word {
+    display: inline;
+    font-size: 0.85em;
+    font-weight: 500;
+    color: var(--color-text-tertiary);
+  }
+}
+
 /* ── Ячейка убытка в таблице истории ── */
 .cell-loss {
   color: var(--color-loss-text);

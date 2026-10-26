@@ -736,6 +736,9 @@ function NoDividendYieldMark({
           {a?.mark ?? '×'}
         </span>
       )}
+      {/* На телефоне вместо красного квадрата с крестиком — слово: в узкой
+          колонке квадраты подряд громоздились и читались как ошибка. */}
+      {!isCard && <span className="mult-div-none-word" aria-hidden>нет</span>}
       {isCard && a && <span className="mult-div-none-label">{a.label}</span>}
     </span>
   );
@@ -3348,6 +3351,7 @@ const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company, reports, o
           title={provenance.title}
           explain={provenance.explain}
           rows={provenanceRows(provenance.periodId)}
+          pdf={reportOfPeriod(provenance.periodId)?.pdf ?? null}
           onOpenReport={onOpenReport && reportOfPeriod(provenance.periodId)
             ? () => onOpenReport(reportOfPeriod(provenance.periodId) as FinancialReport)
             : undefined}
