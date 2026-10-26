@@ -18,6 +18,7 @@ from app.services.analysis.bank_metrics import (
 from app.services.analysis.fcf import compute_banking_flow, compute_core_fcf, compute_fcf
 from app.services.analysis.interest_coverage import compute_interest_coverage
 from app.services.analysis.payout import compute_dividend_payout
+from app.services.reports.report_files import report_file
 from app.services.analysis.share_counts import compute_circulation_shares
 
 
@@ -470,6 +471,15 @@ class FinancialReport(ReportFigures):
         return value
 
     # Computed fields - автоматически добавляются к ответу API
+    @computed_field  # type: ignore
+    @property
+    def pdf(self) -> Optional[dict]:
+        """Копия исходного PDF на сайте: адрес, размер в байтах и SHA-256.
+
+        Пусто, когда файла в хранилище нет — отчёт вносили вручную или PDF
+        ещё не выложен (см. `services/reports/report_files.py`)."""
+        return report_file(self.source_pdf_path, self.company_id, self.fiscal_year, self.period_type)
+
     @computed_field  # type: ignore
     @property
     def price_per_share_rub(self) -> Optional[float]:

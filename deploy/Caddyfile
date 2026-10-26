@@ -16,6 +16,17 @@
 		reverse_proxy backend:8000
 	}
 
+	# Исходные PDF отчётов — на скачивание, рядом с числами, которые из них
+	# взяты (backend/app/services/reports/report_files.py). Манифест наружу
+	# не отдаётся: в нём локальные пути архива.
+	handle_path /files/reports/* {
+		respond /manifest.json 404
+		root * /reports
+		header Cache-Control "public, max-age=86400"
+		header X-Robots-Tag "noindex"
+		file_server
+	}
+
 	handle {
 		root * /srv
 		# Сборка с хэшами в именах — кэшировать надолго; index.html — никогда:

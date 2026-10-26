@@ -40,6 +40,7 @@ import { fetchPassport, type PassportOut } from '../services/screen.api';
 import { getCompanyCurrentMultipliers } from '../services';
 import { useAdmin } from '../hooks/useAdmin';
 import SharesCapHover from '../components/SharesCapHover';
+import { fileSize } from '../components/Provenance';
 import { getCompanyLogoCandidates } from '../utils/companyLogo';
 import { isMisclassifiedAsPreferred } from '../utils/companyShareClass';
 import { usePageTitle } from '../hooks/usePageTitle';
@@ -428,12 +429,21 @@ const CompanyDetail: React.FC = () => {
             />
           </div>
         </div>
-        <button
-          onClick={() => setSelectedReport(report)}
-          className="btn-compact-view"
-        >
-          Просмотр
-        </button>
+        <div className="report-compact-actions">
+          {report.pdf && (
+            <a className="btn-compact-pdf" href={report.pdf.url} target="_blank" rel="noreferrer" download
+              title={[`Исходный PDF${fileSize(report.pdf.size) ? `, ${fileSize(report.pdf.size)}` : ''}`,
+                report.pdf.sha256 ? `SHA-256: ${report.pdf.sha256}` : null].filter(Boolean).join('\n')}>
+              PDF
+            </a>
+          )}
+          <button
+            onClick={() => setSelectedReport(report)}
+            className="btn-compact-view"
+          >
+            Просмотр
+          </button>
+        </div>
       </div>
     );
   };

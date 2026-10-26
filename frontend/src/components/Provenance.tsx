@@ -1,6 +1,6 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import type { CurrentMultipliers, FinancialReport } from '../types';
+import type { CurrentMultipliers, FinancialReport, ReportPdf } from '../types';
 import './InfoTip.css';
 import './Provenance.css';
 
@@ -46,6 +46,33 @@ function howEntered(r: FinancialReport): string {
     case 'api': return 'по API';
     default: return 'вручную по отчёту';
   }
+}
+
+/** «3,2 МБ» — размер файла для подписи ссылки. */
+export const fileSize = (bytes: number | null | undefined): string | null => {
+  if (!bytes) return null;
+  return bytes >= 1e6
+    ? `${(bytes / 1e6).toLocaleString('ru-RU', { maximumFractionDigits: 1 })} МБ`
+    : `${Math.max(1, Math.round(bytes / 1e3))} КБ`;
+};
+
+/**
+ * Ссылка на исходный PDF. Рядом — начало контрольной суммы: полная в
+ * подсказке, чтобы скачавший мог сверить файл (`sha256sum`) с тем, из
+ * которого разобраны числа.
+ */
+export function ReportDownload({ pdf, className = '' }: { pdf: ReportPdf; className?: string }) {
+  const size = fileSize(pdf.size);
+  return (
+    <span className={`pv-download ${className}`.trim()}>
+      <a href={pdf.url} target="_blank" rel="noreferrer" download>
+        Скачать отчёт · PDF{size ? `, ${size}` : ''}
+      </a>
+      {pdf.sha256 && (
+        <small title={`SHA-256: ${pdf.sha256}`}>SHA-256 {pdf.sha256.slice(0, 8)}…</small>
+      )}
+    </span>
+  );
 }
 
 /** Строки «Откуда» для одного отчёта. */
@@ -117,12 +144,14 @@ export function provenanceLine(rows: ProvenanceRow[]): string {
  * Окошко у числа. Без затемнения: страницу под ним можно листать; закрывается
  * нажатием мимо или Esc. Положение — под якорем, в пределах экрана.
  */
-export function ProvenancePopover({ anchor, title, explain, rows, onOpenReport, onClose }: {
+export function ProvenancePopover({ anchor, title, explain, rows, pdf, onOpenReport, onClose }: {
   anchor: HTMLElement;
   title: string;
   /** Пояснение из подсказки ячейки — то, что видно при наведении. */
   explain?: string | null;
   rows: ProvenanceRow[];
+  /** Исходный PDF отчёта, из которого взято число. */
+  pdf?: ReportPdf | null;
   onOpenReport?: () => void;
   onClose: () => void;
 }) {
@@ -178,6 +207,7 @@ export function ProvenancePopover({ anchor, title, explain, rows, onOpenReport, 
           ))}
         </dl>
       )}
+      {pdf && <ReportDownload pdf={pdf} />}
       {onOpenReport && (
         <button type="button" className="pv-open" onClick={() => { onOpenReport(); onClose(); }}>
           Открыть отчёт →

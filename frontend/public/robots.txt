@@ -1,5 +1,6 @@
 # https://www.robotstxt.org/robotstxt.html
 User-agent: *
-Disallow:
+# Исходные PDF отчётов — для людей: роботам 4 ГБ выкачивать незачем.
+Disallow: /files/
 
 Sitemap: https://graham-analyzer.ru/sitemap.xml

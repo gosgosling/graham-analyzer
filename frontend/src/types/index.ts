@@ -628,11 +628,20 @@ export interface FinancialReport extends FinancialReportCreate {
     extraction_model?: string | null;
     /** Путь к исходному PDF (если парсили из CLI) */
     source_pdf_path?: string | null;
+    /** Копия исходного PDF на сайте — скачать и сверить; нет, если файла в хранилище нет */
+    pdf?: ReportPdf | null;
     /** Когда аналитик отметил отчёт как проверенный */
     verified_at?: string | null;
 
     /** bank | general — с бэкенда, только для отображения */
     report_type?: string;
+}
+
+/** Файл отчёта в хранилище сайта: адрес, размер в байтах, контрольная сумма SHA-256. */
+export interface ReportPdf {
+    url: string;
+    size: number | null;
+    sha256: string | null;
 }
 
 /** Ответ эндпоинта POST /reports/parse-pdf */

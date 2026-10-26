@@ -930,6 +930,18 @@
   border-radius: var(--radius-xs);
 }
 
+.report-compact-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.btn-compact-pdf {
+  padding: 5px 10px;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-xs);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text-link);
+  text-decoration: none;
+}
+.btn-compact-pdf:hover { border-color: var(--color-text-link); }
+
 .btn-compact-view {
   background-color: var(--color-accent-purple);
   color: var(--color-text-on-primary);

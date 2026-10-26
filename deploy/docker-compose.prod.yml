@@ -40,9 +40,13 @@ services:
       POSTGRES_PORT: "5432"
       DATABASE_URL: ""
       LOGO_CACHE_DIR: /data/logos
+      REPORT_FILES_DIR: /data/report-files
     volumes:
       # Копии логотипов переживают пересборку образа (см. logo_cache.py).
       - logos:/data/logos
+      # Хранилище PDF отчётов: бэкенд читает из него только manifest.json.
+      # Каталог наполняет scripts/sync_report_files.py --push (rsync).
+      - ../report-files:/data/report-files:ro
     depends_on:
       db:
         condition: service_healthy
@@ -66,6 +70,8 @@ services:
     volumes:
       - caddy_data:/data
       - caddy_config:/config
+      # Сами PDF отдаёт Caddy по /files/reports/….
+      - ../report-files:/reports:ro
     depends_on:
       - backend
 
