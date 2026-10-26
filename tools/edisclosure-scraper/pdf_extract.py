@@ -61,21 +61,33 @@ def _collect_pdfs(root: Path) -> list[Path]:
 
 def _unpack(archive: Path, into: Path) -> None:
     """Распаковать архив раскрытия. Обычно это zip, но e-disclosure отдаёт и
-    RAR под тем же именем: у Русснефти полугодия 2025 и 2026 — «Rar!» внутри
-    `*_consolidated.zip`. Такой архив распаковывает 7z, если он установлен."""
+    RAR под тем же именем: у Русснефти полугодия 2025 и 2026 — «Rar!» (RAR 7)
+    внутри `*_consolidated.zip`."""
     if zipfile.is_zipfile(archive):
         with zipfile.ZipFile(archive, "r") as zf:
             zf.extractall(into)
         return
     with archive.open("rb") as handle:
         head = handle.read(8)
-    seven = shutil.which("7z") or shutil.which("7za")
-    if head.startswith(b"Rar!") and seven:
+    if head.startswith(b"Rar!"):
         import subprocess
 
-        subprocess.run([seven, "x", "-y", f"-o{into}", str(archive)],
-                       check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        return
+        # unrar (non-free) понимает любые версии, включая RAR 7; unar — RAR до
+        # пятой; 7z из Debian собран без RAR вовсе (+dfsg). Берём первый,
+        # что есть и справился.
+        tools = (
+            ("unrar", lambda exe: [exe, "x", "-o+", "-inul", str(archive), f"{into}/"]),
+            ("unar", lambda exe: [exe, "-q", "-f", "-o", str(into), str(archive)]),
+            ("7z", lambda exe: [exe, "x", "-y", f"-o{into}", str(archive)]),
+        )
+        for name, command in tools:
+            exe = shutil.which(name)
+            if not exe:
+                continue
+            done = subprocess.run(command(exe), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            if done.returncode == 0:
+                return
+        raise OSError("RAR не распаковался: установите unrar (раздел non-free) или unar")
     raise zipfile.BadZipFile("File is not a zip file")
 
 
@@ -128,7 +140,7 @@ def extract_main_pdf_from_zip(
     except zipfile.BadZipFile as exc:
         logger.error("[%s %s] Повреждённый zip %s: %s", ticker, key, zip_path, exc)
         return None
-    except (OSError, __import__("subprocess").CalledProcessError) as exc:
+    except OSError as exc:
         logger.error("[%s %s] Ошибка при распаковке %s: %s", ticker, key, zip_path, exc)
         return None
 
