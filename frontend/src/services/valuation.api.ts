@@ -213,6 +213,8 @@ export interface CompanyValuationOut {
   /** Чистая касса на акцию, отделённая от бизнеса, и цена самого бизнеса —
    *  цена минус касса. null — касса не отделялась. */
   net_cash_per_share?: number | null;
+  /** Касса последнего года не раскрыта (сокращённая отчётность) и оценена осторожно. */
+  net_cash_estimated?: boolean;
   business_price?: number | null;
   /** Пометка о том, что высокая отдача держится на малом капитале. */
   denominator?: {
@@ -474,10 +476,20 @@ export interface ValuationSegment {
   basis: string;
 }
 
+/** На чём держится сегодняшняя оценка: отчёт или «12 месяцев», с какого дня и цена в тот день. */
+export interface ValuationBasis {
+  /** «отчёт 2025» или «LTM 1П2026». */
+  label: string;
+  year: number;
+  since: string;
+  price_then: number | null;
+}
+
 export interface ValuationHistoryOut {
   ticker: string;
   years: ValuationYear[];
   segments: ValuationSegment[];
+  basis?: ValuationBasis | null;
   hits: number;
   counted: number;
   verdict: string;

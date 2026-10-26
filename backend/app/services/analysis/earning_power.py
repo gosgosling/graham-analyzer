@@ -230,6 +230,9 @@ class YearPoint:
     # Нужен там, где считается не оценка, а отчётная арифметика: удержанная
     # прибыль в тесте Баффета и число Грэма.
     cash_income_per_share: Optional[float] = None
+    # Касса в этом году не раскрыта (сокращённая отчётность), и
+    # `net_cash_per_share` — осторожная оценка, см. `_undisclosed_cash`.
+    cash_estimated: bool = False
 
     @property
     def reported_eps(self) -> Optional[float]:
@@ -895,11 +898,14 @@ class Analysis:
     book_value_per_share: Optional[float] = None
     # Чистая касса на акцию, отделённая от бизнеса; 0 — не отделялась.
     net_cash_per_share: float = 0.0
+    # Касса последнего года не раскрыта и оценена осторожно.
+    net_cash_estimated: bool = False
 
     def as_dict(self) -> dict:
         return {
             "book_value_per_share": self.book_value_per_share,
             "net_cash_per_share": self.net_cash_per_share,
+            "net_cash_estimated": self.net_cash_estimated,
             "earnings": {w: e.as_dict() for w, e in self.earnings.items()},
             "cash": {w: e.as_dict() for w, e in self.cash.items()},
             "owner": {w: e.as_dict() for w, e in self.owner.items()},
@@ -927,6 +933,7 @@ def analyze(
         windows=windows,
         book_value_per_share=latest_book_value(points, business=False),
         net_cash_per_share=latest_net_cash(points),
+        net_cash_estimated=bool(points) and max(points, key=lambda p: p.year).cash_estimated,
     )
     for window in windows:
         result.earnings[window] = estimate(points, window, "eps", "roe", end_year)
@@ -1025,6 +1032,7 @@ def load_points(db, company_id: int, separate_cash: bool = False) -> list:
     ])
 
     points = []
+    last_cash = None
     for mult, report in rows:
         shares = None if mult.shares_used is None else float(mult.shares_used)
         equity = None if mult.equity is None else float(mult.equity)
@@ -1041,9 +1049,15 @@ def load_points(db, company_id: int, separate_cash: bool = False) -> list:
         # диагностика бухгалтерии, а не оценка.
         business_profit, business_equity = profit, equity
         net_cash = cash_after_tax = None
+        cash_estimated = False
         if separate_cash:
             parts = _cash_parts(report, company_type, report.fiscal_year)
+            if parts is None and last_cash is not None:
+                parts = _undisclosed_cash(report, last_cash)
+                cash_estimated = parts is not None
             if parts is not None:
+                if not cash_estimated:
+                    last_cash = parts
                 net_cash, cash_after_tax, in_flow = parts
                 if business_profit is not None:
                     business_profit -= cash_after_tax
@@ -1128,9 +1142,46 @@ def load_points(db, company_id: int, separate_cash: bool = False) -> list:
                 distorted=distorted,
                 net_cash_per_share=per_share(net_cash),
                 cash_income_per_share=per_share(cash_after_tax),
+                cash_estimated=cash_estimated,
             )
         )
     return points
+
+
+# Поля, которых нет в сокращённой («обобщённой») отчётности: только итоги
+# баланса и прибыль. Пустые все разом — значит, компания их не раскрыла, а не
+# разбор их потерял.
+UNDISCLOSED_CASH_FIELDS = ("cash_and_equivalents", "cash_investments", "debt", "interest_received")
+
+
+def _undisclosed_cash(report, last: tuple) -> Optional[tuple]:
+    """Осторожная оценка кассы года, в котором её не раскрыли.
+
+    Юнипро за 2025 год выпустила обобщённую отчётность: итоги баланса и
+    прибыль, без денег, депозитов и долга. Годом раньше касса была 92 млрд и
+    прибавлялась к опорной; в 2025-м полей нет, и ряд прочёл это как «кассы
+    нет» — опорная упала с 2,52 до 1,01 ₽ при выросшей прибыли. Пустота
+    здесь — молчание компании, а не ноль.
+
+    Оценка — меньшее из двух: прошлогодней кассы (больше её быть могло, но
+    утверждать это нечем) и оборотных активов за вычетом всех обязательств
+    (больше этого денег в балансе нет физически). Доход кассы — прошлогодний,
+    пересчитанный пропорционально. Без итогов баланса оценки нет.
+    """
+    if any(getattr(report, name, None) is not None for name in UNDISCLOSED_CASH_FIELDS):
+        return None
+    from app.services.analysis.multiplier_service import _field_rub
+
+    current = _field_rub(report, "current_assets")
+    liabilities = _field_rub(report, "total_liabilities")
+    if current is None or liabilities is None:
+        return None
+    last_net, last_after_tax, _ = last
+    ceiling = current - liabilities
+    if not last_net or ceiling <= 0:
+        return None
+    net = min(float(last_net), ceiling)
+    return net, float(last_after_tax) * net / float(last_net), 0.0
 
 
 def _company_type(db, company_id: int) -> Optional[str]:

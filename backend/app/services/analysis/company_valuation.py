@@ -1502,6 +1502,10 @@ def assess(
         ),
         # Чистая касса на акцию, отделённая от бизнеса; None — не отделялась.
         "net_cash_per_share": round(net_cash, 2) if net_cash else None,
+        # Касса последнего года не раскрыта (сокращённая отчётность) — в
+        # оценке осторожная: не больше прошлогодней и не больше оборотных
+        # активов за вычетом всех обязательств.
+        "net_cash_estimated": bool(net_cash) and bool(getattr(power, "net_cash_estimated", False)),
         "business_price": (
             round(business_price, 2) if net_cash and business_price else None
         ),

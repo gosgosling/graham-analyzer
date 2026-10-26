@@ -839,3 +839,39 @@ def test_known_split_recognised_even_if_equity_moved():
 def test_known_split_with_other_ratio_is_not_applied():
     rows = [(2024, 100_000_000, 100.0, 1000.0), (2025, 300_000_000, 400.0, 3000.0)]
     assert split_factors(rows, [{"date": "2025-03-27", "ratio": 10}]) == {}
+
+
+# ── Касса в сокращённой отчётности ─────────────────────────────────────────
+
+def test_нераскрытая_касса_оценивается_осторожно_а_не_обнуляется():
+    """Юнипро за 2025: только итоги баланса и прибыль, денег и долга нет."""
+    from types import SimpleNamespace
+
+    from app.services.analysis.earning_power import _undisclosed_cash
+
+    report = SimpleNamespace(
+        cash_and_equivalents=None, cash_investments=None, debt=None, interest_received=None,
+        current_assets=129_885.0, total_liabilities=15_052.0, currency="RUB", exchange_rate=None,
+    )
+    net, after_tax, in_flow = _undisclosed_cash(report, (91_160.0, 8_000.0, 0.0))
+    # Не больше прошлогодней кассы — больше утверждать нечем.
+    assert net == 91_160.0
+    assert after_tax == 8_000.0 and in_flow == 0.0
+
+    # Оборотных активов за вычетом обязательств меньше — касса не больше их.
+    report.current_assets = 60_000.0
+    net, after_tax, _ = _undisclosed_cash(report, (91_160.0, 8_000.0, 0.0))
+    assert net == 60_000.0 - 15_052.0
+    assert after_tax == 8_000.0 * net / 91_160.0
+
+
+def test_раскрытая_касса_не_подменяется_оценкой():
+    from types import SimpleNamespace
+
+    from app.services.analysis.earning_power import _undisclosed_cash
+
+    report = SimpleNamespace(
+        cash_and_equivalents=0.0, cash_investments=None, debt=None, interest_received=None,
+        current_assets=100.0, total_liabilities=10.0, currency="RUB", exchange_rate=None,
+    )
+    assert _undisclosed_cash(report, (50.0, 5.0, 0.0)) is None
