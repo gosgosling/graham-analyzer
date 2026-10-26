@@ -580,6 +580,9 @@ function FullTable({ data }: { data: MarketScreenOut }) {
   const filtered = useMemo(() => filterRows(data.rows, query, industry), [data.rows, query, industry]);
   const rows = useMemo(() => sortRows(filtered, sort, data.columns), [filtered, sort, data.columns]);
   const narrowed = filtered.length !== data.rows.length;
+  // Колонки, где у всех видимых строк банковский показатель: заголовок
+  // называет его сам, и подпись в каждой клетке становится лишней.
+  const heads = useMemo(() => data.columns.map((c, i) => swappedHead(rows, i, c.metric)), [data.columns, rows]);
 
   return (
     <>
@@ -635,7 +638,7 @@ function FullTable({ data }: { data: MarketScreenOut }) {
                 </button>
               </th>
               {data.columns.map((c, i) => {
-                const swapped = swappedHead(rows, i, c.metric);
+                const swapped = heads[i];
                 if (swapped) {
                   const key = metricKey(swapped.metric);
                   return (
@@ -717,7 +720,9 @@ function FullTable({ data }: { data: MarketScreenOut }) {
                   // ликвидности, зато есть достаточность капитала. Имя
                   // едет вместе с числом — без него цифра прочиталась бы
                   // как величина из заголовка столбца.
-                  const swapped = cell != null && cell.metric !== data.columns[i].metric;
+                  // Когда заголовок уже переключён на банковский (фильтр
+                  // «Банки»), имя в клетке повторяло бы его в каждой строке.
+                  const swapped = cell != null && cell.metric !== data.columns[i].metric && !heads[i];
                   return (
                     <td
                       key={data.columns[i].metric}
