@@ -356,6 +356,39 @@ def company_summary(
     }
 
 
+def _current_basis(db: Session, company_id: int, segments: list) -> Optional[dict]:
+    """На чём держится сегодняшняя оценка и с какого дня.
+
+    Опорная меняется ступенями — в день раскрытия отчёта. Между ступенями
+    рынок живёт своей жизнью, и цена успевает уйти далеко: Юнипро потеряла
+    треть цены до того, как вышел отчёт, который это объяснил. Карточка
+    показывает возраст основы и путь цены с того дня — так видно, что рынок
+    уже что-то знает, а отчёт об этом ещё не вышел.
+    """
+    from app.models.stock_price import StockPrice
+
+    if not segments:
+        return None
+    last = segments[-1]
+    since = last["from"]
+    for seg in reversed(segments):
+        if seg["basis"] != last["basis"] or seg["year"] != last["year"]:
+            break
+        since = seg["from"]
+    row = (
+        db.query(StockPrice.price)
+        .filter(StockPrice.company_id == company_id, StockPrice.date >= since)
+        .order_by(StockPrice.date)
+        .first()
+    )
+    return {
+        "label": last["basis"],
+        "year": last["year"],
+        "since": since,
+        "price_then": None if row is None else float(row[0]),
+    }
+
+
 @router.get("/company/{company_id}/history")
 @cached_route("valuation.history", "company_id")
 def company_valuation_history(
@@ -478,6 +511,7 @@ def company_valuation_history(
         "ticker": result.ticker,
         "years": years,
         "segments": segments,
+        "basis": _current_basis(db, company.id, segments),
         "hits": result.hits,
         "counted": len(result.counted),
         "verdict": result.verdict,

@@ -2,11 +2,14 @@ import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { fetchPassport, type PassportOut, type ScreenStatus, type Verdict } from '../services/screen.api';
 import {
+  fetchValuationHistory,
   fetchValuationSummary,
   type SafetySignal,
+  type ValuationHistoryOut,
   type ValuationSummaryOut,
 } from '../services/valuation.api';
 import { formatPerShare } from '../utils/perShare';
+import { freshnessOf, type Freshness } from '../utils/freshness';
 import { LIVE_PRICE_REFRESH_MS, LIVE_PRICE_STALE_MS } from '../services/prices.api';
 import './CompanyVerdict.css';
 
@@ -160,6 +163,8 @@ export interface VerdictData {
   marginTone: 'good' | 'warn' | 'bad' | 'neutral';
   summary: ValuationSummaryOut | undefined;
   passport: PassportOut | undefined;
+  /** Свежесть оценки: на каком отчёте она держится, сколько ему и куда с тех пор ушла цена. */
+  freshness: Freshness | null;
 }
 
 /** Всё, что карточка говорит о компании, — одним расчётом для шапки и боковой колонки. */
@@ -172,6 +177,13 @@ export function useCompanyVerdict(companyId: number): VerdictData {
     // Запас прочности зависит от цены — перечитывается вместе с ней.
     staleTime: LIVE_PRICE_STALE_MS,
     refetchInterval: LIVE_PRICE_REFRESH_MS,
+    enabled,
+  });
+  // Тот же ключ, что у графика цены: запрос уходит один раз.
+  const { data: history } = useQuery<ValuationHistoryOut>({
+    queryKey: ['valuation-history', companyId],
+    queryFn: () => fetchValuationHistory(companyId),
+    staleTime: 10 * 60 * 1000,
     enabled,
   });
   const { data: passport, isLoading: passportLoading } = useQuery<PassportOut>({
@@ -261,6 +273,7 @@ export function useCompanyVerdict(companyId: number): VerdictData {
       : pc === 'dear' || pc === 'bond' || pc === 'danger' ? 'bad' : 'neutral',
     summary,
     passport,
+    freshness: available ? freshnessOf(history?.basis, price) : null,
   };
 }
 

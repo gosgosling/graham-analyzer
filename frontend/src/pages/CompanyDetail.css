@@ -1639,6 +1639,10 @@
   color: var(--color-text-secondary);
 }
 .cd-verdict strong { color: var(--color-text-primary); font-weight: 600; }
+/* Возраст оценки и путь цены с тех пор — под вердиктом, мелко. Жёлтым, когда
+   отчёт старый или цена ушла далеко. */
+.cd-freshness { margin: 6px 0 0; max-width: 900px; font-size: 0.86rem; color: var(--color-text-tertiary); }
+.cd-freshness.is-stale { color: var(--color-warning-text); }
 
 .cd-quote {
   display: flex;

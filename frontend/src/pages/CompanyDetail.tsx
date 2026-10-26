@@ -568,6 +568,9 @@ const CompanyDetail: React.FC = () => {
                 <strong>{verdict.headline}.</strong> {verdict.lede}
               </p>
             )}
+            {!verdict.loading && verdict.freshness && (
+              <p className={`cd-freshness${verdict.freshness.stale ? ' is-stale' : ''}`}>{verdict.freshness.text}</p>
+            )}
           </div>
 
           {price !== null && (
