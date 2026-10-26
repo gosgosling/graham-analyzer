@@ -66,7 +66,7 @@ THRESHOLD_LABELS = {
     "roe": "Отдача на капитал (ROE), %",
     "cost_to_income_average": "Издержки к доходам, в среднем за 7 лет, %",
     "cost_of_risk_average": "Стоимость риска, в среднем за 7 лет, %",
-    "capital_core": "Достаточность основного капитала Н1.1, %",
+    "capital_core": "Достаточность базового капитала Н1.1, %",
     "npl_ratio": "Проблемные кредиты, %",
 }
 LENDER_METRICS = {"cost_to_income_average", "cost_of_risk_average", "capital_core", "npl_ratio"}
@@ -113,7 +113,7 @@ def thresholds() -> dict:
             rules.append({
                 "metric": rule.metric,
                 "label": THRESHOLD_LABELS.get(rule.metric, rule.metric),
-                "book_text": rule.text(book),
+                "book_text": rule.book_label(book),
                 "rule_text": rule.text(rule.threshold),
                 "source": rule.source,
                 "ours": rule.ours,
@@ -197,10 +197,14 @@ def market_screen(
             detail=f"Неизвестный свод: {standard}. Есть {', '.join(screen.STANDARDS)}",
         )
 
+    # Проверенные — те же, что в обзоре рынка: все годовые отчёты сверены и
+    # аудит данных без дефектов. В расширенной выборке строка несёт отметку,
+    # иначе она выглядит так же, как проверенная, и наследует её доверие.
+    tickers = market_snapshot.trustworthy_tickers(db)
+    verified = set(tickers)
     if all_companies:
         companies = db.query(Company).order_by(Company.ticker).all()
     else:
-        tickers = market_snapshot.trustworthy_tickers(db)
         companies = [
             company for company in (
                 db.query(Company).filter(Company.ticker == ticker).first()
@@ -327,6 +331,7 @@ def market_screen(
             "checked": len(result.checkable),
             "clears": result.clears,
             "complete": result.complete,
+            "verified": result.ticker in verified,
             "safety": safety,
             "cells": cells,
         })
@@ -343,6 +348,7 @@ def market_screen(
         "rows": sorted(rows, key=lambda r: (-r["passed"], r["ticker"])),
         "summary": {
             "total": len(rows),
+            "verified": sum(1 for r in rows if r["verified"]),
             "cleared": sum(1 for r in rows if r["clears"]),
             "fails": dict(sorted(fails.items(), key=lambda pair: -pair[1])),
         },

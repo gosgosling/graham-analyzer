@@ -523,7 +523,11 @@ const CompanyDetail: React.FC = () => {
     && latestAnnual.net_income_reported != null
     && Math.abs(latestAnnual.net_income - latestAnnual.net_income_reported)
       > 0.1 * Math.max(Math.abs(latestAnnual.net_income), Math.abs(latestAnnual.net_income_reported))
-    ? { year: latestAnnual.fiscal_year, reported: latestAnnual.net_income_reported, normalized: latestAnnual.net_income }
+    ? {
+      year: latestAnnual.fiscal_year,
+      reported: latestAnnual.net_income_reported_rub ?? latestAnnual.net_income_reported,
+      normalized: latestAnnual.net_income_rub ?? latestAnnual.net_income,
+    }
     : null;
 
   const pe = currentMultipliers?.pe_ratio ?? null;

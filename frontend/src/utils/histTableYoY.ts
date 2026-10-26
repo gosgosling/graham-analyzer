@@ -397,7 +397,7 @@ const BANK_DIRECTIONS: Record<keyof BankYoY, { direction: YoYDirection; label: s
   npl_coverage: { direction: 'higher_better', label: 'Покрытие резервом' },
   // Кредиты сверх депозитов финансируются рынком — дороже и капризнее.
   loans_to_deposits: { direction: 'lower_better', label: 'Кредиты / депозиты' },
-  capital_adequacy_core: { direction: 'higher_better', label: 'Основной капитал Н1.1' },
+  capital_adequacy_core: { direction: 'higher_better', label: 'Базовый капитал Н1.1' },
   // Портфель — абсолютная величина, поэтому изменение относительное, а не в
   // пунктах. Рост сам по себе не «хорошо»: быстрый рост при падающем покрытии —
   // классический предвестник проблем, но направление всё же вверх.

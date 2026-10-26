@@ -2111,7 +2111,7 @@ function histColumns({
     bankCol('npl', 'NPL', 'Доля проблемных', 'Доля обесцененных кредитов (Stage 3 / 90+) в портфеле');
     bankCol('coverage', 'Покрытие', 'Покрытие резервами', 'Накопленный резерв к обесцененным кредитам (Стадия 3 + POCI)');
     bankCol('ldr', 'LDR', 'Кредиты / депозиты', 'Чистые кредиты к средствам клиентов');
-    bankCol('n11', 'Н1.1', 'Достаточность капитала', 'Достаточность основного капитала (Н1.1 / CET1)');
+    bankCol('n11', 'Н1.1', 'Достаточность капитала', 'Достаточность базового капитала (Н1.1)');
     const unit = portfolioInTrillions ? 'трлн ₽' : 'млрд ₽';
     add({
       key: 'portfolio',
@@ -3050,7 +3050,12 @@ const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company, reports, o
     const map = new Map<number, number | null>();
     (reports ?? [])
       .filter((r) => r.period_type.toLowerCase() === 'annual')
-      .forEach((r) => map.set(r.fiscal_year, r.net_income_reported ?? r.net_income ?? null));
+      // В рублях: капитализация в строке рублёвая, а Лукойл до 2013 года
+      // отчитывался в долларах — 814 млрд ₽ ÷ 9 144 млн $ давали P/E 89.
+      .forEach((r) => map.set(
+        r.fiscal_year,
+        r.net_income_reported_rub ?? r.net_income_rub ?? r.net_income_reported ?? r.net_income ?? null,
+      ));
     return map;
   }, [reports]);
   const { data: valuationSeries } = useQuery<CompanySeriesOut>({

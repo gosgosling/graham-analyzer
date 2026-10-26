@@ -45,7 +45,7 @@ class BankMetrics:
     loans_to_deposits: Optional[float] = None       # Чистые кредиты / средства клиентов, %
     cost_of_funding: Optional[float] = None         # Процентные расходы / средства клиентов, %
     capital_adequacy_ratio: Optional[float] = None  # Н1.0 общий, как раскрыл эмитент, %
-    capital_adequacy_core: Optional[float] = None   # Н1.1 / CET1 — основной капитал, %
+    capital_adequacy_core: Optional[float] = None   # Н1.1 — базовый капитал, % (аналог CET1)
     capital_to_rwa: Optional[float] = None          # Капитал / RWA, % — сверка с Н1.0
     retail_loans_share: Optional[float] = None      # Доля розницы в портфеле, %
     retail_deposits_share: Optional[float] = None   # Доля физлиц в средствах клиентов, %
@@ -83,9 +83,9 @@ _BANDS: Dict[str, Tuple[Optional[float], Optional[float], bool, str]] = {
     "loans_to_deposits": (100.0, 120.0, False, "≤ 100% — кредиты покрыты депозитами"),
     # Н1.0: минимум ЦБ 8% плюс надбавки; ниже 10% банк ограничен в дивидендах.
     "capital_adequacy_ratio": (12.0, 10.0, True, "≥ 12% — запас есть; < 10% — риск"),
-    # Основной капитал поглощает убытки первым: общий норматив включает
+    # Базовый капитал (Н1.1) поглощает убытки первым: общий норматив включает
     # субординированные займы, которые списываются не сразу и не всегда.
-    "capital_adequacy_core": (10.0, 8.0, True, "Н1.1/CET1: ≥ 10% — прочно; < 8% — тонко"),
+    "capital_adequacy_core": (10.0, 8.0, True, "Н1.1, базовый капитал: ≥ 10% — прочно; < 8% — тонко"),
     # Спред к ключевой ставке: во сколько банку обходятся деньги ОТНОСИТЕЛЬНО
     # рынка. Дешёвое фондирование — то самое преимущество, которое Баффет
     # ценил в банках выше прочего: заработать на активах может каждый,

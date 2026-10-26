@@ -100,6 +100,40 @@ const SHORT_HEAD: Record<string, string> = {
   cash_growth_short: 'Рост FCF за 5 лет',
 };
 
+/**
+ * Банковские показатели в чужих колонках. Своих колонок у банка нет: его
+ * Н1.1, стоимость риска, проблемные кредиты и издержки занимают клетки
+ * ликвидности и FCF, которые он оставляет пустыми. Пока в таблице все
+ * отрасли, заголовок остаётся общим, а у клетки — подпись метрики. Когда
+ * фильтр оставил одни банки, заголовок «Текущая ликвидн.» над Н1.1 врал бы
+ * про всю колонку — и он переключается на банковский.
+ */
+const LENDER_HEAD: Record<string, { label: string; period: string }> = {
+  capital_core: { label: 'Н1.1', period: 'на дату' },
+  cost_of_risk_average: { label: 'Стоимость риска', period: 'средняя за 7 лет' },
+  npl_ratio: { label: 'Проблемные кредиты', period: 'на дату' },
+  cost_to_income_average: { label: 'Издержки к доходам', period: 'средняя за 7 лет' },
+};
+
+interface SwappedHead { metric: string; label: string; full: string; threshold: string; period: string }
+
+/** Если во всех видимых строках в колонке один и тот же чужой показатель — его заголовок. */
+function swappedHead(rows: readonly MarketScreenOut['rows'][number][], index: number, metric: string): SwappedHead | null {
+  const cells = rows.map((r) => r.cells[index]).filter((c): c is Verdict => c != null);
+  if (cells.length === 0 || cells.length !== rows.length) return null;
+  const metrics = new Set(cells.map((c) => c.metric));
+  const [only] = Array.from(metrics);
+  if (metrics.size !== 1 || only === metric || !LENDER_HEAD[only]) return null;
+  const texts = Array.from(new Set(cells.map((c) => c.text).filter(Boolean)));
+  return {
+    metric: only,
+    label: LENDER_HEAD[only].label,
+    full: cells[0].metric_label,
+    threshold: texts.length === 1 ? texts[0] : texts.join(' / '),
+    period: LENDER_HEAD[only].period,
+  };
+}
+
 const cls = (v: Verdict) => {
   const base = `ms-cell ms-cell--${v.status.replace('/', '')}`;
   if (v.status !== 'fail') return base;
@@ -209,6 +243,16 @@ function SafetyCell({ safety }: { safety: RowSafety | null }) {
   );
 }
 
+/** Отметка строки из расширенной выборки: отчётность не сверена. */
+function Unverified({ row }: { row: MarketScreenOut['rows'][number] }) {
+  if (row.verified !== false) return null;
+  return (
+    <span className="ms-unverified" title="Отчётность компании аналитиком не сверена или аудит данных нашёл дефекты — числа предварительные">
+      не сверено
+    </span>
+  );
+}
+
 /** Компания в строке: логотип, тикер-ссылка, имя. */
 function Ident({ row }: { row: MarketScreenOut['rows'][number] }) {
   return (
@@ -217,6 +261,7 @@ function Ident({ row }: { row: MarketScreenOut['rows'][number] }) {
       <span className="ms-ident-text">
         <Link to={`/company/${row.id}`}>{row.ticker}</Link>
         <span className="ms-name" title={row.name}>{row.name}</span>
+        <Unverified row={row} />
       </span>
     </span>
   );
@@ -228,6 +273,8 @@ function Sieve({ data, steps, afterGraham, cleared }: {
 }) {
   const graham = steps.filter((s) => !s.ours);
   const ours = steps.filter((s) => s.ours);
+  const verifiedCount = data.summary.verified ?? (data.rows.some((r) => r.verified === false)
+    ? data.rows.filter((r) => r.verified !== false).length : null);
   const step = (s: SieveStep, n: number) => (
     <li key={s.column.metric} className="sc-step" title={`${s.column.label}\n${s.column.source}`}>
       <span className="sc-n">{String(n).padStart(2, '0')}</span>
@@ -246,11 +293,25 @@ function Sieve({ data, steps, afterGraham, cleared }: {
   );
   return (
     <ol className="sc-sieve">
-      <li className="sc-step sc-step--total">
-        <span className="sc-n" />
-        <span className="sc-req"><b>Компаний с проверенной отчётностью</b></span>
-        <span className="sc-left">{data.rows.length}</span>
-      </li>
+      {/* В расширенной выборке — два числа: сколько всего и сколько из них
+          проверено. Одно число под подписью «с проверенной отчётностью»
+          приписывало доверие и непроверенным строкам. */}
+      {verifiedCount !== null && verifiedCount < data.rows.length ? (
+        <li className="sc-step sc-step--total">
+          <span className="sc-n" />
+          <span className="sc-req">
+            <b>Компаний в выборке</b>
+            <small>из них с проверенной отчётностью — {verifiedCount}, остальные помечены «не сверено»</small>
+          </span>
+          <span className="sc-left">{data.rows.length}</span>
+        </li>
+      ) : (
+        <li className="sc-step sc-step--total">
+          <span className="sc-n" />
+          <span className="sc-req"><b>Компаний с проверенной отчётностью</b></span>
+          <span className="sc-left">{data.rows.length}</span>
+        </li>
+      )}
       {graham.map((s, i) => step(s, i + 1))}
       {ours.length > 0 && (
         <>
@@ -464,7 +525,7 @@ function ScreenMobileList({ data, rows, sort, onSort }: {
             <Link className="smb-row" to={`/company/${row.id}`}>
               <span className="smb-head">
                 <CompanyLogo url={row.logo_url} ticker={row.ticker} alt="" className="smb-logo" />
-                <span className="smb-name"><b>{row.ticker}</b> · {row.name}</span>
+                <span className="smb-name"><b>{row.ticker}</b> · {row.name} <Unverified row={row} /></span>
                 <span className={`smb-count${row.clears ? ' is-clear' : ''}`}>
                   {row.clears ? 'прошла все' : `${row.passed} из ${row.checked}`}
                 </span>
@@ -573,7 +634,22 @@ function FullTable({ data }: { data: MarketScreenOut }) {
                   Компания<SortArrow dir={dirOf('company')} />
                 </button>
               </th>
-              {data.columns.map((c) => {
+              {data.columns.map((c, i) => {
+                const swapped = swappedHead(rows, i, c.metric);
+                if (swapped) {
+                  const key = metricKey(swapped.metric);
+                  return (
+                    <th key={c.metric} className={`ms-sortable${dirOf(key) ? ' is-sorted' : ''}`} aria-sort={ariaSort(key)}
+                      title={`${swapped.full}, ${swapped.period}\nв книге нет — банков Грэм не отбирал`}>
+                      <button type="button" className="ms-sort-btn" onClick={() => onSort(key)}>
+                        <span className="ms-col">{swapped.label}</span>
+                        <span className="ms-col-thr">{swapped.threshold}</span>
+                        <span className="ms-col-book">{swapped.period}</span>
+                        <SortArrow dir={dirOf(key)} />
+                      </button>
+                    </th>
+                  );
+                }
                 const key = metricKey(c.metric);
                 return (
                   <th key={c.metric} className={`ms-sortable${dirOf(key) ? ' is-sorted' : ''}`} aria-sort={ariaSort(key)}
@@ -631,6 +707,7 @@ function FullTable({ data }: { data: MarketScreenOut }) {
                     <span className="ms-ident-text">
                       <Link to={`/company/${row.id}`}>{row.ticker}</Link>
                       <span className="ms-name" title={row.name}>{row.name}</span>
+                      <Unverified row={row} />
                     </span>
                   </span>
                 </th>

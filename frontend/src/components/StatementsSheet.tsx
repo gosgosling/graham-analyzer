@@ -88,8 +88,8 @@ const BANK: Line[] = [
   { label: 'Стоимость риска', get: derived.cor, fmt: 'pct', tip: 'Расходы на резервы к кредитам до резервов' },
   { label: 'Расходы к доходам', get: derived.cir, fmt: 'pct' },
   { label: 'Доля неработающих кредитов', get: derived.nplShare, fmt: 'pct' },
-  { label: 'Достаточность капитала Н1.0', get: f('capital_adequacy_ratio'), fmt: 'pct' },
-  { label: 'Достаточность основного капитала Н1.1', get: f('capital_adequacy_core'), fmt: 'pct' },
+  { label: 'Достаточность собственных средств Н1.0', get: f('capital_adequacy_ratio'), fmt: 'pct' },
+  { label: 'Достаточность базового капитала Н1.1', get: f('capital_adequacy_core'), fmt: 'pct' },
   ...SHARES_AND_MARKET,
 ];
 

@@ -168,6 +168,24 @@ class Rule:
     # и отраслевого «хорошо». Там, где поправка ослабляет (IT, ритейл,
     # биржа), она действует как раньше.
     sector_floor: bool = False
+    # Как книжное требование записано у Грэма, когда его нельзя выразить
+    # нашим порогом: выручка у него — 100 млн $ в ценах 1971 года, а не
+    # рубли. Без этого колонка «У Грэма» показывала наши 50 000 млн ₽.
+    book_note: Optional[str] = None
+
+    def book_label(self, book: Optional[float] = None) -> str:
+        """Что стоит в колонке «У Грэма»: только книга.
+
+        Книжное правило — его число; наше с книжным аналогом — книжное число
+        (`book_threshold`) или запись из книги (`book_note`); наше без
+        аналога — «нет в книге». Наш порог живёт в колонках отраслей."""
+        if not self.ours:
+            return self.text(book if book is not None else self.threshold)
+        if self.book_note:
+            return self.book_note
+        if self.book_threshold is not None:
+            return self.text(self.book_threshold)
+        return "нет в книге"
 
     def holds(self, value: Optional[float], of: Optional[float]) -> Optional[bool]:
         if value is None:
@@ -266,8 +284,9 @@ LENDER_RULES = (
          note="Сколько портфеля банк списывает ежегодно. В хороший год низкая "
               "у всех — потому и средняя за цикл"),
     Rule("financial", "capital_core", "min", 8.0,
-         "в книге нет · норматив Н1.1", ours=True, lenient=True,
-         note="Основной капитал поглощает убытки первым. Величина на дату"),
+         "в книге нет · наша граница по Н1.1", ours=True, lenient=True,
+         note="Базовый капитал поглощает убытки первым. Величина на дату. "
+              "8% — наша граница отбора с запасом, а не норматив Банка России"),
     Rule("financial", "npl_ratio", "max", 8.0,
          "в книге нет · качество портфеля", ours=True, lenient=True),
 )
@@ -275,7 +294,8 @@ LENDER_RULES = (
 DEFENSIVE = (
     Rule("size", "revenue", "min", MIN_REVENUE,
          "гл. 14, критерий 1", ours=True,
-         note="Книжные 100 млн $ 1971 года в сегодняшних рублях"),
+         note="Книжные 100 млн $ 1971 года в сегодняшних рублях",
+         book_note="100 млн $ (1971)"),
     Rule("financial", "current_ratio", "min", 2.0,
          "гл. 14, критерий 2"),
     Rule("stability", "profitable_years", "all", None,

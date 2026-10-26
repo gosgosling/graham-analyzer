@@ -485,7 +485,7 @@ export interface FinancialReportCreate {
     deposits_corporate?: number | null;    // Средства юрлиц, млн
     risk_weighted_assets?: number | null;  // Активы, взвешенные по риску, млн
     capital_adequacy_ratio?: number | null; // Н1.0 общий / Total capital ratio, %
-    capital_adequacy_core?: number | null;  // Н1.1 / CET1 — основной капитал, %
+    capital_adequacy_core?: number | null;  // Н1.1 — базовый капитал, % (аналог CET1)
 
     // Денежные потоки (ОДДС) — для всех типов, кроме банков (для банков оставляют null)
     /** Операционный денежный поток (CF from operations), млн валюты */
@@ -546,7 +546,7 @@ export interface BankMetrics {
     loans_to_deposits: number | null;       // Чистые кредиты / средства клиентов, %
     cost_of_funding: number | null;         // Процентные расходы / средства клиентов, %
     capital_adequacy_ratio: number | null;  // Н1.0 общий, как раскрыл эмитент, %
-    capital_adequacy_core: number | null;   // Н1.1 / CET1 — основной капитал, %
+    capital_adequacy_core: number | null;   // Н1.1 — базовый капитал, % (аналог CET1)
     capital_to_rwa: number | null;          // Капитал / RWA, % — сверка Н1.0
     retail_loans_share: number | null;      // Доля розницы в портфеле, %
     retail_deposits_share: number | null;   // Доля физлиц в средствах клиентов, %

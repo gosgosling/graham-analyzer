@@ -60,3 +60,10 @@ test('P/E по возрастанию: дешёвые сверху', () => {
 test('без сортировки — исходный порядок', () => {
   expect(tickers(sortRows(ROWS, null, COLUMNS))).toBe('AAA BBB CCC DDD');
 });
+
+test('банковский показатель без своей колонки сортируется по своей клетке, меньшее — лучше', () => {
+  const bank = (ticker: string, cor: number) => row(ticker, cell('roe', 10), cell('cost_of_risk_average', cor), 0);
+  const banks = [bank('AAA', 1.8), bank('BBB', 0.9), bank('CCC', 1.2)];
+  expect(defaultDir('m:cost_of_risk_average', COLUMNS)).toBe('asc');
+  expect(tickers(sortRows(banks, { key: 'm:cost_of_risk_average', dir: 'asc' }, COLUMNS))).toBe('BBB CCC AAA');
+});

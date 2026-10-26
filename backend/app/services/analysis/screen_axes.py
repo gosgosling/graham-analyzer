@@ -1235,11 +1235,11 @@ def financial_position(mults: dict, reports: dict, is_lender: bool,
         return Axis(
             key="financial", label="Финансовое положение",
             metrics=(
-                Metric(key="capital_core", label="Достаточность основного капитала",
+                Metric(key="capital_core", label="Достаточность базового капитала",
                        unit="%", value=core, series=core_series, asof=core_asof,
-                       note="Н1.1 / CET1 — поглощает убытки первым. "
+                       note="Н1.1 — базовый капитал, поглощает убытки первым. "
                             "Величина на дату: средняя достаточность бессмысленна"),
-                Metric(key="capital_adequacy", label="Достаточность капитала, Н1.0",
+                Metric(key="capital_adequacy", label="Достаточность собственных средств, Н1.0",
                        unit="%", value=_last(adequacy), series=adequacy,
                        asof=(None if _year(adequacy) is None
                              else str(_year(adequacy)))),

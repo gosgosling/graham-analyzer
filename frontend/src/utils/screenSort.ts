@@ -24,11 +24,16 @@ export const metricKey = (metric: string): SortKey => `m:${metric}`;
 const lowerIsBetter = (column: MarketColumn | undefined): boolean =>
   Boolean(column && (column.applied_text ?? column.book_text ?? '').trim().startsWith('≤'));
 
+/** Банковские показатели без своей колонки (см. `swappedHead`), где лучше меньшее. */
+const LOWER_IS_BETTER = new Set(['cost_of_risk_average', 'npl_ratio', 'cost_to_income_average']);
+
 export function defaultDir(key: SortKey, columns: readonly MarketColumn[]): SortDir {
   if (key === 'company') return 'asc';
   if (key.startsWith('m:')) {
     const metric = key.slice(2);
-    return lowerIsBetter(columns.find((c) => c.metric === metric)) ? 'asc' : 'desc';
+    const column = columns.find((c) => c.metric === metric);
+    if (!column) return LOWER_IS_BETTER.has(metric) ? 'asc' : 'desc';
+    return lowerIsBetter(column) ? 'asc' : 'desc';
   }
   return 'desc';
 }
@@ -50,7 +55,9 @@ function valueOf(row: MarketRow, key: SortKey, columns: readonly MarketColumn[])
   if (key.startsWith('m:')) {
     const metric = key.slice(2);
     const i = columns.findIndex((c) => c.metric === metric);
-    const cell = i >= 0 ? row.cells[i] : null;
+    // Банковский показатель своей колонки не имеет: когда таблица отфильтрована
+    // до банков, сортировка по нему ищет его клетку в строке.
+    const cell = i >= 0 ? row.cells[i] : row.cells.find((c) => c?.metric === metric) ?? null;
     // Банковский показатель в чужой колонке (достаточность капитала вместо
     // ликвидности) с остальными числами несравним — в конец.
     if (!cell || cell.metric !== metric || cell.value === null) return null;

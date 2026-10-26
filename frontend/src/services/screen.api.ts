@@ -161,6 +161,9 @@ export interface MarketRow {
   checked: number;
   clears: boolean;
   complete: boolean;
+  /** Отчётность проверена (все годовые сверены, аудит без дефектов). В
+   *  расширенной выборке непроверенные строки помечаются. */
+  verified?: boolean;
   /** Сигнал о цене. Пусто, когда оценка отказана или считать не из чего. */
   safety: RowSafety | null;
   cells: (Verdict | null)[];
@@ -195,6 +198,8 @@ export interface MarketScreenOut {
   rows: MarketRow[];
   summary: {
     total: number;
+    /** Сколько из `total` с проверенной отчётностью. */
+    verified?: number;
     cleared: number;
     fails: Record<string, number>;
   };

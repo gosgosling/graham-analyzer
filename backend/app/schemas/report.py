@@ -215,7 +215,7 @@ class ReportFigures(BaseModel):
     # Достаточность капитала — ограничитель роста и дивидендов банка.
     risk_weighted_assets: Optional[float] = None     # Активы, взвешенные по риску, млн
     capital_adequacy_ratio: Optional[float] = None   # Н1.0 общий / Total capital ratio, %
-    capital_adequacy_core: Optional[float] = None    # Н1.1 / CET1 — основной капитал, %
+    capital_adequacy_core: Optional[float] = None    # Н1.1 — базовый капитал, % (аналог CET1)
 
     # ─── Денежные потоки (ОДДС) ───────────────────────────────────────────────
     # Для банков FCF концептуально неприменим, поля оставляем None.

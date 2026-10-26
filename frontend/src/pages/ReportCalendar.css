@@ -70,6 +70,17 @@
   text-align: center;
   color: var(--color-text-tertiary);
 }
+.cal-empty p { margin: 0 0 8px; }
+.cal-empty b { color: var(--color-text-primary); font-weight: 600; }
+.cal-more {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--color-text-link);
+  cursor: pointer;
+}
+.cal-more:hover { text-decoration: underline; }
 
 .cal-list {
   display: flex;
