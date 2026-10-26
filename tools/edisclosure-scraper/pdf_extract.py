@@ -59,6 +59,26 @@ def _collect_pdfs(root: Path) -> list[Path]:
     return out
 
 
+def _unpack(archive: Path, into: Path) -> None:
+    """Распаковать архив раскрытия. Обычно это zip, но e-disclosure отдаёт и
+    RAR под тем же именем: у Русснефти полугодия 2025 и 2026 — «Rar!» внутри
+    `*_consolidated.zip`. Такой архив распаковывает 7z, если он установлен."""
+    if zipfile.is_zipfile(archive):
+        with zipfile.ZipFile(archive, "r") as zf:
+            zf.extractall(into)
+        return
+    with archive.open("rb") as handle:
+        head = handle.read(8)
+    seven = shutil.which("7z") or shutil.which("7za")
+    if head.startswith(b"Rar!") and seven:
+        import subprocess
+
+        subprocess.run([seven, "x", "-y", f"-o{into}", str(archive)],
+                       check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return
+    raise zipfile.BadZipFile("File is not a zip file")
+
+
 def extract_main_pdf_from_zip(
     zip_path: Path,
     ticker: str,
@@ -85,8 +105,7 @@ def extract_main_pdf_from_zip(
     try:
         with tempfile.TemporaryDirectory(prefix="edisclosure_") as tmp:
             tmp_path = Path(tmp)
-            with zipfile.ZipFile(zip_path, "r") as zf:
-                zf.extractall(tmp_path)
+            _unpack(zip_path, tmp_path)
 
             pdfs = _collect_pdfs(tmp_path)
             if not pdfs:
@@ -109,7 +128,7 @@ def extract_main_pdf_from_zip(
     except zipfile.BadZipFile as exc:
         logger.error("[%s %s] Повреждённый zip %s: %s", ticker, key, zip_path, exc)
         return None
-    except OSError as exc:
+    except (OSError, __import__("subprocess").CalledProcessError) as exc:
         logger.error("[%s %s] Ошибка при распаковке %s: %s", ticker, key, zip_path, exc)
         return None
 
