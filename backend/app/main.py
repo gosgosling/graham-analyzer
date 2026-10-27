@@ -52,8 +52,13 @@ from app.utils.admin_guard import AdminGuardMiddleware, SecurityHeadersMiddlewar
 from app.utils.http_cache import ETagMiddleware  # noqa: E402
 from starlette.middleware.gzip import GZipMiddleware  # noqa: E402
 
-# ETag — самая внутренняя: хэш считается по несжатому телу и только для
-# запросов, прошедших проверку доступа.
+from app.utils.public_text import PublicTextMiddleware  # noqa: E402
+
+# Очистка служебных пометок для гостя — внутри ETag, чтобы хэш считался по
+# тому телу, которое гость и получит (см. public_text.py).
+app.add_middleware(PublicTextMiddleware)
+# ETag: хэш считается по несжатому телу и только для запросов, прошедших
+# проверку доступа.
 app.add_middleware(ETagMiddleware)
 app.add_middleware(AdminGuardMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)

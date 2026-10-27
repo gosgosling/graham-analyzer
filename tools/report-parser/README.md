@@ -85,7 +85,7 @@ LLM_MODEL=qwen2.5:7b
 LLM_PROVIDER=openrouter
 LLM_BASE_URL=https://openrouter.ai/api/v1
 LLM_API_KEY=sk-or-...
-LLM_MODEL=anthropic/claude-3.5-haiku
+LLM_MODEL=qwen/qwen-2.5-72b-instruct
 ```
 
 ## Как работает «умный выбор страниц»
