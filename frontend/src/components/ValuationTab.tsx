@@ -12,6 +12,7 @@ import {
 } from '../services/valuation.api';
 import { formatPerShare } from '../utils/perShare';
 import { sandboxMultiple, type Sandbox } from '../utils/sandboxValuation';
+import { yearsWord } from '../utils/freshness';
 import InfoTip from './InfoTip';
 import './ValuationTab.css';
 
@@ -293,6 +294,16 @@ function buildChecks(data: CompanyValuationOut): Check[] {
   // Сокращённая отчётность: денег и долга в отчёте нет. Касса в оценке не
   // обнулена, а оценена снизу — и это надо сказать, раз она заметная часть
   // опорной.
+  // Касса, которую компания годами не возвращает: в оценку не прибавлена.
+  if (data.cash_locked) {
+    checks.push({
+      tone: 'warn',
+      title: `Касса ${rub(data.cash_locked.per_share)} на акцию не прибавлена к оценке`,
+      detail: `${yearsWord(data.cash_locked.years)} подряд нет ни дивидендов, ни выкупа акций: деньги копятся, `
+        + 'но до акционеров не доходят. Опорная — оценка одного бизнеса. На истории такие случаи '
+        + 'дешевле опорной с кассой дальше не росли: рынок оценивал их дешевле их денег.',
+    });
+  }
   if (data.net_cash_estimated && data.net_cash_per_share) {
     checks.push({
       tone: 'warn',

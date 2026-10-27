@@ -2,14 +2,16 @@ import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { fetchPassport, type PassportOut, type ScreenStatus, type Verdict } from '../services/screen.api';
 import {
+  fetchSignalStudy,
   fetchValuationHistory,
   fetchValuationSummary,
+  type SignalStudyOut,
   type SafetySignal,
   type ValuationHistoryOut,
   type ValuationSummaryOut,
 } from '../services/valuation.api';
 import { formatPerShare } from '../utils/perShare';
-import { freshnessOf, type Freshness } from '../utils/freshness';
+import { freshnessOf, plural, type Freshness, yearsWord } from '../utils/freshness';
 import { LIVE_PRICE_REFRESH_MS, LIVE_PRICE_STALE_MS } from '../services/prices.api';
 import './CompanyVerdict.css';
 
@@ -81,7 +83,7 @@ function axisState(verdicts: Verdict[], axis: string): AxisState {
   return 'pass';
 }
 
-type PriceCase = 'cheap' | 'thin' | 'fair' | 'dear' | 'bond' | 'danger' | 'none';
+type PriceCase = 'cheap' | 'thin' | 'fair' | 'dear' | 'bond' | 'danger' | 'trap' | 'none';
 
 /**
  * Сигнал цены в словах фразы. «Сигнала нет» бэкенд ставит и тогда, когда
@@ -96,6 +98,7 @@ function priceCase(signal: SafetySignal | undefined, margin: number | null): Pri
     case 'expensive': return 'dear';
     case 'bond_better': return 'bond';
     case 'dangerous': return 'danger';
+    case 'trap': return 'trap';
     default:
       if (margin === null) return 'none';
       if (margin >= 1 / 3) return 'cheap';
@@ -109,6 +112,9 @@ type Quality = 'strong' | 'weak' | 'unknown';
 
 function headline(quality: Quality, price: PriceCase, margin: number | null): string {
   if (price === 'danger') return 'Опасная компания: долг способен стереть владельца';
+  // Запас по оценке есть, но рынок годами платит меньше половины баланса —
+  // это слово сильнее «дёшево»: сначала выяснить почему.
+  if (price === 'trap') return 'Похоже на ловушку стоимости';
   if (quality === 'strong') {
     switch (price) {
       case 'cheap': return 'Сильная компания с запасом прочности';
@@ -165,6 +171,8 @@ export interface VerdictData {
   passport: PassportOut | undefined;
   /** Свежесть оценки: на каком отчёте она держится, сколько ему и куда с тех пор ушла цена. */
   freshness: Freshness | null;
+  /** Сколько месяцев подряд цена ниже опорной на треть — и что на истории было с такими дальше. */
+  disagreement: { months: number; median: number | null; n: number } | null;
 }
 
 /** Всё, что карточка говорит о компании, — одним расчётом для шапки и боковой колонки. */
@@ -184,6 +192,12 @@ export function useCompanyVerdict(companyId: number): VerdictData {
     queryKey: ['valuation-history', companyId],
     queryFn: () => fetchValuationHistory(companyId),
     staleTime: 10 * 60 * 1000,
+    enabled,
+  });
+  const { data: study } = useQuery<SignalStudyOut>({
+    queryKey: ['signal-study'],
+    queryFn: fetchSignalStudy,
+    staleTime: 60 * 60 * 1000,
     enabled,
   });
   const { data: passport, isLoading: passportLoading } = useQuery<PassportOut>({
@@ -233,7 +247,7 @@ export function useCompanyVerdict(companyId: number): VerdictData {
   let lede: string;
   if (!available) {
     lede = sentence(summary?.band?.reason ?? summary?.reason ?? 'Для оценки не хватает данных.');
-  } else if (pc === 'danger' || pc === 'bond') {
+  } else if (pc === 'danger' || pc === 'bond' || pc === 'trap') {
     lede = sentence(safety?.reason ?? '');
   } else if (pc === 'dear' && priceAxis?.state === 'pass' && margin !== null && riskFree !== null && required !== null) {
     lede = `По книжным порогам Грэма акция дешёвая. Но при доходности ОФЗ ${rate(riskFree)}% `
@@ -270,10 +284,17 @@ export function useCompanyVerdict(companyId: number): VerdictData {
       : null,
     marginTone: pc === 'cheap' || pc === 'thin'
       ? 'good'
-      : pc === 'dear' || pc === 'bond' || pc === 'danger' ? 'bad' : 'neutral',
+      : pc === 'dear' || pc === 'bond' || pc === 'danger' ? 'bad' : pc === 'trap' ? 'warn' : 'neutral',
     summary,
     passport,
     freshness: available ? freshnessOf(history?.basis, price) : null,
+    disagreement: (() => {
+      const months = history?.discount_months ?? 0;
+      // С четырёх месяцев: короче — обычное колебание вокруг ступени отчёта.
+      if (!available || months < 4) return null;
+      const long = study?.by_streak?.find((g) => g.key === (months >= 12 ? 'long' : 'middle'));
+      return { months, median: long?.median ?? null, n: long?.n ?? 0 };
+    })(),
   };
 }
 
@@ -302,6 +323,33 @@ function attentionNotes(verdict: VerdictData, oneOffs: OneOffs): React.ReactNode
           Дёшево по меркам Грэма, но рынок {summary.trap_level === 'likely' ? 'годами ' : ''}не соглашается
           с балансом. Прежде чем верить запасу, выясните, кто контролирует компанию и как она делится
           деньгами с миноритариями.
+        </small>
+      </li>,
+    );
+  }
+  if (verdict.disagreement) {
+    const { months, median, n } = verdict.disagreement;
+    notes.push(
+      <li key="disagreement" className={`ca-note ca-note--${months >= 12 ? 'warn' : ''}`.trim()}>
+        <span>Дешевле опорной на треть и больше уже {months} мес. подряд — рынок не соглашается с оценкой.</span>
+        {median !== null && (
+          <small>
+            На истории базы бумаги, дешёвые {months >= 12 ? 'год и дольше' : '4–11 месяцев подряд'}, за следующий год
+            в медиане изменились на {median >= 0 ? '+' : '−'}{Math.abs(Math.round(median * 1000) / 10).toLocaleString('ru-RU')}%
+            ({n} {plural(n, ['наблюдение', 'наблюдения', 'наблюдений'])}, без дивидендов). Проверка — на странице
+            «Как считается стоимость».
+          </small>
+        )}
+      </li>,
+    );
+  }
+  if (summary?.cash_locked) {
+    notes.push(
+      <li key="cash-locked" className="ca-note ca-note--warn">
+        <span>Касса {rub(summary.cash_locked.per_share)} на акцию в оценку не прибавлена.</span>
+        <small>
+          {yearsWord(summary.cash_locked.years)} подряд компания не платит дивиденды и не выкупает акции: деньги
+          копятся, но до акционеров не доходят.
         </small>
       </li>,
     );

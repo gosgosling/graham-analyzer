@@ -6,6 +6,8 @@ import type { Company } from '../types';
 import CompanyLogo from './CompanyLogo';
 import { marginText, SIGNAL_SHORT } from './SafetyMargin';
 import { SECTOR_RU } from '../utils/sectors';
+import { getCompanyTable } from '../services/companies.api';
+import { money } from './CompaniesTable';
 import './CompanyMobileList.css';
 
 /**
@@ -21,10 +23,12 @@ import './CompanyMobileList.css';
  * пишем, а не прячем их.
  */
 
-type Sort = 'safety' | 'pe' | 'name';
+type Sort = 'safety' | 'cap' | 'revenue' | 'pe' | 'name';
 
 const SORTS: { key: Sort; label: string }[] = [
   { key: 'safety', label: 'Запас прочности' },
+  { key: 'cap', label: 'Капитализация' },
+  { key: 'revenue', label: 'Выручка' },
   { key: 'pe', label: 'P/E' },
   { key: 'name', label: 'Название' },
 ];
@@ -35,7 +39,7 @@ const SORTS: { key: Sort; label: string }[] = [
  */
 const arrow = (key: Sort, reversed: boolean): string => {
   if (key === 'name') return reversed ? ' Я→А' : ' А→Я';
-  const down = key === 'safety' ? !reversed : reversed;
+  const down = key === 'safety' || key === 'cap' || key === 'revenue' ? !reversed : reversed;
   return down ? ' ↓' : ' ↑';
 };
 
@@ -65,6 +69,15 @@ export default function CompanyMobileList({ companies }: { companies: Company[] 
     staleTime: 5 * 60 * 1000,
   });
 
+  // Капитализация и выручка — из таблицы компаний: тот же запрос, что у
+  // таблицы на компьютере.
+  const { data: table } = useQuery({
+    queryKey: ['companies-table'],
+    queryFn: getCompanyTable,
+    staleTime: 5 * 60 * 1000,
+  });
+  const facts = useMemo(() => new Map((table?.rows ?? []).map((r) => [r.id, r])), [table]);
+
   const rows = useMemo(() => {
     const byId = new Map((data?.rows ?? []).map((r) => [r.id, r]));
     const items = companies.map((c) => ({ company: c, row: c.id ? byId.get(c.id) : undefined }));
@@ -74,15 +87,22 @@ export default function CompanyMobileList({ companies }: { companies: Company[] 
       if (sort === 'name') return dir * name(a).localeCompare(name(b), 'ru');
       // Без оценки — в конец при любом числовом порядке: «нет данных» не
       // самое дешёвое и не самое дорогое.
-      const va = sort === 'safety' ? a.row?.safety?.value_margin ?? null : peOf(a.row, data);
-      const vb = sort === 'safety' ? b.row?.safety?.value_margin ?? null : peOf(b.row, data);
+      const value = (x: (typeof items)[number]): number | null => {
+        const f = x.company.id ? facts.get(x.company.id) : undefined;
+        if (sort === 'safety') return x.row?.safety?.value_margin ?? null;
+        if (sort === 'cap') return f?.market_cap ?? null;
+        if (sort === 'revenue') return f?.revenue ?? null;
+        return peOf(x.row, data);
+      };
+      const va = value(a);
+      const vb = value(b);
       if (va === null && vb === null) return name(a).localeCompare(name(b), 'ru');
       if (va === null) return 1;
       if (vb === null) return -1;
-      return dir * (sort === 'safety' ? vb - va : va - vb);
+      return dir * (sort === 'pe' ? va - vb : vb - va);
     });
     return items;
-  }, [companies, data, sort, reversed]);
+  }, [companies, data, facts, sort, reversed]);
 
   return (
     <div className="cml">
@@ -100,9 +120,12 @@ export default function CompanyMobileList({ companies }: { companies: Company[] 
           const pe = peOf(row, data);
           const sector = row?.profile_label?.split(' / ')[0]
             ?? (company.sector ? SECTOR_RU[company.sector] ?? company.sector : null);
+          const f = company.id ? facts.get(company.id) : undefined;
           const meta = [
             sector,
             safety?.price != null ? `${ru(safety.price, safety.price < 100 ? 2 : 0)} ₽` : null,
+            sort === 'cap' && f?.market_cap != null ? `кап. ${money(f.market_cap)}` : null,
+            sort === 'revenue' && f?.revenue != null ? `выручка ${money(f.revenue)}` : null,
             pe !== null ? `P/E ${ru(pe)}` : null,
           ].filter(Boolean).join(' · ');
           return (

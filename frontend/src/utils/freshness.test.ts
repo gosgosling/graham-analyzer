@@ -17,3 +17,12 @@ test('оценка по «12 месяцам» после полугодия — 
 test('без основы строки нет', () => {
   expect(freshnessOf(null, 100, today)).toBeNull();
 });
+
+test('слова по числу', () => {
+  const { plural, yearsWord } = jest.requireActual('./freshness');
+  expect(plural(182, ['наблюдение', 'наблюдения', 'наблюдений'])).toBe('наблюдения');
+  expect(plural(111, ['наблюдение', 'наблюдения', 'наблюдений'])).toBe('наблюдений');
+  expect(yearsWord(4)).toBe('4 года');
+  expect(yearsWord(5)).toBe('5 лет');
+  expect(yearsWord(21)).toBe('21 год');
+});

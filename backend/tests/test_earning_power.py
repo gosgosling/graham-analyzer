@@ -875,3 +875,34 @@ def test_раскрытая_касса_не_подменяется_оценко�
         current_assets=100.0, total_liabilities=10.0, currency="RUB", exchange_rate=None,
     )
     assert _undisclosed_cash(report, (50.0, 5.0, 0.0)) is None
+
+
+# ── Запертая касса ─────────────────────────────────────────────────────────
+
+def test_касса_заперта_после_трёх_лет_без_выплат_и_выкупа():
+    """Юнипро: дивидендов нет с 2021 года, касса копится — к оценке не прибавляется."""
+    from app.services.analysis.earning_power import YearPoint, analyze, cash_locked
+
+    def point(year, dps, cash=1.45):
+        return YearPoint(year=year, eps=0.5, roe=15.0, book_value_per_share=3.5,
+                         dividends_per_share=dps, shares_normalized=63.0e9, net_cash_per_share=cash)
+
+    silent = [point(2019, 0.22), point(2020, 0.24), point(2021, 0.19),
+              point(2022, None), point(2023, None), point(2024, None), point(2025, None)]
+    assert cash_locked(silent) == 4
+    power = analyze(silent)
+    assert power.net_cash_per_share == 0.0
+    assert power.locked_cash_per_share == 1.45 and power.locked_years == 4
+
+    # Платит хотя бы раз за три года — касса его.
+    paying = silent[:-1] + [point(2025, 0.10)]
+    assert cash_locked(paying) == 0
+    assert analyze(paying).net_cash_per_share == 1.45
+
+
+def test_выкуп_акций_тоже_возврат_денег():
+    from app.services.analysis.earning_power import YearPoint, cash_locked
+
+    points = [YearPoint(year=y, eps=1.0, dividends_per_share=None, shares_normalized=s, net_cash_per_share=10.0)
+              for y, s in ((2023, 100.0), (2024, 97.0), (2025, 95.0))]
+    assert cash_locked(points) == 0

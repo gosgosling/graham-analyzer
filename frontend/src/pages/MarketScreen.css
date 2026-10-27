@@ -419,6 +419,8 @@
 .ms-safety--fair       { color: var(--color-text-secondary); }
 .ms-safety--expensive  { color: var(--color-warning-text); }
 .ms-safety--bond_better { background: var(--color-error-soft); color: var(--color-error-text); }
+/* Похоже на ловушку: дёшево по оценке, но признаки сильные — не зелёный. */
+.ms-safety--trap { background: var(--color-warning-soft); color: var(--color-warning-text); }
 
 /* Опасная — единственное состояние, которое говорит не о цене, а о компании.
    Оформлена как «облигация выгоднее»: мягкая заливка ошибки, а не сплошная.
@@ -558,7 +560,7 @@
 .sc-margin b { display: block; font-family: var(--font-mono); font-weight: 500; font-size: 16px; }
 .sc-margin i { display: block; font-style: normal; font-size: 13px; opacity: 0.85; }
 /* Запас прочности — цвет текстом, без заливки: здесь не таблица, а строка. */
-.sc-margin.ms-safety--favourable, .sc-margin.ms-safety--bond_better, .sc-margin.ms-safety--dangerous { background: none; }
+.sc-margin.ms-safety--favourable, .sc-margin.ms-safety--bond_better, .sc-margin.ms-safety--dangerous, .sc-margin.ms-safety--trap { background: none; }
 .sc-margin--none { color: var(--color-text-tertiary); }
 
 .sc-empty { margin: 12px 0 0; color: var(--color-text-tertiary); font-size: 16px; }
@@ -708,6 +710,7 @@
   .smb-tile--safety.ms-safety--favourable { background: var(--color-success-soft); }
   .smb-tile--safety.ms-safety--bond_better,
   .smb-tile--safety.ms-safety--dangerous { background: var(--color-error-soft); }
+  .smb-tile--safety.ms-safety--trap { background: var(--color-warning-soft); }
 
   /* Переключатель: «защитный / активный» — вкладки, режимы — отдельной строкой
      кнопками. В одну строку шесть надписей не помещались и уезжали за край. */

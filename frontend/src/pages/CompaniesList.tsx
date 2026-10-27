@@ -1,11 +1,13 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import CompanyMobileList from '../components/CompanyMobileList';
+import CompaniesTable from '../components/CompaniesTable';
 import SelectSheet from '../components/SelectSheet';
 import { sectorRu } from '../utils/sectors';
 import { useNavigate } from 'react-router-dom';
 import {
   getCompanies,
+  getCompanyTable,
   createFinancialReport,
   getCompanyReports,
   updateFinancialReport,
@@ -65,6 +67,14 @@ const CompaniesList: React.FC = () => {
     },
   });
 
+  // Таблица с рыночными и отчётными показателями — вид по умолчанию; прежняя
+  // служебная (ISIN, лот, отчёты под строкой) осталась у администратора.
+  const { data: table } = useQuery({
+    queryKey: ['companies-table'],
+    queryFn: getCompanyTable,
+    staleTime: 5 * 60 * 1000,
+  });
+  const [serviceView, setServiceView] = useState(false);
   const { data: companies, isLoading, error } = useQuery({
     queryKey: ['companies'],
     queryFn: getCompanies
@@ -211,6 +221,8 @@ const CompaniesList: React.FC = () => {
     });
     return sorted;
   }, [companies, search, sectorFilter, reportsFilter, sortMode, reportCounts]);
+  // Фильтры над таблицей (поиск, сектор, отчёты) — общие для обоих видов.
+  const visibleIds = useMemo(() => new Set(visibleCompanies.map((c) => c.id)), [visibleCompanies]);
 
   if (isLoading) {
     return (
@@ -229,82 +241,94 @@ const CompaniesList: React.FC = () => {
   }
 
   return (
-    <div className="securities-container">
-      <h1 className="securities-title">
-        <span className="cmp-title-full">Российские компании Мосбиржи</span>
-        <span className="cmp-title-short">Компании</span>
-      </h1>
-      <div className="companies-toolbar">
+    <div className="securities-container cl-page">
+      {/* Шапка и фильтры — как у скринера: заголовок, строка вкладок и одна
+          строка поиска. Прежний блок фильтров занимал полэкрана карточкой. */}
+      <header className="cl-head">
+        <h1>Компании</h1>
+        <p className="cl-lede">
+          {companies?.length ?? 0} компаний Мосбиржи: цена, размер, прибыль и долг — сортировка по любому столбцу
+        </p>
+      </header>
+      <div className="cl-bar">
+        <div className="cl-tabs" role="group" aria-label="Отчёты">
+          {([
+            ['all', 'Все'],
+            ['with', 'С отчётами'],
+            ['without', 'Без отчётов'],
+          ] as const).map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              className={`cl-tab${reportsFilter === key ? ' is-on' : ''}`}
+              aria-pressed={reportsFilter === key}
+              onClick={() => setReportsFilter(key)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <span className="cl-gap" />
         <input
           type="search"
-          className="companies-search"
+          className="cl-search"
           placeholder="Название или тикер"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           aria-label="Поиск компаний"
         />
-        <div className="companies-toolbar-row">
-          <div className="companies-filter-group">
-            <span className="companies-filter-label">Отчёты:</span>
-            <div className="companies-pills">
-              {([
-                ['all', 'Все'],
-                ['with', 'С отчётами'],
-                ['without', 'Без отчётов'],
-              ] as const).map(([key, label]) => (
-                <button
-                  key={key}
-                  type="button"
-                  className={`companies-pill${reportsFilter === key ? ' active' : ''}`}
-                  onClick={() => setReportsFilter(key)}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="companies-filter-group companies-filter-selects">
-            <label className="companies-select-wrap">
-              <span>Сектор</span>
-              <SelectSheet
-                label="Сектор"
-                value={sectorFilter}
-                onChange={setSectorFilter}
-                options={[
-                  { value: '', label: 'Все сектора', count: companies?.length },
-                  ...[...sectorOptions].sort((a, b) => (sectorRu(a) ?? a).localeCompare(sectorRu(b) ?? b, 'ru')).map((sec) => ({
-                    value: sec,
-                    label: sectorRu(sec) ?? sec,
-                    count: companies?.filter((c) => (c.sector?.trim() || '') === sec).length,
-                  })),
-                ]}
-              />
-            </label>
-            <label className="companies-select-wrap companies-sort-select">
-              <span>Сортировка</span>
-              <select
-                value={sortMode}
-                onChange={(e) =>
-                  setSortMode(e.target.value as typeof sortMode)
-                }
-              >
-                <option value="ticker">Тикер (А→Я)</option>
-                <option value="name">Название</option>
-                <option value="sector">Сектор</option>
-                <option value="reports_desc">Число отчётов (сначала больше)</option>
-                <option value="reports_asc">Число отчётов (сначала меньше)</option>
-              </select>
-            </label>
-          </div>
-        </div>
-        <p className="companies-toolbar-meta">
-          Показано{' '}
-          <strong>{visibleCompanies.length}</strong>
-          {' '}из {companies?.length ?? 0} компаний
-        </p>
+        <SelectSheet
+          className="cl-sector"
+          label="Сектор"
+          value={sectorFilter}
+          onChange={setSectorFilter}
+          options={[
+            { value: '', label: 'Все сектора', count: companies?.length },
+            ...[...sectorOptions].sort((a, b) => (sectorRu(a) ?? a).localeCompare(sectorRu(b) ?? b, 'ru')).map((sec) => ({
+              value: sec,
+              label: sectorRu(sec) ?? sec,
+              count: companies?.filter((c) => (c.sector?.trim() || '') === sec).length,
+            })),
+          ]}
+        />
+        {/* В таблице показателей сортируют заголовки; выпадающий список нужен
+            только служебному виду. */}
+        {serviceView && (
+          <select
+            className="cl-sort"
+            aria-label="Сортировка"
+            value={sortMode}
+            onChange={(e) => setSortMode(e.target.value as typeof sortMode)}
+          >
+            <option value="ticker">Тикер (А→Я)</option>
+            <option value="name">Название</option>
+            <option value="sector">Сектор</option>
+            <option value="reports_desc">Число отчётов (сначала больше)</option>
+            <option value="reports_asc">Число отчётов (сначала меньше)</option>
+          </select>
+        )}
+        {isAdmin && (
+          <button type="button" className="cl-service companies-table-desktop" onClick={() => setServiceView((v) => !v)}>
+            {serviceView ? 'Показатели' : 'Служебный вид'}
+          </button>
+        )}
       </div>
-      {/* На телефоне — список строками; таблица с ISIN и лотом не помещается. */}
+      {(search || sectorFilter || reportsFilter !== 'all') && (
+        <p className="cl-count">
+          Показано <b>{visibleCompanies.length}</b> из {companies?.length ?? 0}
+        </p>
+      )}
+      {/* На телефоне — список строками; таблица не помещается. */}
       <CompanyMobileList companies={visibleCompanies} />
+      {!serviceView && table && (
+        <div className="companies-table-desktop">
+          <CompaniesTable
+            rows={table.rows.filter((r) => visibleIds.has(r.id))}
+            asof={table.asof}
+          />
+        </div>
+      )}
+      {serviceView && (
       <div className="table-wrapper companies-table-desktop">
         <table className="securities-table companies-expandable-table">
           <thead>
@@ -420,7 +444,8 @@ const CompaniesList: React.FC = () => {
           </tbody>
         </table>
       </div>
-      
+      )}
+
       {selectedReport && (
         <ReportDetailModal
           report={selectedReport}

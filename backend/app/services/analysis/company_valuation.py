@@ -41,7 +41,7 @@ from app.services.analysis.market_multiple import (
     implied_growth,
     sustainable_growth,
 )
-from app.services.analysis.margin_of_safety import assess_safety
+from app.services.analysis.margin_of_safety import ACCEPTABLE, FAIR, FAVOURABLE, TRAP, assess_safety
 from app.services.analysis.valuation_guards import StructureVerdict
 
 # ── Надбавки к премии за риск, процентных пунктов ──────────────────────────
@@ -1488,6 +1488,21 @@ def assess(
         band.growth,
     )
 
+    # Ловушка сильнее слова «дёшево». Пока признаки только показывались рядом,
+    # заголовок карточки оставался «Дёшево…», а клетка в скринере — зелёной, и
+    # инвестор видел запас раньше предупреждения. При сильных признаках
+    # (дисконт к балансу держится годами) сигнал называет ловушку сам; запас
+    # остаётся числом рядом.
+    level = trap_level(signs)
+    if level == TRAP_LIKELY and safety.signal in (FAVOURABLE, ACCEPTABLE, FAIR):
+        safety.signal = TRAP
+        margin = safety.value_margin
+        safety.reason = (
+            (f"цена ниже опорной оценки на {margin:.0%}, но " if margin and margin > 0 else "")
+            + "рынок годами платит меньше половины баланса — выясните почему, "
+              "прежде чем верить запасу"
+        )
+
     return {
         "available": True,
         "window": window,
@@ -1506,6 +1521,12 @@ def assess(
         # оценке осторожная: не больше прошлогодней и не больше оборотных
         # активов за вычетом всех обязательств.
         "net_cash_estimated": bool(net_cash) and bool(getattr(power, "net_cash_estimated", False)),
+        # Касса, которая не доходит до акционеров: не платят и не выкупают
+        # несколько лет подряд. В оценку не прибавлена — см. `cash_locked`.
+        "cash_locked": (
+            {"per_share": round(power.locked_cash_per_share, 2), "years": power.locked_years}
+            if getattr(power, "locked_cash_per_share", 0) else None
+        ),
         "business_price": (
             round(business_price, 2) if net_cash and business_price else None
         ),
@@ -1520,7 +1541,7 @@ def assess(
         # Признаки ловушки стоимости — сведены для предупреждения на первом
         # экране. На расчёт не влияют: см. `trap_signs`.
         "trap_signs": signs,
-        "trap_level": trap_level(signs),
+        "trap_level": level,
         "distortion": distortion,
         # Средняя остаётся рядом: расхождение с трендом показывает, насколько
         # сильно ряд движется, и его надо видеть, а не прятать за выбором.

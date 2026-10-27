@@ -52,6 +52,39 @@ export const getCompanies = async (): Promise<Company[]> => {
     }
 };
 
+/** Строка таблицы «Компании»: рыночные и отчётные показатели. Деньги — млн ₽. */
+export interface CompanyTableRow {
+    id: number;
+    ticker: string;
+    name: string;
+    logo_url: string | null;
+    sector: string | null;
+    /** Отчётность сверена — те же компании, что в скринере и обзоре рынка. */
+    verified: boolean;
+    has_reports: boolean;
+    price: number | null;
+    /** Изменение к вчерашнему закрытию, доля. */
+    change: number | null;
+    market_cap: number | null;
+    revenue: number | null;
+    net_income: number | null;
+    assets: number | null;
+    equity: number | null;
+    net_debt: number | null;
+    pe: number | null;
+    pb: number | null;
+    dividend_yield: number | null;
+    roe: number | null;
+}
+
+export interface CompanyTableOut {
+    asof: string;
+    rows: CompanyTableRow[];
+}
+
+export const getCompanyTable = async (): Promise<CompanyTableOut> =>
+    (await api.get<CompanyTableOut>('/companies/table')).data;
+
 export const getCompanyById = async (companyId: number): Promise<Company> => {
     try {
         const response = await api.get<Company>(`/companies/${companyId}`);

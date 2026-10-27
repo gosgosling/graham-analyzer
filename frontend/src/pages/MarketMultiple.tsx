@@ -1,9 +1,12 @@
 import React, { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
+  fetchSignalStudy,
   getMarketMultiple,
   type MarketMultipleOut,
   type PayoutRung,
+  type SignalStudyOut,
+  type StudyGroup,
 } from '../services/valuation.api';
 import { useAdmin } from '../hooks/useAdmin';
 import './MarketMultiple.css';
@@ -704,6 +707,9 @@ function Content({ data }: { data: MarketMultipleOut }) {
         </p>
       </section>
 
+      {/* ── Проверка на истории ────────────────────────────────────────── */}
+      <SignalStudy />
+
       {/* ── Честность ──────────────────────────────────────────────────── */}
       <section className="mm-block mm-block--honesty">
         <h2>Что здесь факт, а что суждение</h2>
@@ -756,6 +762,113 @@ function Content({ data }: { data: MarketMultipleOut }) {
         </div>
       </section>
     </div>
+  );
+}
+
+const signed = (v: number | null) => (v === null ? '—'
+  : `${v >= 0 ? '+' : '−'}${Math.abs(Math.round(v * 1000) / 10).toLocaleString('ru-RU')}%`);
+
+function StudyTable({ groups, caption }: { groups: StudyGroup[]; caption: string }) {
+  return (
+    <table className="mm-table mm-study">
+      <caption className="mm-study-caption">{caption}</caption>
+      <thead>
+        <tr>
+          <th scope="col">Что показывала модель</th>
+          <th scope="col" className="mm-num">Наблюдений</th>
+          <th scope="col" className="mm-num">Компаний</th>
+          <th scope="col" className="mm-num">Цена через год, медиана</th>
+          <th scope="col" className="mm-num">Росла в доле случаев</th>
+        </tr>
+      </thead>
+      <tbody>
+        {groups.map((g) => (
+          <tr key={g.key}>
+            <td>{g.name}</td>
+            <td className="mm-num">{g.n.toLocaleString('ru-RU')}</td>
+            <td className="mm-num">{g.companies}</td>
+            <td className={`mm-num ${g.median !== null && g.median > 0 ? 'mm-study-up' : g.median !== null && g.median < 0 ? 'mm-study-down' : ''}`}>
+              {signed(g.median)}
+            </td>
+            <td className="mm-num">{g.share_up === null ? '—' : `${Math.round(g.share_up * 100)}%`}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+/**
+ * Проверка сигнала на истории — ответ на главный вопрос к любой оценке: а
+ * работает ли она. Числа — из scripts/signal_study.py; выводы ниже собраны из
+ * них же, а не написаны заранее, чтобы при пересчёте не разойтись с таблицей.
+ */
+function SignalStudy() {
+  const { data } = useQuery<SignalStudyOut>({
+    queryKey: ['signal-study'],
+    queryFn: fetchSignalStudy,
+    staleTime: 60 * 60 * 1000,
+  });
+  if (!data?.available || !data.by_margin || !data.by_streak) return null;
+  const pick = (groups: StudyGroup[] | undefined, key: string) => groups?.find((g) => g.key === key)?.median ?? null;
+  const thin = pick(data.by_margin, 'thin');
+  const cheap = pick(data.by_margin, 'cheap');
+  const dear = pick(data.by_margin, 'dear');
+  const fresh = pick(data.by_streak, 'fresh');
+  const long = pick(data.by_streak, 'long');
+  const years = (data.by_year ?? []).filter((g) => g.n >= 10);
+  const [from, till] = data.period ?? ['', ''];
+  return (
+    <section className="mm-block">
+      <h2>Проверка на истории: работает ли «дешевле опорной»</h2>
+      <p>
+        Для {data.companies} проверенных компаний на начало каждого месяца с {from.slice(0, 4)} по {till.slice(0, 4)} год
+        взята опорная, которую сайт показал бы в тот день: только отчёты, раскрытые к нему, и ставка, известная тогда.
+        Рядом — изменение цены за следующие 12 месяцев. Всего {data.observations?.toLocaleString('ru-RU')} наблюдений.
+      </p>
+      <StudyTable groups={data.by_margin} caption="По запасу прочности" />
+      <StudyTable groups={data.by_streak} caption="Дешевле на треть и больше — сколько месяцев подряд" />
+      {years.length > 0 && (
+        <>
+          <p className="mm-small">Дешевле на треть и больше — по годам сигнала (медиана цены через год):</p>
+          <ul className="mm-study-years">
+            {years.map((g) => (
+              <li key={g.key}>
+                <span>{g.name}</span>
+                <b className={g.median !== null && g.median > 0 ? 'mm-study-up' : 'mm-study-down'}>{signed(g.median)}</b>
+                <small>{g.n}</small>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+      <h3 className="mm-study-h3">Что из этого следует</h3>
+      <ul className="mm-study-points">
+        {thin !== null && cheap !== null && (
+          <li>
+            {thin > cheap
+              ? <>Умеренный дисконт ({signed(thin)}) работал лучше глубокого ({signed(cheap)}). Самые «дешёвые» по модели чаще оказывались ловушками: рынок не ошибался, а знал, почему деньги до акционера не дойдут.</>
+              : <>Глубокий дисконт ({signed(cheap)}) работал лучше умеренного ({signed(thin)}).</>}
+          </li>
+        )}
+        {fresh !== null && long !== null && (
+          <li>
+            Свежий дисконт — {signed(fresh)}, дисконт, который держится год и дольше, — {signed(long)}. Поэтому карточка
+            называет длительность несогласия рынка числом.
+          </li>
+        )}
+        {dear !== null && <li>Бумаги дороже опорной за год в медиане изменились на {signed(dear)}.</li>}
+        <li>
+          Результат сильно зависит от года: сигнал работал в одни годы и не работал в другие. На такой выборке
+          преимущество «дешевле опорной» не доказано — это авторская сценарная оценка, а не прогноз.
+        </li>
+      </ul>
+      <div className="mm-note mm-note--warn">
+        <strong>Ограничения.</strong> Доходность — по цене, без дивидендов: компании с высокими выплатами выглядят хуже, чем
+        были. В выборке только сегодняшние проверенные компании — ушедшие с биржи не входят. Компании с дроблением акций
+        пропущены. Правила модели нынешние и применены к прошлому. Пересчёт от {data.generated?.split('-').reverse().join('.')}.
+      </div>
+    </section>
   );
 }
 

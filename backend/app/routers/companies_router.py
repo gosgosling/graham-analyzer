@@ -17,6 +17,7 @@ from app.services.companies.company_service import (
 )
 from app.services.companies.sync_service import sync_companies_from_tinkoff
 from app.models.company import Company as CompanyModel
+from app.services.data_cache import cached_route
 
 
 class PreferredShareUpdate(BaseModel):
@@ -50,6 +51,16 @@ def get_companies(skip: int = 0, limit: int = 200, db: Session = Depends(get_db)
     """
     companies = get_all_companies(db, skip=skip, limit=limit)
     return companies
+
+@router.get("/table")
+@cached_route("companies.table")
+def companies_table(db: Session = Depends(get_db)) -> dict:
+    """Таблица компаний для раздела «Компании»: цена, капитализация, выручка,
+    прибыль, баланс и мультипликаторы одной строкой (см. `market_table`)."""
+    from app.services.companies.market_table import build
+
+    return build(db)
+
 
 @router.get("/sync/status")
 def companies_sync_status(db: Session = Depends(get_db)):

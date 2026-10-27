@@ -1,0 +1,96 @@
+/* Таблица компаний — в стиле «Отбора» скринера: без рамки и подложки, сверху
+   жирная черта, строки делят тонкие линии, числа моноширинные и крупные.
+   Компания закреплена слева, сортировка — стрелкой в углу заголовка. */
+.ct-wrap { margin-top: 18px; }
+.ct-scroll { overflow-x: auto; }
+.ct-table {
+  --ct-accent: #c58a12;
+  width: 100%;
+  min-width: 1180px;
+  border-collapse: collapse;
+  font-size: 16px;
+  color: var(--color-text-primary);
+}
+:root[data-theme='dark'] .ct-table { --ct-accent: #e7b84a; }
+
+.ct-table thead tr { border-bottom: 1px solid var(--color-border-strong); }
+.ct-table tbody tr { border-bottom: 1px solid var(--color-border-default); }
+.ct-table th, .ct-table td { padding: 13px 8px; text-align: right; white-space: nowrap; }
+.ct-table td { font-family: var(--font-mono); font-size: 15px; font-variant-numeric: tabular-nums; }
+
+.ct-table thead th {
+  position: relative;
+  padding: 0;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--color-text-tertiary);
+  vertical-align: bottom;
+  background: var(--color-bg-base);
+}
+.ct-table thead th[aria-sort='ascending'], .ct-table thead th[aria-sort='descending'] { color: var(--color-text-primary); }
+.ct-table thead th[aria-sort='ascending'] .ct-sort-btn,
+.ct-table thead th[aria-sort='descending'] .ct-sort-btn { box-shadow: inset 0 -2px 0 var(--ct-accent); }
+.ct-sort-btn {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 15px 9px 8px;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: inherit;
+  cursor: pointer;
+}
+.ct-sort-btn:hover { color: var(--color-text-primary); }
+.ct-sort {
+  position: absolute;
+  top: 10px;
+  right: 3px;
+  fill: none;
+  stroke: var(--color-text-tertiary);
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.35;
+  pointer-events: none;
+}
+.ct-sort.is-on { opacity: 1; stroke: var(--ct-accent); stroke-width: 1.8; }
+
+.ct-sticky {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  text-align: left !important;
+  background: var(--color-bg-base);
+}
+.ct-table thead .ct-sticky { z-index: 2; }
+.ct-table tbody th.ct-sticky { font-weight: 400; padding-left: 0; min-width: 200px; }
+.ct-table thead th.ct-sticky .ct-sort-btn { padding-left: 0; }
+
+.ct-company { display: flex; align-items: center; gap: 12px; color: inherit; text-decoration: none; }
+.ct-logo { width: 28px; height: 28px; border-radius: 50%; flex: none; }
+.ct-company-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+.ct-company-text b { color: var(--color-text-link); font-weight: 600; font-size: 16px; }
+.ct-company:hover b { text-decoration: underline; }
+.ct-name { font-size: 13.5px; color: var(--color-text-tertiary); max-width: 190px; overflow: hidden; text-overflow: ellipsis; }
+
+.ct-unverified {
+  margin-left: 6px;
+  padding: 0 5px;
+  border: 1px solid var(--color-warning-border);
+  border-radius: 3px;
+  background: var(--color-warning-soft);
+  color: var(--color-warning-text);
+  font-size: 11px;
+  vertical-align: 1px;
+}
+
+.ct-table tbody tr:hover th, .ct-table tbody tr:hover td { background: var(--color-bg-hover); }
+
+.ct-up { color: var(--color-success-strong); }
+.ct-down { color: var(--color-error-strong); }
+:root[data-theme='dark'] .ct-up { color: var(--color-success-text); }
+:root[data-theme='dark'] .ct-down { color: var(--color-error-text); }
+
+.ct-note { margin: 14px 0 0; font-size: 13.5px; color: var(--color-text-tertiary); max-width: 90ch; line-height: 1.5; }

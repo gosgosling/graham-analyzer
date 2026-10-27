@@ -413,6 +413,51 @@ def latest_book_value(points: Iterable[YearPoint], business: bool = True) -> Opt
     return book if book > 0 else None
 
 
+# Сколько лет подряд без выплат делают кассу запертой.
+LOCKED_CASH_YEARS = 3
+# Выкуп, который считается возвратом денег: акций за окно стало меньше на столько.
+BUYBACK_SHARE = 0.02
+
+
+def cash_locked(points: Iterable[YearPoint]) -> int:
+    """Сколько последних лет компания не возвращает деньги акционерам; 0 —
+    возвращает или истории не хватает.
+
+    Касса прибавляется к оценке рубль за рубль, потому что принадлежит
+    акционеру. Но принадлежать и доходить — разное. Юнипро не платит
+    дивиденды с 2021 года, оборотные активы выросли с 13 до 130 млрд, и
+    касса — две трети опорной (1,45 ₽ из 2,21). Модель весь 2025 год
+    показывала запас 29–45%, а цена за год падала на 17–43%: рынок оценивал
+    компанию дешевле её денег, потому что до миноритария они не доходят.
+
+    Правило: LOCKED_CASH_YEARS последних годовых точек без дивидендов и без
+    выкупа (акций не стало меньше хотя бы на BUYBACK_SHARE) — касса заперта, и к
+    оценке не прибавляется. Доход с неё из заработка бизнеса уже вычтен, так
+    что оценка остаётся оценкой одного бизнеса.
+    """
+    annual = sorted((p for p in points if p.year is not None), key=lambda p: p.year)
+    by_year = {p.year: p for p in annual}
+    if len(by_year) < LOCKED_CASH_YEARS:
+        return 0
+    last = max(by_year)
+    window = [by_year.get(year) for year in range(last - LOCKED_CASH_YEARS + 1, last + 1)]
+    if any(p is None for p in window):
+        return 0
+    if any((p.dividends_per_share or 0) > 0 or p.dividends_declared for p in window):
+        return 0
+    first_shares = window[0].shares_normalized
+    last_shares = window[-1].shares_normalized
+    if first_shares and last_shares and last_shares < first_shares * (1 - BUYBACK_SHARE):
+        return 0
+    # Сколько всего лет подряд без выплат — для подписи в карточке.
+    years = 0
+    for p in reversed(annual):
+        if (p.dividends_per_share or 0) > 0 or p.dividends_declared:
+            break
+        years += 1
+    return years
+
+
 def latest_net_cash(points: Iterable[YearPoint]) -> float:
     """Чистая касса на акцию в последней точке ряда; 0, если не отделялась."""
     points = list(points)
@@ -900,12 +945,19 @@ class Analysis:
     net_cash_per_share: float = 0.0
     # Касса последнего года не раскрыта и оценена осторожно.
     net_cash_estimated: bool = False
+    # Касса заперта: компания LOCKED_CASH_YEARS лет не возвращает деньги
+    # акционерам, и к оценке она не прибавляется (см. `cash_locked`). Здесь —
+    # сколько её на акцию, чтобы карточка могла это назвать.
+    locked_cash_per_share: float = 0.0
+    locked_years: int = 0
 
     def as_dict(self) -> dict:
         return {
             "book_value_per_share": self.book_value_per_share,
             "net_cash_per_share": self.net_cash_per_share,
             "net_cash_estimated": self.net_cash_estimated,
+            "locked_cash_per_share": self.locked_cash_per_share,
+            "locked_years": self.locked_years,
             "earnings": {w: e.as_dict() for w, e in self.earnings.items()},
             "cash": {w: e.as_dict() for w, e in self.cash.items()},
             "owner": {w: e.as_dict() for w, e in self.owner.items()},
@@ -929,11 +981,15 @@ def analyze(
     даже очищенный `core_fcf` для оценки не годится.
     """
     points = list(points)
+    cash = latest_net_cash(points)
+    locked = cash_locked(points) if cash > 0 else 0
     result = Analysis(
         windows=windows,
         book_value_per_share=latest_book_value(points, business=False),
-        net_cash_per_share=latest_net_cash(points),
+        net_cash_per_share=0.0 if locked else cash,
         net_cash_estimated=bool(points) and max(points, key=lambda p: p.year).cash_estimated,
+        locked_cash_per_share=cash if locked else 0.0,
+        locked_years=locked,
     )
     for window in windows:
         result.earnings[window] = estimate(points, window, "eps", "roe", end_year)

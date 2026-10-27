@@ -170,7 +170,7 @@ export interface ValueBandOut {
 /** Сигнал о цене: «благоприятная» или нет — и почему именно. */
 export type SafetySignal =
   | 'favourable' | 'acceptable' | 'fair'
-  | 'expensive' | 'bond_better' | 'dangerous' | 'no_signal';
+  | 'expensive' | 'bond_better' | 'dangerous' | 'trap' | 'no_signal';
 
 export interface SafetyOut {
   signal: SafetySignal;
@@ -215,6 +215,9 @@ export interface CompanyValuationOut {
   net_cash_per_share?: number | null;
   /** Касса последнего года не раскрыта (сокращённая отчётность) и оценена осторожно. */
   net_cash_estimated?: boolean;
+  /** Касса, которая не доходит до акционеров (нет дивидендов и выкупа N лет):
+   *  в оценку не прибавлена. */
+  cash_locked?: { per_share: number; years: number } | null;
   business_price?: number | null;
   /** Пометка о том, что высокая отдача держится на малом капитале. */
   denominator?: {
@@ -399,6 +402,8 @@ export interface ValuationSummaryOut {
   /** Признаки ловушки стоимости и насколько громко о них предупреждать. */
   trap_signs?: TrapSign[];
   trap_level?: 'likely' | 'possible' | null;
+  /** Касса не доходит до акционеров и в оценку не прибавлена. */
+  cash_locked?: { per_share: number; years: number } | null;
   /** Оценка выбранного окна: прибыль × множитель = опорная. */
   headline?: {
     normal_earnings: number | null;
@@ -490,6 +495,8 @@ export interface ValuationHistoryOut {
   years: ValuationYear[];
   segments: ValuationSegment[];
   basis?: ValuationBasis | null;
+  /** Сколько месяцев подряд цена ниже опорной на треть и больше. */
+  discount_months?: number;
   hits: number;
   counted: number;
   verdict: string;
@@ -502,5 +509,33 @@ export async function fetchValuationHistory(
   const { data } = await api.get<ValuationHistoryOut>(
     `/valuation/company/${companyId}/history`,
   );
+  return data;
+}
+
+/** Группа наблюдений проверки на истории: цена через 12 месяцев. */
+export interface StudyGroup {
+  key: string;
+  name: string;
+  n: number;
+  companies: number;
+  /** Медиана изменения цены за 12 месяцев, доля. */
+  median: number | null;
+  share_up: number | null;
+}
+
+/** Проверка сигнала «дешевле опорной» на истории базы (scripts/signal_study.py). */
+export interface SignalStudyOut {
+  available: boolean;
+  generated?: string;
+  period?: [string, string];
+  observations?: number;
+  companies?: number;
+  by_margin?: StudyGroup[];
+  by_streak?: StudyGroup[];
+  by_year?: StudyGroup[];
+}
+
+export async function fetchSignalStudy(): Promise<SignalStudyOut> {
+  const { data } = await api.get<SignalStudyOut>('/valuation/signal-study');
   return data;
 }

@@ -171,7 +171,7 @@ export interface MarketRow {
 
 /** Сигнал о цене в строке таблицы — сокращённый вид того же, что в паспорте. */
 export interface RowSafety {
-  signal: 'favourable' | 'acceptable' | 'fair' | 'expensive' | 'bond_better'
+  signal: 'favourable' | 'acceptable' | 'fair' | 'expensive' | 'bond_better' | 'trap'
     | 'dangerous';
   label: string;
   reason: string | null;

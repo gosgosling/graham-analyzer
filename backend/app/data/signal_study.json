@@ -1,0 +1,169 @@
+{
+ "generated": "2026-10-27",
+ "period": [
+  "2014-04-01",
+  "2025-10-01"
+ ],
+ "observations": 3907,
+ "companies": 56,
+ "horizon_months": 12,
+ "margin": 0.3333,
+ "by_margin": [
+  {
+   "key": "all",
+   "name": "Все наблюдения",
+   "n": 3907,
+   "companies": 56,
+   "median": -0.0185,
+   "share_up": 0.48
+  },
+  {
+   "key": "dear",
+   "name": "Дороже опорной",
+   "n": 3166,
+   "companies": 55,
+   "median": -0.0354,
+   "share_up": 0.457
+  },
+  {
+   "key": "thin",
+   "name": "Дешевле опорной меньше чем на треть",
+   "n": 370,
+   "companies": 29,
+   "median": 0.1506,
+   "share_up": 0.63
+  },
+  {
+   "key": "cheap",
+   "name": "Дешевле опорной на треть и больше",
+   "n": 371,
+   "companies": 17,
+   "median": 0.0332,
+   "share_up": 0.523
+  }
+ ],
+ "by_streak": [
+  {
+   "key": "fresh",
+   "name": "Дешёво впервые (1–3 мес. подряд)",
+   "n": 72,
+   "companies": 17,
+   "median": 0.0738,
+   "share_up": 0.556
+  },
+  {
+   "key": "middle",
+   "name": "Дёшево 4–11 мес. подряд",
+   "n": 117,
+   "companies": 13,
+   "median": 0.0877,
+   "share_up": 0.581
+  },
+  {
+   "key": "long",
+   "name": "Дёшево уже 12 мес. и дольше",
+   "n": 182,
+   "companies": 8,
+   "median": -0.0256,
+   "share_up": 0.473
+  }
+ ],
+ "by_year": [
+  {
+   "key": "2014",
+   "name": "2014",
+   "n": 12,
+   "companies": 2,
+   "median": -0.0275,
+   "share_up": 0.333
+  },
+  {
+   "key": "2015",
+   "name": "2015",
+   "n": 12,
+   "companies": 3,
+   "median": 0.0997,
+   "share_up": 0.833
+  },
+  {
+   "key": "2016",
+   "name": "2016",
+   "n": 2,
+   "companies": 1,
+   "median": 0.1438,
+   "share_up": 1.0
+  },
+  {
+   "key": "2017",
+   "name": "2017",
+   "n": 11,
+   "companies": 3,
+   "median": -0.2484,
+   "share_up": 0.182
+  },
+  {
+   "key": "2018",
+   "name": "2018",
+   "n": 43,
+   "companies": 5,
+   "median": -0.0538,
+   "share_up": 0.395
+  },
+  {
+   "key": "2019",
+   "name": "2019",
+   "n": 39,
+   "companies": 5,
+   "median": 0.0155,
+   "share_up": 0.513
+  },
+  {
+   "key": "2020",
+   "name": "2020",
+   "n": 57,
+   "companies": 7,
+   "median": 0.0601,
+   "share_up": 0.561
+  },
+  {
+   "key": "2021",
+   "name": "2021",
+   "n": 41,
+   "companies": 7,
+   "median": -0.3386,
+   "share_up": 0.146
+  },
+  {
+   "key": "2022",
+   "name": "2022",
+   "n": 66,
+   "companies": 7,
+   "median": 0.5005,
+   "share_up": 0.879
+  },
+  {
+   "key": "2023",
+   "name": "2023",
+   "n": 47,
+   "companies": 8,
+   "median": 0.4388,
+   "share_up": 0.83
+  },
+  {
+   "key": "2024",
+   "name": "2024",
+   "n": 27,
+   "companies": 3,
+   "median": -0.1733,
+   "share_up": 0.148
+  },
+  {
+   "key": "2025",
+   "name": "2025",
+   "n": 14,
+   "companies": 3,
+   "median": -0.1728,
+   "share_up": 0.0
+  }
+ ]
+}

@@ -527,3 +527,17 @@ code {
   .mm-table tr:has(.mm-vs) td { border-bottom: 0; }
   .mm-table tr:has(.mm-vs) .mm-vs { grid-column: 1 / -1; }
 }
+
+/* Проверка на истории. */
+.mm-study { max-width: 860px; }
+.mm-study-caption { caption-side: top; text-align: left; padding: 0 0 6px; font-size: 0.86rem; font-weight: 600; color: var(--color-text-primary); }
+.mm-study-up { color: var(--color-success-strong); }
+.mm-study-down { color: var(--color-error-strong); }
+[data-theme='dark'] .mm-study-up { color: var(--color-success-text); }
+[data-theme='dark'] .mm-study-down { color: var(--color-error-text); }
+.mm-study-years { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 6px 0 14px; padding: 0; list-style: none; font-variant-numeric: tabular-nums; }
+.mm-study-years li { display: flex; align-items: baseline; gap: 6px; font-size: 0.9rem; }
+.mm-study-years span { color: var(--color-text-tertiary); }
+.mm-study-years small { color: var(--color-text-quaternary); font-size: 0.72rem; }
+.mm-study-h3 { margin: 18px 0 6px; font-size: 1rem; }
+.mm-study-points { margin: 0 0 12px; padding-left: 20px; line-height: 1.6; color: var(--color-text-secondary); max-width: 860px; }

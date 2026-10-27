@@ -85,6 +85,21 @@ def _implied(snapshot, assumption) -> dict:
     }
 
 
+@router.get("/signal-study")
+def signal_study() -> dict:
+    """Проверка сигнала «дешевле опорной» на истории базы — то, что пишет
+    `scripts/signal_study.py`. Пусто, пока скрипт не запускали."""
+    import json
+    from pathlib import Path
+
+    path = Path(__file__).resolve().parents[1] / "data" / "signal_study.json"
+    if not path.is_file():
+        return {"available": False}
+    data = json.loads(path.read_text(encoding="utf-8"))
+    data["available"] = True
+    return data
+
+
 @router.get("/market-multiple")
 @cached_route("valuation.market_multiple", "year", "data_year")
 def market_multiple(
@@ -326,6 +341,7 @@ def company_summary(
         "price": current.get("price"),
         "trap_signs": current.get("trap_signs") or [],
         "trap_level": current.get("trap_level"),
+        "cash_locked": current.get("cash_locked"),
         "window": current.get("window", window),
         # Оценка выбранного окна одной строкой — для формулы «прибыль ×
         # множитель = опорная» во вкладке оценки.
@@ -354,6 +370,55 @@ def company_summary(
             "reason": (current.get("band") or {}).get("reason"),
         },
     }
+
+
+# Запас, с которого бумага считается «дешевле опорной» для счётчика несогласия.
+DISCOUNT_STREAK_MARGIN = 1 / 3
+
+
+def _discount_streak(db: Session, company_id: int, segments: list) -> int:
+    """Сколько месяцев подряд, до сегодняшнего, цена ниже опорной на треть.
+
+    Опорная меняется ступенями, цена — каждый день; рынок может годами не
+    соглашаться с оценкой. На истории базы (scripts/signal_study.py) бумаги,
+    дешёвые уже год и дольше, дальше в среднем не росли, а свежий дисконт —
+    рос. Поэтому длительность несогласия — сама по себе сведения: карточка
+    называет её числом.
+    """
+    from app.models.stock_price import StockPrice
+
+    if not segments:
+        return 0
+    rows = (
+        db.query(StockPrice.date, StockPrice.price)
+        .filter(StockPrice.company_id == company_id, StockPrice.date >= segments[0]["from"])
+        .order_by(StockPrice.date)
+        .all()
+    )
+    if not rows:
+        return 0
+    import bisect
+
+    days = [r[0] for r in rows]
+
+    def price_on(iso: str):
+        day = date.fromisoformat(iso)
+        i = bisect.bisect_left(days, day)
+        if i >= len(days) or (days[i] - day).days > 10:
+            return None
+        return float(rows[i][1])
+
+    months = 0
+    for seg in reversed(segments):
+        if date.fromisoformat(seg["from"]).day > 5 and not seg.get("current"):
+            continue  # одна точка в месяц — его начало; текущий отрезок — всегда
+        ref, price = seg.get("reference"), price_on(seg["from"])
+        if not ref or not price:
+            break
+        if 1 - price / ref < DISCOUNT_STREAK_MARGIN:
+            break
+        months += 1
+    return months
 
 
 def _current_basis(db: Session, company_id: int, segments: list) -> Optional[dict]:
@@ -512,6 +577,7 @@ def company_valuation_history(
         "years": years,
         "segments": segments,
         "basis": _current_basis(db, company.id, segments),
+        "discount_months": _discount_streak(db, company.id, segments),
         "hits": result.hits,
         "counted": len(result.counted),
         "verdict": result.verdict,

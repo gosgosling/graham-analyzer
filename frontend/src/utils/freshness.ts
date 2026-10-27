@@ -35,3 +35,17 @@ export function freshnessOf(basis: ValuationBasis | null | undefined, price: num
     stale: months >= 9 || (change !== null && Math.abs(change) >= 0.25),
   };
 }
+
+/** Форма слова по числу: plural(182, ['наблюдение', 'наблюдения', 'наблюдений']). */
+export function plural(n: number, [one, few, many]: [string, string, string]): string {
+  const tail = n % 100;
+  const last = n % 10;
+  if (tail >= 11 && tail <= 14) return many;
+  if (last === 1) return one;
+  return last >= 2 && last <= 4 ? few : many;
+}
+
+/** «1 год», «4 года», «5 лет». */
+export function yearsWord(n: number): string {
+  return `${n} ${plural(n, ['год', 'года', 'лет'])}`;
+}
