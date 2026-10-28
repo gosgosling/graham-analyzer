@@ -119,6 +119,9 @@
 /* Телефон: список (StatementsList) в разметке «По годам» — классы hl-* из
    MultipliersPanel.css. Здесь только отличия отчётности. */
 .st-list .st-neg { color: var(--color-error-text); }
+.st-neg-good { color: var(--color-success-strong) !important; }
+[data-theme='dark'] .st-neg-good { color: var(--color-success-text) !important; }
+.st-list .st-neg-good { color: var(--color-success-text); }
 @media (max-width: 760px) {
   .st-controls .st-note { flex-basis: 100%; }
 }

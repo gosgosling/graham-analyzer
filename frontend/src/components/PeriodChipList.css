@@ -177,3 +177,31 @@ button.hl-bar:last-of-type .hl-bar-label { left: auto; right: 0; transform: none
   line-height: 1.45;
   color: var(--color-text-secondary);
 }
+
+/* Поток ядра у гибрида и биржи: FCF по отчёту → − приток → = FCF ядра читается
+   формулой, итог выделен строкой, а не только жирным числом. */
+.hl-item:has(.hl-core) { background: var(--color-bg-subtle); }
+.hl-item:has(.hl-core) .hl-row { padding-left: 8px; padding-right: 8px; }
+.hl-value .hl-core { font-weight: 700; }
+.hl-plain { color: var(--color-text-primary); }
+
+/* Пометки к значению за выбранный период — текст подсказки, которую на
+   компьютере видно при наведении на число. */
+.hl-value-notes { margin: 0 0 8px; padding: 0; list-style: none; }
+.hl-value-notes li {
+  margin: 0 0 4px;
+  padding: 6px 10px;
+  border-left: 2px solid var(--color-warning-border);
+  background: var(--color-warning-soft);
+  border-radius: 4px;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: var(--color-text-secondary);
+}
+
+/* Минус по смыслу: у чистого долга он хорош (денег больше, чем долга),
+   у строк ОДДС со знаком — просто направление. */
+.hl-bar.is-neg-good .hl-bar-fill { background: color-mix(in srgb, var(--color-success, #16a34a) 50%, transparent); }
+.hl-bar.is-neg-good.is-current .hl-bar-fill { background: var(--color-success, #16a34a); }
+.hl-bar.is-neg-neutral .hl-bar-fill { background: color-mix(in srgb, var(--color-text-tertiary) 45%, transparent); }
+.hl-bar.is-neg-neutral.is-current .hl-bar-fill { background: var(--color-text-tertiary); }

@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { getCompanies } from '../services';
 import type { Company } from '../types';
 import { fetchCompare, fetchCompareGroups, type CompareCard, type CompareOut } from '../services/compare.api';
-import PeriodChipList from './PeriodChipList';
+import PeriodChipList, { type SignMeaning } from './PeriodChipList';
 import { PHONE_QUERY, useMediaQuery } from '../hooks/useMediaQuery';
 import './CompareView.css';
 
@@ -35,6 +35,8 @@ interface Row {
   /** Цвет знака: запас прочности. */
   tone?: boolean;
   tip?: string;
+  /** Что значит минус на графике истории; у чистого долга — хорошо. */
+  negative?: SignMeaning;
 }
 type Line = Row | { group: string };
 
@@ -45,7 +47,7 @@ function rows(data: CompareOut): Line[] {
     { label: `Цена акции на ${data.as_of.split('-').reverse().join('.')}, ₽`, value: (c) => c.price, fmt: perShare, better: null },
     { label: 'Акций в обращении, млн', value: (c) => (c.shares ? c.shares / 1e6 : null), fmt: (v) => ru(v, 0), better: null },
     { label: 'Капитализация, ₽', value: (c) => c.market_cap, fmt: money, better: null },
-    { label: 'Чистый долг, ₽', value: (c) => (c.is_bank ? null : c.net_debt), fmt: money, better: 'min', tip: 'Минус — денег больше, чем долга' },
+    { label: 'Чистый долг, ₽', value: (c) => (c.is_bank ? null : c.net_debt), fmt: money, better: 'min', negative: 'good', tip: 'Минус — денег больше, чем долга' },
     { label: 'Балансовая стоимость на акцию, ₽', value: (c) => c.book_per_share, fmt: perShare, better: null },
     { group: 'Отчётность, последние 12 месяцев' },
     { label: 'Выручка, ₽', value: (c) => c.revenue, fmt: money, better: null },
@@ -131,6 +133,7 @@ function CompareList({ data }: { data: CompareOut }) {
             key: r.label,
             label: r.label,
             tip: r.tip,
+            negative: r.negative,
             cell: (col) => {
               const i = byId.get(col.key);
               if (i === undefined) return null;

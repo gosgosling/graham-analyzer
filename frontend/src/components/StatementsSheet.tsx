@@ -4,7 +4,7 @@ import { buildColumns, derived, type Column } from '../utils/statements';
 import { downloadSheet, type ExportFormat, type Sheet } from '../utils/tableExport';
 import DownloadLinks from './DownloadLinks';
 import { PHONE_QUERY, useMediaQuery } from '../hooks/useMediaQuery';
-import PeriodChipList from './PeriodChipList';
+import PeriodChipList, { type SignMeaning } from './PeriodChipList';
 import './StatementsSheet.css';
 
 /**
@@ -20,6 +20,8 @@ interface Row {
   fmt: 'money' | 'shares' | 'perShare' | 'pct' | 'ratio';
   sub?: boolean;
   tip?: string;
+  /** Что значит минус: по умолчанию — плохо (убыток, отток). См. `SignMeaning`. */
+  negative?: SignMeaning;
 }
 type Line = Row | { group: string; unit?: string };
 
@@ -53,7 +55,8 @@ const GENERAL: Line[] = [
   { label: 'Обязательства', get: f('total_liabilities'), fmt: 'money' },
   { label: 'Краткосрочные обязательства', get: f('current_liabilities'), fmt: 'money', sub: true },
   { label: 'Долг', get: f('debt'), fmt: 'money', sub: true },
-  { label: 'Чистый долг', get: derived.netDebt, fmt: 'money', sub: true, tip: 'Долг минус денежные средства' },
+  { label: 'Чистый долг', get: derived.netDebt, fmt: 'money', sub: true, negative: 'good',
+    tip: 'Долг минус денежные средства. Минус — денег больше, чем долга' },
   { label: 'Капитал', get: f('equity'), fmt: 'money' },
   { group: 'Денежный поток', unit: 'млрд' },
   { label: 'Операционный поток', get: f('operating_cash_flow'), fmt: 'money' },
@@ -71,7 +74,8 @@ const BANK: Line[] = [
   { label: 'Чистый процентный доход', get: f('net_interest_income'), fmt: 'money' },
   { label: 'Чистый комиссионный доход', get: f('fee_commission_income'), fmt: 'money' },
   { label: 'Операционные расходы', get: abs('operating_expenses'), fmt: 'money' },
-  { label: 'Расходы на резервы', get: f('provisions'), fmt: 'money' },
+  { label: 'Расходы на резервы', get: f('provisions'), fmt: 'money', negative: 'good',
+    tip: 'Минус — банк распустил резервы: это доход, а не расход' },
   { label: 'Чистая прибыль', get: (v) => v.net_income_reported ?? v.net_income ?? null, fmt: 'money' },
   { group: 'Кредиты и средства клиентов', unit: 'млрд' },
   { label: 'Активы', get: f('total_assets'), fmt: 'money' },
@@ -92,6 +96,56 @@ const BANK: Line[] = [
   { label: 'Достаточность базового капитала Н1.1', get: f('capital_adequacy_core'), fmt: 'pct' },
   ...SHARES_AND_MARKET,
 ];
+
+/**
+ * Поток ядра у гибрида и биржи — по строкам отчёта. На «По годам» он стоит
+ * итогом; здесь — из чего он сложен: свободный поток по отчёту и строки ОДДС
+ * с клиентскими деньгами, которые из него вычитаются. Так проверяется каждое
+ * слагаемое, а не только результат.
+ */
+const coreFlow = (deposits: string, loans: string, other: string): Line[] => [
+  { group: 'Поток ядра — что вычитается из свободного потока', unit: 'млрд' },
+  { label: 'Свободный поток по отчёту', get: derived.fcfReported, fmt: 'money',
+    tip: 'Операционный поток минус капзатраты, аренда и уплаченные проценты — так его считает оценка' },
+  { label: deposits, get: f('cf_customer_deposits'), fmt: 'money', sub: true, negative: 'neutral', tip: 'Строка ОДДС, со знаком как в отчёте: плюс — деньги пришли' },
+  { label: loans, get: f('cf_customer_loans'), fmt: 'money', sub: true, negative: 'neutral', tip: 'Строка ОДДС, со знаком как в отчёте: минус — деньги ушли' },
+  { label: other, get: f('cf_other_float'), fmt: 'money', sub: true, negative: 'neutral', tip: 'Строка ОДДС: прочие деньги клиентов, которые компания держит у себя' },
+  { label: 'Приток клиентских денег', get: derived.clientFlow, fmt: 'money', sub: true, negative: 'neutral', tip: 'Сумма трёх строк выше: эти деньги прошли через поток, но их придётся вернуть' },
+  { label: 'Свободный поток ядра', get: derived.coreFcf, fmt: 'money',
+    tip: 'Свободный поток по отчёту минус приток клиентских денег. С дивидендами сопоставим только он' },
+];
+
+/** Гибрид (Яндекс, Озон): финсегмент как он раскрыт в отчёте компании. */
+const SEGMENT: Line[] = [
+  { group: 'Финсегмент — как в отчёте', unit: 'млрд' },
+  { label: 'Кредиты клиентам до резервов', get: f('gross_loans'), fmt: 'money' },
+  { label: 'Резерв под обесценение', get: f('loan_loss_allowance'), fmt: 'money', sub: true },
+  { label: 'Неработающие кредиты', get: f('npl_loans'), fmt: 'money', sub: true, tip: 'Стадия 3 и POCI' },
+  { label: 'Средства клиентов', get: f('customer_deposits'), fmt: 'money', tip: 'Депозиты и счета клиентов банка компании' },
+  { label: 'Расходы на резервы', get: abs('provisions'), fmt: 'money' },
+  ...coreFlow('Изменение средств клиентов', 'Выдача кредитов клиентам', 'Прочий клиентский флоат'),
+];
+
+/** Биржа: строки, на которых держатся доля комиссий, расходы к ним и поток без клиентских денег. */
+const EXCHANGE: Line[] = [
+  { group: 'Биржа — как в отчёте', unit: 'млрд' },
+  { label: 'Комиссионные доходы', get: f('fee_commission_income'), fmt: 'money', tip: 'Плата за сделки, клиринг и депозитарий' },
+  { label: 'Процентные доходы', get: f('interest_income'), fmt: 'money', tip: 'Доход от размещения клиентских остатков — зависит от ставки' },
+  { label: 'Операционные расходы', get: abs('operating_expenses'), fmt: 'money' },
+  { label: 'Средства клиентов', get: f('customer_deposits'), fmt: 'money', tip: 'Обязательства перед участниками торгов и депонентами' },
+  ...coreFlow('Изменение средств участников торгов', 'Изменение размещения этих средств', 'Прочие клиентские средства'),
+];
+
+/**
+ * Цвет отрицательного числа по смыслу строки. Красный — только там, где
+ * минус плох: убыток, отток, отрицательный капитал. Отрицательный чистый
+ * долг — денег больше, чем долга, — зелёный; строки ОДДС со знаком и притоки
+ * клиентских денег — без цвета: их знак означает направление, а не качество.
+ */
+const signClass = (v: number | null, meaning: SignMeaning | undefined): string | undefined => {
+  if (v == null || v >= 0) return undefined;
+  return meaning === 'good' ? 'st-neg-good' : meaning === 'neutral' ? undefined : 'st-neg';
+};
 
 const ru = (x: number, d: number) => x.toLocaleString('ru-RU', { minimumFractionDigits: d, maximumFractionDigits: d });
 
@@ -168,10 +222,11 @@ function StatementsList({ cols, lines }: { cols: Column[]; lines: Line[] }) {
           label: r.label,
           tip: r.tip,
           sub: r.sub,
+          negative: r.negative,
           cell: (col) => {
             const c = byKey.get(col.key);
             const v = c ? r.get(c.values) : null;
-            return v == null ? null : { node: format(v, r.fmt), className: v < 0 ? 'st-neg' : undefined, value: v };
+            return v == null ? null : { node: format(v, r.fmt), className: signClass(v, r.negative), value: v };
           },
         })),
       }))}
@@ -181,7 +236,7 @@ function StatementsList({ cols, lines }: { cols: Column[]; lines: Line[] }) {
 
 interface Props {
   reports: FinancialReport[];
-  company?: { ticker: string; name: string };
+  company?: { ticker: string; name: string; company_type?: string | null };
 }
 
 export default function StatementsSheet({ reports, company }: Props) {
@@ -191,7 +246,12 @@ export default function StatementsSheet({ reports, company }: Props) {
   const cols: Column[] = useMemo(() => buildColumns(reports, interim), [reports, interim]);
   const latest = useMemo(() => [...reports].sort((a, b) => b.report_date.localeCompare(a.report_date))[0], [reports]);
   const isBank = latest?.report_type === 'bank';
-  const lines = isBank ? BANK : GENERAL;
+  // Гибрид и биржа отчитываются как обычные компании, но у них есть чужие
+  // деньги в потоке — их строки идут после общих, перед акциями.
+  const extra = company?.company_type === 'hybrid' ? SEGMENT : company?.company_type === 'exchange' ? EXCHANGE : [];
+  const lines = isBank ? BANK : extra.length
+    ? [...GENERAL.slice(0, GENERAL.indexOf(SHARES_AND_MARKET[0])), ...extra, ...SHARES_AND_MARKET]
+    : GENERAL;
   const hasInterim = reports.some((r) => r.period_type !== 'annual');
 
   // Свежие периоды справа — таблица открывается прокрученной до них.
@@ -297,7 +357,7 @@ export default function StatementsSheet({ reports, company }: Props) {
                 {cols.map((c) => {
                   const v = l.get(c.values);
                   return (
-                    <td key={c.key} className={[c.isLtm ? 'st-ltm' : '', v != null && v < 0 ? 'st-neg' : ''].join(' ').trim() || undefined}>
+                    <td key={c.key} className={[c.isLtm ? 'st-ltm' : '', signClass(v, l.negative) ?? ''].join(' ').trim() || undefined}>
                       {v == null ? '' : format(v, l.fmt)}
                     </td>
                   );

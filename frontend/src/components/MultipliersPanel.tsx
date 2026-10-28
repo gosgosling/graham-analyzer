@@ -59,7 +59,8 @@ import {
 import { useAdmin } from '../hooks/useAdmin';
 import { ltmProvenance, provenanceLine, ProvenancePopover, reportProvenance } from './Provenance';
 import { PHONE_QUERY, useMediaQuery } from '../hooks/useMediaQuery';
-import PeriodChipList from './PeriodChipList';
+import PeriodChipList, { type ChipGroup, type SignMeaning } from './PeriodChipList';
+import { EXCHANGE_HISTORY_ROWS, HISTORY_ROWS, METRICS as BANK_METRICS } from './BankMetricsPanel';
 import { LIVE_PRICE_REFRESH_MS, LIVE_PRICE_STALE_MS } from '../services/prices.api';
 import './MultipliersPanel.css';
 
@@ -2201,6 +2202,9 @@ interface HistTableProps {
   hidden?: ReadonlySet<HistColKey>;
   /** Короткая строка «откуда» для периода — в телефонном списке. */
   sourceOf?: (periodId: string) => string | null;
+  /** Телефон: группа показателей сегмента в конце списка и отчёты для неё. */
+  segment?: SegmentKind | null;
+  reportsById?: Map<number, FinancialReport>;
   /** Опорная стоимость по годам отчёта и на сегодня. Без них столбцов оценки нет. */
   referenceByYear?: Map<number, number | null>;
   ltmReference?: number | null;
@@ -2313,11 +2317,13 @@ const HistList: React.FC<{
   }[];
   groupRuns: { group: HistGroup; columns: HistColumn[] }[];
   sourceOf?: (periodId: string) => string | null;
-}> = ({ periods, groupRuns, sourceOf }) => (
+  /** Группы после таблицы: показатели сегмента банка, биржи или гибрида. */
+  extraGroups?: ChipGroup[];
+}> = ({ periods, groupRuns, sourceOf, extraGroups = [] }) => (
   <PeriodChipList
     source={sourceOf}
     columns={periods.map((p) => ({ key: p.id, label: p.isLtm ? '12 мес.' : p.label }))}
-    groups={groupRuns.map((run) => ({
+    groups={[...groupRuns.map((run): ChipGroup => ({
       key: run.group,
       title: run.group,
       rows: run.columns.map((c) => ({
@@ -2328,15 +2334,150 @@ const HistList: React.FC<{
         // «Наведите на значение…» — про таблицу на компьютере; на телефоне
         // наводить нечем, и фраза только сбивала.
         tip: c.tip?.replace(/\s*Наведите[^.]*\./g, '').trim() || undefined,
+        negative: HIST_SIGN[c.key],
         cell: (col) => {
           const p = periods.find((x) => x.id === col.key);
           const cell = p?.cells[c.key];
           return cell ? { ...cell, value: p?.numbers?.[c.key] ?? null } : null;
         },
       })),
-    }))}
+    })), ...extraGroups]}
   />
 );
+
+/**
+ * Что значит минус у показателя «По годам» (по умолчанию — плохо). Чистый
+ * долг ниже нуля — касса больше долга; у «чистый долг / FCF» знак
+ * двусмыслен (касса или отрицательный поток) — цвет решает сама клетка.
+ */
+const HIST_SIGN: Partial<Record<HistColKey, SignMeaning>> = {
+  netDebt: 'good',
+  ndFcf: 'neutral',
+  capex: 'neutral',
+};
+
+/** Какой сегментный раздел у компании — его показатели продолжают список «По годам» на телефоне. */
+export type SegmentKind = 'bank' | 'exchange' | 'hybrid';
+
+/** Показатели банка, которых нет в группе «Банк»: остальное там уже есть. */
+const BANK_EXTRA_KEYS = new Set<keyof BankMetrics>([
+  'roa', 'net_interest_margin', 'cost_of_funding', 'capital_adequacy_ratio', 'retail_loans_share', 'retail_deposits_share',
+]);
+
+const pctText = (v: number) => `${dec(v, Math.abs(v) >= 100 ? 0 : 2)}%`;
+/** Миллионы → «166,25 млрд ₽», «1,18 трлн ₽» — запятой, как во всём списке. */
+const segmentMoney = (mln: number) => (Math.abs(mln) >= 1_000_000
+  ? `${dec(mln / 1_000_000, 2)} трлн ₽`
+  : Math.abs(mln) >= 1_000 ? `${dec(mln / 1_000, 2)} млрд ₽` : `${dec(mln, 0)} млн ₽`);
+
+/**
+ * Группа сегмента для телефонного списка «По годам».
+ *
+ * На компьютере у банка, биржи и гибрида под таблицей стоит свой раздел с
+ * карточками и таблицей сегмента. На телефоне это был второй список рядом с
+ * первым: одиннадцать цветных карточек и таблица, обрезанная справа. Здесь
+ * те же числа — продолжением того же списка, с тем же выбором периода.
+ *
+ * У гибрида и биржи главное в разделе — поток без чужих денег: FCF по отчёту,
+ * минус приток финсегмента (клиентские средства), равно FCF ядра. Строки
+ * стоят формулой, а отдельной строкой — какая доля потока на деле деньги
+ * клиентов: у Яндекса за 2025 год — почти две трети.
+ */
+function segmentGroup(
+  kind: SegmentKind,
+  periodIds: string[],
+  metricsOf: (periodId: string) => BankMetrics | null | undefined,
+  reportOf: (periodId: string) => FinancialReport | null | undefined,
+): ChipGroup {
+  type Row = { key: string; label: React.ReactNode; tip?: string; sub?: boolean; negative?: SignMeaning;
+    value: (pid: string) => number | null; unit: 'pct' | 'mln' | 'pp'; status?: (pid: string) => string | undefined };
+  const fromMetrics = (key: keyof BankMetrics) => (pid: string) => (metricsOf(pid)?.[key] ?? null) as number | null;
+  const statusOf = (key: string) => (pid: string) => metricsOf(pid)?.statuses?.[key];
+  const fcfRows: Row[] = [
+    { key: 'reported_fcf', label: 'FCF по отчёту', unit: 'mln', value: fromMetrics('reported_fcf'),
+      tip: 'Операционный поток минус CAPEX и погашение тела аренды — как у любой компании.' },
+    { key: 'banking_flow', label: kind === 'exchange' ? '− приток клиентских средств' : '− приток финсегмента', unit: 'mln', sub: true, negative: 'neutral',
+      value: fromMetrics('banking_flow'),
+      tip: kind === 'exchange'
+        ? 'Изменение средств участников торгов и депонентов: деньги проходят поток насквозь, но их придётся вернуть.'
+        : 'Прирост клиентских депозитов минус выдача кредитов: деньги проходят поток, но их придётся вернуть.' },
+    { key: 'core_fcf', label: <b>= FCF ядра</b>, unit: 'mln', sub: true, value: fromMetrics('core_fcf'),
+      tip: 'FCF по отчёту минус приток клиентских денег. С дивидендами сопоставим только он — по нему же P/FCF и FCF/Прибыль.' },
+    { key: 'segment_share', label: kind === 'exchange' ? 'Доля клиентских денег в FCF' : 'Доля финсегмента в FCF', unit: 'pct', negative: 'neutral',
+      value: (pid) => {
+        const m = metricsOf(pid);
+        const fcf = m?.reported_fcf ?? null;
+        const flow = m?.banking_flow ?? null;
+        return fcf && flow !== null && fcf > 0 ? (flow / fcf) * 100 : null;
+      },
+      tip: 'Какая часть потока по отчёту — приток клиентских денег, а не заработок самой компании. Считается, когда поток по отчёту положительный.' },
+  ];
+  let rows: Row[];
+  let title: string;
+  if (kind === 'bank') {
+    title = 'Банковские показатели';
+    rows = BANK_METRICS.filter((spec) => BANK_EXTRA_KEYS.has(spec.key)).flatMap((spec): Row[] => {
+      const row: Row = { key: String(spec.key), label: spec.label, tip: spec.meaning, unit: spec.unit === 'mln' ? 'mln' : 'pct',
+        value: fromMetrics(spec.key), status: statusOf(String(spec.key)) };
+      if (!spec.badgeKey) return [row];
+      return [row, { key: String(spec.badgeKey), label: 'Спред к ключевой ставке', sub: true, unit: 'pp', negative: 'good',
+        value: fromMetrics(spec.badgeKey), status: statusOf(String(spec.badgeKey)),
+        tip: 'Стоимость фондирования минус ключевая ставка того же периода: ниже нуля — банк фондируется дешевле ставки.' }];
+    });
+  } else if (kind === 'exchange') {
+    title = 'Показатели биржи';
+    rows = [
+      ...EXCHANGE_HISTORY_ROWS.filter((r) => !['reported_fcf', 'banking_flow', 'core_fcf'].includes(String(r.key))).map((r): Row => ({
+        key: String(r.key), label: r.label, tip: r.tip, unit: r.unit,
+        value: r.fromReport
+          ? (pid) => ((reportOf(pid) as unknown as Record<string, number | null> | null)?.[String(r.key)] ?? null)
+          : fromMetrics(r.key as keyof BankMetrics),
+        status: r.fromReport ? undefined : statusOf(String(r.key)),
+      })),
+      ...fcfRows,
+    ];
+  } else {
+    title = 'Показатели финсегмента';
+    rows = [
+      ...HISTORY_ROWS.filter((r) => !['reported_fcf', 'banking_flow', 'core_fcf'].includes(String(r.key))).map((r): Row => ({
+        key: String(r.key), label: r.label, tip: r.tip, unit: r.unit ?? 'pct',
+        value: fromMetrics(r.key), status: statusOf(String(r.key)),
+      })),
+      ...fcfRows,
+    ];
+  }
+  const tone = (row: Row, pid: string, v: number) => {
+    if (row.key === 'core_fcf') return v < 0 ? 'bad' : 'good';
+    const s = row.status?.(pid);
+    return s === 'good' ? 'good' : s === 'normal' ? 'warn' : s === 'bad' ? 'bad' : 'neutral';
+  };
+  const text = (row: Row, v: number) => (row.unit === 'mln' ? segmentMoney(v) : row.unit === 'pp'
+    ? `${v > 0 ? '+' : ''}${dec(v, 2)} п.п.` : pctText(v));
+  return {
+    key: `segment-${kind}`,
+    title,
+    rows: rows.map((row) => ({
+      key: row.key,
+      label: row.label,
+      tip: row.tip,
+      sub: row.sub,
+      negative: row.negative,
+      cell: (col) => {
+        if (!periodIds.includes(col.key)) return null;
+        const v = row.value(col.key);
+        if (v === null) return { node: <span className="mult-cell neutral null-hint">—</span>, value: null };
+        const level = tone(row, col.key, v);
+        // Без порога — обычным числом, как остальной список: серая «нейтральная»
+        // плашка читалась как «нет данных».
+        const cls = level === 'neutral' ? 'hl-plain' : `mult-cell ${level}`;
+        return {
+          node: <span className={`${cls}${row.key === 'core_fcf' ? ' hl-core' : ''}`}>{text(row, v)}</span>,
+          value: v,
+        };
+      },
+    })),
+  };
+}
 
 const HistTable: React.FC<HistTableProps> = ({
   rows,
@@ -2359,6 +2500,8 @@ const HistTable: React.FC<HistTableProps> = ({
   onColumns,
   asList = false,
   sourceOf,
+  segment = null,
+  reportsById,
 }) => {
   const [pfcfColMode, setPfcfColMode] = React.useState<PfcfColMode>('pfcf');
   // Прибыль или деньги: ROE и «на акцию» переключаются на свободный поток.
@@ -2571,7 +2714,23 @@ const HistTable: React.FC<HistTableProps> = ({
   });
 
   if (asList) {
-    return <HistList periods={periods} groupRuns={groupRuns} sourceOf={sourceOf} />;
+    const reportIdOf = (pid: string) => (pid === 'ltm'
+      ? currentRow?.balance_report_id ?? null
+      : rows.find((r) => String(r.id) === pid)?.report_id ?? null);
+    const extra = segment ? [segmentGroup(
+      segment,
+      periods.map((p) => p.id),
+      (pid) => {
+        if (pid === 'ltm') return ltmBankMetrics ?? null;
+        const id = reportIdOf(pid);
+        return id != null ? bankMetricsByReport?.get(id) : null;
+      },
+      (pid) => {
+        const id = reportIdOf(pid);
+        return id != null ? reportsById?.get(id) : null;
+      },
+    )] : [];
+    return <HistList periods={periods} groupRuns={groupRuns} sourceOf={sourceOf} extraGroups={extra} />;
   }
 
   if (orientation === 'cols') {
@@ -2886,6 +3045,15 @@ const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company, reports, o
     }
     return map;
   }, [reports]);
+
+  // Раздел сегмента (банк, биржа, гибрид) на телефоне — продолжением списка
+  // «По годам», а не вторым блоком под ним.
+  const segmentKind: SegmentKind | null = company.company_type === 'exchange'
+    ? 'exchange'
+    : company.company_type === 'hybrid'
+      ? 'hybrid'
+      : (reports ?? []).some((r) => r.report_type === 'bank') ? 'bank' : null;
+  const reportsById = React.useMemo(() => new Map((reports ?? []).map((r) => [r.id, r])), [reports]);
 
   // Банковские показатели за скользящий год: собираются из трёх отчётов, а
   // значит только на бэкенде. Ключ тот же, что у карточки банка, — React Query
@@ -3248,6 +3416,8 @@ const MultipliersPanel: React.FC<MultipliersPanelProps> = ({ company, reports, o
             isHolding={isHolding}
             rows={isPhone ? rows : sheetRows}
             asList={isPhone}
+            segment={segmentKind}
+            reportsById={reportsById}
             currentRow={currentData ?? undefined}
             profile={profile}
             isPreferredShare={!!company.is_preferred_share}

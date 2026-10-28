@@ -19,6 +19,9 @@ export const FLOW_FIELDS: Field[] = [
   'operating_cash_flow', 'capex', 'lease_principal', 'interest_paid', 'depreciation_amortization',
   'net_interest_income', 'fee_commission_income', 'operating_expenses', 'provisions',
   'interest_income', 'interest_expense',
+  // Клиентские деньги в ОДДС у гибрида и биржи — тоже поток: за 12 месяцев
+  // складываются так же, как операционный поток, из которого их вычитают.
+  'cf_customer_deposits', 'cf_customer_loans', 'cf_other_float', 'lease_interest',
 ] as Field[];
 
 export interface Column {
@@ -95,8 +98,25 @@ export function buildColumns(reports: FinancialReport[], withInterim: boolean): 
   return cols;
 }
 
+const out = (x: number | null | undefined) => (x == null ? 0 : Math.abs(x));
+
 /** Строки с простой арифметикой — считаются из полей колонки. */
 export const derived = {
+  /** Свободный поток так, как его считает оценка: OCF − капзатраты − аренда − уплаченные проценты. */
+  fcfReported: (v: Record<string, number | null>) => (v.operating_cash_flow != null && v.capex != null
+    ? v.operating_cash_flow - out(v.capex) - out(v.lease_principal) - out(v.lease_interest) - out(v.interest_paid)
+    : null),
+  /** Приток клиентских денег по строкам ОДДС — со знаком, как в отчёте. */
+  clientFlow: (v: Record<string, number | null>) => {
+    const parts = [v.cf_customer_deposits, v.cf_customer_loans, v.cf_other_float];
+    return parts.every((p) => p == null) ? null : parts.reduce<number>((s, p) => s + (p ?? 0), 0);
+  },
+  /** Поток ядра: свободный поток минус приток клиентских денег. */
+  coreFcf: (v: Record<string, number | null>) => {
+    const fcf = derived.fcfReported(v);
+    const flow = derived.clientFlow(v);
+    return fcf == null || flow == null ? null : fcf - flow;
+  },
   fcf: (v: Record<string, number | null>) =>
     (v.operating_cash_flow != null && v.capex != null ? v.operating_cash_flow - Math.abs(v.capex) : null),
   netDebt: (v: Record<string, number | null>) => (v.debt != null && v.cash_and_equivalents != null ? v.debt - v.cash_and_equivalents : null),

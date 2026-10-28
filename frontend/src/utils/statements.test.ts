@@ -42,3 +42,14 @@ test('прошлый период для LTM — из сравнительной
   const withComp = [...reports.slice(0, 3), { ...reports[3], comparative: { revenue: 55 } } as FinancialReport];
   expect(ltmColumn(withComp)!.values.revenue).toBe(70 + 130 - 55);
 });
+
+test('поток ядра биржи по строкам отчёта: Мосбиржа за 2025 год', () => {
+  const v = {
+    operating_cash_flow: 111148.6, capex: 13567.4, lease_principal: 491.9, interest_paid: null,
+    cf_customer_deposits: 218302.7, cf_customer_loans: -173247.4, cf_other_float: null,
+  };
+  expect(derived.fcfReported(v)).toBeCloseTo(97089.3, 1);
+  expect(derived.clientFlow(v)).toBeCloseTo(45055.3, 1);
+  expect(derived.coreFcf(v)).toBeCloseTo(52034.0, 1);
+  expect(derived.clientFlow({ cf_customer_deposits: null, cf_customer_loans: null, cf_other_float: null })).toBeNull();
+});

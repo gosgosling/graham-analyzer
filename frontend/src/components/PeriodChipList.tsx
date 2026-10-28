@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useLayoutEffect, useRef, useState } from 'react';
 import './PeriodChipList.css';
 
 /**
@@ -30,8 +30,21 @@ export interface ChipRow {
   tip?: string;
   /** Подстрока — с отступом, как в таблице. */
   sub?: boolean;
+  /**
+   * Что значит минус. По умолчанию — плохо (убыток, отток, отрицательный
+   * капитал). У чистого долга минус — денег больше, чем долга, то есть хорошо;
+   * у строк ОДДС со знаком и притоков клиентских денег знак — просто
+   * направление движения.
+   */
+  negative?: SignMeaning;
   cell: (column: ChipColumn) => ChipCell | null | undefined;
 }
+
+export type SignMeaning = 'bad' | 'good' | 'neutral';
+
+/** Класс отрицательного значения по смыслу знака. */
+export const negClass = (meaning: SignMeaning | undefined): string =>
+  meaning === 'good' ? 'is-neg-good' : meaning === 'neutral' ? 'is-neg-neutral' : 'is-neg';
 
 export interface ChipGroup {
   key: string;
@@ -144,7 +157,7 @@ function History({ columns, row, current, chart }: {
           const has = typeof v === 'number';
           const h = has ? Math.max(2, (Math.abs(v as number) / span) * AREA) : 0;
           const neg = has && (v as number) < 0;
-          const cls = ['hl-bar', neg ? 'is-neg' : '', p.column.key === current ? 'is-current' : '',
+          const cls = ['hl-bar', neg ? negClass(row.negative) : '', p.column.key === current ? 'is-current' : '',
             p.column.key === pickedPoint?.column.key ? 'is-picked' : '', has ? '' : 'is-empty'].filter(Boolean).join(' ');
           return (
             <button key={p.column.key} type="button" className={cls} onClick={() => setPicked(p.column.key)}
@@ -168,6 +181,72 @@ function History({ columns, row, current, chart }: {
       </button>
       {listed && list}
     </div>
+  );
+}
+
+/**
+ * Пометки к значению — то, что на компьютере всплывает при наведении на
+ * число: «гудвил — 40% капитала», «посчитано по просрочке 90+». На телефоне
+ * наводить нечем, поэтому в раскрытой строке они выписаны текстом. Берутся
+ * прямо из отрисованной клетки (атрибуты title), а не дублируются в данных:
+ * какая пометка висит на числе, такая и будет прочитана.
+ */
+function ValueNotes({ target, skip }: { target: React.RefObject<HTMLSpanElement | null>; skip?: string }) {
+  const [notes, setNotes] = useState<string[]>([]);
+  useLayoutEffect(() => {
+    const el = target.current;
+    if (!el) return;
+    const found = [el, ...Array.from(el.querySelectorAll<HTMLElement>('[title]'))]
+      .map((node) => node.getAttribute('title')?.trim() ?? '')
+      .map((text) => text.replace(/\s*Наведите[^.]*\./g, '').trim())
+      .filter((text) => text && text !== skip?.trim());
+    setNotes(Array.from(new Set(found)));
+  }, [target, skip]);
+  if (notes.length === 0) return null;
+  return (
+    <ul className="hl-value-notes">
+      {notes.map((text) => <li key={text}>{text}</li>)}
+    </ul>
+  );
+}
+
+function ChipItem({ row, groupKey, current, other, isOpen, onToggle, show, source, columns, chart }: {
+  row: ChipRow;
+  groupKey: string;
+  current: ChipColumn;
+  other: ChipColumn | undefined;
+  isOpen: boolean;
+  onToggle: () => void;
+  show: (cell: ChipCell | null | undefined) => React.ReactNode;
+  source?: (columnKey: string) => React.ReactNode;
+  columns: ChipColumn[];
+  chart: boolean;
+}) {
+  const valueRef = useRef<HTMLSpanElement | null>(null);
+  const cell = row.cell(current);
+  return (
+    <li className={`hl-item${isOpen ? ' is-open' : ''}${row.sub ? ' hl-item--sub' : ''}`} data-group={groupKey}>
+      <button type="button" className="hl-row" aria-expanded={isOpen} onClick={onToggle}>
+        <span className="hl-name">
+          {row.label}{row.tip && <i className="hl-more" aria-hidden>?</i>}
+        </span>
+        <span className="hl-values">
+          <span ref={valueRef} className={['hl-value', cell?.className].filter(Boolean).join(' ')}>{show(cell)}</span>
+          {other && (
+            <small className="hl-prev">{other.label}: {show(row.cell(other))}</small>
+          )}
+        </span>
+      </button>
+      {/* Пояснение — здесь же, в раскрытой строке, как в «Критериях»:
+          панель снизу экрана закрывала то, к чему относилась. */}
+      {isOpen && row.tip && <p className="hl-note">{row.tip}</p>}
+      {isOpen && <ValueNotes key={current.key} target={valueRef} skip={row.tip} />}
+      {isOpen && source && (() => {
+        const text = source(current.key);
+        return text ? <p className="hl-source">{text}</p> : null;
+      })()}
+      {isOpen && <History columns={columns} row={row} current={current.key} chart={chart} />}
+    </li>
   );
 }
 
@@ -198,31 +277,11 @@ export default function PeriodChipList({ columns, groups, compareWith = 'next', 
           {g.title && <h4 className="hl-kicker">{g.title}</h4>}
           <ul className="hl-list">
             {g.rows.map((r) => {
-              const isOpen = open === `${g.key}/${r.key}`;
-              const cell = r.cell(current);
+              const id = `${g.key}/${r.key}`;
               return (
-                <li key={r.key} className={`hl-item${isOpen ? ' is-open' : ''}${r.sub ? ' hl-item--sub' : ''}`}>
-                  <button type="button" className="hl-row" aria-expanded={isOpen}
-                    onClick={() => setOpen(isOpen ? null : `${g.key}/${r.key}`)}>
-                    <span className="hl-name">
-                      {r.label}{r.tip && <i className="hl-more" aria-hidden>?</i>}
-                    </span>
-                    <span className="hl-values">
-                      <span className={['hl-value', cell?.className].filter(Boolean).join(' ')}>{show(cell)}</span>
-                      {other && (
-                        <small className="hl-prev">{other.label}: {show(r.cell(other))}</small>
-                      )}
-                    </span>
-                  </button>
-                  {/* Пояснение — здесь же, в раскрытой строке, как в «Критериях»:
-                      панель снизу экрана закрывала то, к чему относилась. */}
-                  {isOpen && r.tip && <p className="hl-note">{r.tip}</p>}
-                  {isOpen && source && (() => {
-                    const text = source(current.key);
-                    return text ? <p className="hl-source">{text}</p> : null;
-                  })()}
-                  {isOpen && <History columns={columns} row={r} current={current.key} chart={chart} />}
-                </li>
+                <ChipItem key={r.key} row={r} groupKey={g.key} current={current} other={other}
+                  isOpen={open === id} onToggle={() => setOpen(open === id ? null : id)}
+                  show={show} source={source} columns={columns} chart={chart} />
               );
             })}
           </ul>

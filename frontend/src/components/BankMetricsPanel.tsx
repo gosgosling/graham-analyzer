@@ -34,7 +34,7 @@ interface MetricSpec {
   badgeKey?: keyof BankMetrics;
 }
 
-const METRICS: MetricSpec[] = [
+export const METRICS: MetricSpec[] = [
   { key: 'cost_of_risk', label: 'Стоимость риска', unit: 'pct', meaning: 'Сколько портфеля банк списывает за год' },
   { key: 'npl_ratio', label: 'Доля проблемных', unit: 'pct', meaning: 'Стадия 3 и POCI к портфелю' },
   { key: 'npl_coverage', label: 'Покрытие резервом', unit: 'pct', meaning: 'Резерв к обесцененным кредитам' },
@@ -77,7 +77,7 @@ const HYBRID_METRIC_KEYS = new Set<keyof BankMetrics>([
  * доля комиссий выросла — то ли комиссии прибавили, то ли проценты упали.
  * У МОЕХ за 2025 это ровно второе, и по одним процентам этого не понять.
  */
-const EXCHANGE_HISTORY_ROWS: {
+export const EXCHANGE_HISTORY_ROWS: {
   key: keyof BankMetrics | 'fee_commission_income' | 'interest_income';
   label: string;
   unit: 'pct' | 'mln';
@@ -151,7 +151,7 @@ const EXCHANGE_HISTORY_ROWS: {
 ];
 
 /** Показатели сегмента в истории по годам — те же ключи, что и в карточках. */
-const HISTORY_ROWS: {
+export const HISTORY_ROWS: {
   key: keyof BankMetrics;
   label: string;
   unit?: 'pct' | 'mln';

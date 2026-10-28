@@ -237,3 +237,26 @@
   font-size: 0.85rem;
   width: 140px;
 }
+
+/* ── Телефон ─────────────────────────────────────────────────────────────
+   Карточки — по две в ряд; таблица долей — только то, что читают на ходу:
+   актив, доля и стоимость доли. Стоимость дочки и источник — в карточке
+   дочки и на компьютере; служебные кнопки администратору нужны на большом
+   экране. */
+@media (max-width: 760px) {
+  .holding-panel { padding: var(--space-4) var(--space-3); }
+  .holding-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); }
+  .holding-card { padding: var(--space-2) var(--space-3); }
+  .holding-card-value { font-size: 1.1rem; }
+  .holding-card-hint { font-size: 0.7rem; }
+  .holding-table { font-size: 0.84rem; table-layout: fixed; }
+  .holding-table th:nth-child(3), .holding-table td:nth-child(3),
+  .holding-table th:nth-child(5), .holding-table td:nth-child(5),
+  .holding-table th:nth-child(6), .holding-table td:nth-child(6) { display: none; }
+  .holding-table th, .holding-table td { padding: var(--space-2) 6px; }
+  .holding-table th:first-child, .holding-table td:first-child { width: 50%; padding-left: 0; }
+  .holding-table th:nth-child(2), .holding-table td:nth-child(2) { width: 18%; text-align: right; }
+  .holding-table th:nth-child(4) { text-align: right; }
+  .holding-ticker { display: block; margin: 0; }
+  .holding-actions, .holding-form { display: none; }
+}
