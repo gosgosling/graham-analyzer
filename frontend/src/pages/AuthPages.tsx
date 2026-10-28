@@ -8,6 +8,7 @@ import { safeNext } from '../utils/safeNext';
 import { MIN_PASSWORD, passwordScore } from '../utils/passwordScore';
 import { ScalesIcon } from '../components/BrandMark';
 import { ConsentText } from './LegalPages';
+import { goal, GOALS } from '../components/Metrika';
 import './Auth.css';
 
 /**
@@ -206,6 +207,7 @@ export function RegisterPage() {
     try {
       const { data } = await api.post<AuthMe>('/auth/register', { email, password, name, consent: agree });
       setCreated(true);
+      goal(GOALS.register);
       queryClient.setQueryData<AuthMe>(AUTH_KEY, (old) => ({ ...data, mail_configured: old?.mail_configured ?? false }));
       await queryClient.invalidateQueries();
       navigate('/account?welcome=1', { replace: true });

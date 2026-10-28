@@ -23,6 +23,10 @@ __pycache__/
 /data/
 # Хранилище PDF отчётов на сервере (наполняет scripts/sync_report_files.py).
 /report-files/
+# Журнал запросов веб-сервера (IP посетителей) — только на сервере.
+/logs/
+# Отчёты о посещаемости (deploy/traffic-report.sh).
+traffic-*.html
 
 # Данные аккаунтов из бэкапов (email, хэши паролей, сессии) — только локально
 backups/private/

@@ -72,6 +72,8 @@ services:
       - caddy_config:/config
       # Сами PDF отдаёт Caddy по /files/reports/….
       - ../report-files:/reports:ro
+      # Журнал запросов (см. Caddyfile, deploy/traffic-report.sh).
+      - ../logs/caddy:/var/log/caddy
     depends_on:
       - backend
 

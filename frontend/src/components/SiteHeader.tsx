@@ -9,6 +9,7 @@ import { AUTH_PATHS } from '../utils/passwordScore';
 import { AUTH_KEY, AuthMe, AuthUser, useAuth } from '../hooks/useAdmin';
 import { api } from '../services/companies.api';
 import { PHONE_QUERY, useMediaQuery } from '../hooks/useMediaQuery';
+import { goal, GOALS } from './Metrika';
 import './SiteHeader.css';
 
 /**
@@ -100,6 +101,7 @@ export function CompanySearch({ autoFocus = false, onClose }: {
 
   const go = (company: Company | undefined) => {
     if (!company?.id) return;
+    goal(GOALS.search);
     navigate(`/company/${company.id}`);
     setQuery('');
     setOpen(false);

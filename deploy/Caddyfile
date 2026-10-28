@@ -58,9 +58,20 @@
 		-Server
 	}
 
+	# Журнал запросов — в файл на диске сервера (../logs/caddy), а не только в
+	# вывод контейнера: тот пропадает при пересборке, и по нему не посчитать
+	# посещаемость. Отчёт по журналу — deploy/traffic-report.sh.
+	# Новый файл раз в сутки, файлы старше 30 дней удаляются: столько журналы
+	# хранятся по политике конфиденциальности. Cookie и Authorization Caddy в
+	# журнал не пишет (log_credentials выключен по умолчанию).
 	log {
-		output stdout
-		format console
+		output file /var/log/caddy/access.log {
+			roll_size 50MiB
+			roll_interval 24h
+			roll_keep_for 720h
+			roll_keep 60
+		}
+		format json
 	}
 }
 
