@@ -27,3 +27,13 @@ def test_render_marks_private_pages_noindex_without_text():
     out = render(INDEX, Page(title="Вход", description="d", noindex=True), "https://example.ru/login", "https://example.ru")
     assert '<meta name="robots" content="noindex" />' in out
     assert '<div id="root"></div>' in out
+
+
+def test_dump_import_deep_link_is_private_and_known():
+    from app.routers.pages_router import resolve
+
+    page = resolve(None, "admin/dump-import")
+    assert page.status == 200
+    assert page.title == "Импорт из дампа"
+    assert page.noindex
+    assert resolve(None, "admin/unknown").status == 404

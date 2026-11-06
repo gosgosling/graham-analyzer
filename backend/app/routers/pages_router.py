@@ -262,6 +262,8 @@ def resolve(db: Session, path: str) -> Page:
         return page
     if head == "bond" and len(parts) >= 2:
         return Page(title="Облигация", description=DEFAULT_DESCRIPTION, noindex=True)
+    if parts == ["admin", "dump-import"]:
+        return Page(title="Импорт из дампа", description=DEFAULT_DESCRIPTION, noindex=True)
     if len(parts) > 1:
         return Page(title="Страница не найдена", description=DEFAULT_DESCRIPTION, status=404, noindex=True)
     if head == "market":
