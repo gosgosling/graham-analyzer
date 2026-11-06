@@ -16,6 +16,7 @@ import './AdminPage.css';
  */
 
 const TOOLS: { to: string; title: string; text: string }[] = [
+  { to: '/admin/dump-import', title: 'Импорт из дампа', text: 'Загрузка Data Foundry, аудит, сравнение и перенос с прогрессом' },
   { to: '/securities', title: 'Ценные бумаги (MOEX)', text: 'Справочник бумаг Мосбиржи' },
   { to: '/companies', title: 'Компании (T-Invest)', text: 'Список компаний, проверка отчётов, синхронизация' },
   { to: '/mass-parse', title: 'Массовый парсинг', text: 'Загрузка отчётов пачкой через AI-парсер' },

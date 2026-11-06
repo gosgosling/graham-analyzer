@@ -20,7 +20,7 @@ COPY backend/ backend/
 COPY tools/edisclosure-scraper/ tools/edisclosure-scraper/
 
 RUN useradd --system --uid 10001 --home-dir /app app \
-    && mkdir -p /data/logos \
+    && mkdir -p /data/logos /data/dump-import \
     && chown -R app:app /app /data
 USER app
 

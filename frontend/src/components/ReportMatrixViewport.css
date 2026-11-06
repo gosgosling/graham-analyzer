@@ -1,0 +1,55 @@
+.crm-matrix { position: relative; --crm-header-top: 0px; }
+.crm-navigation {
+  position: sticky;
+  top: var(--crm-header-top);
+  z-index: 12;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px 20px;
+  min-height: 48px;
+  padding: 8px 12px;
+  box-sizing: border-box;
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border-default);
+  border-bottom: 0;
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+}
+.crm-navigation label { font-size: 13px; font-weight: 600; white-space: nowrap; }
+.crm-navigation select { padding: 6px 10px; margin-left: 5px; border: 1px solid var(--color-border-default); border-radius: var(--radius-sm); color: var(--color-text-primary); background: var(--color-bg-input); font: inherit; cursor: pointer; }
+.crm-navigation-hint { margin-left: auto; font-size: 12px; color: var(--color-text-tertiary); }
+/* The page supplies the only vertical scrollbar. Header translation is handled
+   in the component because an overflow-x element traps CSS sticky vertically. */
+.crm-matrix .crm-table-scroll { max-height: none; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; border-radius: 0 0 var(--radius-md) var(--radius-md); scrollbar-width: none; }
+.crm-matrix .crm-table-scroll::-webkit-scrollbar { display: none; }
+.crm-table thead { position: relative; z-index: 6; }
+/* A transformed thead and sticky corner can paint incorrectly together in Chromium. */
+.crm-matrix thead .crm-th-label { position: relative; top: auto; left: auto; }
+.crm-scroll-dock {
+  position: fixed;
+  bottom: 12px;
+  z-index: 25;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  box-sizing: border-box;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-elevated);
+  box-shadow: 0 4px 24px rgb(0 0 0 / 16%);
+}
+.crm-scroll-dock[hidden] { display: none; }
+.crm-scroll-dock button { flex: 0 0 32px; height: 28px; border: 1px solid var(--color-border-default); border-radius: var(--radius-sm); background: var(--color-bg-surface); color: var(--color-text-primary); font-size: 18px; cursor: pointer; }
+.crm-scroll-dock button:disabled { opacity: .35; cursor: default; }
+.crm-scroll-dock input { appearance: none; -webkit-appearance: none; flex: 1 1 auto; min-width: 40px; height: 24px; margin: 0; background: transparent; cursor: pointer; }
+.crm-scroll-dock input::-webkit-slider-runnable-track { height: 12px; border-radius: 6px; background: var(--color-border-default); }
+.crm-scroll-dock input::-moz-range-track { height: 12px; border-radius: 6px; background: var(--color-border-default); }
+.crm-scroll-dock input::-webkit-slider-thumb { appearance: none; -webkit-appearance: none; width: var(--crm-thumb-size, 60px); height: 18px; margin-top: -3px; border: 2px solid var(--color-bg-elevated); border-radius: 9px; background: var(--color-primary); }
+.crm-scroll-dock input::-moz-range-thumb { width: var(--crm-thumb-size, 60px); height: 14px; border: 2px solid var(--color-bg-elevated); border-radius: 9px; background: var(--color-primary); }
+.crm-scroll-dock input:focus-visible, .crm-scroll-dock button:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 3px; }
+.crm-scroll-position { min-width: 95px; text-align: right; font: 12px var(--font-mono); color: var(--color-text-secondary); white-space: nowrap; }
+.crm-matrix .crm-table tbody tr:hover .crm-cell, .crm-matrix .crm-table tbody tr:focus-within .crm-cell { background: var(--color-bg-hover); }
+.crm-matrix .crm-table tbody tr:hover .crm-row-label, .crm-matrix .crm-table tbody tr:focus-within .crm-row-label { background: var(--color-bg-elevated); }
+@media (max-width: 650px) { .crm-navigation-hint { display: none; } .crm-scroll-position { min-width: 65px; font-size: 10px; } .crm-scroll-dock { gap: 6px; padding: 6px; bottom: 8px; } }

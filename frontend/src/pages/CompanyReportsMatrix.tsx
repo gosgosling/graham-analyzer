@@ -20,6 +20,7 @@ import { moexRubPriceToReportFieldValue } from '../utils/moexReportAssist';
 import { computeFcf } from '../utils/fcf';
 import { computeNetDebt } from '../utils/netDebt';
 import AiParsePdfModal from '../components/AiParsePdfModal';
+import ReportMatrixViewport from '../components/ReportMatrixViewport';
 import './CompanyReportsMatrix.css';
 
 type CellKind = 'text' | 'number' | 'int' | 'date' | 'bool' | 'select' | 'textarea' | 'readonly';
@@ -377,6 +378,7 @@ const CompanyReportsMatrix: React.FC = () => {
   const companyId = Number(companyIdParam);
   const queryClient = useQueryClient();
 
+  const [periodFilter, setPeriodFilter] = useState('all');
   const [quickPeriod, setQuickPeriod] = useState<PeriodPreset>('annual');
   // Двадцать лет назад: Грэму нужна средняя прибыль за 7–10 лет, а самые
   // ранние отчёты в базе — 2006 года, и они тоже должны быть доступны.
@@ -477,9 +479,10 @@ const CompanyReportsMatrix: React.FC = () => {
   }, [draftPayload]);
 
   const displayReports = useMemo(() => {
-    if (!draftPseudoReport) return sortedReports;
-    return [draftPseudoReport, ...sortedReports];
-  }, [draftPseudoReport, sortedReports]);
+    const filtered = periodFilter === 'all' ? sortedReports : sortedReports.filter(r => String(r.period_type).toLowerCase() === periodFilter);
+    if (!draftPseudoReport) return filtered;
+    return [draftPseudoReport, ...filtered];
+  }, [draftPseudoReport, sortedReports, periodFilter]);
 
   const startMatrixDraft = useCallback(() => {
     if (draftPayload !== null) {
@@ -887,7 +890,17 @@ const CompanyReportsMatrix: React.FC = () => {
         </div>
       </header>
 
-      <div className="crm-table-scroll">
+      <ReportMatrixViewport
+        columns={displayReports.map(r => ({ id: r.id, label: r.id === MATRIX_DRAFT_ID ? 'Новый отчёт' : `${periodShort(r)} · ${r.accounting_standard}` }))}
+        filters={<label>Периоды{' '}
+          <select aria-label="Тип отчётов в матрице" value={periodFilter} onChange={e => setPeriodFilter(e.target.value)}>
+            <option value="all">Все ({sortedReports.length})</option>
+            <option value="annual">Годовые</option>
+            <option value="semi_annual">Полугодовые</option>
+            <option value="quarterly">Квартальные</option>
+          </select>
+        </label>}
+      >
         {reportsLoading && !draftPseudoReport ? (
           <div className="crm-loading">Загрузка отчётов…</div>
         ) : sortedReports.length === 0 && !draftPseudoReport ? (
@@ -903,14 +916,16 @@ const CompanyReportsMatrix: React.FC = () => {
               </button>
             </div>
           </div>
+        ) : displayReports.length === 0 ? (
+          <div className="crm-empty">Нет отчётов выбранного типа. Выберите другой тип периода.</div>
         ) : (
           <table className="crm-table">
             <thead>
               <tr>
-                <th className="crm-th-label">Показатель</th>
+                <th className="crm-th-label" scope="col">Показатель</th>
                 {displayReports.map((r) =>
                   r.id === MATRIX_DRAFT_ID ? (
-                    <th key={r.id} className="crm-th-col crm-th-draft">
+                    <th key={r.id} data-report-id={r.id} scope="col" className="crm-th-col crm-th-draft">
                       <div className="crm-col-head">
                         <div className="crm-col-period">Новый отчёт</div>
                         <div className="crm-col-meta">{periodShort(r)}</div>
@@ -945,7 +960,7 @@ const CompanyReportsMatrix: React.FC = () => {
                       </div>
                     </th>
                   ) : (
-                    <th key={r.id} className="crm-th-col">
+                    <th key={r.id} data-report-id={r.id} scope="col" className="crm-th-col">
                       <div className="crm-col-head">
                         <div className="crm-col-period">{periodShort(r)}</div>
                         <div className="crm-col-meta">
@@ -1021,9 +1036,9 @@ const CompanyReportsMatrix: React.FC = () => {
               </tr>
               {visibleRows.map((row) => (
                 <tr key={String(row.key)}>
-                  <td className="crm-row-label" title={row.hint}>
+                  <th scope="row" className="crm-row-label" title={row.hint}>
                     <span className="crm-row-label-text">{row.label}</span>
-                  </td>
+                  </th>
                   {displayReports.map((r) => {
                     const draftSubmitting = savingKey === 'draft:submit';
                     const sk = `${r.id}:${String(row.key)}`;
@@ -1055,7 +1070,7 @@ const CompanyReportsMatrix: React.FC = () => {
             </tbody>
           </table>
         )}
-      </div>
+      </ReportMatrixViewport>
 
       {aiModal && (
         <AiParsePdfModal

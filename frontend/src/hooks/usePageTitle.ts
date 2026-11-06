@@ -27,6 +27,7 @@ const SECTIONS: Record<string, string> = {
   '/register': 'Регистрация',
   '/account': 'Кабинет',
   '/admin': 'Админ',
+  '/admin/dump-import': 'Импорт из дампа',
   '/privacy': 'Политика конфиденциальности',
   '/consent': 'Согласие на обработку данных',
 };

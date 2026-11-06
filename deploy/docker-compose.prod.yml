@@ -41,9 +41,12 @@ services:
       DATABASE_URL: ""
       LOGO_CACHE_DIR: /data/logos
       REPORT_FILES_DIR: /data/report-files
+      DUMP_IMPORT_DIR: /data/dump-import
     volumes:
       # Копии логотипов переживают пересборку образа (см. logo_cache.py).
       - logos:/data/logos
+      # Задачи импорта и исходные снимки переживают пересборку контейнера.
+      - dump_import:/data/dump-import
       # Хранилище PDF отчётов: бэкенд читает из него только manifest.json.
       # Каталог наполняет scripts/sync_report_files.py --push (rsync).
       - ../report-files:/data/report-files:ro
@@ -78,6 +81,7 @@ services:
       - backend
 
 volumes:
+  dump_import:
   logos:
   pg_data:
   caddy_data:

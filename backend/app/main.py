@@ -6,7 +6,7 @@ from typing import Optional
 
 from app.routers import valuation_router, screen_router, companies_router, securities_router, reports_router, dividends_router, prices_router, compare_router
 from app.routers import multipliers_router, market_router, bonds_router, admin_router, logos_router
-from app.routers import mass_parse_router, disclosure_router, holdings_router, auth_router, pages_router
+from app.routers import mass_parse_router, disclosure_router, holdings_router, auth_router, pages_router, dump_import_router
 from app.scheduler import start_scheduler, stop_scheduler
 from app.services.mass_parse.worker import recover_orphaned_running_jobs
 
@@ -28,6 +28,8 @@ logging.getLogger("apscheduler").setLevel(logging.ERROR)
 async def lifespan(app: FastAPI):
     """Запускает планировщик при старте и останавливает при завершении."""
     recover_orphaned_running_jobs()
+    from app.services.dump_import.worker import recover
+    recover()
     start_scheduler()
     yield
     stop_scheduler()
@@ -85,6 +87,7 @@ app.include_router(multipliers_router.router)
 app.include_router(market_router.router)
 app.include_router(bonds_router.router)
 app.include_router(admin_router.router)
+app.include_router(dump_import_router.router)
 app.include_router(mass_parse_router.router)
 app.include_router(disclosure_router.router)
 app.include_router(holdings_router.router)

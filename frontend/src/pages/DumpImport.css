@@ -1,0 +1,12 @@
+.dump-import { max-width: 1440px; margin: 24px auto; padding: 0 20px 40px; }
+.dump-import p { line-height: 1.6; }
+.dump-card { margin: 22px 0; padding: 24px; border: 1px solid var(--border-color, #dce2eb); border-radius: 12px; background: var(--card-bg, transparent); }
+.dump-card h2 { margin-top: 0; }
+.dump-company-select, .dump-job-select { width: 100%; margin: 18px 0; }
+.dump-note, .dump-import small { color: var(--text-secondary, #738096); }
+.dump-stats { display: flex; gap: 12px 24px; flex-wrap: wrap; margin: 18px 0; }
+.dump-log { max-height: 330px; overflow: auto; font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.dump-log time { color: #738096; margin-right: 8px; }
+.dump-import .ant-table-wrapper { margin-top: 18px; }
+.dump-import .ant-collapse { margin: 16px 0; }
+@media (max-width: 650px) { .dump-import { padding: 0 10px 25px; } .dump-card { padding: 16px 10px; } }

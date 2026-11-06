@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo } from 'react';
+import DumpImport from './pages/DumpImport';
 import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
 import { ConfigProvider, theme as antdTheme } from 'antd';
 import ruRU from 'antd/locale/ru_RU';
@@ -117,6 +118,7 @@ function App() {
             <Route path="/company/:companyId/reports-matrix" element={<AdminOnly><CompanyReportsMatrix /></AdminOnly>} />
             <Route path="/bonds" element={<AdminOnly><BondsList /></AdminOnly>} />
             <Route path="/bond/:figi" element={<AdminOnly><BondDetail /></AdminOnly>} />
+            <Route path="/admin/dump-import" element={<AdminOnly><DumpImport /></AdminOnly>} />
             <Route path="/mass-parse" element={<AdminOnly><MassParse /></AdminOnly>} />
             <Route path="/disclosure" element={<AdminOnly><DisclosureCoverage /></AdminOnly>} />
             <Route path="/calendar" element={<ReportCalendar />} />

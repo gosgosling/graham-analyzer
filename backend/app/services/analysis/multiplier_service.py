@@ -1229,6 +1229,8 @@ def save_current_multiplier(
     db: Session,
     company_id: int,
     mults: Dict,
+    *,
+    commit: bool = True,
 ) -> Multiplier:
     """
     Создаёт или обновляет запись актуальных мультипликаторов (type="current") на сегодня.
@@ -1258,7 +1260,10 @@ def save_current_multiplier(
         if report:
             _apply(existing, _balance_rub(report))
 
-    db.commit()
+    if commit:
+        db.commit()
+    else:
+        db.flush()
     db.refresh(existing)
     return existing
 
@@ -1333,6 +1338,8 @@ def delete_multipliers_for_report(db: Session, report_id: int) -> int:
 def save_report_based_multiplier(
     db: Session,
     report: FinancialReport,
+    *,
+    commit: bool = True,
 ) -> Optional[Multiplier]:
     """
     Вычисляет и сохраняет мультипликаторы на дату отчёта (type="report_based").
@@ -1352,7 +1359,10 @@ def save_report_based_multiplier(
     """
     if report.period_type != PeriodType.ANNUAL:
         delete_multipliers_for_report(db, report.id)
-        db.commit()
+        if commit:
+            db.commit()
+        else:
+            db.flush()
         return None
 
     # Без цены год всё равно нужен в истории. До выхода на биржу цены не
@@ -1371,7 +1381,10 @@ def save_report_based_multiplier(
         # Мы не можем посчитать мультипликаторы — но «протухшие» записи
         # от предыдущих версий отчёта всё равно нужно вычистить.
         _delete_stale_report_based(db, report.id, keep_date=None)
-        db.commit()
+        if commit:
+            db.commit()
+        else:
+            db.flush()
         return None
 
     # Поток ядра считается и для строк по годам, иначе колонка FCF в таблице
@@ -1448,7 +1461,10 @@ def save_report_based_multiplier(
     _apply(existing, _report_flow_rub(report, mults))
     _apply(existing, _balance_rub(report))
 
-    db.commit()
+    if commit:
+        db.commit()
+    else:
+        db.flush()
     db.refresh(existing)
     return existing
 
