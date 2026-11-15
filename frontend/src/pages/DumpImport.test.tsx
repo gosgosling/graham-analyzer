@@ -61,9 +61,30 @@ test('apply is a separate explicit action after the audit', async () => {
   expect(mocked.createDumpJob).not.toHaveBeenCalled();
 });
 
+test('apply remains available for MOEX enrichment when the dump has no new fields', async () => {
+  const ready = { ...job, totals: { ...job.totals, add: 0 } };
+  mocked.dumpJobs.mockResolvedValue([ready]); mocked.dumpJob.mockResolvedValue(ready);
+  show();
+  const button = await screen.findByRole('button', { name: 'Создать бэкап и перенести готовые данные' });
+  await waitFor(() => expect(button).toBeEnabled());
+  fireEvent.click(button);
+  await waitFor(() => expect(mocked.controlDumpJob).toHaveBeenCalledWith('job1', 'apply'));
+});
+
 test('apply progress counts applied companies rather than already audited companies', async () => {
   const applying: api.DumpJob = { ...job, status: 'running', phase: 'apply', total: 5, counts: { ...job.counts, audited: 4, done: 1 } };
   mocked.dumpJobs.mockResolvedValue([applying]); mocked.dumpJob.mockResolvedValue(applying);
   show();
   await waitFor(() => expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '20'));
+});
+
+test('cancelled job can resume without creating a new job and hides unavailable retry', async () => {
+  const cancelled: api.DumpJob = { ...job, status: 'cancelled', counts: { ...job.counts, error: 2 } };
+  mocked.dumpJobs.mockResolvedValue([cancelled]); mocked.dumpJob.mockResolvedValue(cancelled);
+  show();
+  fireEvent.click(await screen.findByRole('button', { name: 'Возобновить задачу' }));
+  await waitFor(() => expect(mocked.controlDumpJob).toHaveBeenCalledWith('job1', 'resume'));
+  expect(mocked.createDumpJob).not.toHaveBeenCalled();
+  expect(screen.queryByRole('button', { name: 'Повторить ошибки' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Создать бэкап и перенести готовые данные' })).not.toBeInTheDocument();
 });

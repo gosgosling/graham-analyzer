@@ -77,11 +77,14 @@ export default function DumpImport() {
         <Space wrap>
           {data.status === 'running' && <Button loading={action.isPending} onClick={() => action.mutate('pause')}>Пауза</Button>}
           {['paused', 'failed'].includes(data.status) && <Button loading={action.isPending} onClick={() => action.mutate('resume')}>Продолжить</Button>}
-          {data.counts.error > 0 && data.status !== 'running' && <Button loading={action.isPending} onClick={() => action.mutate('retry')}>Повторить ошибки</Button>}
-          {data.status === 'ready' && <Button type="primary" disabled={!overview.data?.apply_allowed || !data.totals.add} loading={action.isPending} onClick={() => action.mutate('apply')}>Создать бэкап и перенести готовые данные</Button>}
+          {data.status === 'cancelled' && <Button loading={action.isPending} onClick={() => action.mutate('resume')}>Возобновить задачу</Button>}
+          {data.counts.error > 0 && !['running', 'cancelled'].includes(data.status) && <Button loading={action.isPending} onClick={() => action.mutate('retry')}>Повторить ошибки</Button>}
+          {data.status === 'ready' && <Button type="primary" disabled={!overview.data?.apply_allowed} loading={action.isPending} onClick={() => action.mutate('apply')}>Создать бэкап и перенести готовые данные</Button>}
           {!['completed', 'cancelled'].includes(data.status) && <Button danger loading={action.isPending} onClick={() => action.mutate('cancel')}>Отменить задачу</Button>}
         </Space>
+        {data.status === 'cancelled' && <p className="dump-note">Готовые аудиты и загруженные страницы сохранены. Возобновление продолжит незавершённые компании; ошибки можно повторить отдельно.</p>}
         <p className="dump-note">Пауза и отмена останавливают дальнейшую обработку после текущего запроса или компании. Перед записью проверяется, что данные не изменились после аудита.</p>
+        <p className="dump-note">При переносе также заполняются пустые цены на конец периода и известную дату публикации, а также «Размещено» с Мосбиржи. Выпуск — текущий, с поправкой на известные дробления; исторические допэмиссии не учитываются. Недоступные значения перечисляются в журнале переноса.</p>
         {data.backup && <p>Резервная копия: <code>{String(data.backup.filename || data.backup.path || 'создана')}</code></p>}
         <Table<DumpItem> rowKey="ticker" size="small" dataSource={items.data || []} pagination={{ pageSize: 20 }} scroll={{ x: 1050 }}
           columns={[

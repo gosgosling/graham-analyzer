@@ -1,12 +1,12 @@
 from __future__ import annotations
-import fcntl,json,logging,threading
+import copy,fcntl,json,logging,threading
 from datetime import date,datetime,timedelta,timezone
 from decimal import Decimal
 from app.database import SessionLocal
 from app.models.company import Company
 from app.models.financial_report import FinancialReport
 from app.models.enums import AccountingStandard,PeriodType,ReportSource
-from . import store,source,planner
+from . import store,source,planner,market
 
 log=logging.getLogger(__name__)
 
@@ -39,18 +39,23 @@ def check(job_id):
  job=store.get(job_id)
  if job['status']!='running':raise Stopped()
 
-def start(job_id,phase=None):
+def start(job_id,phase=None,*,resume_cancelled=False):
  handle=acquire()
  if handle is None:raise ValueError('Уже работает другая задача. Дождитесь завершения или поставьте её на паузу.')
  try:
   job=store.get(job_id)
-  if job['status']=='cancelled':raise ValueError('Отменённую задачу нельзя продолжить')
+  if job['status']=='cancelled' and not resume_cancelled:raise ValueError('Возобновите отменённую задачу отдельной кнопкой')
   if job.get('retry_at') and datetime.fromisoformat(job['retry_at'])>datetime.now(timezone.utc):raise ValueError('Действует пауза источника до '+job['retry_at'])
   chosen=phase or job['phase']
   if chosen=='apply':
    if not planner.apply_allowed():raise ValueError('Перенос разрешён только в локальную dev-базу с DEBUG=true')
    if phase=='apply' and job['status']!='ready':raise ValueError('Сначала завершите аудит')
-  elif job['status'] not in {'pending','paused','ready','completed','failed'}:raise ValueError('Задача уже запущена')
+  elif job['status'] not in {'pending','paused','ready','completed','failed','cancelled'}:raise ValueError('Задача уже запущена')
+  # A cancelled/paused worker may have exited before resetting its current item.
+  # The exclusive lock guarantees no previous request is still processing it.
+  for item in store.items(job_id):
+   if item['status']=='running':
+    store.item_update(job_id,item['ticker'],status='pending' if chosen=='audit' else 'audited',message='Продолжение после остановки')
   if phase=='apply':store.update(job_id,backup=None)
   store.update(job_id,phase=chosen,status='running',retry_at=None,message='Аудит запущен' if chosen=='audit' else 'Подготовка бэкапа и переноса')
   threading.Thread(target=run,args=(job_id,handle),daemon=True,name='dump-import-'+job_id[:8]).start()
@@ -64,7 +69,7 @@ def _receipt(db,company_id,job_id):
   if isinstance(notes,dict) and notes.get('dump_import_job')==job_id:markers.append({'report_id':r.id,'fields':list(notes['provenance_added'])})
  return markers
 
-def apply_company(db,company,job,audit,raw):
+def apply_company(db,company,job,audit,raw,market_data=None):
  if not planner.apply_allowed():raise ValueError('Dev-only: запись запрещена для этой базы')
  # Serialize with company writes through this workflow; also lock report rows.
  company=db.query(Company).filter_by(id=company.id).with_for_update().one()
@@ -72,13 +77,28 @@ def apply_company(db,company,job,audit,raw):
  markers=_receipt(db,company.id,job['id'])
  if markers:
   # Report journal and data commit atomically, so a restart after commit is recoverable.
-  return {'recovered':True,'reports':markers,'added':sum(len(x['fields']) for x in markers)}
+  market_path=store.artifact(job['id'],company.ticker,'market.json')
+  cached=json.loads(market_path.read_text()) if market_path.exists() else {}
+  return {'recovered':True,'reports':markers,'added':sum(len(x['fields']) for x in markers),
+          'moex_added':sum(f in {'price_per_share','price_at_filing','shares_issued'} for x in markers for f in x['fields']),
+          'moex_missing':cached.get('missing',[])}
  if audit['policy_version']!=planner.POLICY_VERSION:raise ValueError('Правила переноса изменились; выполните новый аудит')
  if planner.fingerprint(rows)!=audit['baseline']:raise ValueError('Данные компании изменились после аудита. Создайте новый аудит перед переносом.')
  protected=company.ticker in (set(job['protected'])|planner.protected_tickers(db))
  if planner.company_kind(company)=='holding':raise ValueError('Холдинги исключены')
  changes=[];touched=[]
- for item in audit['reports']:
+ report_plan=copy.deepcopy(audit['reports'])
+ for extra in (market_data or {}).get('reports',[]):
+  item=next((r for r in report_plan if (r['report_id'],r['date'],r['period_type'])==(extra['report_id'],extra['date'],extra['period_type'])),None)
+  if item is None:
+   if extra['report_id'] is None:raise ValueError('Мосбиржа не должна создавать отчёты без финансовых данных')
+   item={**extra,'fields':{},'provenance':{},'definitions':{}};report_plan.append(item)
+  for field,value in extra['fields'].items():
+   if field not in {'price_per_share','price_at_filing','shares_issued'}:raise ValueError('Неизвестное поле Мосбиржи')
+   if field not in item['fields']:
+    item['fields'][field]=value;item['provenance'][field]=extra['provenance'][field]
+    item['definitions'][field]='MOEX: '+('текущий выпуск с поправкой на дробления' if field=='shares_issued' else 'цена закрытия на дату или предыдущую сессию')
+ for item in report_plan:
   existing=next((r for r in rows if r.id==item['report_id']),None) if item['report_id'] is not None else None
   allowed,reason=planner.allowed_report(company,protected,existing,item['period_type'])
   if not allowed:raise ValueError('Защита изменилась после аудита: '+reason)
@@ -101,6 +121,7 @@ def apply_company(db,company,job,audit,raw):
    'provenance_added':item['provenance'],'definitions':item['definitions'],'previous_model':r.extraction_model,
    'previous_notes':previous,'source_archive':str(store.artifact(job['id'],company.ticker,'source.json')),
    'audit_archive':str(store.artifact(job['id'],company.ticker,'audit.json')),
+   'market_archive':str(store.artifact(job['id'],company.ticker,'market.json')) if market_data is not None else None,
    'note':'Непроверенное дополнение. Прибыль/капитал группы могут отличаться от владельческих. Все варианты сохранены в архиве.'},ensure_ascii=False)
   r.extraction_model='Data Foundry + existing data';r.verified_by_analyst=False;r.auto_extracted=True;touched.append(r)
  db.flush()
@@ -110,7 +131,9 @@ def apply_company(db,company,job,audit,raw):
   mults=calculate_current_multipliers(db,company.id)
   if mults:save_current_multiplier(db,company.id,mults,commit=False)
  db.commit()
- return {'added':len(changes),'changes':changes,'reports':[r.id for r in touched]}
+ return {'added':len(changes),'changes':changes,'reports':[r.id for r in touched],
+         'moex_added':sum(c['field'] in {'price_per_share','price_at_filing','shares_issued'} for c in changes),
+         'moex_missing':(market_data or {}).get('missing',[])}
 
 def run(job_id,handle):
  try:
@@ -146,9 +169,24 @@ def run(job_id,handle):
       store.item_update(job_id,ticker,status='audited',summary=report['summary'],message='Аудит готов')
      else:
       raw=json.loads(path.read_text());report=json.loads(store.artifact(job_id,ticker,'audit.json').read_text())
-      check(job_id);receipt=apply_company(db,company,job,report,raw)
+      check(job_id)
+      # A post-commit crash only needs receipt recovery; never refetch MOEX then.
+      market_data=None
+      if not _receipt(db,company.id,job_id):
+       rows=db.query(FinancialReport).filter_by(company_id=company.id).all()
+       if planner.fingerprint(rows)!=report['baseline']:raise ValueError('Данные компании изменились после аудита. Создайте новый аудит перед переносом.')
+       protected=ticker in (set(job['protected'])|planner.protected_tickers(db))
+       plan=market.prepare(db,company,rows,report,protected)
+       db.rollback()
+       store.update(job_id,message=ticker+': цены и размещённые акции с Мосбиржи')
+       store.item_update(job_id,ticker,message='Загрузка цен и размещённых акций с Мосбиржи')
+       market_data=market.fetch(plan,lambda msg:store.event(job_id,msg),lambda:check(job_id))
+       store.write(store.artifact(job_id,ticker,'market.json'),market_data)
+      check(job_id);receipt=apply_company(db,company,job,report,raw,market_data)
       store.write(store.artifact(job_id,ticker,'receipt.json'),receipt)
-      store.item_update(job_id,ticker,status='done',message=f"Добавлено {receipt['added']} полей",receipt=receipt)
+      message=f"Добавлено {receipt['added']} полей; Мосбиржа: {receipt.get('moex_added',0)}"
+      if receipt.get('moex_missing'):message+=f"; Мосбиржа не вернула: {len(receipt['moex_missing'])} полей (см. журнал переноса)"
+      store.item_update(job_id,ticker,status='done',message=message,receipt=receipt)
     store.event(job_id,ticker+': готово')
    except Stopped:
     store.item_update(job_id,ticker,status='pending' if job['phase']=='audit' else 'audited',message='Пауза');raise

@@ -11,7 +11,7 @@ from fastapi.testclient import TestClient
 from app.database import Base,get_db
 from app.models import Company,FinancialReport
 from app.models.enums import PeriodType,AccountingStandard
-from app.services.dump_import import planner,store,worker,source
+from app.services.dump_import import planner,store,worker,source,market
 from app.routers.dump_import_router import router
 
 @pytest.fixture
@@ -22,6 +22,8 @@ def env(tmp_path,monkeypatch):
  monkeypatch.setattr(worker,'SessionLocal',factory)
  monkeypatch.setattr(planner,'protected_tickers',lambda db:set())
  monkeypatch.setattr(planner,'apply_allowed',lambda:True)
+ monkeypatch.setattr(market,'get_shares_outstanding',lambda ticker:None)
+ monkeypatch.setattr(market,'traded_close_on_or_before',lambda *args:None)
  with factory() as db:
   c=Company(ticker='TEST',figi='TEST',name='Test',company_type='industrial');db.add(c);db.commit()
  yield factory
@@ -113,12 +115,37 @@ def test_resume_recovers_orphan_and_no_double_worker(env):
   with pytest.raises(ValueError,match='работает другая'):worker.start(job['id'])
  finally:handle.close()
 
+def test_cancelled_audit_resumes_cached_work_without_repeating_completed_items(env,monkeypatch):
+ from types import SimpleNamespace
+ from app.routers.dump_import_router import control
+ with env() as db:
+  db.add(Company(ticker='NEXT',figi='NEXT',name='Next',company_type='industrial'));db.commit()
+ job=store.create(['TEST','NEXT'],True,set())
+ job_id=job['id']
+ store.item_update(job_id,'TEST',status='audited',summary={'facts':7})
+ audit_path=store.artifact(job_id,'TEST','audit.json')
+ store.write(audit_path,{'retained':'completed audit'})
+ cached=raw(fact());cached['facts'][0]['ticker']='NEXT'
+ store.write(store.artifact(job_id,'NEXT','source.json'),cached)
+ store.item_update(job_id,'NEXT',status='running')
+ store.update(job_id,status='cancelled')
+ monkeypatch.setattr(source,'fetch',lambda *a:pytest.fail('Cached source must not be fetched again'))
+ monkeypatch.setattr(worker.threading,'Thread',lambda target,args,**kw:SimpleNamespace(start=lambda:target(*args)))
+ with pytest.raises(ValueError,match='Возобновите'):worker.start(job_id)
+ result=control(job_id,'resume')
+ assert result['status']=='ready' and result['counts']['audited']==2
+ assert json.loads(audit_path.read_text())=={'retained':'completed audit'}
+ assert store.items(job_id)[0]['summary']=={'facts':7}
+ with env() as db:assert db.query(FinancialReport).count()==0
+
 def test_full_worker_audit_then_apply_with_backup(env,monkeypatch):
  from app.services.admin import backup_service
  from app.services.analysis import multiplier_service
  monkeypatch.setattr(multiplier_service,'save_report_based_multiplier',lambda *args,**kwargs:None)
  monkeypatch.setattr(multiplier_service,'calculate_current_multipliers',lambda *args,**kwargs:None)
  monkeypatch.setattr(source,'local',lambda ticker:raw(fact()))
+ monkeypatch.setattr(market,'get_shares_outstanding',lambda ticker:{'issuesize':1000})
+ monkeypatch.setattr(market,'traded_close_on_or_before',lambda *args:{'price':25,'date':'2025-12-30'})
  backups=[]
  monkeypatch.setattr(backup_service,'create_postgres_backup',lambda:backups.append('backup') or {'filename':'test.dump'})
  job=store.create(['TEST'],False,set());store.update(job['id'],status='running')
@@ -129,7 +156,68 @@ def test_full_worker_audit_then_apply_with_backup(env,monkeypatch):
  worker.run(job['id'],worker.acquire())
  assert store.get(job['id'])['status']=='completed' and backups==['backup']
  assert store.items(job['id'])[0]['status']=='done'
- with env() as db:assert db.query(FinancialReport).one().revenue==Decimal('2.000')
+ with env() as db:
+  r=db.query(FinancialReport).one()
+  assert r.revenue==Decimal('2.000') and r.price_per_share==Decimal('25') and r.shares_issued==1000
+  assert r.shares_outstanding is None and r.price_at_filing is None
+  recovered=worker.apply_company(db,db.query(Company).one(),store.get(job['id']),{}, {})
+  assert recovered['recovered'] and recovered['moex_added']==2
+ receipt=json.loads(store.artifact(job['id'],'TEST','receipt.json').read_text())
+ assert receipt['moex_added']==2
+
+def test_moex_enriches_existing_reports_without_dump_changes_and_keeps_values(env,monkeypatch):
+ from app.services.analysis import multiplier_service
+ monkeypatch.setattr(multiplier_service,'save_report_based_multiplier',lambda *a,**kw:None)
+ monkeypatch.setattr(multiplier_service,'calculate_current_multipliers',lambda *a,**kw:None)
+ prices=[]
+ monkeypatch.setattr(market,'get_shares_outstanding',lambda ticker:{'issuesize':2000})
+ monkeypatch.setattr(market,'traded_close_on_or_before',lambda ticker,day,splits:prices.append((ticker,day)) or {'price':40,'date':day.isoformat()})
+ with env() as db:
+  r=report(db,revenue=2,price_per_share=12,filing_date=date(2026,3,1))
+  r.currency='USD';r.exchange_rate=2;db.commit()
+  c=db.query(Company).one();c.former_tickers=[{'ticker':'OLD','until':'2026-04-01'}]
+  c.share_splits=[{'date':'2026-02-01','ratio':2}];db.commit()
+  staged=raw(fact());audit=planner.audit(db,c,staged,False)
+  assert not audit['reports']
+  plan=market.prepare(db,c,[r],audit,False)
+  data=market.fetch(plan,lambda msg:None,lambda:None)
+  job=store.create(['TEST'],False,set())
+  receipt=worker.apply_company(db,c,job,audit,staged,data)
+  assert r.price_per_share==12 and r.price_at_filing==20 and r.shares_issued==1000
+  assert prices==[('OLD',date(2026,3,1))]
+  assert receipt['moex_added']==2
+  assert json.loads(r.extraction_notes)['provenance_added']['shares_issued']['current_issuesize']==2000
+
+def test_moex_respects_protection_and_verified_reports(env):
+ with env() as db:
+  r=report(db,revenue=2)
+  c=db.query(Company).one();audit=planner.audit(db,c,raw(fact()),True)
+  assert not market.prepare(db,c,[r],audit,True)['targets']
+  r.verified_by_analyst=True;db.commit()
+  assert not market.prepare(db,c,[r],audit,False)['targets']
+
+def test_moex_missing_prices_are_reported_without_inventing_zeroes(env):
+ with env() as db:
+  r=report(db,revenue=2);c=db.query(Company).one()
+  audit=planner.audit(db,c,raw(fact()),False)
+  data=market.fetch(market.prepare(db,c,[r],audit,False),lambda msg:None,lambda:None)
+  assert not data['reports']
+  assert {m['field'] for m in data['missing']}=={'shares_issued','price_per_share'}
+
+def test_moex_failure_before_commit_leaves_company_unchanged(env,monkeypatch):
+ from app.services.admin import backup_service
+ monkeypatch.setattr(source,'local',lambda ticker:raw(fact()))
+ monkeypatch.setattr(backup_service,'create_postgres_backup',lambda:{'filename':'test.dump'})
+ def fail(ticker):raise RuntimeError('MOEX unavailable')
+ monkeypatch.setattr(market,'get_shares_outstanding',fail)
+ job=store.create(['TEST'],False,set());store.update(job['id'],status='running')
+ worker.run(job['id'],worker.acquire())
+ store.update(job['id'],status='running',phase='apply')
+ worker.run(job['id'],worker.acquire())
+ assert store.items(job['id'])[0]['status']=='error'
+ assert 'MOEX unavailable' in store.items(job['id'])[0]['message']
+ with env() as db:assert db.query(FinancialReport).count()==0
+ assert not store.artifact(job['id'],'TEST','receipt.json').exists()
 
 def test_rate_limit_preserves_resume_and_failure_stops_writes(env,monkeypatch):
  monkeypatch.setattr(source,'fetch',lambda *a:(_ for _ in ()).throw(source.RateLimited(60)))

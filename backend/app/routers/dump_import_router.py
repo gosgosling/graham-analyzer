@@ -91,10 +91,10 @@ def control(job_id:str,action:Literal['pause','resume','apply','retry','cancel']
    store.update(job_id,status='paused',phase='audit');worker.start(job_id)
   elif action=='apply':worker.start(job_id,phase='apply')
   else:
-   if job['status'] not in ['paused','failed']:raise ValueError('Продолжение доступно только после паузы или ошибки')
+   if job['status'] not in ['paused','failed','cancelled']:raise ValueError('Продолжение доступно только после остановки или ошибки')
    worker.recover()
    # Pause during an item leaves it pending/audited after the current request exits.
-   worker.start(job_id)
+   worker.start(job_id,resume_cancelled=job['status']=='cancelled')
   return job_out(store.get(job_id))
  return guarded(execute)
 
