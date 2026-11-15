@@ -1,0 +1,10 @@
+.dev-sync p { line-height: 1.5; }
+.dev-sync-actions { display: flex; flex-wrap: wrap; gap: 12px; margin: 16px 0; }
+.dev-sync details { margin-top: 12px; }
+.dev-sync summary { cursor: pointer; }
+.dev-sync-error { color: var(--color-danger-text, #b91c1c); }
+.dev-sync-table { max-height: 320px; overflow: auto; margin-top: 10px; }
+.dev-sync-table table { width: 100%; border-collapse: collapse; font-size: .86rem; }
+.dev-sync-table th, .dev-sync-table td { padding: 8px; border-bottom: 1px solid var(--color-border-default); text-align: left; }
+.dev-sync-table thead { position: sticky; top: 0; background: var(--color-bg-surface); }
+.dev-sync code { overflow-wrap: anywhere; }

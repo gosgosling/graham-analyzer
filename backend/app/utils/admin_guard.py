@@ -111,6 +111,11 @@ class AdminGuardMiddleware(BaseHTTPMiddleware):
             if needs_csrf(method):
                 logger.info("admin %s %s (пользователь %s, %s)", method, path, user_id, client_ip(request))
 
+        if needs_csrf(method) and not _matches(path, '/admin/dev-sync'):
+            from app.services.admin.dev_sync_service import writes_blocked
+            if writes_blocked():
+                return _deny(503, 'Идёт синхронизация prod → dev. Дождитесь завершения перед редактированием.')
+
         return await call_next(request)
 
 

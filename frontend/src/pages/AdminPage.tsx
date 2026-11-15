@@ -7,6 +7,7 @@ import DbBackupButton from '../components/DbBackupButton';
 import DataSourcesPanel from '../components/DataSourcesPanel';
 import TInvestSyncBar from '../components/TInvestSyncBar';
 import ThemeToggle from '../components/ThemeToggle';
+import DevSyncPanel from '../components/DevSyncPanel';
 import './AdminPage.css';
 
 /**
@@ -79,6 +80,8 @@ export default function AdminPage() {
           ))}
         </div>
       </section>
+
+      <DevSyncPanel />
 
       <section className="admin-card">
         <h2>Источники данных</h2>
