@@ -811,19 +811,19 @@ def test_числа_грэма_нет_при_убытке_или_отрицат�
     assert graham_numbers(negative_equity) == {}
 
 
-def test_ltm_не_подставляется_до_конца_полугодия():
-    """До 30 июня полугодия не существует — LTM нет, база не трогается вовсе.
+def test_ltm_не_подставляется_до_конца_первого_квартала():
+    """До 31 марта промежуточного периода ещё нет — база не трогается.
 
     Дальше решает дата раскрытия самого отчёта (`app.utils.disclosure`):
-    фактическая, если есть, иначе 30 июня + 60 дней. Иначе оценка в июле
-    знала бы полугодие, которого рынок ещё не видел.
+    фактическая, если есть, иначе конец периода + 60 дней. Иначе оценка
+    знала бы отчёт, которого рынок ещё не видел.
     """
     from datetime import date
 
     from app.services.analysis.earning_power import with_ltm
 
     points = [YearPoint(year=2025, eps=100.0, shares_normalized=1_000_000.0)]
-    assert with_ltm(None, 1, points, date(2026, 6, 29)) is points
+    assert with_ltm(None, 1, points, date(2026, 3, 30)) is points
 
 
 def test_known_split_recognised_even_if_equity_moved():

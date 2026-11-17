@@ -414,7 +414,7 @@ def valuation_segments(
         graham_numbers, with_ltm,
     )
 
-    from app.utils.disclosure import default_disclosure, disclosure_dates
+    from app.utils.disclosure import disclosure_dates
 
     points = load_points(db, company.id, separate_cash=True)
     models = year_models(db, company, window, points=points)
@@ -431,30 +431,21 @@ def valuation_segments(
         for year, _price, evaluate in models
     ]
 
-    # Ступени по последним двенадцати месяцам — для каждого года, где раскрыты
-    # оба полугодия. Такая ступень встаёт в день раскрытия полугодия Y и
-    # сменяет годовую ступень Y−1: отчёт, которому уже полгода, дальше не
-    # держит оценку до весны, а уступает место свежим числам. Годовая ступень
-    # Y, вышедшая следующей весной, сменяет её в свою очередь.
-    #
-    # Ряд для каждой такой ступени обрезается годом Y−1: LTM собирается из
-    # отчётов, раскрытых к её дате, и из будущих лет не видит ничего.
+    # Ступень на каждое раскрытие квартального/полугодового YTD.
+    # with_ltm выбирает последнюю сопоставимую тройку, известную в этот день.
     from app.models.financial_report import FinancialReport
+    from app.services.analysis.periods import period_months
+    from app.utils.disclosure import disclosed_on
 
-    half_years = sorted({
-        row[0] for row in db.query(FinancialReport.fiscal_year).filter(
-            FinancialReport.company_id == company.id,
-            FinancialReport.period_type == "SEMI_ANNUAL",
-        )
-    }) if points else []
-    for year in half_years:
-        # LTM собирается из годового отчёта Y−1 и двух полугодий: раньше, чем
-        # раскрыты все три, ступени нет — иначе она знала бы годовой отчёт до
-        # его публикации.
-        start = max(
-            disclosed.get((year, "SEMI_ANNUAL"), default_disclosure(year, "SEMI_ANNUAL")),
-            annual_start(year - 1),
-        )
+    interims = db.query(FinancialReport).filter(
+        FinancialReport.company_id == company.id,
+        FinancialReport.period_type.in_(("SEMI_ANNUAL", "QUARTERLY")),
+    ).all() if points else []
+    events = sorted({
+        (max(disclosed_on(row), annual_start(row.fiscal_year - 1)), row.fiscal_year)
+        for row in interims if period_months(row) in (3, 6, 9)
+    })
+    for start, year in events:
         trimmed = [p for p in points if p.year <= year - 1]
         if start > today or not trimmed or trimmed[-1].year != year - 1:
             continue

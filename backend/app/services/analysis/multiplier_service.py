@@ -432,6 +432,7 @@ def _try_interim_ltm(
     company_id: int,
     latest: FinancialReport,
     splits: Any = None,
+    as_of: Optional[date] = None,
 ) -> Optional[Tuple[Dict[str, Optional[float]], str]]:
     """LTM = prior FY + current YTD − prior-year same YTD (если все три отчёта есть)."""
     if latest.period_type == PeriodType.ANNUAL:
@@ -453,6 +454,12 @@ def _try_interim_ltm(
         fiscal_quarter=latest.fiscal_quarter,
         anchor=latest,
     )
+    if as_of is not None:
+        from app.utils.disclosure import disclosed_on
+        if prior_fy is not None and disclosed_on(prior_fy) > as_of:
+            return None
+        if prior_ytd is not None and disclosed_on(prior_ytd) > as_of:
+            prior_ytd = None
     prior_ytd = comparative_prior(latest, prior_ytd)
     if prior_fy is None or prior_ytd is None:
         return None
@@ -514,7 +521,7 @@ def _flow_to_ltm_payload(flow: Dict[str, Optional[float]]) -> Dict[str, Optional
     }
 
 
-def get_ltm_data(db: Session, company_id: int) -> Optional[Dict]:
+def get_ltm_data(db: Session, company_id: int, as_of: Optional[date] = None) -> Optional[Dict]:
     """
     Вычисляет LTM финансовые данные для компании.
 
@@ -531,24 +538,20 @@ def get_ltm_data(db: Session, company_id: int) -> Optional[Dict]:
     ⚠️ Промежуточные отчёты должны содержать накопительные (YTD) значения
     за период с начала года — как в публикуемой отчётности эмитента.
     """
-    # Последний годовой отчёт
-    annual: Optional[FinancialReport] = (
-        db.query(FinancialReport)
-        .filter(
-            FinancialReport.company_id == company_id,
-            FinancialReport.period_type == PeriodType.ANNUAL,
-        )
-        .order_by(FinancialReport.report_date.desc())
-        .first()
-    )
+    from app.utils.disclosure import disclosed_on
 
-    # Самый свежий отчёт для балансовых данных (любой тип)
-    latest: Optional[FinancialReport] = (
-        db.query(FinancialReport)
-        .filter(FinancialReport.company_id == company_id)
-        .order_by(FinancialReport.report_date.desc())
-        .first()
-    )
+    # Те же правила раскрытия, что в оценке и на историческом графике.
+    # Загруженная строка без даты публикации ещё не задаёт дату доступности:
+    # используем общий запасной лаг, а не берём её из будущего.
+    as_of = as_of or date.today()
+    reports = db.query(FinancialReport).filter(
+        FinancialReport.company_id == company_id,
+    ).order_by(FinancialReport.report_date.desc(), FinancialReport.id.desc()).all()
+    available = [r for r in reports if disclosed_on(r) <= as_of]
+    latest = available[0] if available else None
+    annual = next((r for r in available if r.period_type == PeriodType.ANNUAL
+                   and r.accounting_standard == latest.accounting_standard
+                   and r.consolidated == latest.consolidated), None)
 
     if latest is None:
         return None
@@ -569,7 +572,7 @@ def get_ltm_data(db: Session, company_id: int) -> Optional[Dict]:
         flow = _flow_fields_rub(latest, is_bank, splits)
         source = "annual"
     else:
-        interim = _try_interim_ltm(db, company_id, latest, splits)
+        interim = _try_interim_ltm(db, company_id, latest, splits, as_of=as_of)
         if interim is not None:
             flow, source = interim
         elif _covers_full_year(latest):

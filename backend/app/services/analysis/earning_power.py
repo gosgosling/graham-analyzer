@@ -1642,93 +1642,79 @@ def retention_test(points: Iterable[YearPoint], window: int,
 
 
 
-# Сколько ждать раскрытия полугодовой отчётности после конца полугодия.
-# Промежуточную консолидированную отчётность МСФО публичная компания раскрывает
-# в течение 60 дней; ЛУКОЙЛ за 1П2026 вышел в конце августа. Так же, как с
-# годовым отчётом, ошибиться в большую сторону безопаснее: лишние дни сдвинут
-# ступень, заглядывание вперёд сделает её ложной.
-INTERIM_LAG_DAYS = 60  # то же, что `app.utils.disclosure.INTERIM_LAG`
-
-
-def _flow_ltm(fy, h1_now, h1_prev, field: str) -> Optional[float]:
-    """Поток за последние 12 месяцев: год + свежее полугодие − прошлое полугодие."""
+def _flow_ltm(fy, current, prior, field: str) -> Optional[float]:
+    """Поток за 12 месяцев: полный год + текущий YTD − прошлогодний YTD."""
     from app.services.analysis.multiplier_service import _field_rub
 
-    parts = [_field_rub(r, field) for r in (fy, h1_now, h1_prev)]
+    parts = [_field_rub(r, field) for r in (fy, current, prior)]
     if any(part is None for part in parts):
         return None
     return parts[0] + parts[1] - parts[2]
 
 
 def with_ltm(db, company_id: int, points: list, as_of, separate_cash: bool = False) -> list:
-    """Ряд, где последняя годовая точка заменена последними двенадцатью месяцами.
+    """Заменяет последний год LTM по самому свежему доступному YTD.
 
-    Годовой ряд запаздывает: ступень по отчёту за 2017 год ЛУКОЙЛа жила с
-    апреля 2018-го по апрель 2019-го, а прибыль 2018 года рынок видел весь год
-    по квартальным отчётам. Здесь последняя годовая точка заменяется на LTM:
-
-        поток за 12 мес = год Y−1 + 1П года Y − 1П года Y−1
-        баланс          = на конец 1П года Y
-
-    Заменяется, а не добавляется: добавленная точка посчитала бы второе
-    полугодие Y−1 дважды. Число акций — то же, что у годовой точки, чтобы
-    приведение к дроблениям осталось прежним; выкуп за полгода на
-    нормальный уровень не влияет.
-
-    Возвращает исходный ряд без изменений, если любого из трёх отчётов нет или
-    свежее полугодие к `as_of` ещё не раскрыто.
-
-    `separate_cash` — как в `load_points`: проценты за 12 месяцев собираются
-    теми же тремя отчётами, касса — на конец полугодия.
+    FY Y−1 + 3/6/9 месяцев Y − те же месяцы Y−1. Баланс — текущего
+    промежуточного отчёта. Все документы должны быть раскрыты к as_of;
+    стандарт и периметр совпадают. Сравнительная колонка имеет приоритет.
+    Если свежую тройку собрать нельзя, пробуем более ранний промежуточный
+    период, затем оставляем годовую точку. Число точек и шкала акций прежние.
     """
-    from datetime import date, timedelta
+    from datetime import date
     from dataclasses import replace
 
     from app.models.financial_report import FinancialReport
-    from app.services.analysis.multiplier_service import _field_rub
+    from app.models.enums import PeriodType
+    from app.services.analysis.multiplier_service import (
+        _field_rub, _find_matching_report, comparative_prior,
+    )
+    from app.services.analysis.periods import period_months
+    from app.utils.disclosure import disclosed_on
 
     if not points:
         return points
     last = points[-1]
     year = last.year + 1
-    if as_of < date(year, 6, 30):
+    if as_of < date(year, 3, 31) or not last.shares_normalized:
         return points
 
-    def report(fiscal_year, period):
-        return (
-            db.query(FinancialReport)
-            .filter(
-                FinancialReport.company_id == company_id,
-                FinancialReport.fiscal_year == fiscal_year,
-                FinancialReport.period_type == period,
-            )
-            .first()
+    candidates = db.query(FinancialReport).filter(
+        FinancialReport.company_id == company_id,
+        FinancialReport.fiscal_year == year,
+        FinancialReport.period_type.in_((PeriodType.SEMI_ANNUAL, PeriodType.QUARTERLY)),
+    ).all()
+    candidates = sorted(
+        (r for r in candidates if period_months(r) in (3, 6, 9)
+         and disclosed_on(r) <= as_of),
+        key=lambda r: (period_months(r), disclosed_on(r), r.id), reverse=True,
+    )
+    for current in candidates:
+        fy = _find_matching_report(
+            db, company_id, period_type=PeriodType.ANNUAL, fiscal_year=last.year,
+            fiscal_quarter=None, anchor=current,
         )
-
-    from app.services.analysis.multiplier_service import comparative_prior
-
-    fy = report(last.year, "ANNUAL")
-    h1_now = report(year, "SEMI_ANNUAL")
-    # Полугодие считается известным со дня его раскрытия — фактического, если
-    # он есть в базе, иначе 30 июня + INTERIM_LAG_DAYS.
-    from app.utils.disclosure import disclosed_on
-
-    if h1_now is None or as_of < disclosed_on(h1_now):
+        prior = _find_matching_report(
+            db, company_id, period_type=current.period_type, fiscal_year=last.year,
+            fiscal_quarter=current.fiscal_quarter, anchor=current,
+        )
+        # Сравнительная колонка известна вместе со свежим документом;
+        # отдельный прошлогодний отчёт не должен попадать из будущего.
+        if prior is not None and disclosed_on(prior) > as_of:
+            prior = None
+        prior = comparative_prior(current, prior)
+        if fy is None or disclosed_on(fy) > as_of or prior is None:
+            continue
+        profit = _flow_ltm(fy, current, prior, "net_income_reported")
+        if profit is not None:
+            break
+    else:
         return points
-    # Прошлое полугодие — из сравнительной колонки свежего отчёта, если она
-    # заполнена: при пересчёте между полугодиями вычитать надо сопоставимое, а
-    # не опубликованное год назад. См. `FinancialReport.comparative`.
-    h1_prev = comparative_prior(h1_now, report(last.year, "SEMI_ANNUAL")) if h1_now else None
-    if not (fy and h1_now and h1_prev and last.shares_normalized):
-        return points
 
-    profit = _flow_ltm(fy, h1_now, h1_prev, "net_income_reported")
-    if profit is None:
-        return points
-    depreciation = _flow_ltm(fy, h1_now, h1_prev, "depreciation_amortization")
-    capex = _flow_ltm(fy, h1_now, h1_prev, "capex")
-    operating_cash = _flow_ltm(fy, h1_now, h1_prev, "operating_cash_flow")
-    equity = _field_rub(h1_now, "equity")
+    depreciation = _flow_ltm(fy, current, prior, "depreciation_amortization")
+    capex = _flow_ltm(fy, current, prior, "capex")
+    operating_cash = _flow_ltm(fy, current, prior, "operating_cash_flow")
+    equity = _field_rub(current, "equity")
     shares = float(last.shares_normalized)
 
     reported_profit = profit
@@ -1736,15 +1722,15 @@ def with_ltm(db, company_id: int, points: list, as_of, separate_cash: bool = Fal
     net_cash = cash_after_tax = None
     in_flow = 0.0
     if separate_cash:
-        received = _flow_ltm(fy, h1_now, h1_prev, "interest_received")
+        received = _flow_ltm(fy, current, prior, "interest_received")
         parts = None
         if received is not None:
             # Ставка налога — года, на который приходится конец LTM: в 1П2025
             # уже действуют 25%.
-            parts = _cash_parts(h1_now, _company_type(db, company_id), year, received)
+            parts = _cash_parts(current, _company_type(db, company_id), year, received)
         if parts is not None:
             net_cash, cash_after_tax, in_flow = parts
-            # Проценты в потоке — по признаку полугодия: раздел, куда их
+            # Проценты в потоке — по признаку свежего отчёта: раздел, куда их
             # ставит компания, от отчёта к отчёту не меняется.
             profit -= cash_after_tax
             if equity is not None:
@@ -1754,8 +1740,8 @@ def with_ltm(db, company_id: int, points: list, as_of, separate_cash: bool = Fal
         return None if value is None else round(value * 1_000_000 / shares, 6)
 
     # Поток и поддерживающий капекс — теми же долями, что в годовой точке:
-    # разделить капекс полугодия по приёму Гринвальда не по чему, а доля
-    # поддерживающего — свойство дела, не полугодия.
+    # разделить промежуточный капекс по приёму Гринвальда не по чему, а доля
+    # поддерживающего — свойство дела, а не длины периода.
     fcf = None
     if operating_cash is not None and capex is not None:
         fcf = operating_cash - capex - in_flow
@@ -1764,7 +1750,7 @@ def with_ltm(db, company_id: int, points: list, as_of, separate_cash: bool = Fal
         maintenance = capex * (last.capex_maintenance / last.capex)
     maintenance, _ = maintenance_floor(maintenance, None, capex, depreciation)
     # Та же база, что у годовых точек: нормализованная прибыль, где она есть.
-    owner_profit = _flow_ltm(fy, h1_now, h1_prev, "net_income")
+    owner_profit = _flow_ltm(fy, current, prior, "net_income")
     if owner_profit is None:
         owner_profit = profit
     elif cash_after_tax is not None:
@@ -1785,6 +1771,7 @@ def with_ltm(db, company_id: int, points: list, as_of, separate_cash: bool = Fal
     # без последней точки: дыра в конце ряда тянула среднюю вниз так же, как
     # настоящий провал. Если поток за LTM не посчитать, остаётся годовой —
     # он хотя бы измерен, а прибыль при этом берётся свежая.
+    label = {3: "1К", 6: "1П", 9: "9М"}[period_months(current)]
     cash_known = fcf is not None
     owner_known = owner is not None
     rolled = replace(
@@ -1805,7 +1792,7 @@ def with_ltm(db, company_id: int, points: list, as_of, separate_cash: bool = Fal
         depreciation=depreciation if depreciation is not None else last.depreciation,
         accrual_gap=gap,
         distorted=distorted,
-        ltm_label=f"LTM 1П{year}",
+        ltm_label=f"LTM {label}{year}",
     )
     return [*points[:-1], rolled]
 

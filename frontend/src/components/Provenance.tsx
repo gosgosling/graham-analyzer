@@ -103,13 +103,16 @@ export function ltmComposition(current: CurrentMultipliers, reports: FinancialRe
     case 'annual':
       return annual ? `годовой отчёт ${annual.fiscal_year}` : 'годовой отчёт';
     case 'semi_annual_derived':
-      return balance && annual
-        ? `${annual.fiscal_year} год + 6 мес. ${balance.fiscal_year} − 6 мес. ${balance.fiscal_year - 1}`
+      return balance
+        ? `${balance.fiscal_year - 1} год + 6 мес. ${balance.fiscal_year} − 6 мес. ${balance.fiscal_year - 1}`
         : 'год + полугодие − прошлое полугодие';
+    case 'quarterly_1_derived':
+    case 'quarterly_2_derived':
     case 'quarterly_3_derived':
-      return balance && annual
-        ? `${annual.fiscal_year} год + 9 мес. ${balance.fiscal_year} − 9 мес. ${balance.fiscal_year - 1}`
-        : 'год + 9 мес. − прошлые 9 мес.';
+      const months = Number(current.ltm_source.split('_')[1]) * 3;
+      return balance
+        ? `${balance.fiscal_year - 1} год + ${months} мес. ${balance.fiscal_year} − ${months} мес. ${balance.fiscal_year - 1}`
+        : `год + ${months} мес. − прошлые ${months} мес.`;
     case 'ytd_full_year':
       return 'отчёт за полный год';
     default:

@@ -37,18 +37,21 @@ PUBLICATION_MIN_LAG = timedelta(days=30)
 PUBLICATION_MAX_LAG = timedelta(days=540)
 
 
-def period_end(fiscal_year: int, period_type: str) -> date:
+def period_end(fiscal_year: int, period_type: str, fiscal_quarter: Optional[int] = None) -> date:
     kind = str(getattr(period_type, "value", period_type)).upper()
     if kind == "SEMI_ANNUAL":
         return date(int(fiscal_year), 6, 30)
+    if kind == "QUARTERLY" and fiscal_quarter in (1, 2, 3, 4):
+        month = fiscal_quarter * 3
+        return date(int(fiscal_year), month, 31 if month in (3, 12) else 30)
     return date(int(fiscal_year), 12, 31)
 
 
-def default_disclosure(fiscal_year: int, period_type: str) -> date:
+def default_disclosure(fiscal_year: int, period_type: str, fiscal_quarter: Optional[int] = None) -> date:
     """Дата по правилу — там, где фактической нет."""
     kind = str(getattr(period_type, "value", period_type)).upper()
-    lag = INTERIM_LAG if kind == "SEMI_ANNUAL" else ANNUAL_LAG
-    return period_end(fiscal_year, kind) + lag
+    lag = INTERIM_LAG if kind in ("SEMI_ANNUAL", "QUARTERLY") else ANNUAL_LAG
+    return period_end(fiscal_year, kind, fiscal_quarter) + lag
 
 
 def disclosed_on(report) -> date:
@@ -57,14 +60,15 @@ def disclosed_on(report) -> date:
     if actual is not None:
         return actual
     kind = getattr(report, "period_type", None) or "ANNUAL"
-    end = period_end(report.fiscal_year, kind)
+    quarter = getattr(report, "fiscal_quarter", None)
+    end = period_end(report.fiscal_year, kind, quarter)
     filed = getattr(report, "filing_date", None)
     if filed is not None and PUBLICATION_MIN_LAG <= filed - end <= PUBLICATION_MAX_LAG:
         return filed
     published = getattr(report, "report_date", None)
     if published is not None and published - end >= PUBLICATION_MIN_LAG:
         return published
-    return default_disclosure(report.fiscal_year, kind)
+    return default_disclosure(report.fiscal_year, kind, quarter)
 
 
 def disclosure_dates(db, company_id: int) -> dict:
