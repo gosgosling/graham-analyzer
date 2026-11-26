@@ -5,12 +5,13 @@ interface Props {
   columns: { id: number; label: string }[];
   children: React.ReactNode;
   filters?: React.ReactNode;
+  actions?: React.ReactNode;
 }
 
 /** The document owns vertical scrolling. Only the columns scroll inside the table.
  * A translated thead stays below the site header without a second, duplicated table.
  */
-export default function ReportMatrixViewport({ columns, children, filters }: Props) {
+export default function ReportMatrixViewport({ columns, children, filters, actions }: Props) {
   const root = useRef<HTMLDivElement>(null);
   const viewport = useRef<HTMLDivElement>(null);
   const toolbar = useRef<HTMLDivElement>(null);
@@ -88,6 +89,7 @@ export default function ReportMatrixViewport({ columns, children, filters }: Pro
     };
     const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(schedule) : null;
     observer?.observe(el);
+    if (toolbar.current) observer?.observe(toolbar.current);
     const table = el.querySelector('table');
     if (table) observer?.observe(table);
     el.addEventListener('scroll', schedule, { passive: true });
@@ -107,7 +109,7 @@ export default function ReportMatrixViewport({ columns, children, filters }: Pro
   }, [columnKey, children]);
 
   return <div className="crm-matrix" ref={root}>
-    {(columns.length > 0 || filters) && <div className="crm-navigation" ref={toolbar}>
+    {(columns.length > 0 || filters || actions) && <div className="crm-navigation" ref={toolbar}>
       {filters}
       <label>К отчёту{' '}
         <select aria-label="Перейти к отчёту" defaultValue="" onChange={event => {
@@ -124,6 +126,7 @@ export default function ReportMatrixViewport({ columns, children, filters }: Pro
           {columns.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
         </select>
       </label>
+      {actions && <div className="crm-navigation-actions">{actions}</div>}
       <span className="crm-navigation-hint">Поля — прокрутка страницы · Отчёты — ползунок снизу или Shift + колесо</span>
     </div>}
     <div className="crm-table-scroll" ref={viewport} role="region" aria-label="Матрица отчётов" tabIndex={0}>{children}</div>

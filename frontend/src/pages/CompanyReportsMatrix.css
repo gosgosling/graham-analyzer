@@ -409,3 +409,34 @@
 .crm-quick-year:hover:not(:disabled) {
   background: var(--color-bg-hover);
 }
+
+/* Workspace uses the document's existing vertical scroll; no nested window. */
+body.crm-workspace .App > .sh,
+body.crm-workspace .App > .site-footer,
+body.crm-workspace .crm-header { display: none; }
+body.crm-workspace .App > .crm-page {
+  max-width: none;
+  width: 100%;
+  margin: 0;
+  padding: 0 0 64px;
+  min-height: 100dvh;
+  box-sizing: border-box;
+}
+body.crm-workspace .crm-col-meta,
+body.crm-workspace .crm-col-date,
+body.crm-workspace .crm-col-badges,
+body.crm-workspace .crm-saved-actions,
+body.crm-workspace .crm-navigation-hint { display: none; }
+body.crm-workspace .crm-th-col { padding: 7px 8px; }
+body.crm-workspace .crm-th-label { padding-top: 7px; padding-bottom: 7px; }
+body.crm-workspace .crm-col-head { gap: 0; }
+body.crm-workspace .crm-navigation { border-radius: 0; gap: 6px 12px; min-height: 40px; padding: 5px 8px; }
+body.crm-workspace .crm-navigation select { padding: 4px 6px; }
+body.crm-workspace .crm-navigation-actions { margin-left: auto; }
+body.crm-workspace .crm-scroll-dock { bottom: 4px; padding: 4px 8px; }
+.crm-navigation-actions { display: flex; align-items: center; gap: 8px; }
+.crm-workspace-company { display: none; }
+body.crm-workspace .crm-workspace-company { display: inline; font-size: 12px; font-weight: 700; color: var(--color-text-secondary); }
+.crm-workspace-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.crm-workspace-toggle { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.crm-workspace-error { color: var(--color-text-secondary); font-size: 12px; max-width: 250px; }

@@ -21,6 +21,7 @@ import { computeFcf } from '../utils/fcf';
 import { computeNetDebt } from '../utils/netDebt';
 import AiParsePdfModal from '../components/AiParsePdfModal';
 import ReportMatrixViewport from '../components/ReportMatrixViewport';
+import MatrixWorkspaceControls, { useMatrixWorkspace } from '../components/MatrixWorkspaceControls';
 import './CompanyReportsMatrix.css';
 
 type CellKind = 'text' | 'number' | 'int' | 'date' | 'bool' | 'select' | 'textarea' | 'readonly';
@@ -378,6 +379,7 @@ const CompanyReportsMatrix: React.FC = () => {
   const companyId = Number(companyIdParam);
   const queryClient = useQueryClient();
 
+  const { workspace, setWorkspace } = useMatrixWorkspace();
   const [periodFilter, setPeriodFilter] = useState('all');
   const [quickPeriod, setQuickPeriod] = useState<PeriodPreset>('annual');
   // Двадцать лет назад: Грэму нужна средняя прибыль за 7–10 лет, а самые
@@ -891,7 +893,8 @@ const CompanyReportsMatrix: React.FC = () => {
       </header>
 
       <ReportMatrixViewport
-        columns={displayReports.map(r => ({ id: r.id, label: r.id === MATRIX_DRAFT_ID ? 'Новый отчёт' : `${periodShort(r)} · ${r.accounting_standard}` }))}
+        actions={<><span className="crm-workspace-company">{company.ticker}</span><MatrixWorkspaceControls active={workspace} onChange={setWorkspace} /></>}
+        columns={displayReports.map(r => ({ id: r.id, label: r.id === MATRIX_DRAFT_ID ? 'Новый отчёт' : `${periodShort(r)}${workspace ? '' : ` · ${r.accounting_standard}`}` }))}
         filters={<label>Периоды{' '}
           <select aria-label="Тип отчётов в матрице" value={periodFilter} onChange={e => setPeriodFilter(e.target.value)}>
             <option value="all">Все ({sortedReports.length})</option>
@@ -960,7 +963,8 @@ const CompanyReportsMatrix: React.FC = () => {
                       </div>
                     </th>
                   ) : (
-                    <th key={r.id} data-report-id={r.id} scope="col" className="crm-th-col">
+                    <th key={r.id} data-report-id={r.id} scope="col" className="crm-th-col"
+                      title={workspace ? `${periodShort(r)} · ${r.accounting_standard} · ${sliceIsoDate(r.report_date)}` : undefined}>
                       <div className="crm-col-head">
                         <div className="crm-col-period">{periodShort(r)}</div>
                         <div className="crm-col-meta">
@@ -974,7 +978,7 @@ const CompanyReportsMatrix: React.FC = () => {
                             <span className="crm-badge pending">не проверен</span>
                           )}
                         </div>
-                        <div className="crm-col-actions">
+                        <div className="crm-col-actions crm-saved-actions">
                           {r.verified_by_analyst === false && (
                             <button
                               type="button"
