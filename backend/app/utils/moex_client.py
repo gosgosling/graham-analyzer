@@ -1,5 +1,6 @@
 import logging
 import requests
+from app.utils.http_session import external_session
 from datetime import date, datetime, timedelta, timezone
 from typing import List, Dict, Optional, Tuple
 
@@ -20,11 +21,10 @@ _moex_session: Optional[requests.Session] = None
 
 
 def _moex_get(url: str, **kwargs) -> requests.Response:
-    """GET к MOEX ISS, игнорируя HTTPS_PROXY / HTTP_PROXY из окружения."""
+    """GET к MOEX без системных прокси, с настроенным хранилищем CA."""
     global _moex_session  # noqa: PLW0603
     if _moex_session is None:
-        _moex_session = requests.Session()
-        _moex_session.trust_env = False
+        _moex_session = external_session()
     timeout = kwargs.pop("timeout", 15)
     return _moex_session.get(url, timeout=timeout, **kwargs)
 
